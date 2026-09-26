@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.net.URI
 import java.security.KeyPairGenerator
 import java.security.KeyStore
-import java.security.interfaces.RSAPrivateKey
+import java.security.PrivateKey
 import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.spec.OAEPParameterSpec
@@ -61,7 +61,8 @@ class LocalCorePairingManager(
         val originText = preferences.getString("$operationId.origin", null) ?: error("配对请求已过期或不属于此应用实例")
         val created = preferences.getLong("$operationId.created", 0L)
         require(System.currentTimeMillis() - created in 0..MAX_AGE_MS) { "配对请求已过期" }
-        val privateKey = keyStore.getKey(alias(operationId), null) as? RSAPrivateKey ?: error("配对私钥不可用")
+        val privateKey = keyStore.getKey(alias(operationId), null) as? PrivateKey ?: error("配对私钥不可用")
+        require(privateKey.algorithm.equals(KeyProperties.KEY_ALGORITHM_RSA, ignoreCase = true)) { "配对私钥算法无效" }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, privateKey, OAEP_SPEC)
         val plaintext = cipher.doFinal(Base64.decode(encoded, Base64.DEFAULT)).toString(Charsets.UTF_8)

@@ -56,10 +56,12 @@ class WorkbenchNavigationTest {
         navigate(WorkbenchScreen.Tasks)
         compose.runOnIdle { model.setFixtureScenario("empty") }
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.tasks.isEmpty() }
+        waitForNodeWithTag("tasks-empty")
         compose.onNodeWithTag("tasks-empty").performScrollTo().assertIsDisplayed()
         capture(directory, WorkbenchScreen.Tasks, "tasks-empty")
         compose.runOnIdle { model.setFixtureScenario("error") }
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.errors.containsKey("tasks") }
+        waitForNodeWithTag("resource-error")
         compose.onNodeWithTag("resource-error").assertIsDisplayed()
         compose.onNodeWithTag("tasks-empty").assertDoesNotExist()
         capture(directory, WorkbenchScreen.Tasks, "tasks-error")
@@ -126,8 +128,10 @@ class WorkbenchNavigationTest {
     @Test fun fixtureProjectTreeIsInspectableWithoutStorageWrites() {
         navigate(WorkbenchScreen.ProjectsFiles)
         compose.waitUntil(10000) { model.state.value.projectRoots.isNotEmpty() }
+        waitForText("Android Demo")
         compose.onNodeWithText("Android Demo").performScrollTo().performClick()
         compose.waitUntil(10000) { model.state.value.projectFiles.any { it.relativePath == "README.md" } }
+        waitForText("README.md · 128 B")
         compose.onNodeWithText("README.md · 128 B").performScrollTo().performClick()
         compose.waitUntil(10000) { model.state.value.projectPreview.contains("No real file was read") }
     }
@@ -175,6 +179,14 @@ class WorkbenchNavigationTest {
         compose.waitUntil(10000) { model.state.value.settings.density == "compact" }
         navigate(WorkbenchScreen.Settings)
         capture(directory, WorkbenchScreen.Settings, "settings-expanded-compact")
+    }
+
+    private fun waitForNodeWithTag(tag: String) {
+        compose.waitUntil(10000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size == 1 }
+    }
+
+    private fun waitForText(text: String) {
+        compose.waitUntil(10000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1 }
     }
 
     private fun navigate(screen: WorkbenchScreen) {
