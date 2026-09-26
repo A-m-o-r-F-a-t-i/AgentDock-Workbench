@@ -18,6 +18,7 @@
 | Termux 部署 | journal、续接/取消、签名门禁、安全解包、schema 快照、健康回退、保留、恢复退避/熔断 | 41 项 test_deployment.py、桥契约测试 |
 | 项目文件 | SAF 有界 ZIP 导入导出、目录树/预览、Termux 路径探针和创建工程 | ProjectArchivePolicyTest、项目 Fixture |
 | 后台与设置 | WorkManager/FGS/Tile、Wi-Fi/充电约束、通知、主题、密度、Core 输出设置 | GuardianConstraintPolicyTest、适配截图 |
+| 脚本治理 | 6 个 WB07 CI/测试脚本进入共享清单；候选工作流只允许新增这些登记，不允许删除旧条目或扩大跨线路径 | TestScriptGovernanceInventoryCoversWorkspaceScripts、Source and bridge contracts |
 
 ## 自动化门禁
 
@@ -27,6 +28,7 @@
 - 部署测试不少于 41 项，包含 13 个逐阶段中断恢复案例和真实 OpenSSL 签名验证。
 - Android 仪器测试不少于 13 项，全部通过且无跳过。
 - API 26、33、34、35、37 每个模拟器均需 23 张有效 PNG、真实 API 一致且单次运行成功。
+- Ubuntu/Windows 通用 Go 检查覆盖共享脚本清单；Ubuntu 还执行完整 Linux 脚本入口回归。
 
 ## 仅真机或外部发布线可验证
 
