@@ -17,9 +17,25 @@ class CredentialStore(context: Context) {
     private val preferences = context.getSharedPreferences("agentdock_credentials", Context.MODE_PRIVATE)
     private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
-    fun putCore(origin: URI, bearer: String) = put("core_bearer", CoreCredentialBinding.encode(origin, bearer))
+    fun putCore(origin: URI, bearer: String) {
+        put("core_bearer", CoreCredentialBinding.encode(origin, bearer))
+        clear("oauth_session")
+    }
+
+    fun putOAuth(origin: URI, accessToken: String, expiresAtEpochMs: Long, clientId: String, issuer: String) {
+        put("oauth_session", OAuthCredentialBinding.encode(origin, accessToken, expiresAtEpochMs, clientId, issuer))
+        clear("core_bearer")
+    }
 
     fun getCore(origin: URI): String = CoreCredentialBinding.decode(get("core_bearer"), origin)
+        .ifBlank { OAuthCredentialBinding.access(get("oauth_session"), origin) }
+
+    fun oauthStatus(origin: URI): OAuthCredentialStatus = OAuthCredentialBinding.status(get("oauth_session"), origin)
+
+    fun clearCoreCredentials() {
+        clear("core_bearer")
+        clear("oauth_session")
+    }
 
     fun put(name: String, value: String) {
         require(name in ALLOWED_KEYS)
@@ -65,6 +81,6 @@ class CredentialStore(context: Context) {
     companion object {
         private const val KEY_ALIAS = "agentdock.workbench.credentials.v1"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private val ALLOWED_KEYS = setOf("core_bearer", "pairing_secret", "public_access_secret")
+        private val ALLOWED_KEYS = setOf("core_bearer", "oauth_session", "pairing_secret", "public_access_secret")
     }
 }

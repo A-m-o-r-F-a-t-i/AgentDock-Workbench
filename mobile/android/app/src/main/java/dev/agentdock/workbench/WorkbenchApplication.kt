@@ -2,9 +2,12 @@ package dev.agentdock.workbench
 
 import android.app.Application
 import dev.agentdock.workbench.data.CredentialStore
+import dev.agentdock.workbench.data.SafProjectStore
+import dev.agentdock.workbench.data.RemoteOAuthPairingManager
 import dev.agentdock.workbench.data.SettingsStore
 import dev.agentdock.workbench.data.WorkbenchRepository
 import dev.agentdock.workbench.termux.PendingOperationStore
+import dev.agentdock.workbench.termux.LocalCorePairingManager
 import dev.agentdock.workbench.termux.TermuxCommandDispatcher
 
 class WorkbenchApplication : Application() {
@@ -21,6 +24,11 @@ class AppGraph(application: Application) {
     val settings = SettingsStore(application)
     val credentials = CredentialStore(application)
     val operations = PendingOperationStore(application)
+    val localPairing = LocalCorePairingManager(application, credentials).also {
+        it.cleanupExpired(System.currentTimeMillis())
+    }
+    val remoteOAuth = RemoteOAuthPairingManager(credentials)
+    val projects = SafProjectStore(application)
     val repository = WorkbenchRepository(application, settings, credentials)
-    val termux = TermuxCommandDispatcher(application, operations)
+    val termux = TermuxCommandDispatcher(application, operations, localPairing)
 }

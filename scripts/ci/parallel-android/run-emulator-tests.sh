@@ -35,7 +35,8 @@ root = pathlib.Path(sys.argv[1])
 api = int(sys.argv[2]); rc = int(sys.argv[3])
 required = {name + '.png' for name in (
     'home workspaces conversations tasks activity calls insert approvals permissions skills plugins '
-    'connections install projects diagnostics settings tasks-empty tasks-error').split()}
+    'connections install projects diagnostics settings tasks-empty tasks-error '
+    'home-dark tasks-large-text permissions-landscape projects-expanded settings-expanded-compact').split()}
 shots = []
 invalid_images = []
 for path in (root / 'screenshots').rglob('*.png'):
@@ -58,7 +59,7 @@ for path in (root / 'reports').rglob('TEST-*.xml'):
         parse_errors.append(f'{path.name}: {error}')
 actual_api = (root / 'actual-api.txt').read_text(errors='replace').strip()
 passed = sum(value == 'passed' for value in cases.values())
-valid = rc == 0 and passed >= 9 and all(value == 'passed' for value in cases.values()) and not missing and not invalid_images and not parse_errors and actual_api == str(api)
+valid = rc == 0 and passed >= 13 and all(value == 'passed' for value in cases.values()) and not missing and not invalid_images and not parse_errors and actual_api == str(api)
 result = {
     'schema_version': 2, 'lane': 'WB07', 'source_sha': os.environ['GITHUB_SHA'],
     'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
@@ -68,7 +69,7 @@ result = {
     'attempt_exit_codes': [rc], 'tests': len(cases), 'passed': passed,
     'screenshots': shots, 'missing_screenshots': missing, 'invalid_images': invalid_images, 'report_errors': parse_errors,
     'evidence_gate': 'passed' if valid else 'failed',
-    'fixture_scope': 'navigation, presentation, client lifecycle and write isolation',
+    'fixture_scope': 'navigation, presentation, client lifecycle, write isolation, OAuth discovery, Keystore pairing, project fixture, dark mode, 1.3x font, landscape and expanded width',
     'physical_arm64_termux_scope': 'not exercised'
 }
 (root / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')

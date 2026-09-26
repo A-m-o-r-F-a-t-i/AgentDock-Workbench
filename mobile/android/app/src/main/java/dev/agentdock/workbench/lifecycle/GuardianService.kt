@@ -56,6 +56,12 @@ class GuardianService : Service() {
                 stopSelf()
                 return
             }
+            val waitReason = GuardianConditions.waitReason(this, settings)
+            if (waitReason != null) {
+                updateNotification(notification(waitReason, paused = false))
+                delay(settings.guardianIntervalMinutes.coerceIn(15, 1440) * 60_000L)
+                continue
+            }
             val snapshot = runCatching { graph.repository.refresh() }.getOrNull()
             val healthy = snapshot?.coreHealth == NodeHealth.Healthy
             val message = when {

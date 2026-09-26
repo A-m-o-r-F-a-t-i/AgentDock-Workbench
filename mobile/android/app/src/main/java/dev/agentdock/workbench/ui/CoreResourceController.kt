@@ -30,7 +30,7 @@ class CoreResourceController(
     private var epoch = 0L
 
     fun read(key: String, path: String) {
-        require(key in KEYS && path.startsWith("/internal/runtime/") && path.length <= 8192)
+        require(key in KEYS && allowedReadPath(path) && path.length <= 8192)
         jobs.remove(key)?.cancel()
         val generation = (generations[key] ?: 0) + 1
         generations[key] = generation
@@ -95,6 +95,23 @@ class CoreResourceController(
             "workspaces" -> JSONObject().put("workspaces", records(source.workspaces, "workspace_id"))
             "calls", "children" -> JSONObject().put("calls", records(source.calls, "call_id")).put("has_more", false)
             "approvals" -> JSONObject().put("approvals", records(source.approvals, "approval_id")).put("total", source.approvals.size).put("has_more", false)
+            "approval-detail" -> JSONObject()
+                .put("approval", JSONObject().put("approval_id", "approval_fixture").put("status", "pending")
+                    .put("tool", "plugin_manage").put("action", "install").put("operation", "安装 GitHub 插件")
+                    .put("call_id", "call_approval").put("workspace_id", "wsp_mobile").put("policy_revision", 3)
+                    .put("scope_description", "Android 产品化工作区").put("reason", "需要用户审批"))
+                .put("request_available", true).put("fixed_request", "{\"action\":\"install\",\"source\":\"<redacted fixture>\"}")
+                .put("rule_preview", JSONObject().put("tool", "plugin_manage").put("action", "install")
+                    .put("workspace_id", "wsp_mobile").put("effect", "allow").put("reason", "允许当前工作区的此类操作"))
+            "task-threads" -> JSONObject().put("threads", JSONArray().put(JSONObject()
+                .put("thread_id", "main").put("title", "主分支").put("status", "open")
+                .put("current_step_id", "S4").put("summary", "固定测试分支").put("next_action", "继续候选验证")))
+            "task-thread-detail" -> JSONObject().put("thread", JSONObject()
+                .put("thread_id", "main").put("title", "主分支").put("status", "open")
+                .put("current_step_id", "S4").put("summary", "固定测试分支").put("next_action", "继续候选验证"))
+            "task-thread-activity" -> JSONObject().put("events", JSONArray().put(JSONObject()
+                .put("event_id", "evt_fixture_thread").put("kind", "step.started")
+                .put("status", "in_progress").put("title", "候选验证"))).put("has_more", false)
             "skills" -> JSONObject().put("skills", records(source.skills, "skill_ref"))
             "plugins" -> JSONObject().put("plugins", records(source.plugins, "name"))
             "mcp" -> JSONObject().put("servers", records(source.mcpServers, "name"))
@@ -104,11 +121,42 @@ class CoreResourceController(
                 .put("approval_policy", JSONObject().put("mode", "on-request")).put("approval_reviewer", "user")))
             "display" -> JSONObject().put("revision", 1).put("chatgpt_mcp_ui_enabled", false).put("tool_output", JSONObject().put("enabled", true).put("max_chars", 20000))
             "connection" -> JSONObject().put("public_reachability", "not_checked").put("source", "explicit CI fixture")
+                .put("state", "authorized").put("summary", "Fixture 客户端已授权").put("detail", "固定测试数据，不建立真实连接")
+            "connection-status" -> JSONObject().put("ok", true).put("source", "agentdock-api").put("service", "AgentDock")
+                .put("version", "1.1.7").put("auth_enabled", true).put("nexus_enabled", false)
+                .put("browser_enabled", true).put("memory_enabled", false).put("tool_count", source.skills.size + source.plugins.size)
+            "connection-capabilities" -> JSONObject().put("source", "agentdock-api").put("fixture", true)
+                .put("summary", "Fixture 能力清单；不探测真实设备")
+            "oauth-metadata" -> JSONObject().put("issuer", "http://127.0.0.1:8765")
+                .put("authorization_endpoint", "http://127.0.0.1:8765/oauth/authorize")
+                .put("token_endpoint", "http://127.0.0.1:8765/oauth/token")
+                .put("registration_endpoint", "http://127.0.0.1:8765/register")
+                .put("response_types_supported", JSONArray().put("code"))
+                .put("grant_types_supported", JSONArray().put("authorization_code").put("refresh_token"))
+                .put("code_challenge_methods_supported", JSONArray().put("S256"))
+                .put("token_endpoint_auth_methods_supported", JSONArray().put("none"))
+                .put("resource_indicators_supported", true)
+            "oauth-resource" -> JSONObject().put("resource", "http://127.0.0.1:8765/mcp")
+                .put("authorization_servers", JSONArray().put("http://127.0.0.1:8765"))
+                .put("bearer_methods_supported", JSONArray().put("header"))
             else -> JSONObject().put("fixture", true).put("status", "available").put("summary", "固定测试数据，不执行真实服务动作")
         }
     }
     companion object {
-        private val KEYS = setOf("workspaces", "workspace-detail", "calls", "call-detail", "call-events", "children", "activity",
-            "approvals", "approval-detail", "permission", "skills", "skill-detail", "skill-files", "skill-file", "plugins", "plugin-detail", "mcp", "mcp-detail", "display", "connection", "task-detail", "conversations")
+        private val PUBLIC_DISCOVERY_PATHS = setOf(
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/oauth-protected-resource/mcp"
+        )
+
+        internal fun allowedReadPath(path: String): Boolean =
+            path.startsWith("/internal/runtime/") || path in PUBLIC_DISCOVERY_PATHS
+
+        private val KEYS = setOf(
+            "workspaces", "workspace-detail", "calls", "call-detail", "call-events", "children", "activity",
+            "approvals", "approval-detail", "permission", "skills", "skill-detail", "skill-files", "skill-file",
+            "plugins", "plugin-detail", "mcp", "mcp-detail", "display", "connection", "task-detail", "conversations",
+            "task-threads", "task-thread-detail", "task-thread-activity", "connection-status", "connection-capabilities",
+            "oauth-metadata", "oauth-resource"
+        )
     }
 }

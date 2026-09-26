@@ -6,6 +6,7 @@ survive a missing Android callback. The public entry never bypasses verification
 """
 from __future__ import annotations
 import contextlib
+import base64
 import fcntl
 import hashlib
 import json
@@ -36,7 +37,7 @@ VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 NONCE = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
 READ_ONLY = {"probe", "status", "operation_query", "logs", "diagnostic_preview", "cleanup_preview"}
-OPERATIONS = READ_ONLY | {"bootstrap", "install", "update", "resume", "cancel_operation", "adopt", "configure", "start", "stop", "restart", "repair", "guardian_check", "rollback", "export_diagnostics", "path_probe", "project_create", "cleanup"}
+OPERATIONS = READ_ONLY | {"bootstrap", "pair_local_core", "install", "update", "resume", "cancel_operation", "adopt", "configure", "start", "stop", "restart", "repair", "guardian_check", "rollback", "export_diagnostics", "path_probe", "project_create", "cleanup"}
 TERMINAL = {"succeeded", "failed", "rolled_back", "cancelled"}
 SECRET_KEYS = {"token", "bearer", "password", "secret", "credential", "credentials", "authorization", "cookie"}
 DEFAULT_CONFIG = {"schema_version": 1, "port": 8765, "distro": "debian", "node_name": "AgentDock Workbench", "recovery_base_seconds": 30, "recovery_max_seconds": 900, "recovery_max_failures": 3}
@@ -912,6 +913,7 @@ class Deployment:
     def validate_payload(self, operation: str, payload: dict) -> None:
         allowed = {
             "probe": set(), "status": set(), "bootstrap": set(), "start": set(), "stop": set(), "restart": set(),
+            "pair_local_core": {"key_id", "algorithm", "public_key_der"},
             "guardian_check": set(), "diagnostic_preview": set(), "cleanup_preview": set(), "export_diagnostics": set(),
             "logs": {"log", "offset", "search"}, "operation_query": {"target_operation_id"},
             "configure": {"node"}, "adopt": {"existing_root", "confirm_adopt"},
@@ -981,7 +983,11 @@ class Deployment:
             try:
                 result = self.runtime_operation(operation, identity, payload)
                 terminal_status = "succeeded" if result["status"] in {"ok", "healthy", "running", "stopped", "adopted"} else "failed"
-                self.save(record, "complete", status=terminal_status, message=result.get("message", ""), result=result)
+                stored_result = result
+                if operation == "pair_local_core" and terminal_status == "succeeded":
+                    stored_result = {"status": "ok", "message": result.get("message", ""),
+                                     "data": {"key_id": identity, "ciphertext_delivered": True}}
+                self.save(record, "complete", status=terminal_status, message=result.get("message", ""), result=stored_result)
                 return result
             except (BridgeError, OSError, subprocess.SubprocessError) as error:
                 code = error.code if isinstance(error, BridgeError) else "io_failed"
@@ -1005,6 +1011,32 @@ class Deployment:
             else:
                 atomic_bytes(token, secrets.token_hex(32).encode())
             return {"status": "ok", "message": "私有节点目录与环境已准备；Core 仍需签名清单安装"}
+        if operation == "pair_local_core":
+            key_id = payload.get("key_id", "")
+            algorithm = payload.get("algorithm", "")
+            encoded = payload.get("public_key_der", "")
+            check(key_id == identity and algorithm == "RSA-OAEP-SHA256-MGF1-SHA1", "invalid_request", "配对公钥与操作标识不一致")
+            check(isinstance(encoded, str) and 256 <= len(encoded) <= 8192, "invalid_request", "配对公钥长度无效")
+            try:
+                public_key = base64.b64decode(encoded, validate=True)
+            except (ValueError, TypeError) as error:
+                raise BridgeError("invalid_request", "配对公钥编码无效") from error
+            check(256 <= len(public_key) <= 4096, "invalid_request", "配对公钥大小无效")
+            directory = self.journal_path(identity).parent
+            public_path = directory / "pairing-public.der"
+            atomic_bytes(public_path, public_key)
+            try:
+                result = subprocess.run([
+                    "openssl", "pkeyutl", "-encrypt", "-pubin", "-keyform", "DER", "-inkey", str(public_path),
+                    "-pkeyopt", "rsa_padding_mode:oaep", "-pkeyopt", "rsa_oaep_md:sha256",
+                    "-pkeyopt", "rsa_mgf1_md:sha1",
+                ], input=self.backend.bearer().encode(), capture_output=True, timeout=10, close_fds=True)
+            finally:
+                public_path.unlink(missing_ok=True)
+            check(result.returncode == 0 and 128 <= len(result.stdout) <= 512, "pairing_failed", "一次性公钥加密失败；未返回本机凭据")
+            return {"status": "ok", "message": "本机凭据已按一次性公钥加密；明文未进入回执、参数或日志",
+                    "data": {"key_id": identity, "algorithm": algorithm,
+                             "sealed_value": base64.b64encode(result.stdout).decode("ascii")}}
         if operation == "configure":
             check(self.backend.owned_pid() is None, "node_running", "节点运行时不修改运行配置，请先停止")
             self.config = self.validate_config(payload.get("node", {}))

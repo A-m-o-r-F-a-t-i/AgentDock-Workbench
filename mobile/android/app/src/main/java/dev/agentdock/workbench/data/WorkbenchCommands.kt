@@ -28,6 +28,27 @@ data class CallFilter(
     }
 }
 
+data class PermissionDraft(
+    val scope: String,
+    val scopeId: String,
+    val revision: Long,
+    val mode: String,
+    val confirmFull: Boolean,
+    val customEnabled: Boolean,
+    val inheritSettings: Boolean,
+    val filesystem: String,
+    val network: String,
+    val boundary: String,
+    val approvalMode: String,
+    val reviewer: String,
+    val granularFileWrites: Boolean,
+    val granularCommands: Boolean,
+    val granularNetwork: Boolean,
+    val granularMcp: Boolean,
+    val granularManagement: Boolean,
+    val granularOther: Boolean
+)
+
 object WorkbenchCommands {
     private const val PREFIX = "/internal/runtime"
     private fun command(title: String, path: String, body: JSONObject, consequence: String): CoreCommand {
@@ -69,11 +90,70 @@ object WorkbenchCommands {
         if (action == "cancel" || action == "block") require(summary.isNotBlank())
         return command("任务 $action", "/tasks", body, "仅提交所选任务与分支的管理请求。已运行命令不重放，实际状态以 Core 回读为准。")
     }
+    fun taskLifecycle(action: String, id: String, summary: String = ""): CoreCommand {
+        require(action in setOf("resume", "block", "cancel", "complete"))
+        if (action in setOf("block", "cancel")) require(summary.isNotBlank())
+        require(summary.length <= 4096)
+        val body = JSONObject().put("action", action).put("task_id", ManagementContract.id(id))
+        if (summary.isNotBlank()) body.put("summary", summary)
+        return command(
+            when (action) {
+                "resume" -> "恢复任务"
+                "block" -> "标记任务受阻"
+                "cancel" -> "取消任务"
+                else -> "完成任务"
+            },
+            "/tasks",
+            body,
+            "只改变所选任务的持久生命周期状态；已开始的调用不会被重放，最终状态以 Core 回读为准。"
+        )
+    }
+    fun taskReview(id: String, status: String, summary: String, verified: List<String>, risks: List<String>): CoreCommand {
+        require(status in setOf("pass", "failed") && summary.isNotBlank() && summary.length <= 4096)
+        require(verified.size <= 100 && risks.size <= 100 && verified.all { it.isNotBlank() && it.length <= 2048 } && risks.all { it.isNotBlank() && it.length <= 2048 })
+        require(status != "pass" || verified.isNotEmpty())
+        require(status != "failed" || risks.isNotEmpty())
+        val body = JSONObject().put("action", "final_review").put("task_id", ManagementContract.id(id))
+            .put("status", status).put("summary", summary)
+        if (verified.isNotEmpty()) body.put("verified", JSONArray(verified))
+        if (risks.isNotEmpty()) body.put("risks", JSONArray(risks))
+        return command("提交任务最终审查", "/tasks", body,
+            "保存所选任务的审查结论和明确证据；不自动完成任务，也不执行任何工具。")
+    }
+    fun taskThread(
+        action: String,
+        taskId: String,
+        threadId: String = "",
+        title: String = "",
+        summary: String = "",
+        nextAction: String = "",
+        currentStepId: String = "",
+        completedStepIds: List<String> = emptyList()
+    ): CoreCommand {
+        require(action in setOf("thread_create", "thread_switch", "thread_checkpoint", "thread_block", "thread_resume", "thread_close"))
+        require(summary.length <= 4096 && nextAction.length <= 4096 && title.length <= 512)
+        require(completedStepIds.size <= 12 && completedStepIds.distinct().size == completedStepIds.size)
+        completedStepIds.forEach(ManagementContract::id)
+        val body = JSONObject().put("action", action).put("task_id", ManagementContract.id(taskId))
+        if (threadId.isNotBlank()) body.put("thread_id", ManagementContract.id(threadId))
+        if (title.isNotBlank()) body.put("title", title)
+        if (summary.isNotBlank()) body.put("summary", summary)
+        if (nextAction.isNotBlank()) body.put("next_action", nextAction)
+        if (currentStepId.isNotBlank()) body.put("current_step_id", ManagementContract.id(currentStepId))
+        if (completedStepIds.isNotEmpty()) body.put("completed_step_ids", JSONArray(completedStepIds))
+        require(action != "thread_create" || title.isNotBlank())
+        require(action == "thread_create" || threadId.isNotBlank())
+        require(action != "thread_checkpoint" || summary.isNotBlank() || nextAction.isNotBlank() || currentStepId.isNotBlank() || completedStepIds.isNotEmpty())
+        return command("任务分支 $action", "/tasks", body,
+            "仅修改此任务内的明确分支；切换分支只影响后续延续，已运行调用保留原绑定。")
+    }
     fun createTask(title: String, goal: String, conditions: List<String>, workspaceId: String): CoreCommand {
         require(title.isNotBlank() && title.length <= 512 && goal.isNotBlank() && goal.length <= 4096)
         require(conditions.isNotEmpty() && conditions.size <= 30 && conditions.all { it.isNotBlank() && it.length <= 2048 })
-        return command("创建持久任务", "/tasks", JSONObject().put("action", "create").put("title", title)
-            .put("goal", goal).put("completion_conditions", JSONArray(conditions)).put("workspace_id", ManagementContract.id(workspaceId)),
+        val body = JSONObject().put("action", "create").put("title", title)
+            .put("goal", goal).put("completion_conditions", JSONArray(conditions))
+        if (workspaceId.isNotBlank()) body.put("workspace_id", ManagementContract.id(workspaceId))
+        return command("创建持久任务", "/tasks", body,
             "在选定工作区创建独立持久任务；不会复制已有任务或自动执行工具。")
     }
     fun lifecycle(conversation: String, action: String): CoreCommand {
@@ -103,6 +183,42 @@ object WorkbenchCommands {
     fun approval(id: String, approve: Boolean, workspace: Boolean) = command(if (approve) "批准请求" else "拒绝请求",
         "/approvals/${ManagementContract.id(id)}/${if (approve) "approve" else "reject"}", JSONObject().put("allow_workspace", workspace),
         if (workspace && approve) "按审批详情中的工作区范围授予授权。显式禁止规则仍由 Core 执行。" else "只处理此审批。过期、已处理和版本冲突由 Core 拒绝。")
+    fun permission(value: PermissionDraft): CoreCommand {
+        require(value.scope in setOf("global", "workspace", "conversation"))
+        require(value.revision > 0 && value.mode in setOf("readonly", "rules", "full"))
+        require(value.scope == "global" && value.scopeId.isEmpty() || value.scope != "global" && value.scopeId.isNotEmpty())
+        if (value.scope != "global") ManagementContract.id(value.scopeId)
+        require(value.scope != "conversation" || value.mode != "full")
+        require(value.mode != "full" || value.confirmFull)
+        require(value.scope == "workspace" || !value.inheritSettings)
+        val body = JSONObject().put("scope", value.scope).put("expected_revision", value.revision).put("mode", value.mode)
+        if (value.scope != "global") body.put("scope_id", value.scopeId)
+        if (value.mode == "full") body.put("confirm_full", true)
+        if (value.scope != "conversation") {
+            if (value.inheritSettings) {
+                body.put("inherit_settings", true)
+            } else {
+                require(value.filesystem in setOf("deny", "read", "write"))
+                require(value.network in setOf("deny", "allow"))
+                require(value.boundary in setOf("none", "workspace"))
+                require(value.approvalMode in setOf("on-request", "never", "granular"))
+                require(value.reviewer in setOf("user", "auto_review"))
+                val approval = JSONObject().put("mode", value.approvalMode)
+                if (value.approvalMode == "granular") approval.put("granular", JSONObject()
+                    .put("file_writes", value.granularFileWrites).put("commands", value.granularCommands)
+                    .put("network", value.granularNetwork).put("mcp", value.granularMcp)
+                    .put("management", value.granularManagement).put("other", value.granularOther))
+                body.put("custom_permissions_enabled", value.customEnabled)
+                    .put("settings", JSONObject()
+                        .put("permission_profile", JSONObject().put("filesystem", value.filesystem)
+                            .put("network", value.network).put("sandbox_boundary", value.boundary))
+                        .put("approval_policy", approval).put("approval_reviewer", value.reviewer))
+            }
+        }
+        val target = if (value.scope == "global") "全局" else "${value.scope}:${value.scopeId}"
+        return command("保存权限 · $target", "/permissions", body,
+            "按刚读取的 revision 更新明确作用域。Full 需要本次显式确认；该设置只约束工具准入，不提升 Android、Termux 或操作系统权限。")
+    }
     fun skill(reference: String, enable: Boolean): CoreCommand {
         require(reference.isNotBlank() && reference.length <= 2048 && reference.none { it.code < 32 })
         return command(if (enable) "启用 Skill" else "停用 Skill", "/skills", JSONObject().put("action", if (enable) "enable" else "disable").put("skill", reference), "改变此精确 Skill 的启用状态，不编辑源文件。")
@@ -140,6 +256,16 @@ object WorkbenchCommands {
             }
         }
         return command("MCP $action", "/mcp", body, "只修改选定 MCP 的已声明配置。不会将请求头秘密保存到普通配置；环境秘密通过独立受控输入管理。")
+    }
+    fun mcpEnvironment(name: String, key: String, value: String? = null): CoreCommand {
+        require(name.isNotBlank() && name.length <= 128 && name.none { it.code < 32 || it == '/' })
+        require(Regex("^[A-Za-z_][A-Za-z0-9_]{0,127}$").matches(key))
+        require(value == null || value.toByteArray(Charsets.UTF_8).size <= 32 * 1024)
+        val action = if (value == null) "env_unset" else "env_set"
+        val body = JSONObject().put("action", action).put("name", name).put("key", key)
+        if (value != null) body.put("value", value)
+        return command(if (value == null) "删除 MCP 环境变量" else "保存 MCP 环境变量", "/mcp", body,
+            "值写入 Core 的隔离环境存储，响应不会回显秘密。Android 不在页面状态、DataStore 或日志中保存该值。")
     }
     fun display(revision: Long, enabled: Boolean, limit: Int, mcpUi: Boolean): CoreCommand {
         require(revision > 0 && limit in 1000..100000)

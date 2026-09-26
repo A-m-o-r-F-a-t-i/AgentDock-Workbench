@@ -24,7 +24,8 @@ class TermuxResultService : Service() {
         val operationId = intent.getStringExtra(EXTRA_OPERATION_ID).orEmpty()
         val requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         val nonce = intent.getStringExtra(EXTRA_NONCE).orEmpty()
-        val store = (application as WorkbenchApplication).graph.operations
+        val graph = (application as WorkbenchApplication).graph
+        val store = graph.operations
         val expected = store.get(operationId) ?: return
         if (!TermuxResultPolicy.mayComplete(expected, System.currentTimeMillis())) return
         if (expected.requestId != requestId || expected.nonce != nonce || intent.action != TermuxContract.CALLBACK_ACTION_PREFIX + requestId) return
@@ -37,10 +38,29 @@ class TermuxResultService : Service() {
         val exitCode = bundle.getInt(TermuxContract.RESULT_EXIT_CODE, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
         val pluginError = bundle.getInt(TermuxContract.RESULT_ERR, 0)
         val pluginMessage = bundle.getString(TermuxContract.RESULT_ERRMSG).orEmpty()
-        val result = if (stdoutOriginal > stdout.length) {
+        var result = if (stdoutOriginal > stdout.length) {
             ValidatedTermuxResult("failed", "Termux 回执被截断，结果待重新核对")
         } else {
             TermuxResultValidator.validate(expected, stdout, stderr, exitCode, pluginError, pluginMessage)
+        }
+        if (expected.operation == "pair_local_core") {
+            result = if (result.phase == "succeeded") {
+                runCatching {
+                    val data = JSONObject(stdout).getJSONObject("data")
+                    val origin = graph.localPairing.consume(expected.operationId, data)
+                    ValidatedTermuxResult(
+                        "succeeded",
+                        "本机 Core 凭据已通过一次性公钥解密并绑定到 $origin",
+                        JSONObject().put("paired", true).put("origin", origin.toString()).toString()
+                    )
+                }.getOrElse { error ->
+                    graph.localPairing.discard(expected.operationId)
+                    ValidatedTermuxResult("failed", "本机配对密文验证或解密失败（${error.javaClass.simpleName}）")
+                }
+            } else {
+                graph.localPairing.discard(expected.operationId)
+                result
+            }
         }
         store.finish(
             expected = expected,

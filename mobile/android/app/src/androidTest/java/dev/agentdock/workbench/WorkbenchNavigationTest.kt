@@ -1,6 +1,7 @@
 package dev.agentdock.workbench
 
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -24,6 +25,7 @@ class WorkbenchNavigationTest {
     private lateinit var model: WorkbenchViewModel
 
     @Before fun launchFixture() {
+        resetDisplayConfiguration()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_FIXTURE, true))
@@ -31,7 +33,10 @@ class WorkbenchNavigationTest {
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.fixture }
     }
 
-    @After fun close() { scenario.close() }
+    @After fun close() {
+        scenario.close()
+        resetDisplayConfiguration()
+    }
 
     @Test fun everyWorkbenchPageIsReachableOnCompactLayout() {
         WorkbenchScreen.entries.forEach(::navigate)
@@ -107,6 +112,71 @@ class WorkbenchNavigationTest {
         compose.onNodeWithTag("insertion-text").assertTextContains("保留这条补充要求")
     }
 
+    @Test fun fixtureOAuthDiscoveryUsesCoreRoutesWithoutDeviceWrites() {
+        navigate(WorkbenchScreen.CoreConnections)
+        compose.waitUntil(10000) {
+            val metadata = model.resources.state.value.views["oauth-metadata"]?.data
+            metadata?.optString("authorization_endpoint") == "http://127.0.0.1:8765/oauth/authorize" &&
+                metadata.optString("token_endpoint") == "http://127.0.0.1:8765/oauth/token"
+        }
+        assertFalse(model.resources.state.value.views["oauth-metadata"]?.error.orEmpty().isNotBlank())
+        assertFalse(model.state.value.credentialAvailable)
+    }
+
+    @Test fun fixtureProjectTreeIsInspectableWithoutStorageWrites() {
+        navigate(WorkbenchScreen.ProjectsFiles)
+        compose.waitUntil(10000) { model.state.value.projectRoots.isNotEmpty() }
+        compose.onNodeWithText("Android Demo").performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.projectFiles.any { it.relativePath == "README.md" } }
+        compose.onNodeWithText("README.md · 128 B").performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.projectPreview.contains("No real file was read") }
+    }
+
+    @Test fun adaptiveConfigurationsRemainNavigableAndProduceEvidence() {
+        val directory = "/sdcard/Download/agentdock-wb07-screenshots"
+        shell("mkdir -p $directory")
+
+        model.updateSettings { it.copy(theme = "dark") }
+        compose.waitUntil(10000) { model.state.value.settings.theme == "dark" }
+        navigate(WorkbenchScreen.Home)
+        capture(directory, WorkbenchScreen.Home, "home-dark")
+
+        model.updateSettings { it.copy(theme = "light") }
+        compose.waitUntil(10000) { model.state.value.settings.theme == "light" }
+        shell("settings put system font_scale 1.30")
+        recreateAndBind()
+        var fontScale = 0f
+        scenario.onActivity { fontScale = it.resources.configuration.fontScale }
+        assertTrue("font scale=$fontScale", fontScale >= 1.25f)
+        navigate(WorkbenchScreen.Tasks)
+        capture(directory, WorkbenchScreen.Tasks, "tasks-large-text")
+
+        shell("settings put system accelerometer_rotation 0")
+        shell("settings put system user_rotation 1")
+        recreateAndBind()
+        var orientation = Configuration.ORIENTATION_UNDEFINED
+        scenario.onActivity { orientation = it.resources.configuration.orientation }
+        assertEquals(Configuration.ORIENTATION_LANDSCAPE, orientation)
+        navigate(WorkbenchScreen.Permissions)
+        capture(directory, WorkbenchScreen.Permissions, "permissions-landscape")
+
+        shell("settings put system user_rotation 0")
+        shell("wm size 1280x800")
+        shell("wm density 160")
+        recreateAndBind()
+        var smallestWidth = 0
+        scenario.onActivity { smallestWidth = it.resources.configuration.smallestScreenWidthDp }
+        assertTrue("smallestScreenWidthDp=$smallestWidth", smallestWidth >= 600)
+        navigate(WorkbenchScreen.ProjectsFiles)
+        compose.waitUntil(10000) { model.state.value.projectRoots.isNotEmpty() }
+        capture(directory, WorkbenchScreen.ProjectsFiles, "projects-expanded")
+
+        model.updateSettings { it.copy(density = "compact") }
+        compose.waitUntil(10000) { model.state.value.settings.density == "compact" }
+        navigate(WorkbenchScreen.Settings)
+        capture(directory, WorkbenchScreen.Settings, "settings-expanded-compact")
+    }
+
     private fun navigate(screen: WorkbenchScreen) {
         compose.onNodeWithTag("open-navigation").performClick()
         compose.onNodeWithTag("nav-${screen.route}").performScrollTo().performClick()
@@ -122,6 +192,20 @@ class WorkbenchNavigationTest {
         shell("screencap -p $path")
         val length = shell("stat -c %s $path").trim().toLongOrNull()
         check(length != null && length > 8) { "Screenshot was not saved: $name" }
+    }
+
+    private fun recreateAndBind() {
+        scenario.recreate()
+        scenario.onActivity { model = ViewModelProvider(it)[WorkbenchViewModel::class.java] }
+        compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.fixture }
+    }
+
+    private fun resetDisplayConfiguration() {
+        shell("settings put system font_scale 1.0")
+        shell("settings put system accelerometer_rotation 0")
+        shell("settings put system user_rotation 0")
+        shell("wm size reset")
+        shell("wm density reset")
     }
 
     private fun shell(command: String): String {

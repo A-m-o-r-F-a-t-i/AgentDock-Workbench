@@ -12,6 +12,7 @@ class GuardianWorker(context: Context, parameters: WorkerParameters) : Coroutine
         val graph = (applicationContext as WorkbenchApplication).graph
         val settings = graph.settings.current()
         if (!settings.guardianEnabled || settings.guardianPaused) return Result.success()
+        if (GuardianConditions.waitReason(applicationContext, settings) != null) return Result.success()
         val snapshot = runCatching { graph.repository.refresh() }.getOrNull()
         if (snapshot?.coreHealth == NodeHealth.Healthy) return Result.success()
         if (settings.desiredNodeState != "running" || !settings.autoRepairEnabled) return Result.success()

@@ -1,37 +1,26 @@
 # External Termux and Debian setup
 
-## Prerequisites
+本任务只实现与测试候选，不执行以下真实安装步骤。
 
-Use a current official Termux build exposing `RunCommandService`. The APK does not install Termux or Debian silently.
+## User-controlled setup
 
-## Export and bootstrap
+1. 在“安装与更新”导出完整三文件桥包：`agentdock-workbench`、`agentdock_workbench.py`、`agentdock-workbench-bootstrap.sh`。
+2. 用户在官方外部 Termux 中手动运行 bootstrap。它安装 `proot-distro/curl/jq/coreutils/util-linux/procps/openssl-tool/tar/python`，部署固定桥并安装 Debian 依赖；不会安装 Core。
+3. 用户在 Android 设置中授予 `com.termux.permission.RUN_COMMAND`。
+4. Workbench 先执行只读 `probe/status`；这些操作不会创建节点目录或凭据。
+5. `bootstrap` 初始化私有节点目录与身份材料。
+6. 主线提供固定受信公钥和签名 ARM64 清单后，才可使用 install/update。缺失时返回 `pending_manifest`。
 
-From **安装与更新**, export:
+## Pairing
 
-- `agentdock-workbench`
-- `agentdock-workbench-bootstrap.sh`
+- 本机节点：Android 生成一次性 Keystore RSA 公钥，经固定桥获取 OAEP 密文并在应用内解密；Bearer 明文不经过 Intent、参数、日志或 journal。
+- 远程节点：使用 Core discovery、动态注册、PKCE S256、随机 state 和 127.0.0.1 临时 callback；访问令牌绑定远程 Origin。
+- 手动 Bearer 仍作为显式恢复入口。本机删除不等于服务器撤销。
 
-Copy both into a Termux-visible directory and run the bootstrap manually in Termux. It installs `proot-distro`, curl, jq, coreutils, util-linux, procps, OpenSSL, tar and Python; installs the fixed bridge at `~/.termux/tasker/agentdock-workbench` with mode `0700`; enables `allow-external-apps`; installs Debian when absent; and installs Debian-side CA certificates and command dependencies. It does **not** install a Core release.
+## Deployment and recovery
 
-Return to Android settings and grant `com.termux.permission.RUN_COMMAND`. The Workbench probe reports Termux absence, missing permission, disabled external-app service, missing Debian/dependencies, compatible stopped Core, healthy Core, or signed-manifest dependency as distinct states.
-
-## Initial flow
-
-1. **probe** — read-only capability/node discovery.
-2. **bootstrap** — verify Debian dependencies and initialize private directories/token.
-3. **install** — enabled only after a trusted release key/signed manifest contract exists.
-4. **start** — persist `desired=running`, launch current Core and verify the owned process identity and an authenticated management response.
-
-Callbacks intentionally carry no Bearer. Use the explicit Core connection editor for an authorized credential. Automatic pairing remains pending a dedicated shared Core contract; never paste credentials into RUN_COMMAND arguments or shared files.
+install/update 先完成签名、平台、版本、摘要和归档验证，再进入维护窗口。事务保存 source/target、阶段、快照和结果，可按原 operation ID 查询、续接或取消。健康检查失败时恢复旧版本和旧数据并保留失败数据。rollback 必须明确确认数据恢复。cleanup 必须先获取预览摘要再确认。
 
 ## Existing node
 
-Existing nodes are not changed automatically. Adoption requires a compatible managed layout, a path under Termux home and explicit confirmation. Adoption records the selected root without replacing binaries, configuration or versions.
-
-## Update and rollback
-
-The candidate contains signature/digest gates and bounded archive extraction. Existing version directories are not overwritten and fallback cleanup is deferred. Complete transaction resumption, data-schema compatibility and single-fallback retention are not yet accepted. Candidate installation or takeover of the current phone node is outside this development run.
-
-## Diagnostics
-
-`export_diagnostics` writes a tarball in Termux private Workbench state with a bounded status snapshot and the last 1,000 Core log lines after common token redaction. It is not uploaded or shared automatically.
+现有节点只读发现，不自动接管。adopt 要求兼容受管布局、Termux home 内路径、明确确认和可验证进程身份；不会替换程序、配置或身份。

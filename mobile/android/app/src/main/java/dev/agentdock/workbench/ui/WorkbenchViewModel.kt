@@ -1,8 +1,11 @@
 package dev.agentdock.workbench.ui
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -15,6 +18,7 @@ import dev.agentdock.workbench.BuildConfig
 import dev.agentdock.workbench.WorkbenchApplication
 import dev.agentdock.workbench.data.ListQuery
 import dev.agentdock.workbench.data.ManagementContract
+import dev.agentdock.workbench.data.SafEntry
 import dev.agentdock.workbench.lifecycle.GuardianScheduler
 import dev.agentdock.workbench.lifecycle.GuardianService
 import dev.agentdock.workbench.model.*
@@ -56,7 +60,26 @@ data class WorkbenchUiState(
     val liveStatus: String = "尚未连接活动流",
     val fixture: Boolean = false,
     val operations: List<BridgeOperation> = emptyList(),
+    val projectRoots: List<SafEntry> = emptyList(),
+    val projectFiles: List<SafEntry> = emptyList(),
+    val selectedProjectName: String = "",
+    val projectPreview: String = "",
+    val projectMessage: String = "",
+    val projectBusy: Boolean = false,
+    val credentialAvailable: Boolean = false,
+    val oauthConfigured: Boolean = false,
+    val oauthValid: Boolean = false,
+    val oauthExpiresAtEpochMs: Long = 0L,
+    val oauthIssuer: String = "",
     val buildIdentity: String = "${BuildConfig.PRODUCT_VERSION} · ${BuildConfig.CANDIDATE_SHA.take(12)} · ${BuildConfig.SIGNING_LABEL}"
+)
+
+private data class CredentialUiSnapshot(
+    val available: Boolean,
+    val oauthConfigured: Boolean,
+    val oauthValid: Boolean,
+    val oauthExpiresAtEpochMs: Long,
+    val oauthIssuer: String
 )
 
 class WorkbenchViewModel(
@@ -201,7 +224,28 @@ class WorkbenchViewModel(
                 val snapshot = if (selected.fixture) fixtureSnapshot(received) else received
                 if (generation != refreshGeneration) return@launch
                 val operations = withContext(Dispatchers.IO) { graph.operations.list() }
-                _state.update { it.copy(snapshot = snapshot, loading = false, operations = operations) }
+                val credential = if (selected.fixture) CredentialUiSnapshot(false, false, false, 0L, "") else withContext(Dispatchers.IO) {
+                    val settings = graph.settings.current()
+                    val origin = dev.agentdock.workbench.data.EndpointPolicy.resolve(settings.endpoint, settings.remoteEndpointEnabled)
+                    val oauth = graph.credentials.oauthStatus(origin)
+                    CredentialUiSnapshot(
+                        available = graph.credentials.getCore(origin).isNotBlank(),
+                        oauthConfigured = oauth.configured,
+                        oauthValid = oauth.valid,
+                        oauthExpiresAtEpochMs = oauth.expiresAtEpochMs,
+                        oauthIssuer = oauth.issuer
+                    )
+                }
+                _state.update { it.copy(
+                    snapshot = snapshot,
+                    loading = false,
+                    operations = operations,
+                    credentialAvailable = credential.available,
+                    oauthConfigured = credential.oauthConfigured,
+                    oauthValid = credential.oauthValid,
+                    oauthExpiresAtEpochMs = credential.oauthExpiresAtEpochMs,
+                    oauthIssuer = credential.oauthIssuer
+                ) }
                 if (!selected.fixture && snapshot.coreHealth in setOf(NodeHealth.Healthy, NodeHealth.Degraded)) startStreams()
             } catch (error: CancellationException) {
                 throw error
@@ -264,9 +308,69 @@ class WorkbenchViewModel(
         refreshJob?.cancel()
         detailJob?.cancel()
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { graph.credentials.clear("core_bearer") }
-            _state.update { it.copy(message = "本机保存的 Core Bearer 已删除；服务器凭据未撤销") }
+            withContext(Dispatchers.IO) { graph.credentials.clearCoreCredentials() }
+            _state.update {
+                it.copy(message = "本机保存的手工、本机配对和 OAuth 凭据均已删除；服务器端授权未伪称已撤销")
+            }
             refresh()
+        }
+    }
+
+    fun pairLocalCore() {
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        if (_state.value.actionBusy) return
+        _state.update { it.copy(actionBusy = true) }
+        viewModelScope.launch {
+            try {
+                val settings = graph.settings.current()
+                val origin = dev.agentdock.workbench.data.EndpointPolicy.resolve(settings.endpoint, settings.remoteEndpointEnabled)
+                check(dev.agentdock.workbench.termux.LocalCorePairingManager.loopbackOrigin(origin)) {
+                    "一次性本机配对只支持字面 loopback Origin；远程 Core 请使用其 OAuth/管理授权流程。"
+                }
+                val pending = withContext(Dispatchers.IO) { graph.termux.dispatchLocalPairing(origin) }
+                val operations = withContext(Dispatchers.IO) { graph.operations.list() }
+                _state.update {
+                    it.copy(
+                        operations = operations,
+                        message = "已提交一次性公钥配对 ${pending.operationId}；成功回执会自动写入与当前 Origin 绑定的 Keystore 密文。"
+                    )
+                }
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) { showError(error)
+            } finally { _state.update { it.copy(actionBusy = false) } }
+        }
+    }
+
+    fun pairRemoteOAuth() {
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        if (_state.value.actionBusy) return
+        _state.update { it.copy(actionBusy = true) }
+        viewModelScope.launch {
+            var pending: dev.agentdock.workbench.data.OAuthPendingSession? = null
+            try {
+                val settings = graph.settings.current()
+                val origin = dev.agentdock.workbench.data.EndpointPolicy.resolve(settings.endpoint, settings.remoteEndpointEnabled)
+                val session = withContext(Dispatchers.IO) { graph.remoteOAuth.begin(origin) }
+                pending = session
+                val application = getApplication<Application>()
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(session.authorizationUrl.toString()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                check(intent.resolveActivity(application.packageManager) != null) { "没有可处理 OAuth 授权页的外部浏览器" }
+                application.startActivity(intent)
+                val status = withContext(Dispatchers.IO) { graph.remoteOAuth.awaitAndStore(session) }
+                stopStreams()
+                _state.update {
+                    it.copy(
+                        message = "远程 Core OAuth/PKCE 配对完成；访问令牌已绑定当前 Origin，过期时间 ${status.expiresAtEpochMs}。"
+                    )
+                }
+                refresh()
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) { showError(error)
+            } finally {
+                pending?.let(graph.remoteOAuth::cancel)
+                _state.update { it.copy(actionBusy = false) }
+            }
         }
     }
 
@@ -295,25 +399,6 @@ class WorkbenchViewModel(
     }
     fun capabilityAction(kind: String, item: WorkbenchItem, enable: Boolean) = perform { graph.repository.capabilityAction(kind, item.id, enable) }
 
-    fun savePermissions() = perform {
-        val settings = _state.value.settings
-        val root = _state.value.snapshot.effectivePermission ?: error("Core 未返回有效权限")
-        val effective = root.optJSONObject("effective") ?: root
-        check(effective.has("custom_permissions_enabled")) { "pending_integration：当前 Core 尚未整合 WB02 自定义权限开关" }
-        val revision = effective.optLong("revision", root.optLong("revision", 0))
-        check(revision > 0) { "Core 权限修订号无效，请刷新" }
-        val approval = JSONObject().put("mode", settings.approvalPolicy)
-        if (settings.approvalPolicy == "granular") approval.put("granular", JSONObject()
-            .put("file_writes", settings.granularFileWrites).put("commands", settings.granularCommands)
-            .put("network", settings.granularNetwork).put("mcp", settings.granularMcp)
-            .put("management", settings.granularManagement).put("other", settings.granularOther))
-        graph.repository.savePermission(JSONObject().put("scope", "global").put("expected_revision", revision)
-            .put("custom_permissions_enabled", settings.customPermissionEnabled)
-            .put("settings", JSONObject().put("permission_profile", JSONObject()
-                .put("filesystem", settings.permissionFilesystem).put("network", settings.permissionNetwork).put("sandbox_boundary", settings.permissionBoundary))
-                .put("approval_policy", approval).put("approval_reviewer", settings.approvalReviewer)))
-    }
-
     fun runTermux(operation: String, arguments: JSONObject = JSONObject()) = perform {
         when (operation) {
             "start", "restart" -> graph.settings.setDesiredNodeState("running")
@@ -329,11 +414,38 @@ class WorkbenchViewModel(
         if (_state.value.fixture) { fixtureBlocked(); return }
         viewModelScope.launch {
             try {
+                val before = graph.settings.current()
+                if (enabled && !before.notificationsEnabled) {
+                    showNotice("启用守护前必须先启用通知；守护需要持续可见的停止入口。")
+                    return@launch
+                }
+                if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    showNotice("系统通知权限尚未授予，未启动守护。")
+                    return@launch
+                }
                 graph.settings.update { it.copy(guardianEnabled = enabled, guardianPaused = if (enabled) false else it.guardianPaused) }
                 GuardianScheduler.configure(getApplication(), graph.settings.current())
                 if (enabled) ContextCompat.startForegroundService(getApplication(), Intent(getApplication(), GuardianService::class.java))
                 else getApplication<Application>().stopService(Intent(getApplication(), GuardianService::class.java))
             } catch (error: CancellationException) { throw error } catch (error: Exception) { showError(error) }
+        }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        viewModelScope.launch {
+            try {
+                graph.settings.update {
+                    if (enabled) it.copy(notificationsEnabled = true)
+                    else it.copy(notificationsEnabled = false, guardianEnabled = false, guardianPaused = false)
+                }
+                val settings = graph.settings.current()
+                GuardianScheduler.configure(getApplication(), settings)
+                if (!enabled) getApplication<Application>().stopService(Intent(getApplication(), GuardianService::class.java))
+                showNotice(if (enabled) "通知开关已启用；Android 13+ 仍需系统授权。" else "通知和节点守护均已关闭；Core 未被停止。")
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) { showError(error) }
         }
     }
 
@@ -351,10 +463,136 @@ class WorkbenchViewModel(
     }
 
     fun saveTreeUri(kind: String, uri: Uri) {
-        try {
-            getApplication<Application>().contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            updateSettings { if (kind == "project") it.copy(projectTreeUri = uri.toString()) else it.copy(artifactTreeUri = uri.toString()) }
-        } catch (error: Exception) { showError(error) }
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        viewModelScope.launch {
+            try {
+                getApplication<Application>().contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                graph.settings.update {
+                    when (kind) {
+                        "project" -> it.copy(projectTreeUri = uri.toString())
+                        "artifact" -> it.copy(artifactTreeUri = uri.toString())
+                        else -> error("未知目录类型")
+                    }
+                }
+                if (kind == "project") refreshProjectRoots()
+                showNotice("已保存用户明确选择的 ${if (kind == "project") "项目" else "产物"}目录授权。")
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) { showError(error) }
+        }
+    }
+
+    fun refreshProjectRoots() {
+        if (_state.value.fixture) {
+            _state.update { it.copy(
+                projectRoots = listOf(SafEntry("Android Demo", "Android Demo", "fixture://project", true, -1, "vnd.android.document/directory")),
+                projectMessage = "Fixture 工程目录；不读取真实 SAF。"
+            ) }
+            return
+        }
+        if (_state.value.projectBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(projectBusy = true, projectMessage = "正在读取项目目录…") }
+            try {
+                val settings = graph.settings.current()
+                val projects = withContext(Dispatchers.IO) { graph.projects.listProjects(settings.projectTreeUri) }
+                _state.update { it.copy(
+                    projectBusy = false,
+                    projectRoots = projects,
+                    projectFiles = if (it.selectedProjectName in projects.map(SafEntry::name)) it.projectFiles else emptyList(),
+                    selectedProjectName = it.selectedProjectName.takeIf { selected -> selected in projects.map(SafEntry::name) }.orEmpty(),
+                    projectPreview = "",
+                    projectMessage = "读取到 ${projects.size} 个工程目录。"
+                ) }
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) {
+                _state.update { it.copy(projectBusy = false, projectMessage = ManagementContract.failure(error)) }
+            }
+        }
+    }
+
+    fun selectProject(name: String) {
+        if (_state.value.fixture) {
+            _state.update { it.copy(
+                selectedProjectName = name,
+                projectFiles = listOf(
+                    SafEntry("README.md", "README.md", "fixture://readme", false, 128, "text/markdown"),
+                    SafEntry("src", "src", "fixture://src", true, -1, "vnd.android.document/directory"),
+                    SafEntry("main.c", "src/main.c", "fixture://main", false, 256, "text/x-csrc")
+                ),
+                projectPreview = "",
+                projectMessage = "Fixture 文件树；不读取真实 SAF。"
+            ) }
+            return
+        }
+        if (_state.value.projectBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(projectBusy = true, selectedProjectName = name, projectPreview = "", projectMessage = "正在读取工程…") }
+            try {
+                val settings = graph.settings.current()
+                val files = withContext(Dispatchers.IO) { graph.projects.listProject(settings.projectTreeUri, name) }
+                _state.update { it.copy(projectBusy = false, projectFiles = files, projectMessage = "工程包含 ${files.size} 个有界展示项。") }
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) {
+                _state.update { it.copy(projectBusy = false, projectFiles = emptyList(), projectMessage = ManagementContract.failure(error)) }
+            }
+        }
+    }
+
+    fun previewProjectFile(relativePath: String) {
+        if (_state.value.fixture) {
+            _state.update { it.copy(projectPreview = "# Fixture preview\n\n$relativePath\nNo real file was read.") }
+            return
+        }
+        val project = _state.value.selectedProjectName
+        if (project.isBlank() || _state.value.projectBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(projectBusy = true, projectPreview = "", projectMessage = "正在读取文本预览…") }
+            try {
+                val settings = graph.settings.current()
+                val text = withContext(Dispatchers.IO) { graph.projects.readText(settings.projectTreeUri, project, relativePath) }
+                _state.update { it.copy(projectBusy = false, projectPreview = text, projectMessage = "已读取最多 100,000 字节的文本预览。") }
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) {
+                _state.update { it.copy(projectBusy = false, projectMessage = ManagementContract.failure(error)) }
+            }
+        }
+    }
+
+    fun importProject(uri: Uri, name: String, conflict: String) {
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        if (_state.value.projectBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(projectBusy = true, projectMessage = "正在校验 ZIP 并写入临时工程…") }
+            try {
+                val settings = graph.settings.current()
+                val result = withContext(Dispatchers.IO) { graph.projects.importZip(settings.projectTreeUri, uri, name, conflict) }
+                val suffix = if (result.backupRetained) "；旧工程备份未能自动删除，已保留供人工核对" else ""
+                _state.update { it.copy(projectBusy = false, projectMessage = "${result.message}：${result.itemCount} 项，${result.bytes} 字节$suffix") }
+                refreshProjectRoots()
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) {
+                _state.update { it.copy(projectBusy = false, projectMessage = ManagementContract.failure(error)) }
+            }
+        }
+    }
+
+    fun exportProject(uri: Uri, name: String) {
+        if (_state.value.fixture) { fixtureBlocked(); return }
+        if (_state.value.projectBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(projectBusy = true, projectMessage = "正在导出工程 ZIP…") }
+            try {
+                val settings = graph.settings.current()
+                val result = withContext(Dispatchers.IO) { graph.projects.exportZip(settings.projectTreeUri, name, uri) }
+                _state.update { it.copy(projectBusy = false, projectMessage = "${result.message}：${result.itemCount} 项，${result.bytes} 字节") }
+            } catch (error: CancellationException) { throw error
+            } catch (error: Exception) {
+                _state.update { it.copy(projectBusy = false, projectMessage = ManagementContract.failure(error)) }
+            }
+        }
     }
 
     fun showNotice(value: String) = _state.update { it.copy(message = value.take(2048)) }

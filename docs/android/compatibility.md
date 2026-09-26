@@ -5,7 +5,7 @@
 - External Core architecture: Linux ARM64 (`aarch64`)
 - Java toolchain: 17
 - UI: native Kotlin + Jetpack Compose
-- Candidate emulator matrix: API 33, 34, 35 and 37
+- Candidate emulator matrix: API 26, 33, 34, 35 and 37
 
 The app display name is **AgentDock Workbench**. Product version is parsed from `internal/buildinfo/buildinfo.go`. CI injects source SHA, run ID and attempt into candidate metadata and artifact names. Release-shaped candidate APKs use the Android debug key and are explicitly labeled `test-signed`; they are not production-signing evidence.
 

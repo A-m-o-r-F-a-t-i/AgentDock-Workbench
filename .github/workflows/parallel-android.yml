@@ -12,7 +12,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WB07_BASE_SHA: b367eaab95202873fb213b8713440bf7822878c4
   GRADLE_VERSION: 9.4.1
   ANDROID_COMPILE_SDK: "37"
   ANDROID_BUILD_TOOLS: 37.0.0
@@ -63,8 +62,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git cat-file -e "$WB07_BASE_SHA^{commit}"
-          changed="$(git diff --name-only "$WB07_BASE_SHA" "$GITHUB_SHA")"
+          git fetch --no-tags --force origin main:refs/remotes/origin/main
+          base="$(git merge-base "$GITHUB_SHA" refs/remotes/origin/main)"
+          test -n "$base" && git cat-file -e "$base^{commit}"
+          printf 'comparison_base=%s\n' "$base" | tee evidence/contract/comparison-base.txt
+          changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
           printf '%s\n' "$changed" | tee evidence/contract/changed-files.txt
           disallowed="$(printf '%s\n' "$changed" | grep -Ev '^(mobile/android/|scripts/ci/parallel-android/|docs/android/|\.github/workflows/parallel-android\.yml$)' || true)"
           test -z "$disallowed" || { printf 'WB07 path violation:\n%s\n' "$disallowed" >&2; exit 1; }
@@ -105,7 +107,8 @@ jobs:
             exit "$bridge_rc"
           fi
           bash scripts/ci/parallel-android/test-runner-sdk.sh | tee evidence/contract/runner-sdk-contract.txt
-          git diff --check "$WB07_BASE_SHA" "$GITHUB_SHA"
+          base="$(git merge-base "$GITHUB_SHA" refs/remotes/origin/main)"
+          test -n "$base" && git diff --check "$base" "$GITHUB_SHA"
           grep -F 'compileSdk = 37' mobile/android/app/build.gradle.kts
           grep -F 'targetSdk = 37' mobile/android/app/build.gradle.kts
           grep -F 'minSdk = 26' mobile/android/app/build.gradle.kts
@@ -376,7 +379,7 @@ jobs:
               "candidate_artifact": os.environ.get("CANDIDATE_ARTIFACT", ""),
               "signing": "test-signed with Android debug key",
               "physical_arm64_termux": "not run; shell contract only",
-              "signed_linux_arm64_manifest": "pending WB05 release contract",
+              "signed_linux_arm64_manifest": "pending publisher-signed release contract",
               "duration_runs": {"30_minutes": "not run", "2_hours": "not run", "8_hours": "not run"},
               "merge": False,
               "tag": False,

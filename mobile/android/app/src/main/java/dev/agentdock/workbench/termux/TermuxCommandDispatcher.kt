@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import dev.agentdock.workbench.model.ActionOutcome
 import dev.agentdock.workbench.model.BridgeOperation
 import org.json.JSONObject
+import java.net.URI
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.UUID
@@ -15,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class TermuxCommandDispatcher(
     private val context: Context,
-    private val operations: PendingOperationStore
+    private val operations: PendingOperationStore,
+    private val pairing: LocalCorePairingManager
 ) {
     fun availability(): ActionOutcome {
         val packageInstalled = runCatching { context.packageManager.getPackageInfo(TermuxContract.PACKAGE, 0) }.isSuccess
@@ -30,7 +32,13 @@ class TermuxCommandDispatcher(
         return ActionOutcome(true, "available", "Termux 服务可发现；桥配置与外部调用开关仍需探测")
     }
 
-    fun dispatch(operation: String, payload: JSONObject = JSONObject()): BridgeOperation {
+    fun dispatch(operation: String, payload: JSONObject = JSONObject()): BridgeOperation =
+        dispatchInternal(operation) { JSONObject(payload.toString()) }
+
+    fun dispatchLocalPairing(origin: URI): BridgeOperation =
+        dispatchInternal("pair_local_core") { operationId -> pairing.prepare(operationId, origin) }
+
+    private fun dispatchInternal(operation: String, payloadFactory: (String) -> JSONObject): BridgeOperation {
         require(operation in TermuxContract.OPERATIONS) { "Unsupported Termux operation" }
         val availability = availability()
         check(availability.accepted) { availability.message }
@@ -46,45 +54,58 @@ class TermuxCommandDispatcher(
             phase = "queued",
             createdAtEpochMs = now
         )
-        val payloadValue = JSONObject(payload.toString())
-            .put("schema_version", 1)
-            .put("operation_id", operationId)
-            .put("request_id", requestId)
-            .put("nonce", nonce)
-            .put("operation", operation)
-        val payloadText = payloadValue.toString()
-        require(payloadText.toByteArray().size <= TermuxContract.MAX_PAYLOAD_BYTES) { "Termux payload too large" }
-        require(!TermuxResultPolicy.containsSecretFields(payloadValue)) { "Credentials cannot be sent through RUN_COMMAND" }
-        operations.create(pending)
-
-        val callbackIntent = Intent(context, TermuxResultService::class.java)
-            .setAction(TermuxContract.CALLBACK_ACTION_PREFIX + requestId)
-            .putExtra(TermuxResultService.EXTRA_OPERATION_ID, operationId)
-            .putExtra(TermuxResultService.EXTRA_REQUEST_ID, requestId)
-            .putExtra(TermuxResultService.EXTRA_NONCE, nonce)
-        val callback = PendingIntent.getService(
-            context,
-            requestCode.incrementAndGet(),
-            callbackIntent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        val intent = baseIntent()
-            .putExtra(TermuxContract.EXTRA_COMMAND_PATH, TermuxContract.COMMAND)
-            .putExtra(TermuxContract.EXTRA_ARGUMENTS, arrayOf(operation, operationId, requestId, nonce, "-"))
-            .putExtra(TermuxContract.EXTRA_STDIN, payloadText)
-            .putExtra(TermuxContract.EXTRA_WORKDIR, TermuxContract.WORKDIR)
-            .putExtra(TermuxContract.EXTRA_BACKGROUND, true)
-            .putExtra(TermuxContract.EXTRA_PENDING_INTENT, callback)
+        var callback: PendingIntent? = null
+        var stored = false
         try {
+            val payloadValue = payloadFactory(operationId)
+                .put("schema_version", 1)
+                .put("operation_id", operationId)
+                .put("request_id", requestId)
+                .put("nonce", nonce)
+                .put("operation", operation)
+            val payloadText = payloadValue.toString()
+            require(payloadText.toByteArray().size <= TermuxContract.MAX_PAYLOAD_BYTES) { "Termux payload too large" }
+            require(!TermuxResultPolicy.containsSecretFields(payloadValue)) { "Credentials cannot be sent through RUN_COMMAND" }
+            operations.create(pending)
+            stored = true
+
+            val callbackIntent = Intent(context, TermuxResultService::class.java)
+                .setAction(TermuxContract.CALLBACK_ACTION_PREFIX + requestId)
+                .putExtra(TermuxResultService.EXTRA_OPERATION_ID, operationId)
+                .putExtra(TermuxResultService.EXTRA_REQUEST_ID, requestId)
+                .putExtra(TermuxResultService.EXTRA_NONCE, nonce)
+            callback = PendingIntent.getService(
+                context,
+                requestCode.incrementAndGet(),
+                callbackIntent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+
+            val intent = baseIntent()
+                .putExtra(TermuxContract.EXTRA_COMMAND_PATH, TermuxContract.COMMAND)
+                .putExtra(TermuxContract.EXTRA_ARGUMENTS, arrayOf(operation, operationId, requestId, nonce, "-"))
+                .putExtra(TermuxContract.EXTRA_STDIN, payloadText)
+                .putExtra(TermuxContract.EXTRA_WORKDIR, TermuxContract.WORKDIR)
+                .putExtra(TermuxContract.EXTRA_BACKGROUND, true)
+                .putExtra(TermuxContract.EXTRA_PENDING_INTENT, callback)
             context.startService(intent)
             operations.finish(pending, "running", "已发出 Termux 请求，等待结构化回执确认", null, false, false)
+            return operations.get(operationId) ?: pending
         } catch (error: Exception) {
-            callback.cancel()
-            operations.finish(pending, "failed", "无法启动 Termux RUN_COMMAND（${error.javaClass.simpleName}）", null, false, false)
+            callback?.cancel()
+            if (operation == "pair_local_core") pairing.discard(operationId)
+            if (stored) runCatching {
+                operations.finish(
+                    pending,
+                    "failed",
+                    "无法启动 Termux RUN_COMMAND（${error.javaClass.simpleName}）",
+                    null,
+                    false,
+                    false
+                )
+            }
             throw error
         }
-        return operations.get(operationId) ?: pending
     }
 
     private fun baseIntent() = Intent(TermuxContract.ACTION_RUN_COMMAND).apply {

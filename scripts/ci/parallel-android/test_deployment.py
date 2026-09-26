@@ -1,5 +1,6 @@
 """Synthetic deployment fault injection. No production node/Termux installation."""
 import contextlib
+import base64
 import importlib.util
 import io
 import json
@@ -231,6 +232,28 @@ class DeploymentTest(unittest.TestCase):
         self.manager.dispatch('restart', 'restart_once', {})
         self.assertEqual(count, len(self.state['starts']))
         self.assertEqual('succeeded', self.manager.query('restart_once')['status'])
+    def test_local_pairing_encrypts_bearer_and_does_not_persist_ciphertext(self):
+        private_key = self.home / 'pairing-private.pem'
+        public_key = self.home / 'pairing-public.der'
+        subprocess.run(['openssl', 'genpkey', '-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048', '-out', str(private_key)], check=True, capture_output=True)
+        subprocess.run(['openssl', 'pkey', '-in', str(private_key), '-pubout', '-outform', 'DER', '-out', str(public_key)], check=True, capture_output=True)
+        identity = 'pair_once'
+        result = self.manager.dispatch('pair_local_core', identity, {
+            'key_id': identity,
+            'algorithm': 'RSA-OAEP-SHA256-MGF1-SHA1',
+            'public_key_der': base64.b64encode(public_key.read_bytes()).decode('ascii'),
+        })
+        self.assertEqual('ok', result['status'])
+        sealed = base64.b64decode(result['data']['sealed_value'])
+        decrypted = subprocess.run([
+            'openssl', 'pkeyutl', '-decrypt', '-inkey', str(private_key),
+            '-pkeyopt', 'rsa_padding_mode:oaep', '-pkeyopt', 'rsa_oaep_md:sha256',
+            '-pkeyopt', 'rsa_mgf1_md:sha1',
+        ], input=sealed, check=True, capture_output=True).stdout
+        self.assertEqual(b'1' * 64, decrypted)
+        stored = m.read_json(self.manager.journal_path(identity))['result']
+        self.assertNotIn('sealed_value', json.dumps(stored))
+        self.assertTrue(stored['data']['ciphertext_delivered'])
     def test_unknown_runtime_completion_is_not_replayed(self):
         self.seed()
         def fault(phase):
@@ -320,4 +343,4 @@ if __name__ == '__main__':
     output.write_text(json.dumps({'scope':'synthetic filesystem and injected process backend; real OpenSSL signature checks',
         'tests': result.testsRun, 'failures':len(result.failures), 'errors':len(result.errors), 'skipped':len(result.skipped),
         'production_installed':False, 'source_sha':os.environ.get('GITHUB_SHA','unknown')}, indent=2) + '\n')
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 40 and not result.skipped else 1)
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 41 and not result.skipped else 1)

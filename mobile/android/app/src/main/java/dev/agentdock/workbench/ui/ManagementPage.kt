@@ -28,6 +28,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
     var tags by rememberSaveable(selectedId) { mutableStateOf("") }
     var confirmation by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
     val selected = data.firstOrNull { it.id == selectedId }
+    val selectedDetail = state.detail?.optJSONObject(if (tasks) "task" else "conversation") ?: state.detail
     val frozenIds = state.checkedIds.toList().ifEmpty { listOfNotNull(selected?.id) }
     val labels = listOf("pin" to "置顶", "unpin" to "取消置顶", "archive" to "归档", "unarchive" to "取消归档",
         "trash" to "移入回收站", "restore" to "恢复", "delete" to "永久删除")
@@ -64,6 +65,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
             }
             if (current.workspaceId.isNotEmpty()) Text("工作区：${current.workspaceId}")
         }
+        if (tasks) item { TaskCreationPanel(model, current.workspaceId) }
         if (data.isEmpty()) item { Text(if (state.loading) "正在读取 Core…" else "当前筛选下没有记录", Modifier.testTag("$kind-empty")) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -115,15 +117,18 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
             item {
                 Text("详情 · ${selected.title}", style = MaterialTheme.typography.titleMedium)
                 if (state.detailError.isNotBlank()) Text(state.detailError)
-                val detail = state.detail?.optJSONObject("task") ?: state.detail?.optJSONObject("conversation") ?: state.detail
-                if (detail != null) DetailFields(detail)
+                if (selectedDetail != null) DetailFields(selectedDetail)
                 if (tasks) {
-                    val steps = detail?.optJSONArray("steps") ?: detail?.optJSONObject("active_thread")?.optJSONArray("steps")
+                    val steps = selectedDetail?.optJSONArray("steps") ?: selectedDetail?.optJSONObject("active_thread")?.optJSONArray("steps")
                     if (steps != null) for (index in 0 until steps.length()) {
                         val step = steps.optJSONObject(index) ?: continue
                         Text("${ManagementContract.text(step, "id")} · ${ManagementContract.text(step, "title")} · ${ManagementContract.text(step, "status")}")
                     }
                 }
+            }
+            item {
+                if (tasks) TaskLifecycleAndThreadsPanel(selected, selectedDetail, model)
+                else ConversationBindingPanel(selected, state.detail, model)
             }
         }
         state.batchResult?.optJSONArray("items")?.let { results ->

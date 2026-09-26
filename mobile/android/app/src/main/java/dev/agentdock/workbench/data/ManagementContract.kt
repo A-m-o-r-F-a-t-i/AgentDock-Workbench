@@ -40,6 +40,11 @@ object ManagementContract {
         return value
     }
 
+    fun namedSegment(value: String): String {
+        require(Regex("^[A-Za-z0-9._-]{1,256}$").matches(value) && value !in setOf(".", "..")) { "无效名称路径段" }
+        return encode(value)
+    }
+
     fun encode(value: String): String = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
     fun listPath(kind: String, query: ListQuery): String {
