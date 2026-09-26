@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import org.json.JSONObject
 
@@ -62,7 +63,7 @@ fun ProjectFilesManagementPage(state: WorkbenchUiState, model: WorkbenchViewMode
         if (exportName.isBlank() && state.selectedProjectName.isNotBlank()) exportName = state.selectedProjectName
     }
 
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(modifier.testTag("projects-list"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text("项目与文件", style = MaterialTheme.typography.headlineSmall)
             Text("Android 仅访问用户通过系统 SAF 明确选择的目录。Termux 路径权限独立验证，两者不会被推断为同一授权。")

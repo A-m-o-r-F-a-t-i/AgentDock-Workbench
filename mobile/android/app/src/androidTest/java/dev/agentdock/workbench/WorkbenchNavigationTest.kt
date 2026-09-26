@@ -56,6 +56,7 @@ class WorkbenchNavigationTest {
         navigate(WorkbenchScreen.Tasks)
         compose.runOnIdle { model.setFixtureScenario("empty") }
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.tasks.isEmpty() }
+        compose.onNodeWithTag("tasks-list").performScrollToIndex(2)
         waitForNodeWithTag("tasks-empty")
         compose.onNodeWithTag("tasks-empty").performScrollTo().assertIsDisplayed()
         capture(directory, WorkbenchScreen.Tasks, "tasks-empty")
@@ -128,9 +129,11 @@ class WorkbenchNavigationTest {
     @Test fun fixtureProjectTreeIsInspectableWithoutStorageWrites() {
         navigate(WorkbenchScreen.ProjectsFiles)
         compose.waitUntil(10000) { model.state.value.projectRoots.isNotEmpty() }
+        compose.onNodeWithTag("projects-list").performScrollToIndex(3)
         waitForText("Android Demo")
         compose.onNodeWithText("Android Demo").performScrollTo().performClick()
         compose.waitUntil(10000) { model.state.value.projectFiles.any { it.relativePath == "README.md" } }
+        compose.onNodeWithTag("projects-list").performScrollToIndex(4)
         waitForText("README.md · 128 B")
         compose.onNodeWithText("README.md · 128 B").performScrollTo().performClick()
         compose.waitUntil(10000) { model.state.value.projectPreview.contains("No real file was read") }
@@ -182,11 +185,11 @@ class WorkbenchNavigationTest {
     }
 
     private fun waitForNodeWithTag(tag: String) {
-        compose.waitUntil(10000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size == 1 }
+        compose.waitUntil(10000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun waitForText(text: String) {
-        compose.waitUntil(10000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().size == 1 }
+        compose.waitUntil(10000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun navigate(screen: WorkbenchScreen) {

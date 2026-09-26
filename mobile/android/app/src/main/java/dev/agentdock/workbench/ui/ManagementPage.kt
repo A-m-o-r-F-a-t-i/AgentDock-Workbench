@@ -43,7 +43,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
         )
     }
 
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(modifier.testTag("$kind-list"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text(if (tasks) "任务中心" else "对话", style = MaterialTheme.typography.headlineSmall)
             Text("每页最多 ${ManagementContract.PAGE_SIZE} 项；分页与筛选由 Core 执行。")
