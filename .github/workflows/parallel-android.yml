@@ -220,8 +220,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p evidence/build/reports
-          find mobile/android/app/build/reports mobile/android/app/build/test-results \
-            -maxdepth 4 -type f -print0 2>/dev/null | xargs -0 -r cp --parents -t evidence/build/reports
+          for directory in mobile/android/app/build/reports mobile/android/app/build/test-results; do
+            [[ ! -d "$directory" ]] || find "$directory" -maxdepth 4 -type f -print0 | xargs -0 -r cp --parents -t evidence/build/reports
+          done
           env | grep -E '^(GITHUB_SHA|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|RUNNER_OS|RUNNER_ARCH)=' | sort > evidence/build/environment.txt
 
       - name: Upload APK candidates
