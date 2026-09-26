@@ -68,6 +68,50 @@ scripts:
     public_contract: false
     deletable: true
     notes: 校验 Workbench v1 契约、fixtures、CLI 命令矩阵、专属工作流只读权限与无发布步骤。
+
+  - path: scripts/ci/parallel-android/prepare-runner-sdk.sh
+    class: ci
+    owner: WB07
+    public_contract: false
+    deletable: true
+    notes: 在隔离 Actions runner 中解析预装 Android SDK，并为 API 37 feature-drop 镜像校验、替换受固定大小和摘要约束的命令行工具；不修改用户设备。
+
+  - path: scripts/ci/parallel-android/run-emulator-tests.sh
+    class: test
+    owner: WB07
+    public_contract: false
+    deletable: true
+    notes: 单次执行 Compose 仪器测试，核对真实 API、测试报告及 23 张有效截图并收集有界诊断证据，失败后不重放断言转绿。
+
+  - path: scripts/ci/parallel-android/run-gradle-candidate.sh
+    class: ci
+    owner: WB07
+    public_contract: false
+    deletable: true
+    notes: 在隔离 runner 中执行 Android Lint、JVM 单测和三类测试签名 APK 构建，并生成与候选提交绑定的测试摘要。
+
+  - path: scripts/ci/parallel-android/test-runner-sdk.sh
+    class: test
+    owner: WB07
+    public_contract: false
+    deletable: true
+    notes: 使用合成 SDK 和受控命令替身验证普通 API、API 37 工具升级、校验失败回退以及宿主 SDK 路径发现。
+
+  - path: scripts/ci/parallel-android/test-termux-bridge.sh
+    class: test
+    owner: WB07
+    public_contract: false
+    deletable: true
+    notes: 在临时目录验证 Termux 桥的只读探测、请求绑定、凭据隔离、进程归属、锁描述符关闭、安全归档及部署故障注入。
+
+  - path: scripts/ci/parallel-android/test_deployment.py
+    class: test
+    owner: WB07
+    public_contract: false
+    deletable: true
+    oversize_justification: 同一隔离故障注入夹具需要覆盖签名清单、断点下载、逐阶段事务续接、schema 数据快照、健康回退、显式回滚、清理预览、一次性配对及恢复熔断；共享真实文件系统和 OpenSSL 状态可避免拆分后产生不一致的伪造边界。
+    notes: 仅在临时目录和注入式进程后端上执行 41 项部署事务回归，不安装、启动或修改生产 Core。
+
   - path: scripts/test/test-linux-native-packages.py
     class: test
     owner: release

@@ -68,8 +68,40 @@ jobs:
           printf 'comparison_base=%s\n' "$base" | tee evidence/contract/comparison-base.txt
           changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
           printf '%s\n' "$changed" | tee evidence/contract/changed-files.txt
-          disallowed="$(printf '%s\n' "$changed" | grep -Ev '^(mobile/android/|scripts/ci/parallel-android/|docs/android/|\.github/workflows/parallel-android\.yml$)' || true)"
+          disallowed="$(printf '%s\n' "$changed" | grep -Ev '^(mobile/android/|scripts/ci/parallel-android/|docs/android/|\.github/workflows/parallel-android\.yml$|scripts/governance/inventory\.yaml$)' || true)"
           test -z "$disallowed" || { printf 'WB07 path violation:\n%s\n' "$disallowed" >&2; exit 1; }
+          if printf '%s\n' "$changed" | grep -Fxq 'scripts/governance/inventory.yaml'; then
+            BASE="$base" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+
+          required = [
+              "scripts/ci/parallel-android/prepare-runner-sdk.sh",
+              "scripts/ci/parallel-android/run-emulator-tests.sh",
+              "scripts/ci/parallel-android/run-gradle-candidate.sh",
+              "scripts/ci/parallel-android/test-runner-sdk.sh",
+              "scripts/ci/parallel-android/test-termux-bridge.sh",
+              "scripts/ci/parallel-android/test_deployment.py",
+          ]
+          base = os.environ["BASE"]
+          diff = subprocess.check_output([
+              "git", "diff", "--unified=0", base, os.environ["GITHUB_SHA"], "--",
+              "scripts/governance/inventory.yaml",
+          ], text=True)
+          removed = [line for line in diff.splitlines() if line.startswith("-") and not line.startswith("---")]
+          if removed:
+              raise SystemExit("WB07 inventory integration may only add Android entries")
+          added_paths = re.findall(r"^\+\s+- path:\s*(\S+)\s*$", diff, re.MULTILINE)
+          if added_paths != required:
+              raise SystemExit(f"unexpected Android inventory paths: {added_paths!r}")
+          current = Path("scripts/governance/inventory.yaml").read_text()
+          for path in required:
+              if current.count(f"- path: {path}") != 1:
+                  raise SystemExit(f"Android inventory path must occur exactly once: {path}")
+          PY
+          fi
 
       - name: Validate source, bridge and security contracts
         shell: bash
