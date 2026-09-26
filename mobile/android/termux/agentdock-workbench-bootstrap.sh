@@ -4,7 +4,7 @@ umask 077
 
 # Run manually inside the official external Termux app after exporting the complete
 # bridge bundle from AgentDock Workbench. It never installs a Core release by itself.
-SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SELF_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BRIDGE="$SELF_DIR/agentdock-workbench"
 MODULE="$SELF_DIR/agentdock_workbench.py"
 [ -f "$MODULE" ] || { printf 'Missing companion module\n' >&2; exit 1; }
