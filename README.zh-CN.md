@@ -210,23 +210,6 @@ make check
 
 提交问题或功能建议请使用 [GitHub Issues](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)。
 
-## 支持项目
-
-<p>如果 <b>AgentDock</b> 对您有帮助，请考虑为它点个 <b>Star</b> ⭐，感谢您的支持</p>
-<table>
-<thead>
-<tr>
-<th align="center">微信(WeChat)</th>
-<th align="center">支付宝(Alipay)</th>
-</tr>
-</thead>
-<tbody><tr>
-<td align="center"><img src="./docs/assets/donation/wechat-cropped.JPG" alt="微信赞助二维码" height="200"></td>
-<td align="center"><img src="./docs/assets/donation/alipay.JPG" alt="支付宝赞助二维码" height="200"></td>
-</tr>
-</tbody>
-</table>
-
 ## Star 趋势
 
 [![Star History Chart](https://api.star-history.com/svg?repos=uvwt/agentdock&type=Date)](https://star-history.com/#uvwt/agentdock&Date)
