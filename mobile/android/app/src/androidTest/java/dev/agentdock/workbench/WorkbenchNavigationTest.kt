@@ -2,6 +2,9 @@ package dev.agentdock.workbench
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -33,11 +36,15 @@ class WorkbenchNavigationTest {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_FIXTURE, true))
         scenario.onActivity { model = ViewModelProvider(it)[WorkbenchViewModel::class.java] }
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.fixture }
+        awaitConfiguration { true }
     }
 
     @After fun close() {
-        scenario.close()
-        resetDisplayConfiguration()
+        try {
+            if (::scenario.isInitialized) scenario.close()
+        } finally {
+            resetDisplayConfiguration()
+        }
     }
 
     @Test fun everyWorkbenchPageIsReachableOnCompactLayout() {
@@ -76,6 +83,7 @@ class WorkbenchNavigationTest {
         compose.onNodeWithText("应用筛选").performScrollTo().performClick()
         compose.waitUntil(10000) { !model.state.value.loading }
         scenario.recreate()
+        awaitConfiguration { true }
         scenario.onActivity { model = ViewModelProvider(it)[WorkbenchViewModel::class.java] }
         compose.onNodeWithTag("screen-tasks").assertIsDisplayed()
         compose.onNodeWithTag("tasks-search").assertTextContains("回执检查")
@@ -114,6 +122,7 @@ class WorkbenchNavigationTest {
         navigate(WorkbenchScreen.InsertAndStop)
         compose.onNodeWithTag("insertion-text").assertTextContains("保留这条补充要求")
         scenario.recreate()
+        awaitConfiguration { true }
         compose.onNodeWithTag("insertion-text").assertTextContains("保留这条补充要求")
     }
 
@@ -170,7 +179,9 @@ class WorkbenchNavigationTest {
         capture(directory, WorkbenchScreen.Permissions, "permissions-landscape")
 
         shell("settings put system user_rotation 0")
+        awaitConfiguration { it.orientation == Configuration.ORIENTATION_PORTRAIT }
         shell("wm size 1280x800")
+        awaitConfiguration { it.orientation == Configuration.ORIENTATION_LANDSCAPE }
         shell("wm density 160")
         awaitConfiguration { it.smallestScreenWidthDp >= 600 && it.densityDpi == 160 }
         var smallestWidth = 0
@@ -219,23 +230,54 @@ class WorkbenchNavigationTest {
         val retainedModel = model
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         compose.waitUntil(10000) {
-            var ready = false
+            var candidate: MainActivity? = null
             instrumentation.runOnMainSync {
                 val activity = ActivityLifecycleMonitorRegistry.getInstance()
                     .getActivitiesInStage(Stage.RESUMED)
                     .filterIsInstance<MainActivity>()
                     .singleOrNull()
                 if (activity != null && !activity.isDestroyed && !activity.isFinishing &&
-                    matches(activity.resources.configuration)) {
-                    model = ViewModelProvider(activity)[WorkbenchViewModel::class.java]
-                    ready = true
+                    matches(activity.resources.configuration) &&
+                    hasAttachedComposition(activity.window.decorView)) {
+                    candidate = activity
                 }
             }
-            ready
+            if (candidate == null) {
+                false
+            } else {
+                // RESUMED can precede attachment of the replacement Compose root.
+                // Absence is a readiness state here, not an assertion to replay.
+                val hasNavigation = compose.onAllNodesWithTag("open-navigation")
+                    .fetchSemanticsNodes(atLeastOneRootRequired = false).size == 1
+                var stillCurrent = false
+                instrumentation.runOnMainSync {
+                    val current = ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED)
+                        .filterIsInstance<MainActivity>().singleOrNull()
+                    if (current != null && current === candidate &&
+                        !current.isDestroyed && !current.isFinishing &&
+                        matches(current.resources.configuration) &&
+                        hasAttachedComposition(current.window.decorView)) {
+                        model = ViewModelProvider(current)[WorkbenchViewModel::class.java]
+                        stillCurrent = true
+                    }
+                }
+                hasNavigation && stillCurrent
+            }
         }
         assertSame("Configuration recreation must retain the Workbench ViewModel", retainedModel, model)
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.fixture }
         compose.waitForIdle()
+    }
+
+    private fun hasAttachedComposition(view: View): Boolean {
+        if (!view.isAttachedToWindow) return false
+        if (view is AbstractComposeView) {
+            return view.hasComposition && view.width > 0 && view.height > 0
+        }
+        return view is ViewGroup && (0 until view.childCount).any {
+            hasAttachedComposition(view.getChildAt(it))
+        }
     }
 
     private fun resetDisplayConfiguration() {
