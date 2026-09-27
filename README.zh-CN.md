@@ -6,100 +6,96 @@
 
 # AgentDock Workbench
 
-　　**AgentDock Workbench 1.1.7** · [版本说明与各平台安装包](./docs/releases/v1.1.7.md) · [原计划验收矩阵](./docs/acceptance-1.1.7.md) · [分层权限](./docs/permission-profiles.md) · [插入投递](./docs/insertion-delivery-1.1.7.md)。本分支基于[上游 AgentDock](https://github.com/uvwt/agentdock)，增加任务与执行工作台。发行覆盖 Windows、Linux、macOS 的 x64/ARM64 原生载荷，Windows 活动中心界面保持平台限定。
+**面向真实设备操作的 AI Agent 任务、执行与权限工作台**
 
-**让 AI 的双手，真正触达你的每一台设备。**
+AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远程服务器和移动节点，并在 AgentDock 运行时之上提供以对话为中心的任务管理、工具调用追踪、审批、权限、中途插入、插件管理和多设备协同能力。
 
-打开网页版 ChatGPT，即可管理多台电脑与服务器：在真实设备上写代码、改配置、跑命令与部署，执行发生在你的机器上，不消耗Codex额度。
-
-
-[在线文档](https://uvwt.github.io/agentdock-docs/zh-CN/) · [下载安装](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [QQ群](https://qun.qq.com/universal-share/share?ac=1&authKey=Rp86bSzI7vqm87KoYlKawgsPZ440Ubhyezw6Qkgcn3JISwX3zXxsXkbS5598RrY5&busi_data=eyJncm91cENvZGUiOiIxMDgxMzM3MDE5IiwidG9rZW4iOiJ0Mlg1bUU1ZWtuZzF3SHJDT3pSaGsrOURIMlNYaXBlYllOUjNLZ1BUb1hzM2lJSTZjeVNldzU0ajl0SjRVZkx2IiwidWluIjoiMzIwMjA4ODAzMiJ9&data=W28mWvuqaLf_Fwnf0CgAJXuDs6l3A78V7AoWZnizPboCpKoQMzHzZ-UlluYo47U3tmIBHK2xIgWEVEJbTiGsPQ&svctype=4&tempid=h5_group_info)
+[下载发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [正式版 v1.1.7](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.7) · [预发布版 v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [提交问题](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
-[![License](https://img.shields.io/github/license/uvwt/agentdock)](./LICENSE)
+[![License](https://img.shields.io/github/license/A-m-o-r-F-a-t-i/AgentDock-Workbench)](./LICENSE)
 
 </div>
 
 <p align="center">
   <img
     src="./docs/assets/agentdock-multi-device.png"
-    alt="AgentDock：通过一个 AI 对话统一操控多台设备"
+    alt="AgentDock Workbench 通过一个 AI 对话管理多台设备"
     width="100%"
   />
 </p>
 
-## AgentDock 是什么
+## 项目定位
 
-AgentDock 是一个面向 AI Agent 的独立工具运行层。
+　　AgentDock Workbench 是基于[上游 AgentDock](https://github.com/uvwt/agentdock)独立维护的扩展项目。Core 通过 MCP 向 AI 提供文件、命令、Git、Skill、动态 MCP、浏览器自动化和部署等宿主能力，Workbench 则补齐持续任务所需的管理层，使操作不再是一组彼此孤立的工具调用。
 
-它为本地电脑、远程服务器与容器环境提供统一、安全、可控的文件、命令、Git、Skill、MCP、浏览器自动化和任务执行能力。配置多台 AgentDock，还能跨设备协同，把原本要在多机之间来回切换的工作，收敛到一次对话里完成。
+　　本项目不提供聊天界面，也不执行模型推理。模型与对话由 AI 客户端提供，AgentDock Workbench 在已连接环境中执行经过授权的操作，并记录任务、调用、审批、输出和最终状态。
 
-AgentDock 不提供聊天界面，也不负责模型推理。它专注于解决一件事：
+## Workbench 核心能力
 
-> 让 AI Agent 在明确的权限边界内操作真实环境，并返回结构化、可追踪、可验证的执行结果。
+| 模块 | 提供的能力 |
+| --- | --- |
+| 对话优先的导航 | 按工作区组织活动中与历史对话，支持搜索、置顶、归档、恢复和明确的选中状态。 |
+| 可恢复任务 | 持久化目标、步骤、线程、检查点、阻塞原因和最终审查，使长任务可在中断后继续。 |
+| 任务与活动中心 | 记录根调用与子调用、参数、输出、耗时、文件变化、错误、审批和终态，同时排除心跳、后台探针等诊断流量。 |
+| 中途插入与停止 | 向正在执行的对话补充新要求，保存投递与回执状态，并可停止整个对话或指定调用。 |
+| 分层权限 | 将 Permission Profile、Approval Policy 和 Approval Reviewer 分离，全局与工作区配置均可读回和审计。 |
+| Skill、插件与 MCP | 在统一管理界面中发现、安装、启停和检查 Skill、自包含插件及动态 MCP Server。 |
+| 多设备执行 | 连接本机、服务器、容器和移动节点，同时保持目标工作区、对话和调用身份正确绑定。 |
+| 安装与恢复 | 使用明确的安装、更新、回退、保留和健康状态，避免未验证完成时提前报告成功。 |
+
+## 系统结构
 
 ```text
-              ChatGPT / Claude / Codex
-                        │
-                        │ MCP（可接入多台）
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-   ┌───────────┐ ┌───────────┐ ┌───────────┐
-   │ AgentDock │ │ AgentDock │ │ AgentDock │
-   │  本机电脑  │ │  内网机器   │ │  云服务器  │
-   └─────┬─────┘ └─────┬─────┘ └─────┬─────┘
-         │             │             │
-         ▼             ▼             ▼
-   文件·命令·Git  穿透客户端等   转发·反代·部署
+ ChatGPT / Claude / Codex / 其他 MCP 客户端
+                       │
+              MCP + Bearer/OAuth
+                       │
+              AgentDock Core 运行时
+       ┌───────────────┼────────────────┐
+       │               │                │
+ Workbench 界面      管理 CLI          工具运行层
+       │               │                │
+ 对话与工作区        任务与调用         文件 / 命令 / Git
+ 权限与审批          日志与导出         Skill / 插件 / MCP
+ 插入与停止          状态管理           浏览器 / 部署
+                       │
+          本地电脑 · 服务器 · 容器 · 移动节点
 ```
 
-## 你可以用 AgentDock 做什么
+　　对话身份由可信宿主元数据解析，任务与调用继承该绑定，审批直接关联被审查的具体 Call。管理界面不会通过当前选中的窗口或最近活动任务猜测执行身份。
 
-- 用网页版 ChatGPT 直接管理多台电脑与服务器，无需分别 SSH 登录来回操作
-- 在真实设备上写代码、改项目、跑测试并操作 Git，执行发生在本机或服务器，不依赖专用编程 Agent 额度
-- 让 AI 管理 VPS、Docker 服务、反向代理和部署配置
-- 让 AI 检查日志、进程、端口和真实运行状态
-- 让 AI 操作登录后的网页与 macOS 桌面应用
-- 配置多台 AgentDock，在一次对话中完成跨设备协同任务
-- 通过 Skill 和动态 MCP 扩展外部能力
-- 保存长时间任务的执行状态，并在中断后继续
-- 用同一套工具模型连接 macOS、Linux、Windows 与容器环境
-- 等等
+## 平台状态
 
-## 本分支与上游官方版
+| 平台 | 使用形态 | 当前状态 |
+| --- | --- | --- |
+| Windows | 原生 WPF Workbench、图形安装程序、任务与活动中心、权限管理、中途插入、更新和恢复。 | 当前正式版的主要桌面体验。 |
+| macOS | 原生 Swift/AppKit Workbench，与其他客户端共用 Core 管理契约。 | 在 v1.1.8 预发布版中扩展。 |
+| Android | Kotlin/Jetpack Compose Workbench，连接外部 Termux/PRoot Core，并提供部署与保活管理。 | 在 v1.1.8 预发布版中加入。 |
+| Linux | 无界面 Core 与管理 CLI，适合本机、服务器和脚本化操作。 | 通过发行包或源码构建使用。 |
+| 容器 / VPS | 通过 MCP、CLI、认证和远程连接运行无界面 Core。 | 具体能力取决于所选发行资产与部署环境。 |
 
-README 只保留简要入口。插件机制、`AGENTS.md` 自动注入、执行中心、Windows 桌面扩展和状态边界见[详细差异与迁移指南](./docs/official-version-differences-and-migration.md)。在上游官方版与本分支之间切换时，需要先卸载原发行线并使用干净状态；也可以让 AI 在备份副本中转换已复核的文本配置，但凭据、审批、执行日志和安装事务不能直接复制。
+　　不同版本与 CPU 架构提供的安装资产可能不同，安装前应核对 Release 的文件列表和说明。当前 Latest 正式版为 v1.1.7，v1.1.8 仍是用于跨平台验证的预发布版本。
 
+## 典型使用场景
+
+- 让 AI 在目标电脑上修改真实工程、运行测试、检查失败原因，并提交已验证的结果。
+- 浏览器断开后，根据已持久化的步骤与检查点继续数小时的任务。
+- 查看一个对话实际触发的根调用、子调用、输出、错误和文件变化。
+- 在任务执行中补充新要求，同时保留当前上下文，不创建重复任务。
+- 对指定操作要求人工审批，并保持文件系统、网络和沙箱硬边界持续生效。
+- 在一个对话中管理多台 AgentDock 节点，并将每次操作路由到正确设备和工作区。
 
 ## 快速开始
 
-普通用户直接使用正式安装包即可，不需要下载源码、安装 Go 或自己构建 AgentDock。
+1. 打开 [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)，选择正式版或当前预发布版。
+2. 下载与操作系统和 CPU 架构对应的安装包。
+3. 启动 AgentDock Core；平台提供原生界面时，同时启动 Workbench。
+4. 获取 MCP 地址与 Bearer Token，或完成 OAuth 连接。
+5. 将连接信息加入 AI 客户端的 MCP、Tools 或 Connectors 设置。
 
-完整步骤见 [安装 AgentDock](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/install)。
-
-
-| 平台 | 文档 |
-| --- | --- |
-| Docker | [Docker 快速部署](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/docker) |
-| Linux | [Linux 自动安装](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/linux) |
-| Linux / VPS | [systemd 部署](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/vps) |
-| macOS | [macOS 安装](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/macos) |
-| Windows | [Windows 图形安装程序](https://uvwt.github.io/agentdock-docs/zh-CN/docs/getting-started/windows) |
-
-
-### 连接方式如何选择
-
-- **仅本机**：客户端和 AgentDock 在同一台电脑上。
-- **临时公网地址**：没有域名，但需要从 ChatGPT、手机或其他设备连接。地址可能在 Tunnel 重启后变化。
-- **固定域名**：长期使用稳定公网地址，需要已接入 Cloudflare 的域名和 Tunnel Token。
-- **Tailscale Funnel（Windows Desktop）**：使用已登录设备的 `.ts.net` HTTPS 域名，无需 Tunnel Token。完整转发 AgentDock Origin，保留 Bearer Token／OAuth 认证，启停仅管理 AgentDock 所有的映射。配置、冲突检查与恢复见 [Tailscale 指南](./docs/tailscale-funnel.md)。
-
-安装完成后，从控制面板或终端取得 MCP 地址，以及 Bearer Token 或 OAuth 登录信息，再填入客户端的 MCP、Tools 或 Connectors 设置。公网访问必须保留认证，不要把凭据放进截图、Issue 或公开聊天。
-
-## 接入 AI 客户端
-
-AgentDock 通过 MCP Streamable HTTP 提供工具能力。下面是一个通用配置示例，具体字段格式取决于所使用的 AI 客户端：
+　　本机连接的通用配置示例如下：
 
 ```json
 {
@@ -114,119 +110,53 @@ AgentDock 通过 MCP Streamable HTTP 提供工具能力。下面是一个通用�
 }
 ```
 
+　　所有非本机连接都应保持认证开启。不要公开 Token、OAuth 凭据、私有 Origin、审批请求正文，或包含敏感信息的执行日志。
 
-## 核心能力
+## 项目文档
 
-### 文件与命令
-
-- UTF-8 文本读取、搜索、目录遍历和结构化修改
-- 原子文件写入、路径边界和私密目录保护
-- 有超时和输出边界的命令执行
-- 标准输出、标准错误和退出码分离
-- 长时间命令会话、PTY、会话观察、输入和停止
-- 输出截断和敏感信息脱敏
-- macOS、Linux、Windows 与 WSL 支持
-
-### Skill 与动态 MCP
-
-官方与社区 Skill 源码统一维护在 [uvwt/agentdock-skills](https://github.com/uvwt/agentdock-skills)。本仓库只保留必须随 AgentDock 运行时发布的核心 Skill，包括自举/安全相关 Skill，以及内置的 `agentdock-user-guide` 官方用户指南。
-
-- Skill 包校验、安装、卸载、激活、启停和回滚
-- 当前激活 Skill 使用[与 Codex 一致的可见目录结构](docs/skill-directory-layout.md)，非激活版本和事务状态保存在隐藏目录
-- 稳定版、开发版、Canary 和固定版本通道
-- Skill 独立环境变量与运行环境
-- 动态 MCP Server 注册、启停、刷新和移除
-- Streamable HTTP 与 stdio 传输
-- 工具搜索、Schema 检查和受控调用
-- MCP Server 之间的配置隔离
-- 安装[自包含重插件](docs/heavy-plugins.md)：插件直接携带 Skill、MCP 定义、实现文件和开关，按两层渐进式方式暴露能力，不增加插件 cache 中间层
-
-### 原生 ACP 
-
-AgentDock 可以选择作为 ACP Client 原生托管本地 Coding Agent adapter。
-
-- 桌面控制面板提供 Codex、Claude 和 Grok 预设；是否启用 ACP 以及选择哪个 adapter 由宿主配置决定。
-- 使用 `acp_session` 创建和管理会话，使用 `acp_prompt` 发起并观察 prompt，使用 `acp_interaction` 响应 Agent 的权限请求。
-- 可选 ACP 操作只会在已连接 adapter 声明相应能力时开放。
-- ACP 工作目录遵循宿主进程或容器的安全边界，而不是 AgentDock 文件系统 allowlist。
-
-### 浏览器与桌面自动化
-
-- 浏览器会话启动、关闭和清理
-- 页面跳转、点击、输入、选择和等待
-- 页面文本、可交互元素、错误和网络响应检查
-- 登录状态、持久化浏览器 Profile 和截图
-- macOS 系统 Chrome 与桌面自动化支持
-
-### 可恢复任务
-
-- 持久化任务状态
-- 明确的目标、步骤和完成条件
-- 分阶段检查点
-- 阻塞原因记录和中断恢复
-- 最终审查与完成验证
-- 可复用工作流模板
-
-### Recall 与 NexusDock 集成
-
-AgentDock 可以选择与 NexusDock 配对，将它作为多设备汇总入口：
-
-- 长期项目记忆
-- 运行手册和经验记录
-- 工作流模板
-- 私密笔记
-- 多设备状态协同
-
-## 运行目录
-
-| 路径 | 用途 |
+| 主题 | 文档 |
 | --- | --- |
-| `~/AgentDock` | 相对文件操作的默认工作目录 |
-| `~/.agentdock` | AgentDock 状态、配置、会话和扩展数据 |
+| 任务与活动中心 | [执行中心](./docs/execution-center.md) |
+| Core 管理接口 | [执行中心 API](./docs/execution-center-api.md) |
+| 权限模型 | [分层权限](./docs/permission-profiles.md) |
+| 自定义权限设置 | [自定义权限配置](./docs/permissions-custom-settings.md) |
+| 中途插入投递 | [插入投递机制](./docs/insertion-delivery-1.1.7.md) |
+| AGENTS.md 上下文注入 | [Agent 上下文](./docs/agents-context.md) |
+| Skill 与自包含插件 | [Agent 插件](./docs/agent-plugins.md) |
+| Tailscale Funnel 连接 | [Tailscale Funnel](./docs/tailscale-funnel.md) |
+| 与上游差异及迁移 | [版本差异与迁移](./docs/official-version-differences-and-migration.md) |
+| 当前正式版 | [v1.1.7 版本说明](./docs/releases/v1.1.7.md) |
+| 当前预发布版 | [v1.1.8 版本说明](./docs/releases/v1.1.8.md) |
 
-## 端口说明
+## 仓库结构
 
-Docker、原生安装和本地开发的默认 MCP 地址：
+| 路径 | 职责 |
+| --- | --- |
+| `cmd/` | AgentDock 命令行入口。 |
+| `internal/` | Core 运行时、状态、权限、任务、调用、安装和平台服务。 |
+| `api/` | 对外接口与 Workbench 管理接口定义。 |
+| `desktop/` | 原生桌面客户端及桌面平台集成。 |
+| `mobile/` | Android Workbench 与移动端集成。 |
+| `core-skills/` | 随运行时发布的内置 Skill。 |
+| `packaging/` | 安装器、发行打包和各平台交付文件。 |
+| `docs/` | 架构、行为、版本、迁移和验证文档。 |
 
-`http://127.0.0.1:8765/mcp`
+## 开发与验证
 
-端口可以通过配置调整，客户端应以实际部署配置为准。
-
-公网部署必须启用 Bearer Token 或 OAuth 认证并使用 HTTPS，不要将未认证的 MCP 服务暴露到公网。
-
-## 开发与贡献
-
-提交代码前运行完整检查：
+　　修改仓库前先阅读 [AGENTS.md](./AGENTS.md)。提交变更前运行完整检查：
 
 ```bash
 make check
 ```
 
-项目使用 GitHub Actions 持续执行测试、静态检查、构建和发布验证。
+　　GitHub Actions 持续执行集成测试、静态检查、平台构建、安装包生成和发行验证。源码构建、安装包生成、安装测试与正式发布是不同交付状态，源码编译成功不等于安装或升级流程已经验证。
 
-用户文档独立维护在 [`uvwt/agentdock-docs`](https://github.com/uvwt/agentdock-docs)。修改用户可见行为、配置参数、安装方式或工具 Schema 时，应同步更新对应文档。
+　　可复现的缺陷和功能需求统一提交到 [GitHub Issues](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)。问题涉及执行失败时，应提供 Workbench 版本、操作系统、相关任务或调用状态，以及完成脱敏的日志。
 
-涉及设备配对、跨节点工具路由、Recall 或 Workflow 等集成能力时，可能还需协同修改独立仓库 [`uvwt/nexusdock`](https://github.com/uvwt/nexusdock)。两者共享的协议维护在 [`uvwt/agentdock-protocol`](https://github.com/uvwt/agentdock-protocol)。变更共享接口或数据结构时，应先更新协议定义，再同步两端实现与协议依赖版本，核对兼容性并更新对应文档，在 PR 中关联跨仓库改动。
+## 与上游的关系
 
-提交问题或功能建议请使用 [GitHub Issues](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)。
+　　AgentDock Workbench 基于采用 Apache License 2.0 的[上游 AgentDock 项目](https://github.com/uvwt/agentdock)，并保留所需许可证与署名。本仓库独立维护 Workbench 新增功能、发行版、文档、安装行为和问题反馈。上游发行版与 AgentDock Workbench 的状态及安装边界并不完全兼容，切换前应阅读[迁移说明](./docs/official-version-differences-and-migration.md)。
 
-## Star 趋势
+## 许可证
 
-[![Star History Chart](https://api.star-history.com/svg?repos=uvwt/agentdock&type=Date)](https://star-history.com/#uvwt/agentdock&Date)
-
-## 相关链接
-
-- [Documentation](https://uvwt.github.io/agentdock-docs/zh-CN/)
-- [Documentation source](https://github.com/uvwt/agentdock-docs)
-- [GitHub Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
-- [GitHub Container Registry](https://github.com/uvwt/agentdock/pkgs/container/agentdock)
-- [Docker Hub](https://hub.docker.com/r/agentdockio/agentdock)
-- [Linux Do](https://linux.do/)
-
-## License
-
-Apache License 2.0. See [LICENSE](./LICENSE).
-
-## 交流反馈
-
-[加入 QQ 群（1081337019）](https://qun.qq.com/universal-share/share?ac=1&authKey=Rp86bSzI7vqm87KoYlKawgsPZ440Ubhyezw6Qkgcn3JISwX3zXxsXkbS5598RrY5&busi_data=eyJncm91cENvZGUiOiIxMDgxMzM3MDE5IiwidG9rZW4iOiJ0Mlg1bUU1ZWtuZzF3SHJDT3pSaGsrOURIMlNYaXBlYllOUjNLZ1BUb1hzM2lJSTZjeVNldzU0ajl0SjRVZkx2IiwidWluIjoiMzIwMjA4ODAzMiJ9&data=W28mWvuqaLf_Fwnf0CgAJXuDs6l3A78V7AoWZnizPboCpKoQMzHzZ-UlluYo47U3tmIBHK2xIgWEVEJbTiGsPQ&svctype=4&tempid=h5_group_info)
+　　本项目采用 Apache License 2.0，详见 [LICENSE](./LICENSE)。
