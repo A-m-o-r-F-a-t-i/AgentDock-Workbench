@@ -234,6 +234,9 @@ func validateGitSourceRef(ref string) error {
 	return nil
 }
 
+var gitBranchSelectorPattern = regexp.MustCompile(`^[\pL\pN_][\pL\pN_./+-]*$`)
+var gitCommitExpressionPattern = regexp.MustCompile(`^(HEAD|[a-fA-F0-9]{40})\^\{commit\}$`)
+
 // clonePluginGit fixes the operation and options; repository paths remain operands after --.
 func clonePluginGit(ctx context.Context, source, destination, ref string, shallow bool) (string, error) {
 	if err := validateGitSourceRef(source); err != nil {
@@ -242,7 +245,7 @@ func clonePluginGit(ctx context.Context, source, destination, ref string, shallo
 	if !filepath.IsAbs(destination) || strings.ContainsRune(destination, 0) {
 		return "", errors.New("invalid Git staging destination")
 	}
-	if len(ref) > 1024 || strings.HasPrefix(ref, "-") || strings.ContainsAny(ref, "\x00\r\n") {
+	if len(ref) > 1024 || ref != "" && !gitBranchSelectorPattern.MatchString(ref) {
 		return "", errors.New("invalid Git branch selector")
 	}
 	var command *exec.Cmd
@@ -263,16 +266,13 @@ func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, e
 	if !filepath.IsAbs(gitDir) || strings.ContainsRune(gitDir, 0) {
 		return "", errors.New("invalid Git repository directory")
 	}
-	validRevision := func(value string) bool {
-		return value == "HEAD^{commit}" || strings.HasSuffix(value, "^{commit}") && fullGitCommitPattern.MatchString(strings.TrimSuffix(value, "^{commit}"))
-	}
 	var command *exec.Cmd
 	switch {
-	case len(args) == 3 && args[0] == "cat-file" && args[1] == "-e" && validRevision(args[2]):
+	case len(args) == 3 && args[0] == "cat-file" && args[1] == "-e" && gitCommitExpressionPattern.MatchString(args[2]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "cat-file", "-e", args[2])
 	case len(args) == 4 && args[0] == "fetch" && args[1] == "--depth=1" && args[2] == "origin" && fullGitCommitPattern.MatchString(args[3]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "fetch", "--depth=1", "origin", args[3])
-	case len(args) == 2 && args[0] == "rev-parse" && validRevision(args[1]):
+	case len(args) == 2 && args[0] == "rev-parse" && gitCommitExpressionPattern.MatchString(args[1]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "rev-parse", "--verify", "--end-of-options", args[1])
 	default:
 		return "", errors.New("unsupported Plugin Git operation or revision")
