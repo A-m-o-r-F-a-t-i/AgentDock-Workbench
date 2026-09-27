@@ -11,7 +11,8 @@
 
 ## Network policy
 
-- loopback 可用 HTTP/HTTPS；非 loopback 必须显式启用 HTTPS。
+- 明文 HTTP 只允许 `localhost`、`127.0.0.1`、`::1` 和完整 IPv6 loopback；其余地址必须显式启用 HTTPS。
+- Android Network Security Config 默认拒绝明文，只为上述四个字面主机建立不含子域的例外；Manifest 不设置全局明文开关。
 - Origin 不得含 path、query、fragment 或 userinfo。
 - 系统代理和 HTTP 重定向被拒绝。
 - 普通管理读取只允许 `/internal/runtime/`；公开例外仅为两个精确 OAuth discovery 路径。

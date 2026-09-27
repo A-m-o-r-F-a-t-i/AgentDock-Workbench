@@ -46,13 +46,8 @@ object EndpointPolicy {
         return uri
     }
 
-    private fun isLoopbackHost(host: String): Boolean {
-        if (host == "localhost" || host == "::1" || host == "0:0:0:0:0:0:0:1") return true
-        val parts = host.split('.')
-        return parts.size == 4 && parts.firstOrNull() == "127" && parts.all { part ->
-            part.length in 1..3 && part.all(Char::isDigit) && part.toIntOrNull() in 0..255
-        }
-    }
+    private fun isLoopbackHost(host: String): Boolean =
+        host in setOf("localhost", "127.0.0.1", "::1", "0:0:0:0:0:0:0:1")
 }
 
 class CoreClient(private val endpoint: CoreEndpoint) {

@@ -6,9 +6,18 @@ import org.junit.Test
 
 class EndpointPolicyTest {
     @Test
-    fun loopbackHttpIsAllowed() {
-        assertEquals("http", EndpointPolicy.resolve("http://127.0.0.1:8765", false).scheme)
-        assertEquals("localhost", EndpointPolicy.resolve("http://localhost:8765", false).host)
+    fun loopbackHttpIsAllowedOnlyForTheNetworkSecurityConfigHostSet() {
+        listOf(
+            "http://localhost:8765",
+            "http://127.0.0.1:8765",
+            "http://[::1]:8765",
+            "http://[0:0:0:0:0:0:0:1]:8765"
+        ).forEach { value ->
+            assertEquals("http", EndpointPolicy.resolve(value, false).scheme)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            EndpointPolicy.resolve("http://127.0.0.42:8765", false)
+        }
     }
 
     @Test

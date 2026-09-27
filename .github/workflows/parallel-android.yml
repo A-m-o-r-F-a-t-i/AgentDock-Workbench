@@ -115,6 +115,32 @@ jobs:
               raise SystemExit("no Android XML resources found")
           for path in files:
               ET.parse(path)
+
+          android_ns = "{http://schemas.android.com/apk/res/android}"
+          manifest = ET.parse("mobile/android/app/src/main/AndroidManifest.xml").getroot()
+          application = manifest.find("application")
+          if application is None or application.attrib.get(android_ns + "networkSecurityConfig") != "@xml/network_security_config":
+              raise SystemExit("Android application must use the reviewed network security config")
+          if android_ns + "usesCleartextTraffic" in application.attrib:
+              raise SystemExit("manifest-wide cleartext opt-in is forbidden; use exact NSC loopback domains")
+
+          network = ET.parse("mobile/android/app/src/main/res/xml/network_security_config.xml").getroot()
+          base = network.find("base-config")
+          if base is None or base.attrib.get("cleartextTrafficPermitted") != "false":
+              raise SystemExit("network security base-config must deny cleartext")
+          cleartext_configs = [
+              value for value in network.findall("domain-config")
+              if value.attrib.get("cleartextTrafficPermitted") == "true"
+          ]
+          if len(cleartext_configs) != 1:
+              raise SystemExit("exactly one cleartext domain-config is allowed")
+          domains = cleartext_configs[0].findall("domain")
+          expected = {"localhost", "127.0.0.1", "[::1]", "[0:0:0:0:0:0:0:1]"}
+          actual = {domain.text.strip() for domain in domains if domain.text}
+          if actual != expected or len(domains) != len(expected):
+              raise SystemExit(f"unexpected cleartext loopback domains: {sorted(actual)!r}")
+          if any(domain.attrib.get("includeSubdomains") != "false" for domain in domains):
+              raise SystemExit("loopback cleartext domains must not include subdomains")
           PY
           for script in mobile/android/termux/agentdock-workbench mobile/android/termux/*.sh scripts/ci/parallel-android/*.sh; do
             bash -n "$script"
