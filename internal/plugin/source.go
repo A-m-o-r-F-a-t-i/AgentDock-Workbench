@@ -248,6 +248,9 @@ func clonePluginGit(ctx context.Context, source, destination, ref string, shallo
 	if len(ref) > 1024 || ref != "" && !gitBranchSelectorPattern.MatchString(ref) {
 		return "", errors.New("invalid Git branch selector")
 	}
+	if strings.HasPrefix(ref, "--") {
+		return "", errors.New("Git options are not branch selectors")
+	}
 	var command *exec.Cmd
 	switch {
 	case shallow && ref != "":
@@ -269,7 +272,7 @@ func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, e
 	var command *exec.Cmd
 	switch {
 	case len(args) == 3 && args[0] == "cat-file" && args[1] == "-e" && gitCommitExpressionPattern.MatchString(args[2]):
-		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "cat-file", "-e", args[2])
+		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "cat-file", "-e", "--", args[2])
 	case len(args) == 4 && args[0] == "fetch" && args[1] == "--depth=1" && args[2] == "origin" && fullGitCommitPattern.MatchString(args[3]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "fetch", "--depth=1", "origin", args[3])
 	case len(args) == 2 && args[0] == "rev-parse" && gitCommitExpressionPattern.MatchString(args[1]):
