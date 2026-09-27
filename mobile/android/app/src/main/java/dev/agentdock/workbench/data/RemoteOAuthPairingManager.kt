@@ -31,6 +31,27 @@ data class OAuthPendingSession internal constructor(
     internal val startedAtEpochMs: Long
 )
 
+internal sealed interface OAuthCallbackDecision {
+    data object Ignore : OAuthCallbackDecision
+    data class Code(val value: String) : OAuthCallbackDecision
+    data class Error(val value: String) : OAuthCallbackDecision
+}
+
+internal class OAuthCallbackBudget(private val maximumConnections: Int = 16) {
+    init { require(maximumConnections > 0) }
+
+    var acceptedConnections: Int = 0
+        private set
+
+    fun mayWait(nowEpochMs: Long, deadlineEpochMs: Long): Boolean =
+        nowEpochMs < deadlineEpochMs && acceptedConnections < maximumConnections
+
+    fun recordAcceptedConnection() {
+        check(acceptedConnections < maximumConnections) { "OAuth loopback 连接数超过上限" }
+        acceptedConnections++
+    }
+}
+
 internal object OAuthPairingProtocol {
     private val random = SecureRandom()
 
@@ -101,6 +122,26 @@ internal object OAuthPairingProtocol {
             result[key] = value
         }
         return result
+    }
+
+    fun callbackDecision(values: Map<String, String>, expectedState: String): OAuthCallbackDecision {
+        require(expectedState.isNotBlank())
+        if (values["state"] != expectedState) return OAuthCallbackDecision.Ignore
+
+        val code = values["code"]
+        val error = values["error"]
+        if ((code == null) == (error == null) || (code != null && "error_description" in values)) {
+            return OAuthCallbackDecision.Error("invalid_response")
+        }
+        if (error != null) {
+            val safe = error.filter { it.code in 33..126 }.take(128).ifBlank { "oauth_error" }
+            return OAuthCallbackDecision.Error(safe)
+        }
+        val accepted = code.orEmpty()
+        if (accepted.length !in 1..4096 || accepted.any { it.code !in 33..126 }) {
+            return OAuthCallbackDecision.Error("invalid_response")
+        }
+        return OAuthCallbackDecision.Code(accepted)
     }
 
     fun form(values: Map<String, String>): ByteArray = values.entries.joinToString("&") { (key, value) ->
@@ -239,13 +280,14 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
     private fun awaitAuthorizationCode(session: OAuthPendingSession): String {
         val deadline = session.startedAtEpochMs + CALLBACK_TIMEOUT_MS
         session.server.soTimeout = 1000
-        var accepted = 0
-        while (System.currentTimeMillis() < deadline && accepted++ < 16) {
+        val budget = OAuthCallbackBudget()
+        while (budget.mayWait(System.currentTimeMillis(), deadline)) {
             val socket = try {
                 session.server.accept()
             } catch (_: SocketTimeoutException) {
                 continue
             }
+            budget.recordAcceptedConnection()
             val code = socket.use { client -> handleCallbackClient(client, session) }
             if (code != null) return code
         }
@@ -269,20 +311,22 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
         }
         val values = runCatching { OAuthPairingProtocol.callbackParameters(target) }.getOrElse {
             respond(client, 400, "Invalid OAuth callback")
-            throw it
+            return null
         }
-        if (values["state"] != session.state) {
-            respond(client, 400, "OAuth state mismatch")
-            error("OAuth state 不匹配")
+        return when (val decision = OAuthPairingProtocol.callbackDecision(values, session.state)) {
+            OAuthCallbackDecision.Ignore -> {
+                respond(client, 400, "OAuth state mismatch")
+                null
+            }
+            is OAuthCallbackDecision.Error -> {
+                respond(client, 400, "Authorization was not completed")
+                error("OAuth 授权失败：${decision.value}")
+            }
+            is OAuthCallbackDecision.Code -> {
+                respond(client, 200, "AgentDock Workbench authorization completed. Return to the app.")
+                decision.value
+            }
         }
-        values["error"]?.let { oauthError ->
-            respond(client, 400, "Authorization was not completed")
-            error("OAuth 授权失败：${oauthError.take(128)}")
-        }
-        val code = values["code"].orEmpty()
-        require(code.length in 1..4096 && code.all { it.code in 33..126 }) { "OAuth 授权码无效" }
-        respond(client, 200, "AgentDock Workbench authorization completed. Return to the app.")
-        return code
     }
 
     private fun readRequest(socket: Socket): List<String> {

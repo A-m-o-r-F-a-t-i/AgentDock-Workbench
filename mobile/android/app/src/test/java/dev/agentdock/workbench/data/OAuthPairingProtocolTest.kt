@@ -64,6 +64,50 @@ class OAuthPairingProtocolTest {
     }
 
     @Test
+    fun wrongStateCallbacksAreIgnoredBeforeTheirPayloadIsInterpreted() {
+        assertEquals(
+            OAuthCallbackDecision.Ignore,
+            OAuthPairingProtocol.callbackDecision(mapOf("state" to "wrong", "error" to "access_denied"), "expected")
+        )
+        assertEquals(
+            OAuthCallbackDecision.Ignore,
+            OAuthPairingProtocol.callbackDecision(mapOf("state" to "wrong", "code" to "attacker"), "expected")
+        )
+    }
+
+    @Test
+    fun callbackTimeoutPollingDoesNotConsumeAcceptedConnectionBudget() {
+        val budget = OAuthCallbackBudget(maximumConnections = 2)
+        repeat(100) { assertTrue(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000)) }
+        assertEquals(0, budget.acceptedConnections)
+
+        budget.recordAcceptedConnection()
+        assertTrue(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000))
+        budget.recordAcceptedConnection()
+        assertFalse(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000))
+        assertFalse(budget.mayWait(nowEpochMs = 2_000, deadlineEpochMs = 3_000))
+    }
+
+    @Test
+    fun matchingStateClassifiesCodeAndExplicitOAuthErrors() {
+        assertEquals(
+            OAuthCallbackDecision.Code("authorized-code"),
+            OAuthPairingProtocol.callbackDecision(mapOf("state" to "expected", "code" to "authorized-code"), "expected")
+        )
+        assertEquals(
+            OAuthCallbackDecision.Error("access_denied"),
+            OAuthPairingProtocol.callbackDecision(mapOf("state" to "expected", "error" to "access_denied"), "expected")
+        )
+        assertEquals(
+            OAuthCallbackDecision.Error("invalid_response"),
+            OAuthPairingProtocol.callbackDecision(
+                mapOf("state" to "expected", "code" to "code", "error" to "access_denied"),
+                "expected"
+            )
+        )
+    }
+
+    @Test
     fun originComparisonNormalizesDefaultPortsButNotPaths() {
         assertTrue(OAuthPairingProtocol.sameOrigin(URI("https://core.example"), URI("https://core.example:443/path")))
         assertFalse(OAuthPairingProtocol.sameOrigin(URI("https://core.example"), URI("http://core.example")))
