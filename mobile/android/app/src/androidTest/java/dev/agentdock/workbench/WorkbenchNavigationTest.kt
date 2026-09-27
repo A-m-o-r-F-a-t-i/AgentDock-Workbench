@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import dev.agentdock.workbench.model.WorkbenchScreen
 import dev.agentdock.workbench.ui.WorkbenchViewModel
 import org.junit.After
@@ -151,7 +153,7 @@ class WorkbenchNavigationTest {
         model.updateSettings { it.copy(theme = "light") }
         compose.waitUntil(10000) { model.state.value.settings.theme == "light" }
         shell("settings put system font_scale 1.30")
-        recreateAndBind()
+        awaitConfiguration { it.fontScale >= 1.25f }
         var fontScale = 0f
         scenario.onActivity { fontScale = it.resources.configuration.fontScale }
         assertTrue("font scale=$fontScale", fontScale >= 1.25f)
@@ -160,7 +162,7 @@ class WorkbenchNavigationTest {
 
         shell("settings put system accelerometer_rotation 0")
         shell("settings put system user_rotation 1")
-        recreateAndBind()
+        awaitConfiguration { it.orientation == Configuration.ORIENTATION_LANDSCAPE }
         var orientation = Configuration.ORIENTATION_UNDEFINED
         scenario.onActivity { orientation = it.resources.configuration.orientation }
         assertEquals(Configuration.ORIENTATION_LANDSCAPE, orientation)
@@ -170,7 +172,7 @@ class WorkbenchNavigationTest {
         shell("settings put system user_rotation 0")
         shell("wm size 1280x800")
         shell("wm density 160")
-        recreateAndBind()
+        awaitConfiguration { it.smallestScreenWidthDp >= 600 && it.densityDpi == 160 }
         var smallestWidth = 0
         scenario.onActivity { smallestWidth = it.resources.configuration.smallestScreenWidthDp }
         assertTrue("smallestScreenWidthDp=$smallestWidth", smallestWidth >= 600)
@@ -209,10 +211,31 @@ class WorkbenchNavigationTest {
         check(length != null && length > 8) { "Screenshot was not saved: $name" }
     }
 
-    private fun recreateAndBind() {
-        scenario.recreate()
-        scenario.onActivity { model = ViewModelProvider(it)[WorkbenchViewModel::class.java] }
+    private fun awaitConfiguration(matches: (Configuration) -> Boolean) {
+        // Settings/WindowManager already trigger asynchronous system recreation.
+        // Starting a second ActivityScenario.recreate here races the old Activity's
+        // destruction (especially on API 26). Observe the real resumed replacement
+        // and its applied configuration instead of replaying lifecycle mutations.
+        val retainedModel = model
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        compose.waitUntil(10000) {
+            var ready = false
+            instrumentation.runOnMainSync {
+                val activity = ActivityLifecycleMonitorRegistry.getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)
+                    .filterIsInstance<MainActivity>()
+                    .singleOrNull()
+                if (activity != null && !activity.isDestroyed && !activity.isFinishing &&
+                    matches(activity.resources.configuration)) {
+                    model = ViewModelProvider(activity)[WorkbenchViewModel::class.java]
+                    ready = true
+                }
+            }
+            ready
+        }
+        assertSame("Configuration recreation must retain the Workbench ViewModel", retainedModel, model)
         compose.waitUntil(10000) { !model.state.value.loading && model.state.value.snapshot.fixture }
+        compose.waitForIdle()
     }
 
     private fun resetDisplayConfiguration() {

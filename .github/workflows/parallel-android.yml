@@ -3,6 +3,13 @@ name: WB07 Android Candidate
 on:
   push:
     branches: ["parallel/20260925/android"]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile/android/**'
+      - 'scripts/ci/parallel-android/**'
+      - '.github/workflows/parallel-android.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -59,6 +66,7 @@ jobs:
           PY
 
       - name: Enforce owned paths
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
@@ -165,6 +173,7 @@ jobs:
             exit "$bridge_rc"
           fi
           bash scripts/ci/parallel-android/test-runner-sdk.sh | tee evidence/contract/runner-sdk-contract.txt
+          git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base "$GITHUB_SHA" refs/remotes/origin/main)"
           test -n "$base" && git diff --check "$base" "$GITHUB_SHA"
           grep -F 'compileSdk = 37' mobile/android/app/build.gradle.kts
