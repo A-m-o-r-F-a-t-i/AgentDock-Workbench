@@ -8,6 +8,7 @@ import java.io.File
 import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.net.URLConnection
+import java.util.Enumeration
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -37,6 +38,16 @@ object ProjectArchivePolicy {
     const val MAX_EXPANDED_BYTES = 512L * 1024 * 1024
     const val MAX_ENTRIES = 10_000
     const val MAX_FILE_BYTES = 128L * 1024 * 1024
+
+    internal fun <T> collectBounded(entries: Enumeration<T>, maximum: Int = MAX_ENTRIES): List<T> {
+        require(maximum in 1..MAX_ENTRIES) { "归档枚举上限无效" }
+        val result = ArrayList<T>(minOf(maximum, 256))
+        while (entries.hasMoreElements()) {
+            require(result.size < maximum) { "归档文件数量超过上限" }
+            result += entries.nextElement()
+        }
+        return result
+    }
 
     fun validate(entries: List<ArchivePlanEntry>): List<ArchivePlanEntry> {
         require(entries.size <= MAX_ENTRIES) { "归档文件数量超过上限" }
@@ -102,7 +113,7 @@ class SafProjectStore(context: Context) {
             current = findChild(tree, Uri.parse(current.uri), part) ?: error("文件不存在")
         }
         require(!current.directory && current.sizeBytes in -1..maximumBytes.toLong()) { "文件不是可预览的有界文本" }
-        resolver.openInputStream(Uri.parse(current.uri))!!.use { input ->
+        (resolver.openInputStream(Uri.parse(current.uri)) ?: throw IOException("文档提供程序无法打开文件输入流")).use { input ->
             val output = ByteArrayOutputStream(minOf(maximumBytes, 8192))
             val buffer = ByteArray(8192)
             while (output.size() <= maximumBytes) {
@@ -127,7 +138,7 @@ class SafProjectStore(context: Context) {
         try {
             copyBounded(source, archive, ProjectArchivePolicy.MAX_ARCHIVE_BYTES)
             ZipFile(archive).use { zip ->
-                val sourceEntries = zip.entries().asSequence().toList()
+                val sourceEntries = ProjectArchivePolicy.collectBounded(zip.entries())
                 val plan = ProjectArchivePolicy.validate(sourceEntries.map { ArchivePlanEntry(it.name, it.isDirectory, it.size) })
                 val byPath = sourceEntries.associateBy { it.name.removeSuffix("/").split('/').joinToString("/") }
                 val stageName = "AgentDock Import ${UUID.randomUUID()}"
@@ -153,7 +164,7 @@ class SafProjectStore(context: Context) {
                         val target = create(tree, parentUri, name, false)
                         val sourceEntry = byPath[entry.path] ?: error("归档条目在校验后消失")
                         zip.getInputStream(sourceEntry).use { input ->
-                            resolver.openOutputStream(Uri.parse(target.uri), "w")!!.use { output ->
+                            (resolver.openOutputStream(Uri.parse(target.uri), "w") ?: throw IOException("文档提供程序无法打开导入目标")).use { output ->
                                 val buffer = ByteArray(64 * 1024)
                                 var fileBytes = 0L
                                 while (true) {
@@ -200,7 +211,7 @@ class SafProjectStore(context: Context) {
         var count = 0
         var total = 0L
         try {
-            resolver.openOutputStream(destination, "w")!!.use { raw ->
+            (resolver.openOutputStream(destination, "w") ?: throw IOException("文档提供程序无法打开导出目标")).use { raw ->
                 ZipOutputStream(raw.buffered()).use { zip ->
                     fun walk(parent: SafEntry, prefix: String) {
                         for (child in children(tree, Uri.parse(parent.uri)).sortedBy { it.name.lowercase() }) {
@@ -212,7 +223,7 @@ class SafProjectStore(context: Context) {
                                 walk(child, relative)
                             } else {
                                 zip.putNextEntry(ZipEntry(relative).apply { time = 0 })
-                                resolver.openInputStream(Uri.parse(child.uri))!!.use { input ->
+                                (resolver.openInputStream(Uri.parse(child.uri)) ?: throw IOException("文档提供程序无法读取工程文件")).use { input ->
                                     val buffer = ByteArray(64 * 1024)
                                     while (true) {
                                         val read = input.read(buffer)
@@ -254,7 +265,7 @@ class SafProjectStore(context: Context) {
             DocumentsContract.Document.COLUMN_SIZE
         )
         val result = ArrayList<SafEntry>()
-        resolver.query(childUri, projection, null, null, null)!!.use { cursor ->
+        (resolver.query(childUri, projection, null, null, null) ?: throw IOException("文档提供程序无法列出目录")).use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getString(0)
                 val name = cursor.getString(1) ?: continue
@@ -295,7 +306,7 @@ class SafProjectStore(context: Context) {
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_SIZE
         )
-        resolver.query(uri, projection, null, null, null)!!.use { cursor ->
+        (resolver.query(uri, projection, null, null, null) ?: throw IOException("文档提供程序无法回读文档")).use { cursor ->
             require(cursor.moveToFirst()) { "文档创建后无法回读" }
             val name = cursor.getString(0)
             val mime = cursor.getString(1)
@@ -321,7 +332,7 @@ class SafProjectStore(context: Context) {
     }
 
     private fun copyBounded(source: Uri, destination: File, maximum: Long) {
-        resolver.openInputStream(source)!!.use { input ->
+        (resolver.openInputStream(source) ?: throw IOException("文档提供程序无法打开导入 ZIP")).use { input ->
             destination.outputStream().use { output ->
                 val buffer = ByteArray(64 * 1024)
                 var total = 0L

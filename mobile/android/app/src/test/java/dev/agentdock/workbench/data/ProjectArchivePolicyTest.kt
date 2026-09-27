@@ -3,6 +3,8 @@ package dev.agentdock.workbench.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.util.Enumeration
+import java.util.zip.ZipEntry
 
 class ProjectArchivePolicyTest {
     @Test
@@ -47,6 +49,32 @@ class ProjectArchivePolicyTest {
         }
         val entries = List(ProjectArchivePolicy.MAX_ENTRIES + 1) { index -> ArchivePlanEntry("file-$index", false, 0) }
         assertThrows(IllegalArgumentException::class.java) { ProjectArchivePolicy.validate(entries) }
+    }
+
+    @Test
+    fun boundedZipEnumerationRejectsBeforeMaterializingTheExtraEntry() {
+        var index = 0
+        var nextCalls = 0
+        val entries = object : Enumeration<ZipEntry> {
+            override fun hasMoreElements(): Boolean = index < 4
+            override fun nextElement(): ZipEntry = ZipEntry("file-${index++}").also { nextCalls++ }
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.collectBounded(entries, maximum = 3)
+        }
+        assertEquals(3, nextCalls)
+    }
+
+    @Test
+    fun boundedZipEnumerationAcceptsTheExactLimit() {
+        var index = 0
+        val entries = object : Enumeration<ZipEntry> {
+            override fun hasMoreElements(): Boolean = index < 3
+            override fun nextElement(): ZipEntry = ZipEntry("file-${index++}")
+        }
+
+        assertEquals(3, ProjectArchivePolicy.collectBounded(entries, maximum = 3).size)
     }
 
     @Test
