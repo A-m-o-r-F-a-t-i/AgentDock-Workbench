@@ -13,7 +13,7 @@ fun productVersion(): String {
 
 val productVersion = productVersion()
 val androidVersionCode = providers.gradleProperty("agentdockAndroidVersionCode")
-    .orElse("1010701").get().toInt()
+    .orElse("1010801").get().toInt()
 val candidateSha = providers.gradleProperty("agentdockCandidateSha").orElse("local").get()
 val candidateRunId = providers.gradleProperty("agentdockCandidateRunId").orElse("local").get()
 val candidateRunAttempt = providers.gradleProperty("agentdockCandidateRunAttempt").orElse("1").get()

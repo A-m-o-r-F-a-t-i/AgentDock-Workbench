@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export SOURCE_SHA="${SOURCE_SHA:-${GITHUB_SHA:?GITHUB_SHA is required}}"
 
-version_code=$((101070000 + GITHUB_RUN_NUMBER))
+version_code=$((101080000 + GITHUB_RUN_NUMBER))
 mkdir -p evidence/build
 set +e
 gradle -p mobile/android --no-daemon --stacktrace --warning-mode all \
   lintDebug testDebugUnitTest assembleDebug assembleRelease assembleDebugAndroidTest \
   -PagentdockAndroidVersionCode="$version_code" \
-  -PagentdockCandidateSha="$GITHUB_SHA" \
+  -PagentdockCandidateSha="$SOURCE_SHA" \
   -PagentdockCandidateRunId="$GITHUB_RUN_ID" \
   -PagentdockCandidateRunAttempt="$GITHUB_RUN_ATTEMPT" \
   2>&1 | tee evidence/build/gradle.log
@@ -65,7 +66,7 @@ passed = sum(value == "passed" for value in cases.values())
 valid = len(cases) >= 60 and passed == len(cases)
 summary = {
     "schema_version": 1,
-    "source_sha": os.environ["GITHUB_SHA"],
+    "source_sha": os.environ["SOURCE_SHA"],
     "tests": len(cases),
     "passed": passed,
     "failed": sum(value == "failed" for value in cases.values()),

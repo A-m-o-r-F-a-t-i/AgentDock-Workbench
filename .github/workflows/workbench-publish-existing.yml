@@ -17,6 +17,11 @@ on:
         required: true
         type: string
 
+      prerelease:
+        description: 'Recover a prerelease without changing stable Latest'
+        type: boolean
+        default: false
+
 permissions:
   actions: read
   contents: write
@@ -35,6 +40,7 @@ jobs:
       SOURCE_RUN: ${{ inputs.run_id }}
       SOURCE_SHA: ${{ inputs.commit }}
       PRODUCT_VERSION: ${{ inputs.version }}
+      PRERELEASE: ${{ inputs.prerelease || false }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -43,6 +49,7 @@ jobs:
       - name: Publisher regression without network writes
         run: python3 -B scripts/test/test-workbench-release.py
       - name: Verify original build and assembly succeeded
+        id: source
         run: |
           python3 - <<'PY'
           import json, os, re, subprocess
@@ -64,12 +71,17 @@ jobs:
               required += ['windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)',
                            'windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)',
                            'Native Windows ARM64 install and uninstall']
+          if tuple(map(int,version.split('.'))) >= (1,1,8):
+              required += ['android / Source and bridge contracts','android / Android lint, unit tests and APKs','android / Aggregate candidate evidence']
+              required += [f'android / Emulator API {api}' for api in [26,33,34,35,37]]
           for name in required:
               if name not in jobs or jobs[name]['conclusion']!='success':
                   raise RuntimeError('Required source validation did not succeed: '+name)
-          assembly=jobs.get('Verify complete artifact set and publish Latest',{})
+          assembly=jobs.get('Verify complete artifact set and publish selected channel', jobs.get('Verify complete artifact set and publish Latest',{}))
           if not any(step['name']=='Validate reports and assemble complete release' and step['conclusion']=='success' for step in assembly.get('steps',[])):
               raise RuntimeError('Original complete-artifact assembly was not verified')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              output.write('android_required='+str(tuple(map(int,version.split('.'))) >= (1,1,8)).lower()+'\n')
           print(f'All {len(required)} required platform/native validation jobs and complete assembly match '+sha)
           PY
       - uses: actions/checkout@v5
@@ -99,15 +111,25 @@ jobs:
           run-id: ${{ inputs.run_id }}
           name: agentdock-windows-${{ inputs.version }}-${{ inputs.run_id }}
           path: input/windows
+      - uses: actions/download-artifact@v8
+        if: steps.source.outputs.android_required == 'true'
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          name: workbench-android-${{ inputs.run_id }}
+          path: input/android
       - name: Verify original payloads and finish draft by numeric ID
         run: |
-          python3 scripts/release/publish-workbench.py --source-root verified-source --input input --dist dist/release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --publish
+          set -euo pipefail
+          args=()
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          python3 scripts/release/publish-workbench.py --source-root verified-source --input input --dist dist/release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --publish "${args[@]}"
       - name: Record recovery and source identities
         run: |
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          record={'build_run_id':os.environ['SOURCE_RUN'],'build_source_sha':os.environ['SOURCE_SHA'],'publication_run_id':os.environ['GITHUB_RUN_ID'],'publication_script_sha':os.environ['GITHUB_SHA'],'version':os.environ['PRODUCT_VERSION'],'product_name':'AgentDock Workbench','state':'published_latest'}
+          record={'build_run_id':os.environ['SOURCE_RUN'],'build_source_sha':os.environ['SOURCE_SHA'],'publication_run_id':os.environ['GITHUB_RUN_ID'],'publication_script_sha':os.environ['GITHUB_SHA'],'version':os.environ['PRODUCT_VERSION'],'product_name':'AgentDock Workbench','state':'published_prerelease' if os.environ['PRERELEASE']=='true' else 'published_latest'}
           Path('publication-result.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
           PY
       - uses: actions/upload-artifact@v7

@@ -121,7 +121,8 @@ scripts:
     class: test
     owner: release
     public_contract: false
-    notes: 合成六平台产物验证缺包、摘要、跨提交证据、重复文件和发布白名单，测试不调用网络写入。
+    notes: 合成桌面与Android产物验证缺包、摘要、跨提交证据、预发布Latest隔离和发布白名单，测试不调用网络写入。
+    oversize_justification: 同一发布夹具覆盖旧版六平台门禁、1.1.8新增Android证据以及草稿复用、摘要校验和预发布通道的无网络写入回归。
   - path: packaging/build-unix-release.py
     class: packaging
     owner: release
@@ -131,7 +132,7 @@ scripts:
     class: ci
     owner: release
     public_contract: false
-    notes: 全平台同SHA报告和摘要校验，草稿上传成功后才发布正式Latest。
+    notes: 全平台同SHA报告和摘要校验，上传完整草稿后按显式通道发布；预发布保留正式Latest。
   - path: scripts/test/check-workbench-brand.py
     class: test
     owner: release
@@ -519,3 +520,15 @@ scripts:
     public_contract: false
     deletable: true
     notes: 在真实 Inno 父进程下验证原生执行器的最小安装器夹具。
+
+  - path: scripts/ci/parallel-android/verify-evidence.py
+    class: ci
+    owner: release
+    public_contract: false
+    notes: 验证同SHA五API、测试截图与APK摘要，失败或取消禁止进入完整发布。
+
+  - path: scripts/ci/parallel-android/test-evidence.py
+    class: test
+    owner: release
+    public_contract: false
+    notes: 合成夹具覆盖Android缺失证据、取消、混合源码、截图及APK损坏。

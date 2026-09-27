@@ -12,6 +12,7 @@ import (
 func TestReleaseCatalogKeepsPublicInstallerEntries(t *testing.T) {
 	catalog := ReleaseCatalog()
 	required := map[string]bool{
+		"AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk": false,
 		"install.sh":                   false,
 		"install.ps1":                  false,
 		"agentdock_linux_amd64.tar.gz": false,
@@ -21,7 +22,7 @@ func TestReleaseCatalogKeepsPublicInstallerEntries(t *testing.T) {
 		if _, ok := required[artifact.Name]; ok {
 			required[artifact.Name] = true
 		}
-		if strings.HasSuffix(artifact.Name, ".tar.gz") || strings.HasSuffix(artifact.Name, ".zip") {
+		if strings.HasSuffix(artifact.Name, ".tar.gz") || strings.HasSuffix(artifact.Name, ".zip") || strings.HasSuffix(artifact.Name, ".apk") {
 			found := false
 			for _, candidate := range catalog {
 				if candidate.Name == artifact.Name+".sha256" && candidate.Kind == "checksum" {

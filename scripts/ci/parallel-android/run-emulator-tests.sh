@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export SOURCE_SHA="${SOURCE_SHA:-${GITHUB_SHA:?GITHUB_SHA is required}}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 api="${ANDROID_API_LEVEL:?ANDROID_API_LEVEL is required}"
 evidence="$repo_root/evidence/emulator-api-$api"
 mkdir -p "$evidence/screenshots" "$evidence/reports"
-version_code=$((101070000 + GITHUB_RUN_NUMBER))
+version_code=$((101080000 + GITHUB_RUN_NUMBER))
 
 set +e
-gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace connectedDebugAndroidTest \
+timeout --signal=TERM --kill-after=20s 15m gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace connectedDebugAndroidTest \
   -PagentdockAndroidVersionCode="$version_code" \
-  -PagentdockCandidateSha="$GITHUB_SHA" \
+  -PagentdockCandidateSha="$SOURCE_SHA" \
   -PagentdockCandidateRunId="$GITHUB_RUN_ID" \
   -PagentdockCandidateRunAttempt="$GITHUB_RUN_ATTEMPT" 2>&1 | tee "$evidence/connected-test.log"
 test_rc=${PIPESTATUS[0]}
 set -e
 # One deterministic run: never replay assertions or UI writes to turn a failure green.
-adb logcat -d -v threadtime >"$evidence/logcat.txt" 2>&1 || true
-adb shell getprop >"$evidence/device-properties.txt" 2>&1 || true
-adb shell getprop ro.build.version.sdk >"$evidence/actual-api.txt" 2>&1 || true
-adb shell pm list packages >"$evidence/packages.txt" 2>&1 || true
-adb pull "/sdcard/Download/agentdock-wb07-screenshots/." \
+timeout 20s adb logcat -d -v threadtime >"$evidence/logcat.txt" 2>&1 || true
+timeout 15s adb shell getprop >"$evidence/device-properties.txt" 2>&1 || true
+timeout 15s adb shell getprop ro.build.version.sdk >"$evidence/actual-api.txt" 2>&1 || true
+timeout 15s adb shell pm list packages >"$evidence/packages.txt" 2>&1 || true
+timeout 60s adb pull "/sdcard/Download/agentdock-wb07-screenshots/." \
   "$evidence/screenshots/" >"$evidence/adb-pull.txt" 2>&1 || true
 for relative in reports/androidTests/connected outputs/androidTest-results/connected; do
   source="$repo_root/mobile/android/app/build/$relative"
@@ -61,7 +62,7 @@ actual_api = (root / 'actual-api.txt').read_text(errors='replace').strip()
 passed = sum(value == 'passed' for value in cases.values())
 valid = rc == 0 and passed >= 13 and all(value == 'passed' for value in cases.values()) and not missing and not invalid_images and not parse_errors and actual_api == str(api)
 result = {
-    'schema_version': 2, 'lane': 'WB07', 'source_sha': os.environ['GITHUB_SHA'],
+    'schema_version': 2, 'lane': 'WB07', 'source_sha': os.environ['SOURCE_SHA'],
     'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
     'api_level': api, 'actual_api_level': actual_api,
     'system_image_api_level': os.environ.get('ANDROID_SYSTEM_IMAGE_API_LEVEL', str(api)),
