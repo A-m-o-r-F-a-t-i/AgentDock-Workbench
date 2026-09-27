@@ -274,7 +274,7 @@ func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, e
 	case len(args) == 3 && args[0] == "cat-file" && args[1] == "-e" && gitCommitExpressionPattern.MatchString(args[2]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "cat-file", "-e", "--", args[2])
 	case len(args) == 4 && args[0] == "fetch" && args[1] == "--depth=1" && args[2] == "origin" && fullGitCommitPattern.MatchString(args[3]):
-		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "fetch", "--depth=1", "origin", args[3])
+		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "fetch", "--depth=1", "--", "origin", args[3])
 	case len(args) == 2 && args[0] == "rev-parse" && gitCommitExpressionPattern.MatchString(args[1]):
 		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "rev-parse", "--verify", "--end-of-options", args[1])
 	default:
