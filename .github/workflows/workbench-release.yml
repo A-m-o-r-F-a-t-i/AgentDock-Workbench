@@ -20,6 +20,10 @@ on:
         description: 'Run isolated Windows Setup installation/uninstall on the hosted runner'
         type: boolean
         default: false
+      ignore_macos_intel_scale:
+        description: 'Candidate only: omit the known macOS Intel 100k scale test; all other checks remain required'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +42,11 @@ jobs:
       commit: ${{ steps.identity.outputs.commit }}
       version: ${{ steps.identity.outputs.version }}
     steps:
+      - name: Reject publishing with an ignored validation gate
+        if: ${{ inputs.ignore_macos_intel_scale && (inputs.publish || github.event_name == 'push') }}
+        run: |
+          echo 'The macOS Intel scale exception is only allowed for non-publishing candidate builds.' >&2
+          exit 1
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
@@ -149,6 +158,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Native backend regression
+        env:
+          IGNORE_INTEL_SCALE: ${{ inputs.ignore_macos_intel_scale && matrix.platform == 'darwin' && matrix.arch == 'amd64' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -169,8 +180,14 @@ jobs:
           done <<< "$all_packages"
           test "$found" -eq 1
           test "${#remaining[@]}" -gt 0
-          go test -p 1 ./internal/activity -count=1 -timeout=8m
-          go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m
+          if [[ "$IGNORE_INTEL_SCALE" == 'true' ]]; then
+            echo '::warning::User-authorized candidate exception: macOS Intel TestExecutionProjectionScale100k is ignored, not passed.'
+            echo 'macOS Intel 100k scale test: **ignored by explicit candidate request**. The original 2s limit is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+            go test -p 1 ./internal/activity -skip '^TestExecutionProjectionScale100k$' -count=1 -timeout=8m
+          else
+            go test -p 1 ./internal/activity -count=1 -timeout=8m
+            go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m
+          fi
           go test -p 2 "${remaining[@]}" -count=1 -timeout=8m
           go vet ./...
       - name: Linux native package tools
@@ -196,6 +213,23 @@ jobs:
           EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
           TARGET_ARCH: ${{ matrix.arch }}
         run: python3 scripts/test/test-linux-native-packages.py --directory dist/unix --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT" --arch "$TARGET_ARCH"
+      - name: Record the explicit candidate validation exception
+        if: ${{ inputs.ignore_macos_intel_scale && matrix.platform == 'darwin' && matrix.arch == 'amd64' }}
+        env:
+          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path('dist/unix/validation-exceptions-darwin-amd64.json').write_text(json.dumps({
+              'source_sha': os.environ['EXPECTED_COMMIT'],
+              'platform': 'darwin/amd64',
+              'test': 'TestExecutionProjectionScale100k',
+              'status': 'ignored_by_user_request',
+              'original_cold_limit_seconds': 2,
+              'publication': False
+          }, indent=2) + '\n')
+          PY
       - uses: actions/upload-artifact@v7
         with:
           name: workbench-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.run_id }}
@@ -300,6 +334,10 @@ jobs:
           set -euo pipefail
           test "$EXPECTED_COMMIT" = "$WINDOWS_COMMIT"
           python3 scripts/release/publish-workbench.py --input input --dist dist/release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
+      - name: Include candidate exceptions in the assembled artifact
+        if: ${{ inputs.ignore_macos_intel_scale }}
+        run: |
+          cp input/unix/workbench-darwin-amd64-${{ github.run_id }}/validation-exceptions-darwin-amd64.json dist/release/candidate-validation-exceptions.json
       - uses: actions/upload-artifact@v7
         with:
           name: workbench-complete-${{ github.run_id }}

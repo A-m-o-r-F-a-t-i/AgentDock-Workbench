@@ -89,19 +89,49 @@ func terminateProcessesAtPathExcept(binaryPath string, excluded map[uint32]struc
 	for _, processID := range processIDs {
 		process, openErr := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, processID)
 		if openErr != nil {
+			// The process may exit between enumeration and opening its handle.
+			if errors.Is(openErr, windows.ERROR_INVALID_PARAMETER) {
+				continue
+			}
 			failures = append(failures, fmt.Sprintf("PID %d: %v", processID, openErr))
 			continue
 		}
-		if terminateErr := windows.TerminateProcess(process, 0); terminateErr != nil {
+		if terminateErr := terminateBinaryProcessHandle(process, windows.TerminateProcess, windows.WaitForSingleObject); terminateErr != nil {
 			failures = append(failures, fmt.Sprintf("PID %d: %v", processID, terminateErr))
 		}
-		_, _ = windows.WaitForSingleObject(process, 5000)
 		_ = windows.CloseHandle(process)
 	}
 	if len(failures) > 0 {
 		return errors.New(strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+// terminateBinaryProcessHandle confirms the terminal state of the same pinned
+// handle. A tunnel supervisor may concurrently terminate its child, in which
+// case TerminateProcess can return ERROR_ACCESS_DENIED after the child exits.
+// Access denial alone is never evidence of success; only a signaled handle is.
+func terminateBinaryProcessHandle(process windows.Handle, terminate func(windows.Handle, uint32) error, wait func(windows.Handle, uint32) (uint32, error)) error {
+	state, err := wait(process, 0)
+	if err != nil {
+		return fmt.Errorf("inspect process before termination: %w", err)
+	}
+	if state == windows.WAIT_OBJECT_0 {
+		return nil
+	}
+	if state != uint32(windows.WAIT_TIMEOUT) {
+		return fmt.Errorf("unexpected process wait state before termination: %#x", state)
+	}
+
+	terminateErr := terminate(process, 0)
+	state, waitErr := wait(process, 5000)
+	if waitErr == nil && state == windows.WAIT_OBJECT_0 {
+		return nil
+	}
+	if waitErr != nil {
+		return errors.Join(terminateErr, fmt.Errorf("confirm process termination: %w", waitErr))
+	}
+	return errors.Join(terminateErr, fmt.Errorf("process termination was not confirmed within 5s (wait state %#x)", state))
 }
 
 func processIDsAtPathExcept(binaryPath string, excluded map[uint32]struct{}) ([]uint32, error) {
