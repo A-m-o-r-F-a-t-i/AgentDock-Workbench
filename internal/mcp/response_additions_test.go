@@ -93,6 +93,7 @@ func TestResponseAdditionsBothAdaptersPreserveSuccessAndErrors(t *testing.T) {
 					next = call("list_dir", map[string]any{"path": h.runtime.Config().AgentDockDefaultDir, "max_entries": 1})
 				}
 				assertResponseSupplement(t, next, id, text)
+				assertInsertionAttention(t, next)
 				if got, _ := next["isError"].(bool); got != fail {
 					t.Fatalf("business error changed: %#v", next)
 				}
@@ -100,6 +101,9 @@ func TestResponseAdditionsBothAdaptersPreserveSuccessAndErrors(t *testing.T) {
 					t.Fatal("binding fields were overwritten")
 				}
 				ack := call("insertion_ack", supplementReceipts(t, next))
+				if asMap(ack["structuredContent"])["next_action"] != app.InsertionReceiptNextAction {
+					t.Fatal("receipt did not reinforce summary and same-turn continuation")
+				}
 				if ack["isError"] == true {
 					t.Fatalf("receiver acknowledgement failed: %v", ack)
 				}

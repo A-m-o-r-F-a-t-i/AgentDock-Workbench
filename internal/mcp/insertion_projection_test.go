@@ -81,6 +81,7 @@ func TestProjectedThirdCallPreservesSupplementBeforeFourthAction(t *testing.T) {
 			host := insertion.Transport{HostType: "isolated_functions_exec", OuterCallID: "outer_third", Passthrough: true, ContextAcknowledgement: true}
 			result, err := h.server.InvokeProjected(ctx, "session_observe", map[string]any{"action": "list"}, host, project, func(_ context.Context, final map[string]any) error {
 				assertResponseSupplement(t, final, id, "你好，我是帅哥")
+				assertInsertionAttention(t, final)
 				pending := insertionQueueItem(t, h, conversation)
 				if pending.Status != "outer_forwarded" || pending.AcknowledgedAt != nil {
 					t.Fatal("inner response was acknowledged before model-context commit")
@@ -185,6 +186,7 @@ func TestUnintegratedProjectionLosesDisplayButNeverEndsDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertResponseSupplement(t, next, id, "你好，我是帅哥")
+	assertInsertionAttention(t, next)
 	if item = insertionQueueItem(t, h, conversation); item.DeliveryAttempts != 2 {
 		t.Fatalf("bounded retry count=%d", item.DeliveryAttempts)
 	}
@@ -240,6 +242,7 @@ func TestProjectedFailuresNeverFabricateContextCommit(t *testing.T) {
 				}
 			}
 			assertResponseSupplement(t, final, id, "你好，我是帅哥")
+			assertInsertionAttention(t, final)
 		})
 	}
 }
