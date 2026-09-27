@@ -57,6 +57,27 @@ def expected_payloads(version: str) -> list[str]:
     return payloads
 
 
+def public_installers(version: str) -> list[str]:
+    """Return only user-installable Release attachments.
+
+    Archives, bootstrap scripts, manifests and checksum sidecars remain available
+    inside the verified Actions artifact when needed by installation tests, but are
+    intentionally not published as end-user Release downloads.
+    """
+    installers = [
+        'AgentDockSetup-amd64.exe',
+        'AgentDockSetup-arm64.exe',
+        'AgentDock-macos-universal.dmg',
+        f'agentdock-workbench_{version}_amd64.deb',
+        f'agentdock-workbench_{version}_arm64.deb',
+        f'agentdock-workbench-{version}-1.x86_64.rpm',
+        f'agentdock-workbench-{version}-1.aarch64.rpm',
+    ]
+    if tuple(map(int,version.split('.'))) >= (1,1,8):
+        installers.append(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
+    return installers
+
+
 def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=False) -> dict:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version) or not re.fullmatch(r'[a-f0-9]{40}',commit):
         raise RuntimeError('Invalid release identity')
@@ -218,7 +239,13 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
     record=json.loads(run('gh','api',endpoint))
     if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
         raise RuntimeError('Release identity or draft state changed before upload')
-    files=sorted(path for path in dist.iterdir() if path.is_file())
+    public_names=public_installers(version)
+    files=[]
+    for name in public_names:
+        path=dist/name
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f'Missing public installer: {name}')
+        files.append(path)
     expected={path.name:{'size':path.stat().st_size,'digest':'sha256:'+digest(path)} for path in files}
     missing=missing_release_assets(record,expected)
     for name in missing:
