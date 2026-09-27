@@ -373,7 +373,7 @@ func (engine Engine) install(ctx context.Context, store *Store, request Request)
 				return fail(PhaseHealth, waitErr, staged)
 			}
 			result.Healthy = true
-			iming.finishActive()
+			timing.finishActive()
 			syncTiming()
 		}
 	}
