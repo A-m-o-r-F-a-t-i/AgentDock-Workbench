@@ -103,7 +103,7 @@ class LocalCorePairingManager(
         fun loopbackOrigin(origin: URI): Boolean {
             if (origin.path.orEmpty().isNotEmpty() || origin.query != null || origin.fragment != null || origin.userInfo != null) return false
             if (origin.scheme !in setOf("http", "https") || origin.port != -1 && origin.port !in 1..65535) return false
-            val host = origin.host?.lowercase() ?: return false
+            val host = origin.host?.removeSurrounding("[", "]")?.lowercase() ?: return false
             if (host in setOf("localhost", "::1", "0:0:0:0:0:0:0:1")) return true
             val parts = host.split('.')
             return parts.size == 4 && parts[0] == "127" && parts.all { it.length in 1..3 && it.toIntOrNull() in 0..255 }
@@ -113,7 +113,7 @@ class LocalCorePairingManager(
             require(loopbackOrigin(origin))
             val defaultPort = when (origin.scheme) { "http" -> 80; else -> 443 }
             val port = if (origin.port < 0) defaultPort else origin.port
-            val host = origin.host.lowercase().let { if (':' in it) "[$it]" else it }
+            val host = origin.host.removeSurrounding("[", "]").lowercase().let { if (':' in it) "[$it]" else it }
             return "${origin.scheme.lowercase()}://$host:$port"
         }
 

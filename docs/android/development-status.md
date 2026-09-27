@@ -20,6 +20,11 @@
 | 后台与设置 | WorkManager/FGS/Tile、Wi-Fi/充电约束、通知、主题、密度、Core 输出设置 | GuardianConstraintPolicyTest、适配截图 |
 | 脚本治理 | 6 个 WB07 CI/测试脚本进入共享清单；候选工作流只允许新增这些登记，不允许删除旧条目或扩大跨线路径 | TestScriptGovernanceInventoryCoversWorkspaceScripts、Source and bridge contracts |
 
+## 代码审查补充
+
+- SAF ZIP 导入在中央目录枚举阶段即执行 10,000 项上限，拒绝文档提供程序返回的空流或空游标，避免先无界物化及无语义空指针失败。
+- OAuth loopback 对错误 `state` 和畸形本机探测只拒绝当前连接并继续等待，空轮询不消耗连接配额，5 分钟回调窗口不再约 16 秒提前结束。只有携带匹配 `state` 的显式 OAuth 错误才结束配对；本机 RSA-OAEP 配对统一规范化 IPv4、IPv6 与 localhost Origin。
+
 ## 自动化门禁
 
 - Android compileSdk/targetSdk 37，minSdk 26，JDK 17。
