@@ -1,0 +1,101 @@
+name: Clean v1.1.8 release downloads
+
+on:
+  push:
+    branches: [fix/20260927-android-security-audit]
+    paths: [.github/workflows/release-installer-assets-1.1.8.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-installer-assets-v1.1.8
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository_id == '1370391430' && github.event.deleted != true && github.event.forced != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      WORK_BRANCH: fix/20260927-android-security-audit
+      EXPECTED_PARENT: 4bd778d4077bbe58cfe19e4abb777f660694377b
+      RELEASE_ID: '397692739'
+      RELEASE_TAG: v1.1.8
+      RELEASE_TARGET: 4bd778d4077bbe58cfe19e4abb777f660694377b
+    steps:
+      - name: Validate source, remove non-installers, and update notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$WORK_BRANCH"
+          parent="$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA" --jq '.parents[0].sha')"
+          test "$parent" = "$EXPECTED_PARENT"
+          remote="$(gh api "repos/$GH_REPO/git/ref/heads/$WORK_BRANCH" --jq '.object.sha')"
+          test "$remote" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          repo=os.environ['GH_REPO']; release_id=int(os.environ['RELEASE_ID'])
+          endpoint=f'repos/{repo}/releases/{release_id}'
+          release=json.loads(subprocess.check_output(['gh','api',endpoint],text=True))
+          assert release['id']==release_id
+          assert release['tag_name']==os.environ['RELEASE_TAG']
+          assert release['target_commitish']==os.environ['RELEASE_TARGET']
+          assert release['prerelease'] is True and release['draft'] is False
+          tag=json.loads(subprocess.check_output(
+              ['gh','api',f'repos/{repo}/git/ref/tags/{os.environ["RELEASE_TAG"]}'],text=True))
+          assert tag['object']['sha']==os.environ['RELEASE_TARGET']
+          keep={
+              'AgentDockSetup-amd64.exe',
+              'AgentDockSetup-arm64.exe',
+              'AgentDock-macos-universal.dmg',
+              'agentdock-workbench_1.1.8_amd64.deb',
+              'agentdock-workbench_1.1.8_arm64.deb',
+              'agentdock-workbench-1.1.8-1.x86_64.rpm',
+              'agentdock-workbench-1.1.8-1.aarch64.rpm',
+              'AgentDock-Workbench-1.1.8-Android-test-signed.apk',
+          }
+          assets=release['assets']
+          actual={item['name']:item for item in assets}
+          assert len(actual)==len(assets)
+          assert keep.issubset(actual)
+          assert all(actual[name]['state']=='uploaded' for name in keep)
+          body=release['body'].replace(
+              'Windows Release ZIP 改为一次校验目录并按需提取',
+              'Windows 安装载荷改为一次校验目录并按需提取')
+          match=re.search(r'(?m)^## 9\. .+$',body)
+          assert match is not None
+          section='\n'.join(["## 9. 下载与安装包选择", "", "　　Release 附件只保留可以直接安装的文件，不再提供 SHA 校验文件、安装脚本、便携 ZIP、平台 TAR.GZ、发布清单或其他内部归档。", "", "| 平台 | 应下载的安装包 |", "| --- | --- |", "| 普通 Windows 10/11 电脑，Intel 或 AMD 64 位处理器 | `AgentDockSetup-amd64.exe` |", "| Windows on ARM 设备 | `AgentDockSetup-arm64.exe` |", "| macOS，Intel 或 Apple Silicon | `AgentDock-macos-universal.dmg` |", "| Ubuntu、Debian 及兼容发行版，Intel/AMD 64 位 | `agentdock-workbench_1.1.8_amd64.deb` |", "| Ubuntu、Debian 及兼容发行版，ARM64 | `agentdock-workbench_1.1.8_arm64.deb` |", "| Fedora、RHEL 及兼容发行版，Intel/AMD 64 位 | `agentdock-workbench-1.1.8-1.x86_64.rpm` |", "| Fedora、RHEL 及兼容发行版，ARM64 | `agentdock-workbench-1.1.8-1.aarch64.rpm` |", "| Android | `AgentDock-Workbench-1.1.8-Android-test-signed.apk` |", "", "　　**绝大多数使用 Intel 或 AMD 处理器的 Windows 电脑都应选择 `AgentDockSetup-amd64.exe`。** `amd64` 在这里表示通用的 x86-64 Windows 架构，并不要求处理器品牌是 AMD。只有系统明确显示为“基于 ARM64 的处理器”时，才选择 `AgentDockSetup-arm64.exe`。本版本不提供 32 位 x86 Windows 安装包。", "", "　　GitHub 会在 Release 页面底部自动显示 `Source code (zip)` 和 `Source code (tar.gz)`。这两项由 GitHub 自动生成，只包含源码，不是 AgentDock Workbench 安装包，普通用户无需下载。", "", "　　Android APK 使用测试签名，仅用于预发布评估；Windows 安装器未配置 Authenticode；macOS 使用 ad-hoc 签名且未公证，系统可能显示未知发布者提示。", "", "　　Android 仍需要用户自行安装和授权外部 Termux。实际 ARM64 手机的长期保活、厂商后台策略、生产凭据和真实升级过程不由预发布包自动替用户完成。"])+'\n'
+          notes=body[:match.start()]+section
+          removed=[]
+          for name,item in sorted(actual.items()):
+              if name in keep:
+                  continue
+              subprocess.run(
+                  ['gh','api','--method','DELETE',f'repos/{repo}/releases/assets/{item["id"]}'],
+                  check=True)
+              removed.append(name)
+          subprocess.run(
+              ['gh','api','--method','PATCH',endpoint,'--input','-'],
+              input=json.dumps({'body':notes},ensure_ascii=False),
+              text=True,check=True,stdout=subprocess.DEVNULL)
+          final=json.loads(subprocess.check_output(['gh','api',endpoint],text=True))
+          assert {item['name'] for item in final['assets']}==keep
+          assert all(item['state']=='uploaded' for item in final['assets'])
+          assert final['body']==notes
+          assert final['tag_name']==os.environ['RELEASE_TAG']
+          assert final['target_commitish']==os.environ['RELEASE_TARGET']
+          assert final['prerelease'] is True and final['draft'] is False
+          latest=json.loads(subprocess.check_output(
+              ['gh','api',f'repos/{repo}/releases/latest'],text=True))
+          assert latest['tag_name']=='v1.1.7'
+          print(json.dumps({
+              'release_id':release_id,
+              'kept_installers':sorted(keep),
+              'removed_count':len(removed),
+              'removed_assets':removed,
+              'stable_latest':latest['tag_name'],
+          },ensure_ascii=False,indent=2))
+          PY
