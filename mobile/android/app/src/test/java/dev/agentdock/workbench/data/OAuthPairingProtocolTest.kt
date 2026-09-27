@@ -78,14 +78,25 @@ class OAuthPairingProtocolTest {
     @Test
     fun callbackTimeoutPollingDoesNotConsumeAcceptedConnectionBudget() {
         val budget = OAuthCallbackBudget(maximumConnections = 2)
-        repeat(100) { assertTrue(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000)) }
+        repeat(100) { assertTrue(budget.mayWait(nowMonotonicNanos = 1_000, deadlineMonotonicNanos = 2_000)) }
         assertEquals(0, budget.acceptedConnections)
 
         budget.recordAcceptedConnection()
-        assertTrue(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000))
+        assertTrue(budget.mayWait(nowMonotonicNanos = 1_000, deadlineMonotonicNanos = 2_000))
         budget.recordAcceptedConnection()
-        assertFalse(budget.mayWait(nowEpochMs = 1_000, deadlineEpochMs = 2_000))
-        assertFalse(budget.mayWait(nowEpochMs = 2_000, deadlineEpochMs = 3_000))
+        assertFalse(budget.mayWait(nowMonotonicNanos = 1_000, deadlineMonotonicNanos = 2_000))
+        assertFalse(budget.mayWait(nowMonotonicNanos = 2_000, deadlineMonotonicNanos = 3_000))
+    }
+
+    @Test
+    fun callbackDeadlineUsesWrapSafeMonotonicArithmetic() {
+        val budget = OAuthCallbackBudget(maximumConnections = 1)
+        val beforeWrap = Long.MAX_VALUE - 5L
+        val afterWrapDeadline = beforeWrap + 10L
+
+        assertTrue(budget.mayWait(beforeWrap, afterWrapDeadline))
+        assertFalse(budget.mayWait(afterWrapDeadline, afterWrapDeadline))
+        assertFalse(budget.mayWait(afterWrapDeadline + 1L, afterWrapDeadline))
     }
 
     @Test
@@ -110,6 +121,7 @@ class OAuthPairingProtocolTest {
     @Test
     fun originComparisonNormalizesDefaultPortsButNotPaths() {
         assertTrue(OAuthPairingProtocol.sameOrigin(URI("https://core.example"), URI("https://core.example:443/path")))
+        assertTrue(OAuthPairingProtocol.sameOrigin(URI("https://[::1]"), URI("https://[::1]:443/path")))
         assertFalse(OAuthPairingProtocol.sameOrigin(URI("https://core.example"), URI("http://core.example")))
         assertFalse(OAuthPairingProtocol.sameOrigin(URI("https://core.example"), URI("https://other.example")))
     }

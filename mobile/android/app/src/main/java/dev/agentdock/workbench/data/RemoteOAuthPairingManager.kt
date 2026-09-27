@@ -28,7 +28,7 @@ data class OAuthPendingSession internal constructor(
     internal val tokenEndpoint: URI,
     internal val resource: URI,
     internal val issuer: URI,
-    internal val startedAtEpochMs: Long
+    internal val startedAtMonotonicNanos: Long
 )
 
 internal sealed interface OAuthCallbackDecision {
@@ -37,14 +37,16 @@ internal sealed interface OAuthCallbackDecision {
     data class Error(val value: String) : OAuthCallbackDecision
 }
 
+internal class OAuthAuthorizationRejectedException(message: String) : IOException(message)
+
 internal class OAuthCallbackBudget(private val maximumConnections: Int = 16) {
     init { require(maximumConnections > 0) }
 
     var acceptedConnections: Int = 0
         private set
 
-    fun mayWait(nowEpochMs: Long, deadlineEpochMs: Long): Boolean =
-        nowEpochMs < deadlineEpochMs && acceptedConnections < maximumConnections
+    fun mayWait(nowMonotonicNanos: Long, deadlineMonotonicNanos: Long): Boolean =
+        deadlineMonotonicNanos - nowMonotonicNanos > 0L && acceptedConnections < maximumConnections
 
     fun recordAcceptedConnection() {
         check(acceptedConnections < maximumConnections) { "OAuth loopback 连接数超过上限" }
@@ -72,7 +74,7 @@ internal object OAuthPairingProtocol {
         fun tuple(value: URI): Triple<String, String, Int> {
             val scheme = value.scheme?.lowercase(Locale.ROOT)
             require(scheme in setOf("http", "https") && value.userInfo == null)
-            val host = requireNotNull(value.host).lowercase(Locale.ROOT)
+            val host = requireNotNull(value.host).removeSurrounding("[", "]").lowercase(Locale.ROOT)
             val port = if (value.port < 0) if (scheme == "https") 443 else 80 else value.port
             require(port in 1..65535)
             return Triple(requireNotNull(scheme), host, port)
@@ -238,7 +240,7 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
                 tokenEndpoint = token,
                 resource = resource,
                 issuer = issuer,
-                startedAtEpochMs = System.currentTimeMillis()
+                startedAtMonotonicNanos = System.nanoTime()
             )
         } catch (error: Throwable) {
             runCatching { server.close() }
@@ -278,17 +280,25 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
     }
 
     private fun awaitAuthorizationCode(session: OAuthPendingSession): String {
-        val deadline = session.startedAtEpochMs + CALLBACK_TIMEOUT_MS
+        val deadline = session.startedAtMonotonicNanos + CALLBACK_TIMEOUT_NANOS
         session.server.soTimeout = 1000
         val budget = OAuthCallbackBudget()
-        while (budget.mayWait(System.currentTimeMillis(), deadline)) {
+        while (budget.mayWait(System.nanoTime(), deadline)) {
             val socket = try {
                 session.server.accept()
             } catch (_: SocketTimeoutException) {
                 continue
             }
             budget.recordAcceptedConnection()
-            val code = socket.use { client -> handleCallbackClient(client, session) }
+            val code = try {
+                socket.use { client -> handleCallbackClient(client, session) }
+            } catch (error: OAuthAuthorizationRejectedException) {
+                throw error
+            } catch (_: IOException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
             if (code != null) return code
         }
         error("OAuth loopback 回调等待超时")
@@ -320,7 +330,7 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
             }
             is OAuthCallbackDecision.Error -> {
                 respond(client, 400, "Authorization was not completed")
-                error("OAuth 授权失败：${decision.value}")
+                throw OAuthAuthorizationRejectedException("OAuth 授权失败：${decision.value}")
             }
             is OAuthCallbackDecision.Code -> {
                 respond(client, 200, "AgentDock Workbench authorization completed. Return to the app.")
@@ -413,6 +423,6 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
     companion object {
         private const val MAX_METADATA_BYTES = 1024 * 1024
         private const val MAX_TOKEN_BYTES = 64 * 1024
-        private const val CALLBACK_TIMEOUT_MS = 5 * 60 * 1000L
+        private const val CALLBACK_TIMEOUT_NANOS = 5L * 60L * 1_000_000_000L
     }
 }

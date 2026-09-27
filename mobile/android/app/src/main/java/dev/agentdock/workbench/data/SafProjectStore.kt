@@ -49,6 +49,10 @@ object ProjectArchivePolicy {
         return result
     }
 
+    internal fun requireDirectoryRow(rowNumber: Int) {
+        require(rowNumber in 1..MAX_ENTRIES) { "文档目录条目超过上限" }
+    }
+
     fun validate(entries: List<ArchivePlanEntry>): List<ArchivePlanEntry> {
         require(entries.size <= MAX_ENTRIES) { "归档文件数量超过上限" }
         val normalized = entries.map { entry ->
@@ -266,7 +270,9 @@ class SafProjectStore(context: Context) {
         )
         val result = ArrayList<SafEntry>()
         (resolver.query(childUri, projection, null, null, null) ?: throw IOException("文档提供程序无法列出目录")).use { cursor ->
+            var rowNumber = 0
             while (cursor.moveToNext()) {
+                ProjectArchivePolicy.requireDirectoryRow(++rowNumber)
                 val id = cursor.getString(0)
                 val name = cursor.getString(1) ?: continue
                 val mime = cursor.getString(2) ?: "application/octet-stream"

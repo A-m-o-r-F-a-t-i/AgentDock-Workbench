@@ -78,6 +78,14 @@ class ProjectArchivePolicyTest {
     }
 
     @Test
+    fun directoryProviderRowsAreBoundedBeforeCollection() {
+        ProjectArchivePolicy.requireDirectoryRow(ProjectArchivePolicy.MAX_ENTRIES)
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.requireDirectoryRow(ProjectArchivePolicy.MAX_ENTRIES + 1)
+        }
+    }
+
+    @Test
     fun projectNamesCannotEscapeOrContainControls() {
         assertEquals("Project A", ProjectArchivePolicy.projectName(" Project A "))
         listOf("", ".", "..", "a/b", "a\\b", "a\u0000b").forEach { name ->
