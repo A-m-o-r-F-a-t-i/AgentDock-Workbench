@@ -1,4 +1,4 @@
-name: Clean v1.1.8 release downloads
+name: Commit installer-only release policy
 
 on:
   push:
@@ -9,93 +9,107 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-installer-assets-v1.1.8
+  group: release-installer-policy-v1.1.8
   cancel-in-progress: false
 
 jobs:
   apply:
     if: github.repository_id == '1370391430' && github.event.deleted != true && github.event.forced != true
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
       WORK_BRANCH: fix/20260927-android-security-audit
-      EXPECTED_PARENT: 4bd778d4077bbe58cfe19e4abb777f660694377b
+      EXPECTED_PARENT: 03489e2a249cc9430fc7f4d5d19345a2f3198b6c
       RELEASE_ID: '397692739'
       RELEASE_TAG: v1.1.8
       RELEASE_TARGET: 4bd778d4077bbe58cfe19e4abb777f660694377b
     steps:
-      - name: Validate source, remove non-installers, and update notes
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Validate one-shot source
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "$WORK_BRANCH"
-          parent="$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA" --jq '.parents[0].sha')"
-          test "$parent" = "$EXPECTED_PARENT"
-          remote="$(gh api "repos/$GH_REPO/git/ref/heads/$WORK_BRANCH" --jq '.object.sha')"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          remote="$(git ls-remote origin "refs/heads/$WORK_BRANCH" | awk '{print $1}')"
           test "$remote" = "$GITHUB_SHA"
+
+      - name: Apply verified publication policy
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
-          import json, os, re, subprocess
+          import base64, gzip
+          from pathlib import Path
+          payload='H4sIALlQuWoC/81a6XMbRRb/HP8VHVWF0aCZEc5hEqXExhsCeDmSis1SWyqVaGta8mBpZpiesWOMq8ISQ1IbyMLCVnHs1mb5QGoLQqr2wOSo/DFYjv2Jf2Hf6+45dEZWyC5KrGP69bv6/d573TOmaRJa5PXA8UNeDFiLUc6KfrTYcviSueoFy4vMrS9Z/tpUoVAgi+ORnjpFzGPHjBlSgPfDT5NTp6YIvpwGCSO/xfJt6ucdNzRWWMAdz7W433LCvGZpuq6TZ8okP21MG8f1kpyGL5+utTxqc4v6PnPtfEObbTI3fNarL5uvxbLNdcVww5x17cBzbDNkPDS503SZDVOXNV2yDFgYBW7CdaqA/2zWIMKees1xeUhbLeCWVyxLhIeBTsxnCNgbVuBHtTRVQF65XO68ZOe5rTUScRaYaj5dbDFyXrqK0DCk9aU2aM0tFIdzZ4P6krPCuEEWPS8EptQnysUGaVPXaYD+nFDXJvUlVl/mUZtwx2Z1GnAwok0dl9AV6ghJkiWIBgISLjECqjsNh9lkth6CCcAnCJ0GrYdkdYm5xGXMhsHFNRKri1QEXYYKRSHQJ0xD0BtGgWqNuF5I1MLDfMoJrIiJdie22t6qK9cr8VGinXIsKZOKvIavdDnnwZe+Sdv2zFGLXWCaMYIoaI8iMtu07nEzch1cQ9qy7HYzS9nQKJLaSJrEby2JoZrUwWaL+5okdBpnUiZap60Lx2dqMC/w2/ubRylEUPfEqvL0vsGWiE0X6dHhVsjALeU7RfAfAo5yztoQvKCiH4W8RM7RcMmwAWPqaxZ/Rt1rt51QfvcDprJQCdHTKj9HW5wJiNpOPSyJNHR4+rjxNCkcPnLCmD6SJKKA1b3ALr/BwR0iTPNB5Oa15pJmaNR3NANs9j1wmq4nmUvOsZoMfOfYmn6wrKTXHJt4Qdd4SJs1l7YZUsF3HEbMZEnsgDZCLZviAuoAcs5HgLM2OxMEXpDXYjwBouFyuIacxEzwAA0ZJAXqNhHDrOEFjMB6gzXgdVNEj9NivMy9IGR23gdfEiAi4gukDXSx5YQssJ0gr6OFOGI5vIbz8rpaOpUQ0RpeHpodFbGUWFERiNJwHkrLsslEGoosoyZFHMlEYEMmmS6NiNIer/C1dstxl/PZsB3ixIb2ssO54zaVEmkYlsg6it2IwzQxIQ57lKYigF3wWR0cWV4XKuC80rrGnbeYVhJXcEHyOnzU8KKh2U4TwKCVNL5EDx+bKWkFeUUy3ehaCyF0QwpqS2XL6rMWRxkCJYRAFTFkxOoo7bKuVhNLU2ZXcUdoirdMJlG8+8v7Q4gRWdMzWODhfXpG4IqDQgJMLMCUXK+1PTuCZVPTdAR8vQVWxEXieQjgPCTnEOVYC/B2GunUgmJuwIGaipzYDXXPDaHq8RoW22wkctZqZKMBf1votCA882ZEW/lE/74g1qataeu4phuV7mAaUZRGlKLxC5CQMaicCH2y9WcU1aCCM4yzKeb01JuRhAMKzIBK+1rPvGH1oJpFWiZmH742PTjPrK5I+3nkZAFm+aoTLuWhvL3l+GCaFdLAar6F3yQOseoNZfWKF865gpUBSV4qAfNgdvzD59Pwa/6FWWA1/+rL8/BD6W7G7ZqFZUVDKRKbSSQHzPe4E3rBWg2MZC6WDl6DMgaiVyBFqwhOFIuJQnYhLOfPnz27UNRemjt95pX5M5puBYzaYiivTw2yZSGIWD7LAjNUEEr/aLM+9KKMvCTHUVuJ6aNYLaefxo+4WCZ8sfhCJ4oJ/qS40PK85cjHfN9NCIKgopexCgujLJW0HLt84oQRF8eytoJrO6MZoqKp8t3DCnpScF05w1bWtjiA2hB9GEAVSKWw+fAW34C0GEPd0NBpmiF1gAZbNySZ0MzjEC8rTuC5xrr2/NzCC6/+unb+zLmz83MLZ8//TivFMZleM2Ky+YUz52qw/C/PIqGmbcSMe+VDWwHioXrXWKMBI9KQBl3GRCa8qVdL3ZCYzKJesj4gaYZswmortBWxckWDAFgG4AucVH+hjsnCVDhGxnBel/FHbfs08HMjP68GPV9PQZflJuLQeJIGTZ6FWFdcx1VfEMnu8aljonucPmac6MdDtrhk8GBUKtWqoZ0GgIr9VDviIe4KiRNy1QlDxzb3LPQqsEkLYKdGMQG+GTkBNilOu81sB5s73GiSFYc7iw507Gua3pNPFh2XQi4RjYFAFKaTKGjVIBF79oCEIrotoaloueIQEFlYxMHJfP+oGMB0g1SqIzL7/BBWNNHwVstJe3QyA/2KJtsXGI+Th9pA5vUBJXs/3NLpmNnIhHBI5FQHVppU2eQ6OBoyIcZK5WhVIBe/I3K7ggpbWUFUOlotl7N7DM002yxc8mz4CkBa0HSxz1ccu7L1Uhj6vFQsyv6eW024Gi2ijKKmV0eEJSppVBqjGIiqVFzvB/VGfMjDi9OHjxSly38lMrcKjUOHn0pCp9obnauQP5o12fNiYEI/X/OgD1oNsONz4+CUTWoI+7f0UKlOYZW8ptX0VFs6dBhBetw4Tgr4hgA9kIOtIcCI56YItpxmsUhm41OPnWvXdu/f2t66uPPN9Z1vv+rcvZYcWHTub+5dv7Nz+c+da9/tXbzSufZRZ+vdB59f2v3+RueHf3au3dr996Xt21//ePH3gqW8tnPlT52rm9t3Pti+d//BJzcIog6bHVLE3QtgE/WGH3Ou6/1094sHVy7vfPnNjxff2dna7Hzwaefjq+mhzu7XlzqXP9v74r3trW87X97Yvf/Z3vtXUVqh34DOzas7n/5r7x9Xd79758EXNzv3PoVJA3U9J8L+NLTMAU7fvrO587f3d2/e6mx+07l7MTEepu/95e+dP34ERuxc/h5YdW5e2f1qE4yLVei8t7n37o3OvY93rn8FFsjx3UufDzUI/PjgztcP7nwLPLdvf7jz10udO7e3tz4EtXc++c9Pd69u3wNbwXNfbm/dlvpsb/1h9969ves/oFASrvkstRxWNYKPdVjhV7BnzOBTrDd5HbuuUg7jMfc6UL3oAJaGUS3DIFCJc8qjxuFjpCA/MIKmSCNy67FvTstYg81npZoog1pQdXJHSuXM0PqUeeDAOmpYIrlB7XGOQDxHTst23IZn/VbunuFabljLnDMImgLsqCJQ4IOBc9AdQeJpp4NwEY8U8QJuC+DneVFYGDAAD7INaOF/0QrCnK6YTdQmqdrJdgXaaDe6oPZJstFPtZHV0VTr1K2MmJdRBRkM8tUooWLb9ShChy3QQKE2DVYddwJT5cRJbY3F7tvYPrH7sham2t4qV+ZCeRlPqJo2qbGJVGHtI0gdZuvA3DDgjCCVC53Ysum0+9DU695k+tiIf8xix8HxcGW6fA81dRkaezPybeiKH8EP5oBFzxynDM186UFMVqlFh7qDU9242WVyfeIjn8n0GSM8B50IDa8M2eOkVCX48Tj9M1KfzKnVBAqNUTr//wE0FGGFX1JYTajl/zjYHoeWjyEE95VUe46sUx04DkxUOCeRH5+L71P+fu3fgD9182JER54e6WZKe3zjvVslqCS4HoMEjk5VmZPihwpJ7R5TTuFRbBmH2/60HtBX4UKs0ICoTXpmJWAgvlgm6qhNXTBIvJ2yLEsfdSZQEzeLRh8MJDS4vzthHD1OCieMI0fV+UDm6CNaWQ2LCa6L+JBD4NJWMYF0fIggdoR4h6p7V/giYz6XKzcXnyydgRV0GM+H5ElUAzad1oIOO8bCEB7n1HMU/KzbWptL73v0zk+dB+HduzmF+AvUUuBwm/oVueGt4o1xEH4gvl84cBjg+zPtBUukgaf4AhDZCC2R/tcASoy+0kjKkXu/LulDE2Epy7PQZfqgpniQ6oNfGZaTtgeln4tjUsr3xXHcslv6eThmS+QQlg9ZRTLJ4gwtURPylEkPT4BrRvqIFQAtwIczkkwoKpHTQCJvWQwryFbiORYm4+pJHBbEB4ZQQP7EfIvGAL+DyWDPcR/i/sABvGEOUGGI8g2lgjojtV6gfD5qNJwL+S4BBsnFkNLJ22+PQ447tnFpMVHoysKGF7kiKQlfqkvCkXXq2g7u+IZ4UhiSEAnmpFwmXdIKOXXXN0eeeCJDLA4HgTgXH1fmYp5KIeVgeWkxYHRZfhcOVO/oekmt5obWc6hgI59T1Ywc4vHTGOnBaKxgzujWVVesC+OukLJMeD0ZHGDZwOG0tA8Z7z7wGEzUszNXAZe6wfVcM7nlgk/QeFw+L6gexInPn+tJ23OosJLxiy5jttANm7iU9cHmoMBNtwqRm1S+HqGZp4AO8f7FKCjJQ6TFEUJEMMSPMhiEM+amAZsUZVRrGFGioCjEGFViXAZVakkQO0uBIA4sobwb65yZMMze5AGh7FSVHPAPuzc5d1411JWqDEdl6VhZblhSAhyOjEZpdrf8pF3sujwIPxuTSA/k02ImtakPHWCu3/WSgCgCeUcXn09bhGsjgpnnhumIfxmU/8Zz3F7jcgZA+2A52+gb2T5Jatm33H3PEYP3Dq0YZJW6IamkvEiGVxX07JKuy5oG/6f+C8vidcgiLgAA'
+          Path('/tmp/release-source.patch').write_bytes(gzip.decompress(base64.b64decode(payload)))
+          PY
+          git apply --check /tmp/release-source.patch
+          git apply /tmp/release-source.patch
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
           repo=os.environ['GH_REPO']; release_id=int(os.environ['RELEASE_ID'])
-          endpoint=f'repos/{repo}/releases/{release_id}'
-          release=json.loads(subprocess.check_output(['gh','api',endpoint],text=True))
+          release=json.loads(subprocess.check_output(
+              ['gh','api',f'repos/{repo}/releases/{release_id}'],text=True))
           assert release['id']==release_id
           assert release['tag_name']==os.environ['RELEASE_TAG']
           assert release['target_commitish']==os.environ['RELEASE_TARGET']
           assert release['prerelease'] is True and release['draft'] is False
-          tag=json.loads(subprocess.check_output(
-              ['gh','api',f'repos/{repo}/git/ref/tags/{os.environ["RELEASE_TAG"]}'],text=True))
-          assert tag['object']['sha']==os.environ['RELEASE_TARGET']
-          keep={
-              'AgentDockSetup-amd64.exe',
-              'AgentDockSetup-arm64.exe',
-              'AgentDock-macos-universal.dmg',
-              'agentdock-workbench_1.1.8_amd64.deb',
-              'agentdock-workbench_1.1.8_arm64.deb',
-              'agentdock-workbench-1.1.8-1.x86_64.rpm',
-              'agentdock-workbench-1.1.8-1.aarch64.rpm',
-              'AgentDock-Workbench-1.1.8-Android-test-signed.apk',
-          }
-          assets=release['assets']
-          actual={item['name']:item for item in assets}
-          assert len(actual)==len(assets)
-          assert keep.issubset(actual)
-          assert all(actual[name]['state']=='uploaded' for name in keep)
-          body=release['body'].replace(
-              'Windows Release ZIP 改为一次校验目录并按需提取',
-              'Windows 安装载荷改为一次校验目录并按需提取')
-          match=re.search(r'(?m)^## 9\. .+$',body)
-          assert match is not None
-          section='\n'.join(["## 9. 下载与安装包选择", "", "　　Release 附件只保留可以直接安装的文件，不再提供 SHA 校验文件、安装脚本、便携 ZIP、平台 TAR.GZ、发布清单或其他内部归档。", "", "| 平台 | 应下载的安装包 |", "| --- | --- |", "| 普通 Windows 10/11 电脑，Intel 或 AMD 64 位处理器 | `AgentDockSetup-amd64.exe` |", "| Windows on ARM 设备 | `AgentDockSetup-arm64.exe` |", "| macOS，Intel 或 Apple Silicon | `AgentDock-macos-universal.dmg` |", "| Ubuntu、Debian 及兼容发行版，Intel/AMD 64 位 | `agentdock-workbench_1.1.8_amd64.deb` |", "| Ubuntu、Debian 及兼容发行版，ARM64 | `agentdock-workbench_1.1.8_arm64.deb` |", "| Fedora、RHEL 及兼容发行版，Intel/AMD 64 位 | `agentdock-workbench-1.1.8-1.x86_64.rpm` |", "| Fedora、RHEL 及兼容发行版，ARM64 | `agentdock-workbench-1.1.8-1.aarch64.rpm` |", "| Android | `AgentDock-Workbench-1.1.8-Android-test-signed.apk` |", "", "　　**绝大多数使用 Intel 或 AMD 处理器的 Windows 电脑都应选择 `AgentDockSetup-amd64.exe`。** `amd64` 在这里表示通用的 x86-64 Windows 架构，并不要求处理器品牌是 AMD。只有系统明确显示为“基于 ARM64 的处理器”时，才选择 `AgentDockSetup-arm64.exe`。本版本不提供 32 位 x86 Windows 安装包。", "", "　　GitHub 会在 Release 页面底部自动显示 `Source code (zip)` 和 `Source code (tar.gz)`。这两项由 GitHub 自动生成，只包含源码，不是 AgentDock Workbench 安装包，普通用户无需下载。", "", "　　Android APK 使用测试签名，仅用于预发布评估；Windows 安装器未配置 Authenticode；macOS 使用 ad-hoc 签名且未公证，系统可能显示未知发布者提示。", "", "　　Android 仍需要用户自行安装和授权外部 Termux。实际 ARM64 手机的长期保活、厂商后台策略、生产凭据和真实升级过程不由预发布包自动替用户完成。"])+'\n'
-          notes=body[:match.start()]+section
-          removed=[]
-          for name,item in sorted(actual.items()):
-              if name in keep:
-                  continue
-              subprocess.run(
-                  ['gh','api','--method','DELETE',f'repos/{repo}/releases/assets/{item["id"]}'],
-                  check=True)
-              removed.append(name)
-          subprocess.run(
-              ['gh','api','--method','PATCH',endpoint,'--input','-'],
-              input=json.dumps({'body':notes},ensure_ascii=False),
-              text=True,check=True,stdout=subprocess.DEVNULL)
-          final=json.loads(subprocess.check_output(['gh','api',endpoint],text=True))
-          assert {item['name'] for item in final['assets']}==keep
-          assert all(item['state']=='uploaded' for item in final['assets'])
-          assert final['body']==notes
-          assert final['tag_name']==os.environ['RELEASE_TAG']
-          assert final['target_commitish']==os.environ['RELEASE_TARGET']
-          assert final['prerelease'] is True and final['draft'] is False
-          latest=json.loads(subprocess.check_output(
-              ['gh','api',f'repos/{repo}/releases/latest'],text=True))
-          assert latest['tag_name']=='v1.1.7'
-          print(json.dumps({
-              'release_id':release_id,
-              'kept_installers':sorted(keep),
-              'removed_count':len(removed),
-              'removed_assets':removed,
-              'stable_latest':latest['tag_name'],
-          },ensure_ascii=False,indent=2))
+          names={item['name'] for item in release['assets']}
+          expected={
+              'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
+              'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
+              'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
+              'AgentDock-Workbench-1.1.8-Android-test-signed.apk'}
+          assert names==expected
+          Path('docs/releases/v1.1.8.md').write_text(release['body'])
           PY
+          gofmt -w tools/release/catalog.go tools/release/catalog_test.go
+          git diff --check
+
+      - name: Test publication policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./tools/release -count=1
+          python3 -B scripts/test/test-workbench-release.py
+          python3 scripts/test/check-workbench-brand.py
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('release','scripts/release/publish-workbench.py')
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          installers=module.public_installers('1.1.8')
+          assert len(installers)==8
+          assert all(not name.endswith(('.zip','.tar.gz','.sha256')) for name in installers)
+          notes=Path('docs/releases/v1.1.8.md').read_text()
+          assert 'AgentDockSetup-amd64.exe' in notes
+          assert 'Release 附件只保留可以直接安装的文件' in notes
+          PY
+
+      - name: Commit and push policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'AgentDock Workbench Agent'
+          git config user.email 'agentdock-workbench@users.noreply.github.com'
+          git add docs/releases/v1.1.8.md scripts/release/publish-workbench.py scripts/test/test-workbench-release.py tools/release/catalog.go tools/release/catalog_test.go
+          git commit -m 'release: publish installers only'
+          git push origin "HEAD:$WORK_BRANCH"
+          echo "Committed $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
