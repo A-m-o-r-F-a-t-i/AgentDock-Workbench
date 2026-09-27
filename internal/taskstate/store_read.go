@@ -2,8 +2,8 @@ package taskstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/uvwt/agentdock/internal/fs/atomicfile"
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 )
 
 func (s *Store) Get(id string) (Task, error) {
@@ -61,7 +62,7 @@ func (s *Store) ListHistory(status Status, limit int, includeArchived bool) ([]T
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "tsk_") || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		data, err := readTaskStateFile(filepath.Join(s.root, entry.Name()))
+		data, err := s.readTaskStateFile(filepath.Join(s.root, entry.Name()))
 		if err != nil {
 			slog.Warn("skip unreadable task state", "file", entry.Name(), "error", err)
 			continue
@@ -95,7 +96,7 @@ func (s *Store) loadLocked(id string) (Task, error) {
 	if err := validateID(id); err != nil {
 		return Task{}, err
 	}
-	data, err := readTaskStateFile(filepath.Join(s.root, id+".json"))
+	data, err := s.readTaskStateFile(filepath.Join(s.root, id+".json"))
 	if os.IsNotExist(err) {
 		return Task{}, fmt.Errorf("%w: %s", ErrTaskNotFound, id)
 	}
@@ -129,33 +130,27 @@ func (s *Store) saveTaskOnlyLocked(task Task) error {
 	return atomicfile.Write(target, data, 0o600)
 }
 
-func readTaskStateFile(path string) ([]byte, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
+func (s *Store) readTaskStateFile(path string) ([]byte, error) {
+	relative, err := filepath.Rel(s.root, path)
+	if err != nil || !filepath.IsLocal(relative) {
+		return nil, fmt.Errorf("task state path escapes its store")
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, err
+	data, err := securepath.ReadRegular(s.root, relative, maxTaskStateFileBytes)
+	if errors.Is(err, securepath.ErrReadLimit) {
+		return nil, fmt.Errorf("task state exceeds %d bytes: %w", maxTaskStateFileBytes, err)
 	}
-	if info.Size() > maxTaskStateFileBytes {
-		return nil, fmt.Errorf("task state exceeds %d bytes", maxTaskStateFileBytes)
-	}
-	data, err := io.ReadAll(io.LimitReader(file, maxTaskStateFileBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxTaskStateFileBytes {
-		return nil, fmt.Errorf("task state exceeds %d bytes", maxTaskStateFileBytes)
-	}
-	return data, nil
+	return data, err
 }
 
 func decodeTask(data []byte, label string) (Task, error) {
 	var task Task
 	if err := json.Unmarshal(data, &task); err != nil {
 		return Task{}, fmt.Errorf("decode task %s: %w", label, err)
+	}
+	// Legacy schema-1 indexes may contain shorter IDs. Keep them readable,
+	// while requiring the identity in the record to match its actual file.
+	if task.ID == "" || task.ID != strings.TrimSuffix(label, ".json") {
+		return Task{}, fmt.Errorf("task identity does not match storage name %s", label)
 	}
 	if task.ActiveThreadID == "" {
 		task.ActiveThreadID = MainThreadID

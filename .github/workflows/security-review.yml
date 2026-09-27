@@ -1,0 +1,35 @@
+name: Security Boundary Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'internal/fs/securepath/**'
+      - 'internal/plugin/**'
+      - 'internal/skill/**'
+      - 'internal/taskstate/**'
+      - 'internal/tool/skill/**'
+      - 'internal/tool/browser/**'
+      - 'internal/httpx/**'
+      - '.github/workflows/security-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Native DOM parameter and input-event regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_path="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
+          test -n "$browser_path"
+          AGENTDOCK_BROWSER_EXECUTABLE_PATH="$browser_path" go test -race -tags browser_integration ./internal/tool/browser -run '^(TestSecurityDOMParametersRemainLiteral|TestBrowserIntegrationActionsSnapshotAndDiagnostics)$' -count=1 -timeout=5m

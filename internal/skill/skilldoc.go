@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 )
 
 var (
@@ -14,7 +16,7 @@ var (
 )
 
 func LoadSkillDocument(packageDir string) (SkillDocument, error) {
-	data, err := os.ReadFile(filepath.Join(packageDir, "SKILL.md"))
+	data, err := securepath.ReadRegular(packageDir, "SKILL.md", 1<<20)
 	if err != nil {
 		return SkillDocument{}, packageError(ErrDocumentInvalid, "document.read", err)
 	}

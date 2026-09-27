@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,15 +31,26 @@ func (s *Store) acquireRead(ctx context.Context, skill string) (func(), error) {
 	if err := validateIdentifier("skill", skill); err != nil {
 		return nil, err
 	}
-	readers, writer, err := s.componentLockPaths(skill)
+	_, _, err := s.componentLockPaths(skill)
 	if err != nil {
 		return nil, err
 	}
+	handle, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, err
+	}
+	leased := false
+	defer func() {
+		if !leased {
+			handle.Close()
+		}
+	}()
+	writer := filepath.Join(locksDirectory, skill+".lock")
 	owner, err := newLockOwner()
 	if err != nil {
 		return nil, fmt.Errorf("create Skill reader owner: %w", err)
 	}
-	readerPath := filepath.Join(readers, readerOwnerPrefix+owner)
+	readerPath := filepath.Join(locksDirectory, skill+".readers", readerOwnerPrefix+owner)
 	ticker := time.NewTicker(lockRetryInterval)
 	defer ticker.Stop()
 
@@ -46,7 +58,7 @@ func (s *Store) acquireRead(ctx context.Context, skill string) (func(), error) {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("acquire Skill read lock: %w", err)
 		}
-		if _, err := os.Stat(writer); err == nil {
+		if _, err := handle.Stat(writer); err == nil {
 			if err := waitForLockRetry(ctx, ticker); err != nil {
 				return nil, err
 			}
@@ -55,31 +67,36 @@ func (s *Store) acquireRead(ctx context.Context, skill string) (func(), error) {
 			return nil, fmt.Errorf("inspect Skill writer lock: %w", err)
 		}
 
-		file, err := os.OpenFile(readerPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		file, err := handle.OpenFile(readerPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return nil, fmt.Errorf("create Skill reader lock: %w", err)
 		}
 		if closeErr := file.Close(); closeErr != nil {
-			_ = os.Remove(readerPath)
+			_ = handle.Remove(readerPath)
 			return nil, fmt.Errorf("close Skill reader lock: %w", closeErr)
 		}
 
-		if _, err := os.Stat(writer); errors.Is(err, os.ErrNotExist) {
+		if _, err := handle.Stat(writer); errors.Is(err, os.ErrNotExist) {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				_ = os.Remove(readerPath)
+				_ = handle.Remove(readerPath)
 				return nil, fmt.Errorf("acquire Skill read lock: %w", ctxErr)
 			}
+			leased = true
+			var once sync.Once
 			return func() {
-				if err := os.Remove(readerPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-					slog.Warn("release Skill reader lock failed", "path", readerPath, "error", err)
-				}
+				once.Do(func() {
+					defer handle.Close()
+					if err := handle.Remove(readerPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+						slog.Warn("release Skill reader lock failed", "path", readerPath, "error", err)
+					}
+				})
 			}, nil
 		} else if err != nil {
-			_ = os.Remove(readerPath)
+			_ = handle.Remove(readerPath)
 			return nil, fmt.Errorf("recheck Skill writer lock: %w", err)
 		}
 
-		_ = os.Remove(readerPath)
+		_ = handle.Remove(readerPath)
 		if err := waitForLockRetry(ctx, ticker); err != nil {
 			return nil, err
 		}
@@ -222,8 +239,14 @@ func (s *Store) componentLockPaths(skill string) (readers, writer string, err er
 	if err = validateIdentifier("skill", skill); err != nil {
 		return
 	}
+	handle, openErr := os.OpenRoot(s.root)
+	if openErr != nil {
+		err = openErr
+		return
+	}
+	defer handle.Close()
 	readers = filepath.Join(s.root, locksDirectory, skill+".readers")
-	err = os.MkdirAll(readers, 0700)
+	err = handle.MkdirAll(filepath.Join(locksDirectory, skill+".readers"), 0700)
 	writer = filepath.Join(s.root, locksDirectory, skill+".lock")
 	return
 }

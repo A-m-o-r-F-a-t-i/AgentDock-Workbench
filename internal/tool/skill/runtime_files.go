@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 	skills "github.com/uvwt/agentdock/internal/skill"
 )
 
@@ -67,26 +68,9 @@ func (s *Service) RuntimeSkillFile(skill, relativePath string) (Result, error) {
 	if err != nil {
 		return nil, toolErrorDetails("SKILL_PACKAGE_UNAVAILABLE", "skill package directory is unavailable", "runtime", map[string]any{"skill": skill, "version": version})
 	}
-	if err := rejectRuntimeSkillSymlinkPath(resolvedRoot, cleanPath); err != nil {
-		return nil, err
-	}
-	target := filepath.Join(resolvedRoot, filepath.FromSlash(cleanPath))
-	resolvedTarget, err := filepath.EvalSymlinks(target)
+	file, info, err := securepath.OpenRegular(resolvedRoot, filepath.FromSlash(cleanPath))
 	if err != nil {
-		return nil, toolErrorDetails("SKILL_FILE_NOT_FOUND", "skill file not found", "not_found", map[string]any{"path": cleanPath})
-	}
-	inside, err := filepath.Rel(resolvedRoot, resolvedTarget)
-	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
-		return nil, toolErrorDetails("INVALID_SKILL_FILE", "skill file path escapes the installed package", "validation", map[string]any{"path": cleanPath})
-	}
-	info, err := os.Stat(resolvedTarget)
-	if err != nil || !info.Mode().IsRegular() {
-		return nil, toolErrorDetails("SKILL_FILE_NOT_FOUND", "skill file not found", "not_found", map[string]any{"path": cleanPath})
-	}
-
-	file, err := os.Open(resolvedTarget)
-	if err != nil {
-		return nil, toolErrorDetails("SKILL_FILE_READ_FAILED", "failed to read skill file", "runtime", map[string]any{"path": cleanPath})
+		return nil, toolErrorDetails("INVALID_SKILL_FILE", "skill file must be a regular file inside its package", "validation", map[string]any{"path": cleanPath})
 	}
 	defer file.Close()
 
@@ -220,18 +204,11 @@ func cleanRuntimeSkillFilePath(path string) (string, error) {
 }
 
 func rejectRuntimeSkillSymlinkPath(root, relativePath string) error {
-	current := root
-	for _, segment := range strings.Split(filepath.FromSlash(relativePath), string(os.PathSeparator)) {
-		current = filepath.Join(current, segment)
-		info, err := os.Lstat(current)
-		if err != nil {
-			return toolErrorDetails("SKILL_FILE_NOT_FOUND", "skill file not found", "not_found", map[string]any{"path": relativePath})
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return toolErrorDetails("INVALID_SKILL_FILE", "skill file path contains a symbolic link", "validation", map[string]any{"path": relativePath})
-		}
+	file, _, err := securepath.OpenRegular(root, filepath.FromSlash(relativePath))
+	if err != nil {
+		return toolErrorDetails("INVALID_SKILL_FILE", "skill file must be a regular file inside its package", "validation", map[string]any{"path": relativePath})
 	}
-	return nil
+	return file.Close()
 }
 
 func isPrivateRuntimeSkillFile(path string) bool {

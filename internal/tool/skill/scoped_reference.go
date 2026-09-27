@@ -219,10 +219,14 @@ func (s *Service) acquireShared(ctx context.Context, ref parsedSkillRef) (Resolv
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_CONTEXT_INVALID", "resolve shared Skill home: "+err.Error(), "runtime", map[string]any{"skill_ref": SharedSkillRef(ref.Name)})
 	}
 	root := filepath.Join(home, ".agents", "skills", ref.Name)
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
+	// A shared Skill may intentionally be linked to an explicitly installed
+	// package. Pin that selected package as the root instead of treating its
+	// files as arbitrary paths in the user's home directory.
+	handle, err := os.OpenRoot(root)
+	if err != nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_NOT_AVAILABLE", "shared Skill is not available", "not_found", map[string]any{"skill_ref": SharedSkillRef(ref.Name)})
 	}
+	defer handle.Close()
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_CONTEXT_INVALID", "resolve shared Skill root: "+err.Error(), "runtime", map[string]any{"skill_ref": SharedSkillRef(ref.Name)})
@@ -251,8 +255,14 @@ func (s *Service) acquireWorkspace(ctx context.Context, ref parsedSkillRef) (Res
 	if err != nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_CONTEXT_INVALID", "workspace source is unavailable", "not_found", map[string]any{"skill_ref": "skill://workspace/" + ref.SourceID + "/" + ref.Name})
 	}
-	packageRoot := filepath.Join(realWorkspaceRoot, ".agents", "skills", ref.Name)
-	info, err := os.Lstat(packageRoot)
+	workspaceHandle, err := os.OpenRoot(realWorkspaceRoot)
+	if err != nil {
+		return ResolvedSkill{}, nil, err
+	}
+	defer workspaceHandle.Close()
+	packageRelative := filepath.Join(".agents", "skills", ref.Name)
+	packageRoot := filepath.Join(realWorkspaceRoot, packageRelative)
+	info, err := workspaceHandle.Lstat(packageRelative)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_NOT_AVAILABLE", "workspace Skill is not available as a regular directory", "not_found", map[string]any{"skill_ref": "skill://workspace/" + ref.SourceID + "/" + ref.Name})
 	}

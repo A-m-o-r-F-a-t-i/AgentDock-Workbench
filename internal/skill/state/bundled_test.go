@@ -91,7 +91,7 @@ func TestReplaceBundledSkillsMovesRemovedSystemSkillBackToUserRoot(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exists, err := regularDirectoryExists(userPath); err != nil || !exists {
+	if exists, err := store.regularDirectoryExists(userPath); err != nil || !exists {
 		t.Fatalf("removed system Skill was not restored to user root: exists=%v err=%v", exists, err)
 	}
 	bundled, err := store.IsBundled("skill-authoring")

@@ -72,7 +72,7 @@ func (s *Store) ClaimCompletionNotifications(ctx context.Context, limit int, now
 	defer release()
 	path := filepath.Join(s.root, "notification-claims.json")
 	claims := notificationClaims{SchemaVersion: 1, Claimed: map[string]time.Time{}}
-	data, err := readTaskStateFile(path)
+	data, err := s.readTaskStateFile(path)
 	if err == nil {
 		if err = json.Unmarshal(data, &claims); err != nil {
 			return nil, err
@@ -102,7 +102,7 @@ func (s *Store) ClaimCompletionNotifications(ctx context.Context, limit int, now
 		if err != nil || !info.Mode().IsRegular() || info.ModTime().Before(cutoff.Add(-time.Second)) {
 			continue
 		}
-		bytes, err := readTaskStateFile(filepath.Join(s.root, entry.Name()))
+		bytes, err := s.readTaskStateFile(filepath.Join(s.root, entry.Name()))
 		if err != nil {
 			continue
 		}

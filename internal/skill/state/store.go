@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -41,6 +43,8 @@ type Selection struct {
 // Store manages the Codex-style Skill tree rooted at ~/.agentdock/skills.
 // Active user Skills live directly under <root>/<name>, active bundled Skills
 // under <root>/.system/<name>, and inactive versions under .versions.
+var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9._+-]{1,128}$`)
+
 type Store struct{ root string }
 
 func New(root string) (*Store, error) {
@@ -150,7 +154,7 @@ func (s *Store) IsInstalled(skill, version string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return regularDirectoryExists(path)
+	return s.regularDirectoryExists(path)
 }
 
 func (s *Store) ListVersions(skill string) ([]string, error) {
@@ -158,8 +162,12 @@ func (s *Store) ListVersions(skill string) ([]string, error) {
 		return nil, err
 	}
 	seen := map[string]struct{}{}
-	archiveRoot := filepath.Join(s.root, versionsDirectory, skill)
-	entries, err := os.ReadDir(archiveRoot)
+	handle, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, err
+	}
+	defer handle.Close()
+	entries, err := fs.ReadDir(handle.FS(), filepath.ToSlash(filepath.Join(versionsDirectory, skill)))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -178,7 +186,7 @@ func (s *Store) ListVersions(skill string) ([]string, error) {
 		if pathErr != nil {
 			return nil, pathErr
 		}
-		exists, statErr := regularDirectoryExists(activePath)
+		exists, statErr := s.regularDirectoryExists(activePath)
 		if statErr != nil {
 			return nil, statErr
 		}
@@ -298,7 +306,7 @@ func (s *Store) Resolve(skill, version string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	exists, err := regularDirectoryExists(path)
+	exists, err := s.regularDirectoryExists(path)
 	if err != nil {
 		return "", err
 	}
@@ -386,7 +394,7 @@ func (s *Store) applySelectionLocked(skill string, current, target Selection) er
 		if err != nil {
 			return err
 		}
-		exists, err := regularDirectoryExists(currentPath)
+		exists, err := s.regularDirectoryExists(currentPath)
 		if err != nil {
 			return err
 		}
@@ -428,7 +436,7 @@ func (s *Store) applySelectionLocked(skill string, current, target Selection) er
 		if err != nil {
 			return err
 		}
-		exists, err := regularDirectoryExists(currentPath)
+		exists, err := s.regularDirectoryExists(currentPath)
 		if err != nil {
 			return err
 		}
@@ -453,7 +461,7 @@ func (s *Store) applySelectionLocked(skill string, current, target Selection) er
 		if err != nil {
 			return err
 		}
-		exists, err := regularDirectoryExists(targetArchive)
+		exists, err := s.regularDirectoryExists(targetArchive)
 		if err != nil {
 			return err
 		}
@@ -538,8 +546,20 @@ func renameRollback(source, destination string) error {
 	return nil
 }
 
-func regularDirectoryExists(path string) (bool, error) {
-	info, err := os.Lstat(path)
+func (s *Store) regularDirectoryExists(path string) (bool, error) {
+	relative, err := filepath.Rel(s.root, path)
+	if err != nil || !filepath.IsLocal(relative) {
+		return false, errors.New("skill directory escapes its store")
+	}
+	handle, err := os.OpenRoot(s.root)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer handle.Close()
+	info, err := handle.Lstat(relative)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -649,7 +669,7 @@ func (s *Store) RemoveVersion(ctx context.Context, skill, version string) error 
 	if err != nil {
 		return err
 	}
-	exists, err := regularDirectoryExists(path)
+	exists, err := s.regularDirectoryExists(path)
 	if err != nil {
 		return err
 	}
@@ -660,8 +680,10 @@ func (s *Store) RemoveVersion(ctx context.Context, skill, version string) error 
 }
 
 func (s *Store) load(skill string) (Selection, error) {
-	path := filepath.Join(s.root, stateDirectory, skill+".json")
-	data, err := os.ReadFile(path)
+	if err := validateIdentifier("skill", skill); err != nil {
+		return Selection{}, err
+	}
+	data, err := securepath.ReadRegular(s.root, filepath.Join(stateDirectory, skill+".json"), 1<<20)
 	if errors.Is(err, os.ErrNotExist) {
 		return Selection{}, nil
 	}
@@ -671,6 +693,9 @@ func (s *Store) load(skill string) (Selection, error) {
 	var selection Selection
 	if err := json.Unmarshal(data, &selection); err != nil {
 		return Selection{}, fmt.Errorf("decode skill state: %w", err)
+	}
+	if err := validateSelection(selection); err != nil {
+		return Selection{}, err
 	}
 	return selection, nil
 }
@@ -771,13 +796,7 @@ func removeStaleOwnedLock(lockPath string) bool {
 }
 
 func validateIdentifier(label, value string) error {
-	if value == "" || value == "." || value == ".." || strings.ContainsAny(value, `/\\`) {
-		return fmt.Errorf("invalid %s %q", label, value)
-	}
-	for _, r := range value {
-		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._+-", r) {
-			continue
-		}
+	if value == "." || value == ".." || !filepath.IsLocal(value) || !identifierPattern.MatchString(value) {
 		return fmt.Errorf("invalid %s %q", label, value)
 	}
 	return nil

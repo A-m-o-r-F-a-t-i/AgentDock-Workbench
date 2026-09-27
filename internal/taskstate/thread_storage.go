@@ -24,8 +24,13 @@ func (s *Store) threadPath(taskID, threadID string) (string, error) {
 	if err := validateThreadID(threadID); err != nil {
 		return "", err
 	}
-	for _, dir := range []string{filepath.Join(s.root, "threads"), filepath.Join(s.root, "threads", taskID)} {
-		if info, err := os.Lstat(dir); err == nil {
+	handle, err := os.OpenRoot(s.root)
+	if err != nil {
+		return "", err
+	}
+	defer handle.Close()
+	for _, dir := range []string{"threads", filepath.Join("threads", taskID)} {
+		if info, err := handle.Lstat(dir); err == nil {
 			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 				return "", errors.New("thread state directory must not be a symlink")
 			}
@@ -34,7 +39,7 @@ func (s *Store) threadPath(taskID, threadID string) (string, error) {
 		}
 	}
 	path := filepath.Join(s.root, "threads", taskID, threadID+".json")
-	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+	if info, err := handle.Lstat(filepath.Join("threads", taskID, threadID+".json")); err == nil && !info.Mode().IsRegular() {
 		return "", errors.New("thread state must be a regular file")
 	} else if err != nil && !os.IsNotExist(err) {
 		return "", err
@@ -47,7 +52,7 @@ func (s *Store) loadThreadLocked(task Task, id string) (TaskThread, error) {
 	if err != nil {
 		return TaskThread{}, err
 	}
-	data, err := readTaskStateFile(path)
+	data, err := s.readTaskStateFile(path)
 	if os.IsNotExist(err) {
 		if id == MainThreadID {
 			return virtualMain(task), nil
@@ -218,7 +223,7 @@ func (s *Store) applyThreadTransactionLocked(tx threadTransaction) error {
 
 func (s *Store) recoverThreadTransactionLocked() error {
 	path := filepath.Join(s.root, ".thread-transaction.json")
-	data, err := readTaskStateFile(path)
+	data, err := s.readTaskStateFile(path)
 	if os.IsNotExist(err) {
 		return nil
 	}
