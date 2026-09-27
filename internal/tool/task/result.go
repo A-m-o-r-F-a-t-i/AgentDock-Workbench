@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/uvwt/agentdock/internal/taskstate"
 )
@@ -159,9 +160,52 @@ func taskToolError(err error) error {
 		return existing
 	}
 	if errors.Is(err, taskstate.ErrTaskNotFound) {
-		return toolErrorDetails("TASK_NOT_FOUND", err.Error(), "not_found", map[string]any{"retryable": false})
+		return toolErrorDetails("TASK_NOT_FOUND", err.Error(), "not_found", map[string]any{
+			"retryable":     false,
+			"failure_class": "AGENT_STATE_STALE",
+			"next_action":   "list",
+		})
 	}
-	return toolErrorDetails("TASK_STATE_ERROR", err.Error(), "validation", map[string]any{"retryable": false})
+	return toolErrorDetails("TASK_STATE_ERROR", err.Error(), "validation", taskStateErrorDetails(err))
+}
+
+func taskStateErrorDetails(err error) map[string]any {
+	details := map[string]any{
+		"retryable":     false,
+		"failure_class": "AGENT_STATE_INVALID",
+		"next_action":   "get",
+	}
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "resume summary is required"):
+		details["failure_class"] = "AGENT_INPUT_INVALID"
+		details["next_action"] = "resume"
+		details["required_fields"] = []string{"summary"}
+	case strings.Contains(message, "final_review must pass before complete"):
+		details["next_action"] = "final_review"
+		details["allowed_actions"] = []string{"get", "checkpoint", "final_review"}
+	case strings.Contains(message, "requires all task steps completed"):
+		details["next_action"] = "checkpoint"
+		details["required_state"] = "all_steps_completed"
+	case strings.Contains(message, "requires at least one verified fact"):
+		details["next_action"] = "final_review"
+		details["required_fields"] = []string{"verified"}
+	case strings.Contains(message, "final review status must be pass or failed"):
+		details["failure_class"] = "AGENT_INPUT_INVALID"
+		details["next_action"] = "final_review"
+		details["required_fields"] = []string{"status"}
+		details["allowed_values"] = []string{"pass", "failed"}
+	case strings.Contains(message, "completed step cannot be restarted"):
+		details["next_action"] = "get"
+		details["required_state"] = "select_pending_step"
+	case strings.Contains(message, "another thread step is still in progress"):
+		details["next_action"] = "thread_get"
+		details["required_state"] = "resolve_in_progress_step"
+	case strings.Contains(message, "completed tasks are immutable"):
+		details["next_action"] = "get"
+		details["required_state"] = "task_already_completed"
+	}
+	return details
 }
 
 func remarshal(input any, out any) error {

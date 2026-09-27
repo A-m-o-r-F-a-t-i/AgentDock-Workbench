@@ -84,11 +84,15 @@ func (svc *Service) callWSLFileHelper(ctx context.Context, selection fileRuntime
 	if err != nil {
 		message := strings.TrimSpace(string(commandResult.Stderr))
 		if commandResult.TimedOut {
+			details := map[string]any{"wsl_distribution": selection.Distribution}
+			if action, _ := request["action"].(string); action == ToolSearchText {
+				addSearchRecoveryGuidance(details, "WSL_FILE_TIMEOUT")
+			}
 			return nil, toolErrorDetails(
 				"WSL_FILE_TIMEOUT",
 				"WSL file operation exceeded the 60 second timeout",
 				"runtime",
-				map[string]any{"wsl_distribution": selection.Distribution},
+				details,
 			)
 		}
 		// helper 可能在本进程运行期间被用户删除或 WSL 发行版被重置；清缓存后下一次调用会重新部署。
@@ -132,6 +136,14 @@ func (svc *Service) callWSLFileHelper(ctx context.Context, selection fileRuntime
 		}
 		if message == "" {
 			message = "WSL file helper failed"
+		}
+		rawPath, _ := request["path"].(string)
+		switch code {
+		case "PATH_NOT_FOUND", "IS_DIRECTORY", "NOT_A_DIRECTORY", "NOT_REGULAR_FILE":
+			addPathRecoveryGuidance(details, code, rawPath, pathpkg.Dir(rawPath))
+		}
+		if action, _ := request["action"].(string); action == ToolSearchText {
+			addSearchRecoveryGuidance(details, code)
 		}
 		return nil, toolErrorDetails(code, message, wslFileErrorPhase(code), details)
 	}

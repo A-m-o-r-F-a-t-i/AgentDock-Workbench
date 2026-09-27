@@ -27,6 +27,39 @@ func TestKillSkipsCompletedSession(t *testing.T) {
 	}
 }
 
+func TestCompletedSessionDerivesStableTerminalStatus(t *testing.T) {
+	now := time.Now()
+	for _, test := range []struct {
+		name                 string
+		timedOut             bool
+		terminationRequested bool
+		want                 string
+	}{
+		{name: "exited", want: "exited"},
+		{name: "killed", terminationRequested: true, want: "killed"},
+		{name: "timeout wins over kill", timedOut: true, terminationRequested: true, want: "timeout"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := &Session{
+				ID:                   "session-terminal",
+				StartedAt:            now.Add(-time.Second),
+				FinishedAt:           now,
+				completed:            true,
+				exitCode:             -1,
+				TimedOut:             test.timedOut,
+				terminationRequested: test.terminationRequested,
+			}
+			if got := s.Summary().Status; got != test.want {
+				t.Fatalf("summary status = %q, want %q", got, test.want)
+			}
+			snapshot := s.Snapshot("exited", 1024)
+			if snapshot.Status != test.want {
+				t.Fatalf("snapshot status = %q, want %q", snapshot.Status, test.want)
+			}
+		})
+	}
+}
+
 func TestStartCapturesCompleteOutputAndExitState(t *testing.T) {
 	requirePOSIXShell(t)
 	s, _, err := Start(

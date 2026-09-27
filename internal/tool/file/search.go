@@ -57,6 +57,13 @@ func (svc *Service) SearchText(ctx context.Context, request SearchRequest) (Resu
 	if request.Query == "" {
 		return nil, toolError("INVALID_ARGUMENT", "query is required", "validation")
 	}
+	if request.Regex {
+		if _, compileErr := regexp.Compile(request.Query); compileErr != nil {
+			details := map[string]any{"reason": compileErr.Error()}
+			addSearchRecoveryGuidance(details, "INVALID_REGEX")
+			return nil, toolErrorCause("INVALID_REGEX", "query is not a valid regular expression", "validation", details, compileErr)
+		}
+	}
 	if selection.isWSL() {
 		return svc.searchTextWSL(ctx, request, selection)
 	}
@@ -71,7 +78,7 @@ func (svc *Service) SearchText(ctx context.Context, request SearchRequest) (Resu
 	}
 	p, err := svc.ws.ResolveExisting(path)
 	if err != nil {
-		return nil, err
+		return nil, svc.pathResolutionError(err, path)
 	}
 	includeGlobs := append([]string(nil), request.IncludeGlobs...)
 	if request.Glob != "" {
@@ -254,7 +261,9 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 		}
 		compiled, err := regexp.Compile(pattern)
 		if err != nil {
-			return nil, toolErrorCause("INVALID_ARGUMENT", "query is not a valid regular expression", "validation", map[string]any{"reason": err.Error()}, err)
+			details := map[string]any{"reason": err.Error()}
+			addSearchRecoveryGuidance(details, "INVALID_REGEX")
+			return nil, toolErrorCause("INVALID_REGEX", "query is not a valid regular expression", "validation", details, err)
 		}
 		re = compiled
 	}
@@ -385,9 +394,11 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 	})
 	if walkErr != nil {
 		if errors.Is(walkErr, errSearchResourceLimit) {
-			return nil, toolErrorCause("RESOURCE_LIMIT", "text search exceeded the Go fallback resource budget", "runtime", map[string]any{
+			details := map[string]any{
 				"resource": limitResource, "entries_visited": entriesVisited, "files_scanned": filesScanned, "bytes_scanned": bytesScanned,
-			}, walkErr)
+			}
+			addSearchRecoveryGuidance(details, "RESOURCE_LIMIT")
+			return nil, toolErrorCause("RESOURCE_LIMIT", "text search exceeded the Go fallback resource budget", "runtime", details, walkErr)
 		}
 		return nil, searchExecutionError(ctx, "go_fallback", walkErr)
 	}
@@ -403,7 +414,9 @@ func searchExecutionError(ctx context.Context, engine string, err error) error {
 		return toolErrorCause("SEARCH_CANCELED", "text search was canceled", "runtime", map[string]any{"engine": engine}, err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return toolErrorCause("RESOURCE_LIMIT", "text search exceeded its time limit", "runtime", map[string]any{"engine": engine, "resource": "time"}, err)
+		details := map[string]any{"engine": engine, "resource": "time"}
+		addSearchRecoveryGuidance(details, "RESOURCE_LIMIT")
+		return toolErrorCause("RESOURCE_LIMIT", "text search exceeded its time limit", "runtime", details, err)
 	}
 	return toolErrorCause("SEARCH_FAILED", "text search failed", "runtime", map[string]any{"engine": engine}, err)
 }
