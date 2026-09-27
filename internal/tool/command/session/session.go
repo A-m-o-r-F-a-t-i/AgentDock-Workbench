@@ -341,25 +341,33 @@ func (s *Session) Summary() Summary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	status := "running"
 	finishedAt := time.Now()
 	if s.completed {
-		status = "exited"
 		finishedAt = s.FinishedAt
-		if s.TimedOut {
-			status = "timeout"
-		}
 	}
 	return Summary{
 		Binding:      s.activityBinding,
 		ID:           s.ID,
-		Status:       status,
+		Status:       s.statusLocked(),
 		ElapsedMS:    finishedAt.Sub(s.StartedAt).Milliseconds(),
 		TimedOut:     s.TimedOut,
 		Runtime:      s.execution.Runtime,
 		Distribution: s.execution.Distribution,
 		Workdir:      s.execution.Workdir,
 	}
+}
+
+func (s *Session) statusLocked() string {
+	if !s.completed {
+		return "running"
+	}
+	if s.TimedOut {
+		return "timeout"
+	}
+	if s.terminationRequested {
+		return "killed"
+	}
+	return "exited"
 }
 
 func (s *Session) completionTime() (time.Time, bool) {
@@ -547,6 +555,7 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	finished := time.Now()
 	if s.completed {
 		finished = s.FinishedAt
+		status = s.statusLocked()
 	}
 	return Snapshot{
 		Binding: s.activityBinding, ActivityWarning: s.activityWarning, TerminationRequested: s.terminationRequested,

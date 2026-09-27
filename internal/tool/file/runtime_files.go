@@ -43,17 +43,27 @@ func (svc *Service) ReadFile(ctx context.Context, request ReadRequest) (Result, 
 	} else {
 		p, err := svc.ws.ResolveExisting(rawPath)
 		if err != nil {
-			return nil, err
+			return nil, svc.pathResolutionError(err, rawPath)
 		}
 		absPath = p.Abs
 		displayPath = p.Display
 	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if !strings.HasPrefix(rawPath, "skill://") {
+			return nil, svc.pathResolutionError(err, rawPath)
+		}
+		return nil, err
+	}
+	if info.IsDir() {
+		if strings.HasPrefix(rawPath, "skill://") {
+			return nil, toolError("IS_DIRECTORY", "cannot read directory", "validation")
+		}
+		return nil, pathTypeError("IS_DIRECTORY", "cannot read directory", rawPath, filepath.Dir(rawPath), "directory")
+	}
 	read, err := readBoundedFile(absPath, int64(maxTextFileReadBytes))
 	if err != nil {
 		return nil, err
-	}
-	if read.Info.IsDir() {
-		return nil, toolError("IS_DIRECTORY", "cannot read directory", "validation")
 	}
 	if read.TooLarge {
 		return nil, toolErrorDetails(
@@ -139,14 +149,14 @@ func (svc *Service) ListDir(ctx context.Context, request ListRequest) (Result, e
 	}
 	root, err := svc.ws.ResolveExisting(path)
 	if err != nil {
-		return nil, err
+		return nil, svc.pathResolutionError(err, path)
 	}
 	rootInfo, err := os.Stat(root.Abs)
 	if err != nil {
-		return nil, err
+		return nil, svc.pathResolutionError(err, path)
 	}
 	if !rootInfo.IsDir() {
-		return nil, toolError("NOT_A_DIRECTORY", "list_dir path is not a directory", "validation")
+		return nil, pathTypeError("NOT_A_DIRECTORY", "list_dir path is not a directory", path, filepath.Dir(path), "file")
 	}
 
 	ignore := loadContextIgnoreMatcher(ctx, svc.ws.Root())

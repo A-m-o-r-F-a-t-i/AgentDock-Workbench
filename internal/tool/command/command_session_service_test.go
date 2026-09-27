@@ -214,8 +214,15 @@ func TestListSessionsKeepsCompletedResultAvailable(t *testing.T) {
 	if result["status"] != "exited" || result["stdout"] != "completed-output" {
 		t.Fatalf("completed result = %#v", result)
 	}
-	if _, ok := runtime.sessions.Get(sessionID); ok {
-		t.Fatal("session remained stored after final result was consumed")
+	if _, ok := runtime.sessions.Get(sessionID); !ok {
+		t.Fatal("completed session was removed before the retention deadline")
+	}
+	repeated, err := runtime.sessionStatusArgs(map[string]any{"session_id": sessionID})
+	if err != nil {
+		t.Fatalf("repeated sessionStatus() error = %v", err)
+	}
+	if repeated["status"] != "exited" || repeated["stdout"] != "" || repeated["command_ok"] != true {
+		t.Fatalf("repeated completed result = %#v", repeated)
 	}
 }
 
@@ -248,6 +255,13 @@ func TestKillCompletedSessionReturnsActualStatus(t *testing.T) {
 	if result["status"] != "exited" || result["stdout"] != "already-done" {
 		t.Fatalf("completed kill result = %#v", result)
 	}
+	if _, ok := runtime.sessions.Get(sessionID); !ok {
+		t.Fatal("completed session was removed by an idempotent kill")
+	}
+	repeated, err := runtime.killSessionArgs(map[string]any{"session_id": sessionID})
+	if err != nil || repeated["status"] != "exited" {
+		t.Fatalf("repeated completed kill = %#v, %v", repeated, err)
+	}
 }
 
 func TestKillAllSessionsKeepsCompletedStatus(t *testing.T) {
@@ -278,6 +292,13 @@ func TestKillAllSessionsKeepsCompletedStatus(t *testing.T) {
 	items := result["sessions"].([]map[string]any)
 	if len(items) != 1 || items[0]["session_id"] != sessionID || items[0]["status"] != "exited" {
 		t.Fatalf("kill_all result = %#v", result)
+	}
+	if _, ok := runtime.sessions.Get(sessionID); !ok {
+		t.Fatal("completed session was removed by kill_all")
+	}
+	observed, err := runtime.sessionStatusArgs(map[string]any{"session_id": sessionID})
+	if err != nil || observed["status"] != "exited" {
+		t.Fatalf("retained completed session = %#v, %v", observed, err)
 	}
 }
 
@@ -315,8 +336,15 @@ func TestKillSessionWaitsForProcessExit(t *testing.T) {
 	if _, ok := result["exit_code"]; !ok {
 		t.Fatalf("kill result missing exit_code: %#v", result)
 	}
-	if _, ok := runtime.sessions.Get(sessionID); ok {
-		t.Fatal("killed session remained stored")
+	if _, ok := runtime.sessions.Get(sessionID); !ok {
+		t.Fatal("killed session was removed before the retention deadline")
+	}
+	observed, err := runtime.sessionStatusArgs(map[string]any{"session_id": sessionID})
+	if err != nil {
+		t.Fatalf("observe killed session error = %v", err)
+	}
+	if observed["status"] != "killed" || observed["command_ok"] != false {
+		t.Fatalf("retained killed result = %#v", observed)
 	}
 }
 
@@ -370,8 +398,12 @@ func TestKillAllSessionsWaitsForEveryProcess(t *testing.T) {
 		default:
 			t.Fatalf("session %s still running after kill_all", stored.ID)
 		}
-		if _, ok := runtime.sessions.Get(stored.ID); ok {
-			t.Fatalf("session %s remained stored after kill_all", stored.ID)
+		if _, ok := runtime.sessions.Get(stored.ID); !ok {
+			t.Fatalf("session %s was removed after kill_all", stored.ID)
+		}
+		observed, err := runtime.sessionStatusArgs(map[string]any{"session_id": stored.ID})
+		if err != nil || observed["status"] != "killed" {
+			t.Fatalf("retained killed session %s = %#v, %v", stored.ID, observed, err)
 		}
 	}
 }
@@ -405,8 +437,12 @@ func TestSessionActWriteAfterCompletionReturnsFinalOutput(t *testing.T) {
 	if result["status"] != "exited" || result["stdout"] != "final-output" {
 		t.Fatalf("final result = %#v", result)
 	}
-	if _, ok := runtime.sessions.Get(sessionID); ok {
-		t.Fatal("completed session remained stored")
+	if _, ok := runtime.sessions.Get(sessionID); !ok {
+		t.Fatal("completed session was removed after late input")
+	}
+	observed, err := runtime.sessionStatusArgs(map[string]any{"session_id": sessionID})
+	if err != nil || observed["status"] != "exited" {
+		t.Fatalf("retained completed session = %#v, %v", observed, err)
 	}
 }
 
@@ -445,11 +481,7 @@ func TestSessionActWritesInputAndReturnsFinalOutput(t *testing.T) {
 	for result["status"] != "exited" && time.Now().Before(deadline) {
 		result, err = runtime.sessionStatusArgs(map[string]any{"session_id": sessionID})
 		if err != nil {
-			if !strings.Contains(err.Error(), "session not found") {
-				t.Fatalf("sessionStatus() error = %v", err)
-			}
-			time.Sleep(10 * time.Millisecond)
-			continue
+			t.Fatalf("sessionStatus() error = %v", err)
 		}
 		if value, _ := result["stdout"].(string); value != "" {
 			stdout.WriteString(value)
