@@ -86,6 +86,42 @@ class ProjectArchivePolicyTest {
     }
 
     @Test
+    fun rejectsProviderNamesThatCouldCreateUnsafeZipEntries() {
+        assertEquals("safe.txt", ProjectArchivePolicy.documentName("safe.txt"))
+        listOf("", ".", "..", "../escape", "a/b", "a\\b", "a\u0000b", "a\u001fb", "x".repeat(256)).forEach { name ->
+            assertThrows(IllegalArgumentException::class.java) { ProjectArchivePolicy.documentName(name) }
+        }
+    }
+
+    @Test
+    fun boundsProviderRelativePathsAndDirectoryDepth() {
+        assertEquals("src/main.c", ProjectArchivePolicy.relativePath("src", "main.c", 2))
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.relativePath("src", "main.c", ProjectArchivePolicy.MAX_DIRECTORY_DEPTH + 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.relativePath("x".repeat(ProjectArchivePolicy.MAX_RELATIVE_PATH_CHARS), "main.c", 2)
+        }
+        val deep = (1..ProjectArchivePolicy.MAX_DIRECTORY_DEPTH + 1).joinToString("/") { "d$it" }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.validate(listOf(ArchivePlanEntry(deep, true, 0)))
+        }
+    }
+
+    @Test
+    fun rejectsProviderDirectoryCyclesAndBlankIds() {
+        val visited = mutableSetOf<String>()
+        ProjectArchivePolicy.registerDirectory(visited, "root")
+        ProjectArchivePolicy.registerDirectory(visited, "child")
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.registerDirectory(visited, "root")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProjectArchivePolicy.registerDirectory(visited, "")
+        }
+    }
+
+    @Test
     fun projectNamesCannotEscapeOrContainControls() {
         assertEquals("Project A", ProjectArchivePolicy.projectName(" Project A "))
         listOf("", ".", "..", "a/b", "a\\b", "a\u0000b").forEach { name ->

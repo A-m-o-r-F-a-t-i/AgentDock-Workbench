@@ -38,6 +38,8 @@ object ProjectArchivePolicy {
     const val MAX_EXPANDED_BYTES = 512L * 1024 * 1024
     const val MAX_ENTRIES = 10_000
     const val MAX_FILE_BYTES = 128L * 1024 * 1024
+    const val MAX_RELATIVE_PATH_CHARS = 4096
+    const val MAX_DIRECTORY_DEPTH = 128
 
     internal fun <T> collectBounded(entries: Enumeration<T>, maximum: Int = MAX_ENTRIES): List<T> {
         require(maximum in 1..MAX_ENTRIES) { "归档枚举上限无效" }
@@ -53,13 +55,37 @@ object ProjectArchivePolicy {
         require(rowNumber in 1..MAX_ENTRIES) { "文档目录条目超过上限" }
     }
 
+    private fun validDocumentName(value: String): Boolean = value.length in 1..255 &&
+        value !in setOf(".", "..") &&
+        value.none { it == '/' || it == '\\' || it == '\u0000' || it.code < 32 }
+
+    internal fun documentName(value: String): String {
+        require(validDocumentName(value)) { "文档提供程序返回了无效名称" }
+        return value
+    }
+
+    internal fun relativePath(prefix: String, name: String, depth: Int): String {
+        require(depth in 1..MAX_DIRECTORY_DEPTH) { "工程目录深度超过上限" }
+        val safeName = documentName(name)
+        val result = if (prefix.isEmpty()) safeName else "$prefix/$safeName"
+        require(result.length <= MAX_RELATIVE_PATH_CHARS) { "工程相对路径超过上限" }
+        return result
+    }
+
+    internal fun registerDirectory(visited: MutableSet<String>, documentId: String) {
+        require(documentId.isNotBlank()) { "文档提供程序返回了空目录标识" }
+        require(visited.add(documentId)) { "文档目录包含循环或重复引用" }
+    }
+
     fun validate(entries: List<ArchivePlanEntry>): List<ArchivePlanEntry> {
         require(entries.size <= MAX_ENTRIES) { "归档文件数量超过上限" }
         val normalized = entries.map { entry ->
             val raw = entry.path.removeSuffix("/")
-            require(raw.isNotBlank() && raw.length <= 4096 && !raw.startsWith('/') && '\\' !in raw && '\u0000' !in raw) { "归档路径无效" }
+            require(raw.isNotBlank() && raw.length <= MAX_RELATIVE_PATH_CHARS && !raw.startsWith('/') && '\\' !in raw && '\u0000' !in raw) { "归档路径无效" }
             val parts = raw.split('/')
-            require(parts.all { it.isNotBlank() && it !in setOf(".", "..") && it.length <= 255 && it.all { char -> char.code >= 32 } }) { "归档路径越界或包含控制字符" }
+            require(parts.size <= MAX_DIRECTORY_DEPTH && parts.all { part ->
+                part.isNotBlank() && part !in setOf(".", "..") && part.length <= 255 && part.all { char -> char.code >= 32 }
+            }) { "归档路径越界、层级过深或包含控制字符" }
             require(entry.declaredSize in -1..MAX_FILE_BYTES) { "归档单文件超过上限" }
             ArchivePlanEntry(parts.joinToString("/"), entry.directory, entry.declaredSize)
         }
@@ -75,7 +101,7 @@ object ProjectArchivePolicy {
 
     fun projectName(value: String): String {
         val result = value.trim()
-        require(result.length in 1..128 && result !in setOf(".", "..") && result.none { it == '/' || it == '\\' || it == '\u0000' || it.code < 32 }) { "工程名称无效" }
+        require(result.length in 1..128 && validDocumentName(result)) { "工程名称无效" }
         return result
     }
 }
@@ -96,16 +122,19 @@ class SafProjectStore(context: Context) {
             ?: error("工程目录不存在")
         require(project.directory) { "所选对象不是工程目录" }
         val result = ArrayList<SafEntry>()
-        fun walk(parent: SafEntry, prefix: String) {
-            for (child in children(tree, Uri.parse(parent.uri)).sortedBy { it.name.lowercase() }) {
+        val visitedDirectories = HashSet<String>()
+        fun walk(parent: SafEntry, prefix: String, depth: Int) {
+            val parentUri = Uri.parse(parent.uri)
+            ProjectArchivePolicy.registerDirectory(visitedDirectories, DocumentsContract.getDocumentId(parentUri))
+            for (child in children(tree, parentUri).sortedBy { it.name.lowercase() }) {
                 check(result.size < maximum) { "工程文件超过页面上限，请导出后离线检查" }
-                val relative = if (prefix.isBlank()) child.name else "$prefix/${child.name}"
+                val relative = ProjectArchivePolicy.relativePath(prefix, child.name, depth + 1)
                 val item = child.copy(relativePath = relative)
                 result += item
-                if (item.directory) walk(item, relative)
+                if (item.directory) walk(item, relative, depth + 1)
             }
         }
-        walk(project, "")
+        walk(project, "", 0)
         return result
     }
 
@@ -214,17 +243,20 @@ class SafProjectStore(context: Context) {
         require(project.directory)
         var count = 0
         var total = 0L
+        val visitedDirectories = HashSet<String>()
         try {
             (resolver.openOutputStream(destination, "w") ?: throw IOException("文档提供程序无法打开导出目标")).use { raw ->
                 ZipOutputStream(raw.buffered()).use { zip ->
-                    fun walk(parent: SafEntry, prefix: String) {
-                        for (child in children(tree, Uri.parse(parent.uri)).sortedBy { it.name.lowercase() }) {
+                    fun walk(parent: SafEntry, prefix: String, depth: Int) {
+                        val parentUri = Uri.parse(parent.uri)
+                        ProjectArchivePolicy.registerDirectory(visitedDirectories, DocumentsContract.getDocumentId(parentUri))
+                        for (child in children(tree, parentUri).sortedBy { it.name.lowercase() }) {
                             require(++count <= ProjectArchivePolicy.MAX_ENTRIES) { "工程文件数量超过导出上限" }
-                            val relative = if (prefix.isEmpty()) child.name else "$prefix/${child.name}"
+                            val relative = ProjectArchivePolicy.relativePath(prefix, child.name, depth + 1)
                             if (child.directory) {
                                 zip.putNextEntry(ZipEntry("$relative/").apply { time = 0 })
                                 zip.closeEntry()
-                                walk(child, relative)
+                                walk(child, relative, depth + 1)
                             } else {
                                 zip.putNextEntry(ZipEntry(relative).apply { time = 0 })
                                 (resolver.openInputStream(Uri.parse(child.uri)) ?: throw IOException("文档提供程序无法读取工程文件")).use { input ->
@@ -241,7 +273,7 @@ class SafProjectStore(context: Context) {
                             }
                         }
                     }
-                    walk(project, "")
+                    walk(project, "", 0)
                 }
             }
             return SafTransferResult("工程已导出为有界 ZIP", projectName, count, total)
@@ -273,8 +305,10 @@ class SafProjectStore(context: Context) {
             var rowNumber = 0
             while (cursor.moveToNext()) {
                 ProjectArchivePolicy.requireDirectoryRow(++rowNumber)
-                val id = cursor.getString(0)
-                val name = cursor.getString(1) ?: continue
+                val id = cursor.getString(0) ?: throw IOException("文档提供程序返回了空文档标识")
+                val name = ProjectArchivePolicy.documentName(
+                    cursor.getString(1) ?: throw IOException("文档提供程序返回了空显示名称")
+                )
                 val mime = cursor.getString(2) ?: "application/octet-stream"
                 val size = if (cursor.isNull(3)) -1L else cursor.getLong(3)
                 val uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
@@ -314,8 +348,10 @@ class SafProjectStore(context: Context) {
         )
         (resolver.query(uri, projection, null, null, null) ?: throw IOException("文档提供程序无法回读文档")).use { cursor ->
             require(cursor.moveToFirst()) { "文档创建后无法回读" }
-            val name = cursor.getString(0)
-            val mime = cursor.getString(1)
+            val name = ProjectArchivePolicy.documentName(
+                cursor.getString(0) ?: throw IOException("文档提供程序返回了空显示名称")
+            )
+            val mime = cursor.getString(1) ?: throw IOException("文档提供程序返回了空 MIME 类型")
             val size = if (cursor.isNull(2)) -1L else cursor.getLong(2)
             return SafEntry(name, name, uri.toString(), mime == DocumentsContract.Document.MIME_TYPE_DIR, size, mime)
         }
@@ -331,10 +367,10 @@ class SafProjectStore(context: Context) {
     }
 
     private fun safeRelative(value: String): List<String> {
-        require(value.length in 1..4096 && !value.startsWith('/') && '\\' !in value)
+        require(value.length in 1..ProjectArchivePolicy.MAX_RELATIVE_PATH_CHARS && !value.startsWith('/') && '\\' !in value)
         val parts = value.split('/')
-        require(parts.all { it.isNotBlank() && it !in setOf(".", "..") && it.length <= 255 })
-        return parts
+        require(parts.size <= ProjectArchivePolicy.MAX_DIRECTORY_DEPTH)
+        return parts.map(ProjectArchivePolicy::documentName)
     }
 
     private fun copyBounded(source: Uri, destination: File, maximum: Long) {
