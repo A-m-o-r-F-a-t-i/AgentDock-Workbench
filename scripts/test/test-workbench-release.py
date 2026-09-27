@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -187,5 +189,41 @@ class PublicationGate(unittest.TestCase):
         self.lookup=[[{'tag_name':'unrelated'}]*100 for _ in range(20)]
         with self.assertRaisesRegex(RuntimeError,'bounded search'):self.publish()
         self.assertEqual(self.mutations(),[])
+
+class CandidateScaleException(unittest.TestCase):
+    def test_exception_is_opt_in_scoped_and_non_publishing(self):
+        workflow=(ROOT/'.github/workflows/workbench-release.yml').read_text()
+        option=workflow.split('      ignore_macos_intel_scale:',1)[1].split('\npermissions:',1)[0]
+        self.assertIn('default: false',option)
+        self.assertIn("inputs.ignore_macos_intel_scale && (inputs.publish || github.event_name == 'push')",workflow)
+        self.assertIn("IGNORE_INTEL_SCALE: ${{ inputs.ignore_macos_intel_scale && matrix.platform == 'darwin' && matrix.arch == 'amd64' }}",workflow)
+        self.assertIn('candidate-validation-exceptions.json',workflow)
+        self.assertIn("'status': 'ignored_by_user_request'",workflow)
+        self.assertIn('coldLimit := 2 * time.Second',(ROOT/'internal/activity/scale_test.go').read_text())
+
+    @unittest.skipUnless(os.name=='posix','exercise the Bash native-Unix workflow step')
+    def test_only_exact_scale_case_is_omitted_and_remaining_checks_run(self):
+        workflow=(ROOT/'.github/workflows/workbench-release.yml').read_text()
+        step=workflow.split('      - name: Native backend regression\n',1)[1].split('      - name:',1)[0]
+        script=textwrap.dedent(step.split('        run: |\n',1)[1])
+        for ignored in ['false','true']:
+            with self.subTest(ignored=ignored), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                fake_go=root/'go'
+                fake_go.write_text('#!/bin/sh\nif [ "$1" = list ]; then\n printf "%s\\n" github.com/uvwt/agentdock/internal/activity github.com/uvwt/agentdock/cmd/agentdock\nelse\n printf "%s\\n" "$*" >> "$GO_INVOCATIONS"\nfi\n')
+                fake_go.chmod(0o700)
+                env=dict(os.environ,PATH=str(root)+os.pathsep+os.environ['PATH'],IGNORE_INTEL_SCALE=ignored,GO_INVOCATIONS=str(root/'calls'),GITHUB_STEP_SUMMARY=str(root/'summary'))
+                subprocess.run(['bash','-c',script],env=env,check=True,capture_output=True,text=True)
+                calls=(root/'calls').read_text().splitlines()
+                self.assertIn('test -p 2 github.com/uvwt/agentdock/cmd/agentdock -count=1 -timeout=8m',calls)
+                self.assertIn('vet ./...',calls)
+                if ignored=='true':
+                    self.assertEqual(len(calls),3)
+                    self.assertIn('test -p 1 ./internal/activity -skip ^TestExecutionProjectionScale100k$ -count=1 -timeout=8m',calls)
+                    self.assertIn('ignored by explicit candidate request',(root/'summary').read_text())
+                else:
+                    self.assertEqual(len(calls),4)
+                    self.assertIn('test -p 1 ./internal/activity -run ^TestExecutionProjectionScale100k$ -count=3 -v -timeout=8m',calls)
+                    self.assertFalse(any('-skip' in call for call in calls))
 
 if __name__=='__main__':unittest.main()
