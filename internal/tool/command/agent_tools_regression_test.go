@@ -75,7 +75,9 @@ func TestAgentToolsExecRejectsCancelledPreparation(t *testing.T) {
 type auditFailedStdin struct{ err error }
 
 func (w auditFailedStdin) Write([]byte) (int, error) { return 0, w.err }
-func (w auditFailedStdin) Close() error             { return nil }
+func (w auditFailedStdin) Close() error {
+	return nil
+}
 
 func TestAgentToolsSessionWriteReportsClosedInput(t *testing.T) {
 	for _, test := range []struct {
