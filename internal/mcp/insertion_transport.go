@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"maps"
 	"reflect"
 
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/insertion"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 // InvokeProjected is the integration boundary for an embedding script host.
@@ -19,20 +19,25 @@ import (
 // An ordinary server response or an HTTP write alone is not such a commit.
 // External executors that do not call this boundary remain unconfirmed.
 func (s *Server) InvokeProjected(ctx context.Context, name string, args map[string]any, host insertion.Transport, project func(map[string]any) (map[string]any, error), commit func(context.Context, map[string]any) error) (map[string]any, error) {
+	var traceErr error
+	ctx, traceErr = requesttrace.Ensure(ctx, "")
+	if traceErr != nil {
+		return nil, traceErr
+	}
 	if s == nil || s.runtime == nil || project == nil {
-		return nil, errors.New("projected invocation requires runtime and projection")
+		return invocationFailure(nil, invocationError(ctx, "host_validation", "projected invocation requires runtime and projection", nil))
 	}
 	if !host.Passthrough || host.HostType == "" || host.OuterCallID == "" || len(host.HostType) > 80 || len(host.OuterCallID) > 160 {
-		return nil, errors.New("projected host requires a bounded identity and passthrough capability")
+		return invocationFailure(nil, invocationError(ctx, "host_validation", "projected host requires a bounded identity and passthrough capability", nil))
 	}
 	if commit != nil && !host.ContextAcknowledgement {
-		return nil, errors.New("context commit callback requires negotiated acknowledgement")
+		return invocationFailure(nil, invocationError(ctx, "host_validation", "context commit callback requires negotiated acknowledgement", nil))
 	}
 	ctx = app.WithInsertionTransport(ctx, host)
 	ctx, pending := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, pending, false)
 	result, toolErr := s.runtime.Call(ctx, name, args)
-	original, err := s.finishResponse(ctx, name, args, pending, toolEnvelope(name, result, toolErr))
+	original, err := s.finishResponse(ctx, name, args, pending, responseEnvelope(ctx, name, result, toolErr))
 	if err != nil {
 		return nil, err
 	}
@@ -60,28 +65,34 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 		}
 	}
 	copy["content"] = blocks
-	projected, err := project(copy)
+	projected, err := guardedProjection(project, copy)
 	if err != nil {
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "outer_projection_failed")
-		return original, fmt.Errorf("outer projection failed after tool execution; do not replay tool: %w", errors.Join(err, failure))
+		return invocationFailure(original, invocationError(ctx, "host_projection", "Outer projection failed after tool execution; do not replay tool", errors.Join(err, failure)))
 	}
-	final, err := projectedResponse(original, projected, pending.CompletedAdditions())
+	var final map[string]any
+	if name == "agentdock_context" {
+		// A selective script projection must not silently discard bootstrap rules.
+		final, err = copyEnvelope(original)
+	} else {
+		final, err = projectedResponse(original, projected, pending.CompletedAdditions())
+	}
 	if err != nil {
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "outer_projection_failed")
-		return original, errors.Join(err, failure)
+		return invocationFailure(original, invocationError(ctx, "host_projection", "Outer projection is invalid; do not replay tool", errors.Join(err, failure)))
 	}
 	if err = s.runtime.RecordInsertionHostReceipt(ctx, pending, false); err != nil {
-		return final, fmt.Errorf("outer forwarding receipt was not persisted; original tool already ran: %w", err)
+		return invocationFailure(final, invocationError(ctx, "host_receipt", "Outer forwarding receipt was not persisted; original tool already ran", err))
 	}
 	if commit == nil {
 		return final, nil
 	}
-	if err = commit(ctx, final); err != nil {
+	if err = guardedCommit(commit, ctx, final); err != nil {
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "context_commit_failed")
-		return final, fmt.Errorf("outer context commit unconfirmed; original tool must not be replayed: %w", errors.Join(err, failure))
+		return invocationFailure(final, invocationError(ctx, "host_context_commit", "Outer context commit unconfirmed; original tool must not be replayed", errors.Join(err, failure)))
 	}
 	if err = s.runtime.RecordInsertionHostReceipt(ctx, pending, true); err != nil {
-		return final, fmt.Errorf("context committed but acknowledgement storage failed: %w", err)
+		return invocationFailure(final, invocationError(ctx, "host_acknowledgement", "Context committed but acknowledgement storage failed; do not replay tool", err))
 	}
 	return final, nil
 }

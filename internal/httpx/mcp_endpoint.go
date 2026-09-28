@@ -8,14 +8,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/auth"
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/httpx/requestmeta"
 	"github.com/uvwt/agentdock/internal/mcp"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 func agentDockContextHandler(server *mcp.Server, cfg config.Config, oauthStore *auth.OAuthStore) http.HandlerFunc {
@@ -26,6 +27,7 @@ func agentDockContextHandler(server *mcp.Server, cfg config.Config, oauthStore *
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		requesttrace.Stage(r.Context(), "authentication")
 		staticOK := cfg.AuthToken != "" && authorizer.Authorized(r)
 		principal, oauthOK := oauthExecutionPrincipal(r, cfg, oauthStore)
 		if authRequired && !staticOK && !oauthOK {
@@ -43,13 +45,20 @@ func agentDockContextHandler(server *mcp.Server, cfg config.Config, oauthStore *
 			defer server.ObserveClientRequest(clientCredentialDigest(r), true)()
 		}
 		sourceCtx := activity.WithSource(r.Context(), activity.Source{Principal: principal, Namespace: "mcp:http"})
-		ctx, cancel := context.WithTimeout(sourceCtx, 8*time.Second)
+		ctx, cancel := context.WithTimeout(sourceCtx, cfg.ContextBudget())
 		defer cancel()
 		result, err := server.AgentDockContext(ctx)
 		if err != nil {
-			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			trace := requesttrace.Read(ctx)
+			failure := map[string]any{"ok": false, "error": err.Error(), "request_id": trace.RequestID, "call_id": trace.CallID, "stage": trace.Stage, "retryable": false}
+			var toolErr *app.ToolError
+			if errors.As(err, &toolErr) {
+				failure["code"], failure["category"], failure["retryable"] = toolErr.Code, toolErr.Category, toolErr.Retryable
+			}
+			writeJSON(w, failure)
 			return
 		}
+		requesttrace.Stage(ctx, "response_encode")
 		writeJSON(w, result)
 	}
 }
@@ -58,6 +67,7 @@ func mcpEndpointHandler(server *mcp.Server, cfg config.Config, oauthStore *auth.
 	authRequired := cfg.AuthRequired()
 	transport := server.HTTPHandler()
 	return func(w http.ResponseWriter, r *http.Request) {
+		requesttrace.Stage(r.Context(), "authentication")
 		staticOK := cfg.AuthToken != "" && authorizer.Authorized(r)
 		principal, oauthOK := oauthExecutionPrincipal(r, cfg, oauthStore)
 		if authRequired && !staticOK && !oauthOK {
@@ -66,6 +76,7 @@ func mcpEndpointHandler(server *mcp.Server, cfg config.Config, oauthStore *auth.
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		requesttrace.Stage(r.Context(), "mcp_decode")
 		if r.Method == http.MethodPost && !prepareMCPRequestBody(w, r) {
 			return
 		}
@@ -79,6 +90,7 @@ func mcpEndpointHandler(server *mcp.Server, cfg config.Config, oauthStore *auth.
 		}
 		sourceCtx := activity.WithSource(r.Context(), activity.Source{Principal: principal, Namespace: "mcp:http"})
 		ctx := requestmeta.WithBaseURL(sourceCtx, requestPublicBaseURL(cfg, r))
+		requesttrace.Stage(ctx, "mcp_dispatch")
 		transport.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

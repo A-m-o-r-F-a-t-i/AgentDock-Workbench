@@ -6,6 +6,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/app"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 func (s *Server) observeDiscovery(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
@@ -21,6 +22,7 @@ func (s *Server) observeDiscovery(next mcpsdk.MethodHandler) mcpsdk.MethodHandle
 						message = err.Error()
 					}
 					_, _ = s.runtime.RejectToolCall(origin, params.Name, message)
+					requesttrace.Stage(ctx, "tool_resolution")
 				}
 			}
 			return next(ctx, method, request)

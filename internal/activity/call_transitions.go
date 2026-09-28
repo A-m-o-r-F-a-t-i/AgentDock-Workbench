@@ -5,6 +5,14 @@ import "strings"
 // Bindings and their indices are coordinated at one projection boundary.
 func (p *callProjection) applyCallBinding(call *ExecutionCall, event Event, id string) bool {
 	oldConversation, oldTask := call.ConversationID, call.TaskID
+	if call.RequestID != "" && event.RequestID != "" && call.RequestID != event.RequestID {
+		call.HistoryIncomplete = true
+		p.warning("Conflicting request correlation was rejected while rebuilding execution history.")
+		return false
+	}
+	if call.RequestID == "" {
+		call.RequestID = event.RequestID
+	}
 	// A created task or resolved branch may become known after the first event.
 	// Nonempty identities never migrate between conversations or tasks.
 	if call.ConversationID != "" && event.ConversationID != "" && call.ConversationID != event.ConversationID || call.TaskID != "" && event.TaskID != "" && call.TaskID != event.TaskID {

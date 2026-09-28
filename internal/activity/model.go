@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 // ExecutionScope is copied into context by the ingress. Consumers receive a
 // value snapshot, never a pointer to mutable UI or conversation state.
 type ExecutionScope struct {
+	RequestID       string `json:"request_id,omitempty"` // Transport correlation only; never an ownership key.
 	Source          string `json:"source,omitempty"`
 	BindingQuality  string `json:"binding_quality,omitempty"`
 	BindingRevision uint64 `json:"binding_revision,omitempty"`
@@ -42,6 +45,9 @@ type Binding = ExecutionScope
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 
 func (b ExecutionScope) Validate() error {
+	if b.RequestID != "" && !requesttrace.ValidID(b.RequestID) {
+		return errors.New("invalid request_id")
+	}
 	for _, id := range []string{b.TaskID, b.ThreadID, b.StepID, b.WorkspaceID, b.CallID, b.ParentCallID, b.RetryOfCallID} {
 		if id != "" && !identifier.MatchString(id) {
 			return errors.New("invalid activity binding identifier")
