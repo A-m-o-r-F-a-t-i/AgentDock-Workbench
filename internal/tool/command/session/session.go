@@ -568,8 +568,9 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 		StdoutOutputLines: countLines(stdout), StderrOutputLines: countLines(stderr),
 		StdoutTruncated: maxBytes > 0 && len([]byte(stdoutSegment)) > maxBytes,
 		StderrTruncated: maxBytes > 0 && len([]byte(stderrSegment)) > maxBytes,
-		Completed:       s.completed, ExitCode: s.exitCode, CommandOK: s.exitCode == 0 && !s.TimedOut,
-		Runtime: s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
+		Completed:       s.completed, ExitCode: s.exitCode,
+		CommandOK: s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
+		Runtime:   s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
 	}
 }
 
