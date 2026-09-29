@@ -16,6 +16,16 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 class ReleaseGate(unittest.TestCase):
+    def test_public_release_contains_only_installers(self):
+        self.assertEqual(release.public_installers('1.1.8'),[
+            'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
+            'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
+            'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
+            'AgentDock-Workbench-1.1.8-Android-test-signed.apk'])
+        for name in release.public_installers('1.1.8'):
+            self.assertFalse(name.endswith(('.zip','.tar.gz','.sha256')))
+            self.assertNotIn(name,('install.sh','install.ps1','SHA256SUMS','release-manifest.json'))
+
     def test_repository_license_is_preserved(self):
         license_text=(ROOT/'LICENSE').read_text()
         self.assertTrue(license_text.startswith('Apache License'))
@@ -164,7 +174,7 @@ class PublicationGate(unittest.TestCase):
         self.commands=[];self.lookup=[]
         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
         self.latest=self.stable
-        for mock in [patch.object(release,'ROOT',self.root),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
+        for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_installers',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
             mock.start();self.addCleanup(mock.stop)
     def fake_command(self,*args):
         self.commands.append(args)
@@ -205,7 +215,9 @@ class PublicationGate(unittest.TestCase):
         self.assertEqual(self.lookup,[[]],'Creation must use its returned ID rather than requiring immediate list visibility')
     def test_binary_asset_name_is_url_encoded(self):
         path=self.dist/'package name.zip';(self.dist/'package.zip').rename(path)
-        self.asset['name']=path.name;self.record['assets']=[];self.publish()
+        self.asset['name']=path.name;self.record['assets']=[]
+        with patch.object(release,'public_installers',return_value=[path.name]):
+            self.publish()
         urls=[args[4] for args in self.commands if args[:4]==('gh','api','--method','POST') and args[4].startswith('https://uploads.github.com/')]
         self.assertEqual(urls,[f'https://uploads.github.com/repos/{release.REPOSITORY}/releases/123/assets?name=package%20name.zip'])
     def test_wrong_digest_is_not_overwritten(self):

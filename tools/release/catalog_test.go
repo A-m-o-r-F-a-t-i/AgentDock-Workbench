@@ -9,48 +9,34 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-func TestReleaseCatalogKeepsPublicInstallerEntries(t *testing.T) {
+func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
 	catalog := ReleaseCatalog()
-	required := map[string]bool{
+	expected := map[string]bool{
 		"AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk": false,
-		"install.sh":                   false,
-		"install.ps1":                  false,
-		"agentdock_linux_amd64.tar.gz": false,
-		"AgentDockSetup-amd64.exe":     false,
+		"AgentDock-macos-universal.dmg":                                         false,
+		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":               false,
+		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":               false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":            false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm":           false,
+		"AgentDockSetup-amd64.exe":                                              false,
+		"AgentDockSetup-arm64.exe":                                              false,
 	}
 	for _, artifact := range catalog {
-		if _, ok := required[artifact.Name]; ok {
-			required[artifact.Name] = true
+		if !artifact.PublicContract {
+			continue
 		}
-		if strings.HasSuffix(artifact.Name, ".tar.gz") || strings.HasSuffix(artifact.Name, ".zip") || strings.HasSuffix(artifact.Name, ".apk") {
-			found := false
-			for _, candidate := range catalog {
-				if candidate.Name == artifact.Name+".sha256" && candidate.Kind == "checksum" {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Fatalf("archive %s missing checksum artifact", artifact.Name)
-			}
+		if strings.HasSuffix(artifact.Name, ".sha256") || artifact.Kind == "checksum" || artifact.Kind == "bootstrap" || artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update" {
+			t.Fatalf("non-installer exposed as public Release contract: %+v", artifact)
 		}
+		if _, ok := expected[artifact.Name]; !ok {
+			t.Fatalf("unexpected public Release installer: %s", artifact.Name)
+		}
+		expected[artifact.Name] = true
 	}
-	for name, seen := range required {
+	for name, seen := range expected {
 		if !seen {
-			t.Fatalf("release catalog missing %s", name)
+			t.Fatalf("public Release installer missing: %s", name)
 		}
-	}
-	var publicScripts []string
-	for _, artifact := range catalog {
-		if artifact.PublicContract && artifact.Kind == "bootstrap" {
-			publicScripts = append(publicScripts, artifact.Name)
-		}
-		if artifact.PublicContract && artifact.Kind == "runtime-adapter" {
-			t.Fatalf("runtime adapter must not be a public Release contract: %s", artifact.Name)
-		}
-	}
-	if strings.Join(publicScripts, ",") != "install.sh,install.ps1" {
-		t.Fatalf("public bootstrap scripts = %v, want [install.sh install.ps1]", publicScripts)
 	}
 }
 
