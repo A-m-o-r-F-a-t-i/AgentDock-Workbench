@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:58:23.299Z",
+  "updated_at": "2026-09-29T12:00:26.415Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -93,10 +93,9 @@
     {
       "id": 109390848337,
       "name": "windows / Build verified unsigned Windows packages",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109390848337",
-      "active_step": "Verify offline Setup installation and uninstall"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109390848337"
     },
     {
       "id": 109391102734,
@@ -143,10 +142,24 @@
     {
       "id": 109394790148,
       "name": "android / Aggregate candidate evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109394790148"
+    },
+    {
+      "id": 109395283158,
+      "name": "Native Windows ARM64 install and uninstall",
       "status": "in_progress",
       "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109394790148",
-      "active_step": "Require every Android job and its actual evidence"
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283158",
+      "active_step": "Run actions/setup-go@v6"
+    },
+    {
+      "id": 109395283225,
+      "name": "windows / Publish verified Windows x64 Release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283225"
     }
   ]
 }
