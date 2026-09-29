@@ -29,7 +29,7 @@ UI 点击不构成成功。Core 写操作以 Core 响应为准；Termux 操作�
 
 ## Termux transport and deployment
 
-APK 使用显式 Termux package/component、固定脚本路径、封闭操作集、五个固定参数、有界 JSON stdin 和一次性 PendingIntent。操作摘要原子持久化，终态不可退回 running，未决记录不会为容量被清理。
+APK 使用显式 Termux package/component、固定脚本路径、封闭操作集、五个固定参数、有界 JSON stdin 和可重复接收 ACK/最终回执的显式 PendingIntent；终态或回调过期时回收。操作摘要原子持久化，终态不可退回 running，未决记录不会为容量被清理。
 
 部署模块在任何维护窗口前验证受信公钥、清单签名、Linux/ARM64、产品版本、SHA-256、归档结构和可执行文件版本。事务阶段写入 journal，可按原 operation ID 续接或取消。切换前停止受管进程并创建带摘要的一致性数据快照；新版本身份、管理鉴权、版本和工作目录探针失败时恢复旧指针与旧数据，并隔离失败数据。清理保护 current、验证回退点和未完成事务引用。
 

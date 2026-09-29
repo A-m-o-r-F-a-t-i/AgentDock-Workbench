@@ -21,7 +21,6 @@ import java.net.URI
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicInteger
 
 class TermuxCommandDispatcher(
     private val context: Context,
@@ -97,17 +96,7 @@ class TermuxCommandDispatcher(
             operations.create(pending)
             stored = true
 
-            val callbackIntent = Intent(context, TermuxResultService::class.java)
-                .setAction(TermuxContract.CALLBACK_ACTION_PREFIX + requestId)
-                .putExtra(TermuxResultService.EXTRA_OPERATION_ID, operationId)
-                .putExtra(TermuxResultService.EXTRA_REQUEST_ID, requestId)
-                .putExtra(TermuxResultService.EXTRA_NONCE, nonce)
-            callback = PendingIntent.getService(
-                context,
-                requestCode.incrementAndGet(),
-                callbackIntent,
-                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
+            callback = TermuxResultCallbacks.create(context, pending)
 
             val intent = baseIntent()
                 .putExtra(TermuxContract.EXTRA_COMMAND_PATH, TermuxContract.COMMAND)
@@ -153,6 +142,5 @@ class TermuxCommandDispatcher(
 
     companion object {
         private val random = SecureRandom()
-        private val requestCode = AtomicInteger(10_000)
     }
 }

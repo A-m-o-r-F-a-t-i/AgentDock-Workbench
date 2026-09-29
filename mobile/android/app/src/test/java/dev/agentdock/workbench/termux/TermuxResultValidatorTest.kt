@@ -17,7 +17,7 @@ class TermuxResultValidatorTest {
         .put("request_id", expected.requestId).put("nonce", expected.nonce)
         .put("operation", expected.operation).put("status", status).put("message", "ok")
     private fun validate(value: JSONObject, exit: Int? = 0, operation: BridgeOperation = expected) =
-        TermuxResultValidator.validate(operation, value.toString(), "", exit, 0, "", now)
+        TermuxResultValidator.validate(operation, value.toString(), "", exit, -1, "", now)
 
     @Test fun acceptsBoundSuccessfulResult() { assertEquals("succeeded", validate(response()).phase) }
     @Test fun rejectsNonceMismatchEvenWithExitZero() {
@@ -45,7 +45,7 @@ class TermuxResultValidatorTest {
     }
     @Test fun neverCopiesUnstructuredStderrOrPluginErrors() {
         val secret = "fixture-password-do-not-save"
-        val malformed = TermuxResultValidator.validate(expected, "not-json", secret, 1, 0, secret, now)
+        val malformed = TermuxResultValidator.validate(expected, "not-json", secret, 1, -1, secret, now)
         val plugin = TermuxResultValidator.validate(expected, "", secret, 1, 1, secret, now)
         assertFalse(malformed.message.contains(secret)); assertFalse(plugin.message.contains(secret))
     }
@@ -59,6 +59,24 @@ class TermuxResultValidatorTest {
     }
     @Test fun enforcesUtf8SizeNotOnlyUtf16CharacterCount() {
         assertEquals("failed", validate(response().put("message", "中".repeat(24000))).phase)
+    }
+    @Test fun onlyOfficialTransportSuccessCodeIsAccepted() {
+        assertTrue(validate(response()).receiptValid)
+        for (code in listOf<Int?>(null, 0, 1, -2)) {
+            val result = TermuxResultValidator.validate(expected, response().toString(), "", 0, code, "", now)
+            assertEquals("failed", result.phase)
+            assertFalse(result.receiptValid)
+        }
+    }
+    @Test fun malformedReceiptCannotSettleBusinessOutcome() {
+        assertFalse(validate(response().put("nonce", "wrong")).receiptValid)
+        assertFalse(validate(response(), null).receiptValid)
+        assertFalse(validate(response("future_status")).receiptValid)
+        assertTrue(validate(response(), 1).receiptValid)
+    }
+    @Test fun stderrUsesTheSameUtf8Budget() {
+        val result = TermuxResultValidator.validate(expected, response().toString(), "中".repeat(24000), 0, -1, "", now)
+        assertFalse(result.receiptValid)
     }
     @Test fun requestNonceIsNotASecretField() {
         assertFalse(TermuxResultPolicy.containsSecretFields(response()))

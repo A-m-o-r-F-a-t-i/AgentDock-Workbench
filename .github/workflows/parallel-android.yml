@@ -4,7 +4,7 @@ on:
   push:
     branches: ["parallel/20260925/android"]
   pull_request:
-    branches: [main]
+    branches: [main, "fix/20260929-android-reliability", "fix/android-termux-protocol", "feat/android-host-executor", "feat/android-shizuku-provider"]
     paths:
       - 'mobile/android/**'
       - 'scripts/ci/parallel-android/**'
