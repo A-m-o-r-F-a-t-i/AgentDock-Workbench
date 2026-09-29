@@ -7,11 +7,11 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T12:04:32.959Z",
+  "updated_at": "2026-09-29T12:06:36.223Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
-  "status": "in_progress",
-  "conclusion": null,
+  "status": "completed",
+  "conclusion": "success",
   "jobs": [
     {
       "id": 109389250254,
@@ -149,10 +149,9 @@
     {
       "id": 109395283158,
       "name": "Native Windows ARM64 install and uninstall",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283158",
-      "active_step": "Isolated ARM64 install repair and uninstall"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283158"
     },
     {
       "id": 109395283225,
@@ -160,6 +159,13 @@
       "status": "completed",
       "conclusion": "skipped",
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283225"
+    },
+    {
+      "id": 109397210531,
+      "name": "Verify complete artifact set and publish selected channel",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109397210531"
     }
   ]
 }
