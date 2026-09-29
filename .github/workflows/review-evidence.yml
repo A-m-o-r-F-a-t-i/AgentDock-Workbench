@@ -6,6 +6,8 @@ on:
 permissions:
   contents: read
   actions: read
+  checks: read
+  pull-requests: read
   issues: write
 jobs:
   evidence:
@@ -24,37 +26,40 @@ jobs:
           import json, os, re, subprocess
           repo = os.environ['GH_REPO']
           def gh(*args):
-              result = subprocess.run(['gh', *args], text=True, capture_output=True, timeout=120)
+              result = subprocess.run(['gh', *args], text=True, capture_output=True, timeout=90)
               if result.returncode:
                   raise RuntimeError(result.stderr[-1500:])
               return result.stdout
           def api(path):
               return json.loads(gh('api', 'repos/' + repo + '/' + path))
-          jobs = {108668983129, 109375028181}
+          jobs = {108668983129, 109375028181, 109376652594}
           heads = []
           for number in [21, 23, 25]:
-              pr = api(f'pulls/{number}')
-              sha = pr['head']['sha']
-              checks = api(f'commits/{sha}/check-runs?per_page=100')['check_runs']
-              heads.append({'pr': number, 'sha': sha, 'checks': [{k: c.get(k) for k in ['name','status','conclusion']} for c in checks]})
-              for check in checks:
-                  if check.get('conclusion') == 'failure' and '/actions/runs/' in check.get('html_url',''):
-                      jobs.add(check['id'])
+              try:
+                  pr = api(f'pulls/{number}')
+                  sha = pr['head']['sha']
+                  checks = api(f'commits/{sha}/check-runs?per_page=100')['check_runs']
+                  heads.append({'pr': number, 'sha': sha, 'checks': [{k: c.get(k) for k in ['name','status','conclusion']} for c in checks]})
+                  for check in checks:
+                      if check.get('conclusion') == 'failure' and '/actions/runs/' in check.get('html_url',''):
+                          jobs.add(check['id'])
+              except Exception as error:
+                  heads.append({'pr': number, 'error': str(error)})
           sections = ['## Requested merge-review evidence', 'Diagnostics only: no test reruns, source changes, publication or device installation.', '```json\n' + json.dumps(heads, ensure_ascii=False, indent=2) + '\n```']
-          for job_id in sorted(jobs)[:10]:
+          for job_id in sorted(jobs)[:8]:
               try:
                   job = api(f'actions/jobs/{job_id}')
                   text = gh('api', f'repos/{repo}/actions/jobs/{job_id}/logs')
                   lines = text.splitlines()
                   selected = set()
                   for i, line in enumerate(lines):
-                      if re.search(r'--- FAIL:|\bFAIL\s+github|panic:|fatal error:|Unformatted Go|\.go:\d+:\d+:', line):
+                      if re.search(r'--- FAIL:|\bFAIL\s+github|panic:|fatal error:|Unformatted Go|\.go:\d+:\d+:|Resource not accessible', line):
                           selected.update(range(max(0,i-2), min(len(lines),i+14)))
                   excerpt = '\n'.join(lines[i] for i in sorted(selected))
                   if not excerpt:
                       excerpt = '\n'.join(lines[-45:])
                   excerpt = re.sub(r'(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*', r'\1[redacted]', excerpt)
-                  excerpt = excerpt.replace('```', "'''")[:18000]
+                  excerpt = excerpt.replace('```', "'''")[:15000]
                   failed = [s['name'] for s in job.get('steps',[]) if s.get('conclusion') == 'failure']
                   sections.extend([f"### Job {job_id}: {job.get('name')} — {job.get('conclusion')}", job.get('html_url',''), 'Failed steps: ' + ', '.join(failed), '```text\n' + excerpt + '\n```'])
               except Exception as error:
