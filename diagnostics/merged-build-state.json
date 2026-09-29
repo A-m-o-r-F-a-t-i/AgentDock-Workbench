@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:48:08.090Z",
+  "updated_at": "2026-09-29T11:50:11.369Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -86,10 +86,9 @@
     {
       "id": 109389466591,
       "name": "android / Android lint, unit tests and APKs",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389466591",
-      "active_step": "Lint, unit test and build APKs"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389466591"
     },
     {
       "id": 109390848337,
@@ -97,15 +96,54 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109390848337",
-      "active_step": "Offscreen desktop layout regression"
+      "active_step": "Backend regression"
     },
     {
       "id": 109391102734,
       "name": "Universal macOS Workbench application",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391102734"
+    },
+    {
+      "id": 109391681212,
+      "name": "android / Emulator API 33",
       "status": "in_progress",
       "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391102734",
-      "active_step": "Build ad-hoc signed universal DMG and update ZIP"
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681212",
+      "active_step": "Run navigation and screenshot tests"
+    },
+    {
+      "id": 109391681260,
+      "name": "android / Emulator API 26",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681260",
+      "active_step": "Run navigation and screenshot tests"
+    },
+    {
+      "id": 109391681297,
+      "name": "android / Emulator API 34",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681297",
+      "active_step": "Run navigation and screenshot tests"
+    },
+    {
+      "id": 109391681317,
+      "name": "android / Emulator API 35",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681317",
+      "active_step": "Run navigation and screenshot tests"
+    },
+    {
+      "id": 109391681366,
+      "name": "android / Emulator API 37",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681366",
+      "active_step": "Run navigation and screenshot tests"
     }
   ]
 }
