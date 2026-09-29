@@ -7,7 +7,19 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:41:55.832Z",
+  "updated_at": "2026-09-29T11:41:59.962Z",
   "run_id": 36563343259,
-  "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259"
+  "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
+  "status": "in_progress",
+  "conclusion": null,
+  "jobs": [
+    {
+      "id": 109389250254,
+      "name": "resolve-source",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389250254",
+      "active_step": "Run actions/checkout@v5"
+    }
+  ]
 }
