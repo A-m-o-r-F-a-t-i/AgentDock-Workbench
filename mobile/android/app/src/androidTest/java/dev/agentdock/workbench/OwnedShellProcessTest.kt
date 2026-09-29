@@ -102,8 +102,16 @@ class OwnedShellProcessTest {
         assertEquals("not_started", terminal().getString("state"))
     }
     @Test fun outputOverflowIsExplicitAndBounded() {
-        start("head -c 5000000 /dev/zero", timeout = 5000)
+        // A fixed fixture tests the executor budget independently of differences
+        // in device head(1) byte-count flags. No production output limit changes.
+        File(root, "overflow.bin").outputStream().use { file ->
+            val chunk = ByteArray(65536) { 120 }
+            repeat(80) { file.write(chunk) }
+        }
+        start("cat overflow.bin", timeout = 5000)
         val result = terminal(limitMs = 15000)
-        assertTrue(result.getBoolean("output_limited")); assertTrue(result.getInt("output_bytes") <= 4 * 1024 * 1024)
+        val diagnostic = "state=${result.optString("state")} exit=${result.optInt("exit_code")} bytes=${result.optInt("output_bytes")} stderr=${result.optString("all_stderr").take(512)}"
+        assertTrue(diagnostic, result.getBoolean("output_limited"))
+        assertEquals(diagnostic, 4 * 1024 * 1024, result.getInt("output_bytes"))
     }
 }
