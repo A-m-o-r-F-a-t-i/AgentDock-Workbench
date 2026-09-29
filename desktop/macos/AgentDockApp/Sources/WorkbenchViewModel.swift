@@ -121,7 +121,7 @@ final class WorkbenchViewModel {
                 if changed { selectConversation(selected?.navigationID ?? "") }
                 else if let selected { snapshot.selectedConversation = selected }
                 if !changed, reason != "poll" || snapshot.calls.calls.isEmpty { loadSelection() }
-                if streamTask == nil { startStream(after: newSidebar.latestSequence) }
+                if streamTask == nil, reason != "stream-reconnect" { startStream(after: newSidebar.latestSequence) }
                 notify()
             } catch {
                 guard generation == refreshGeneration, !Task.isCancelled else { return }

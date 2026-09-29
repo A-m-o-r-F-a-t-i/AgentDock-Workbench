@@ -16,6 +16,7 @@ private final class FrontendFixture: @unchecked Sendable {
     var pluginFailure = "PLUGIN_SOURCE_CHANGE_CONFIRMATION_REQUIRED"
     var pluginUpdates = [WorkbenchJSON]()
     var streamFailures = false
+    var streamStatus = 503
     var streamRequests = 0
     var restFails = false
 
@@ -63,7 +64,7 @@ private final class FrontendFixture: @unchecked Sendable {
             }
             if path.hasSuffix("/stream") {
                 state.streamRequests += 1
-                if state.streamFailures { return try json(.object(["code": .string("TEMPORARY")]), 503) }
+                if state.streamFailures { return try json(.object(["code": .string("TEMPORARY")]), state.streamStatus) }
                 return (200, "text/event-stream", Data("retry: 1000\n\n".utf8), 0)
             }
             if state.restFails { throw URLError(.cannotConnectToHost) }
@@ -300,6 +301,18 @@ final class FrontendRegressionTests: XCTestCase {
         model.refresh()
         try await until { model.snapshot.stale }
         XCTAssertTrue(model.snapshot.stale)
+    }
+
+    @MainActor func testNonRetryableStreamFailureDoesNotCreateRefreshReconnectLoop() async throws {
+        let fixture = FrontendFixture()
+        fixture.access { $0.streamFailures = true; $0.streamStatus = 403 }
+        let model = WorkbenchViewModel(client: client(fixture))
+        defer { model.stop() }
+        model.start()
+        try await until { fixture.access { $0.streamRequests } > 0 && model.snapshot.permission != nil && !model.isRefreshing }
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(fixture.access { $0.streamRequests }, 1)
+        XCTAssertFalse(model.snapshot.stale, "REST readback succeeded independently")
     }
 
     @MainActor func testPermissionChoiceSurvivesRepeatedRenderAndResetsOnConversationChange() throws {
