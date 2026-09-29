@@ -18,14 +18,16 @@ func (r *Runtime) cachedCommonSkillIndex(ctx context.Context) (*capabilityCommon
 	root := filepath.Join(home, ".agents", "skills")
 	files := r.contextSnapshots.commonFiles
 	files.Add(root)
-	keyFor := func() (string, error) {
+	keyFor := func() (source, cache string, err error) {
 		if err := files.Sync(ctx); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return fmt.Sprintf("%s|%s|%s", root, files.Revision(), snapshot.Stamps(root)), nil
+		sourceRevision, cacheRevision := files.Revisions()
+		stamp := snapshot.Stamps(root)
+		return fmt.Sprintf("%s|%s|%s", root, sourceRevision, stamp), fmt.Sprintf("%s|%s|%s", root, cacheRevision, stamp), nil
 	}
 	for attempt := 0; attempt < 3; attempt++ {
-		key, err := keyFor()
+		source, key, err := keyFor()
 		if err != nil {
 			return nil, snapshot.Info{}, err
 		}
@@ -49,11 +51,11 @@ func (r *Runtime) cachedCommonSkillIndex(ctx context.Context) (*capabilityCommon
 		if err != nil {
 			return nil, info, err
 		}
-		after, err := keyFor()
+		after, _, err := keyFor()
 		if err != nil {
 			return nil, info, err
 		}
-		if key != after {
+		if source != after {
 			continue
 		}
 		copy := *value

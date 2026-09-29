@@ -185,15 +185,29 @@ func (f *Files) Sync(ctx context.Context) error {
 		return nil
 	}
 }
-func (f *Files) Revision() string {
+
+const unhealthyRevalidationInterval = 250 * time.Millisecond
+
+// Revisions separates actual source changes from periodic cache revalidation.
+// A failed watcher still causes fresh disk reads, but elapsed time alone must
+// never invalidate the before/after consistency check of an in-flight build.
+func (f *Files) Revisions() (source, cache string) {
 	if f == nil {
-		return "none"
+		return "none", "none"
 	}
-	rev := strconv.FormatUint(f.revision.Load(), 10)
+	source = strconv.FormatUint(f.revision.Load(), 10)
+	cache = source
 	if f.unhealthy.Load() {
-		rev += "-revalidate-" + strconv.FormatInt(time.Now().UnixMilli()/250, 10)
+		source += "-unhealthy"
+		cache = source + "-revalidate-" + strconv.FormatInt(time.Now().UnixMilli()/unhealthyRevalidationInterval.Milliseconds(), 10)
 	}
-	return rev
+	return source, cache
+}
+
+// Revision is the stable source identity used by consistency checks.
+func (f *Files) Revision() string {
+	source, _ := f.Revisions()
+	return source
 }
 func (f *Files) Invalidate() {
 	if f != nil {
