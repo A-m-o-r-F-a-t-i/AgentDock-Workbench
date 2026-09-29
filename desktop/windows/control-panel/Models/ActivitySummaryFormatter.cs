@@ -10,7 +10,9 @@ public static class ActivitySummaryFormatter
         var running = stats.Number("running");
         var pending = stats.Number("pending");
         var selected = conversations.Field("selected_ids");
-        var total = selected.ValueKind == JsonValueKind.Array ? selected.GetArrayLength() : conversations.Number("total");
+        // selection=true omits an empty selected_ids array. The total field can
+        // still include the synthetic unattributed group, which is not a conversation.
+        var total = selected.ValueKind == JsonValueKind.Array ? selected.GetArrayLength() : 0;
         return $"{running} 运行中 · {pending} 待审批 · {total} 总对话";
     }
 }
