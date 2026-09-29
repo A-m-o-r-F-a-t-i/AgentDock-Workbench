@@ -148,6 +148,7 @@
 		  <Button Content="控制面板" Click="ControlPanel_Click" FontSize="12"/>
           <Button Content="设置" Click="SettingsMenu_Click" FontSize="12"/>
           <Button x:Name="InsertButton" Content="插入" Click="Insert_Click" IsEnabled="False" Margin="8,0,0,0" FontSize="12"/>
+          <Button x:Name="StopConversationButton" Content="终止" Click="Terminate_Click" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Visibility="Collapsed" MinWidth="56" FontSize="12"/>
           <Button Content="···" Click="ConversationMenu_Click" Width="30" Padding="0" Margin="2,0,0,0" ToolTip="当前对话操作" AutomationProperties.Name="当前对话操作"/>
         </StackPanel>
       </Grid>
@@ -205,7 +206,6 @@
                 <TextBlock x:Name="InsertionStatus" Foreground="{DynamicResource SecondaryText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
                 <Button x:Name="WithdrawInsertionButton" Grid.Column="1" Content="撤回" Click="WithdrawInsertion_Click" Visibility="Collapsed" Margin="0,0,8,0"/>
                 <Button x:Name="SendInsertionButton" Grid.Column="2" Content="发送" Click="SendInsertion_Click" MinWidth="56"/>
-                <Button x:Name="StopConversationButton" Grid.Column="3" Content="终止" Click="Terminate_Click" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Visibility="Collapsed" MinWidth="56"/>
               </Grid>
               <TextBox x:Name="InsertionTextBox" AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="5" MaxLength="8192" VerticalScrollBarVisibility="Auto" TextChanged="InsertionText_Changed" PreviewKeyDown="Insertion_KeyDown" ToolTip="补充要求；发送后等待下一次工具调用，5 分钟没有新调用则作废。Shift+Enter 换行。" AutomationProperties.Name="插入补充要求"/>
             </DockPanel>
@@ -235,8 +235,8 @@
               <TabItem Header="文件编辑"><TextBox Text="{Binding FileEditDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0" FontFamily="Consolas"/></TabItem>
             </TabControl>
             <DockPanel x:Name="TaskDetailsPanel" Visibility="Collapsed">
-              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6"><ComboBox x:Name="BranchCombo" Width="170" DisplayMemberPath="Title" SelectedValuePath="Id" SelectionChanged="Branch_Changed"/><Button Content="从此分支继续" Click="ContinueBranch_Click" FontSize="12"/><Button Content="复制继续说明" Click="ContinueTask_Click" FontSize="12"/><Button Content="管理任务" Click="TaskMenu_Click" FontSize="12"/></StackPanel>
-              <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock x:Name="TaskGoalText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="TaskStepsText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="TaskAcceptanceText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="MilestonesText" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryText}"/></StackPanel></ScrollViewer>
+              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6"><ComboBox x:Name="BranchCombo" Width="170" DisplayMemberPath="Title" SelectedValuePath="Id" SelectionChanged="Branch_Changed"/><Button x:Name="ContinueBranchButton" IsEnabled="False" Content="从此分支继续" Click="ContinueBranch_Click" FontSize="12"/><Button x:Name="ContinueTaskButton" IsEnabled="False" Content="复制继续说明" Click="ContinueTask_Click" FontSize="12"/><Button x:Name="TaskMenuButton" IsEnabled="False" Content="管理任务" Click="TaskMenu_Click" FontSize="12"/></StackPanel>
+              <ScrollViewer x:Name="TaskDetailsScroll" VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock x:Name="TaskGoalText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="TaskStepsText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="TaskAcceptanceText" TextWrapping="Wrap" Margin="0,0,0,8"/><TextBlock x:Name="MilestonesText" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryText}"/></StackPanel></ScrollViewer>
             </DockPanel>
             <TextBox x:Name="InfoDetailsText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" BorderThickness="0" Visibility="Collapsed"/>
             <DockPanel x:Name="DataManagementPanel" Visibility="Collapsed">

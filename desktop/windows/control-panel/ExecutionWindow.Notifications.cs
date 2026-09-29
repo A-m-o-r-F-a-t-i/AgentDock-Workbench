@@ -25,7 +25,7 @@ public partial class ExecutionWindow
                 { await SelectObjectAsync(null); }
             }
             else await SelectObjectAsync(null);
-            _selectedTaskId = notification.TaskId;
+            BeginTaskSelection(notification.TaskId, notification.ThreadId);
             var choices = TaskChoiceCombo.ItemsSource is IEnumerable<ExecutionChoice> current ? current.ToList() : [];
             if (!choices.Any(item => item.Id == notification.TaskId)) choices.Add(new(notification.TaskId, notification.Title));
             _updating = true;

@@ -43,7 +43,7 @@ public partial class ExecutionWindow
     private static void Divider(ContextMenu menu) => menu.Items.Add(new Separator());
     private void OpenMenu(ContextMenu menu) { menu.IsOpen = true; }
     private static FrameworkElement Anchor(object sender, FrameworkElement fallback) => sender as FrameworkElement ?? fallback;
-    private async Task SetConversationViewAsync(string view) { _conversationView = view; _frozenSelection = null; await LoadObjectsAsync(); SavePreferences(); }
+    private async Task SetConversationViewAsync(string view) { InvalidateBatchSelection(); _conversationView = view; await LoadObjectsAsync(); SavePreferences(); }
 
     private void SidebarMenu_Click(object sender, RoutedEventArgs e)
     {
@@ -55,15 +55,6 @@ public partial class ExecutionWindow
         ActionMenu(menu, "管理所选对话", () => { ShowObjectMenu(ObjectsList, SelectedObjectIds()); return Task.CompletedTask; }, ObjectsList.SelectedItems.Count > 0);
         ActionMenu(menu, "历史任务与未归属记录", () => OpenDataManagerAsync(false));
         OpenMenu(menu);
-    }
-    private string[] SelectedObjectIds() => _frozenSelection ?? ObjectsList.SelectedItems.Cast<ExecutionObject>().Where(item => !item.IsUnknown && !item.IsOrphan && !item.IsGroupFooter).Select(item => item.Id).Distinct().ToArray();
-    private async Task SelectAllObjectsAsync()
-    {
-        var page = await _client.ExecutionGetAsync("/internal/runtime/conversations?" + ListQuery(true), _lifetime.Token);
-        _frozenSelection = page.Array("selected_ids").Select(value => value.GetString()!).Where(value => value.Length > 0).ToArray();
-        _updating = true;
-        try { ObjectsList.SelectAll(); } finally { _updating = false; }
-        Warn($"已选择当前筛选中的 {_frozenSelection.Length} 个对话。");
     }
     private async void SelectAllObjects_Click(object sender, RoutedEventArgs e) => await GuardAsync(SelectAllObjectsAsync);
     private void Objects_RightClick(object sender, MouseButtonEventArgs e)
@@ -81,9 +72,11 @@ public partial class ExecutionWindow
     {
         var fixedIds = ids.ToArray(); var selected = target ?? Objects.FirstOrDefault(item => fixedIds.Contains(item.Id)) ?? _selected;
         var menu = Menu(anchor);
+        var selectionDescription = SelectionDescription();
+        var exportScope = ConversationExportScope.Capture(fixedIds, selected);
         ActionMenu(menu, "打开", () => selected is null ? Task.CompletedTask : OpenSidebarObjectAsync(selected), selected is { IsGroupFooter: false } && fixedIds.Length <= 1);
         ActionMenu(menu, "对话详情", () => { ShowInfo("对话详情", selected?.Snapshot.Pretty() ?? "未归属记录使用原始调用 ID 管理。"); return Task.CompletedTask; }, selected is not null);
-        ActionMenu(menu, "导出执行记录", () => ExportConversationsAsync(fixedIds), selected is not null);
+        ActionMenu(menu, "导出执行记录", () => ExportConversationsAsync(exportScope), exportScope.HasTarget);
         if (selected is { IsUnknown:true } || selected is { IsOrphan:true })
         {
             ActionMenu(menu, "管理记录", () => OpenDataManagerAsync(false)); OpenMenu(menu); return;
@@ -93,8 +86,8 @@ public partial class ExecutionWindow
         ActionMenu(menu, "分类标签", () => TagsAsync("conversation", fixedIds, selected?.Tags ?? ""), fixedIds.Length > 0);
         ActionMenu(menu, selected?.Pinned == true ? "取消置顶" : "置顶", () => BatchAsync("conversation", fixedIds, selected?.Pinned == true ? "unpin" : "pin"), fixedIds.Length > 0);
         ActionMenu(menu, selected?.Archived == true ? "取消归档" : "归档", () => BatchAsync("conversation", fixedIds, selected?.Archived == true ? "unarchive" : "archive"), fixedIds.Length > 0);
-        ActionMenu(menu, selected?.Trashed == true ? "从回收站恢复" : "移入回收站", () => ConfirmBatchAsync("conversation", fixedIds, selected?.Trashed == true ? "restore" : "trash"), fixedIds.Length > 0);
-        if (selected?.Trashed == true) ActionMenu(menu, "永久删除", () => ConfirmBatchAsync("conversation", fixedIds, "delete"), fixedIds.Length > 0);
+        ActionMenu(menu, selected?.Trashed == true ? "从回收站恢复" : "移入回收站", () => ConfirmBatchAsync("conversation", fixedIds, selected?.Trashed == true ? "restore" : "trash", selectionDescription), fixedIds.Length > 0);
+        if (selected?.Trashed == true) ActionMenu(menu, "永久删除", () => ConfirmBatchAsync("conversation", fixedIds, "delete", selectionDescription), fixedIds.Length > 0);
         Divider(menu);
         var terminated = selected?.Terminated == true || selected?.Id == _selected?.Id && _conversationSnapshot.HasDate("terminated_at");
         ActionMenu(menu, terminated ? "恢复此对话" : "终止此对话", () => ChangeLifecycleAsync(fixedIds[0], terminated ? "resume" : "terminate"), fixedIds.Length == 1 && selected?.Trashed != true);
@@ -116,12 +109,13 @@ public partial class ExecutionWindow
         var tags = value.Split([',', '，', '、'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
         await BatchAsync(kind, ids, "tags", tags: tags);
     }
-    private async Task ConfirmBatchAsync(string kind, string[] ids, string action)
+    private async Task ConfirmBatchAsync(string kind, string[] ids, string action, string selectionDescription = "")
     {
         if (ids.Length == 0) return;
         if (action is "trash" or "delete")
         {
             var prompt = action == "delete" ? $"永久删除所选的 {ids.Length} 条记录及其管理索引。此操作不能从回收站恢复，工作区源码保持不变。" : $"将所选的 {ids.Length} 条记录移入回收站。运行中或待审批的记录会被保留，工作区源码保持不变。";
+            if (selectionDescription.Length > 0) prompt += "\n\n" + selectionDescription;
             if (!ExecutionDialogs.Confirm(this, action == "delete" ? "永久删除" : "移入回收站", prompt, action == "delete" ? "永久删除" : "移入回收站")) return;
         }
         await BatchAsync(kind, ids, action);
@@ -135,7 +129,7 @@ public partial class ExecutionWindow
             var result = await _client.ExecutionPostAsync(endpoint, new { ids = batch, action, title, tags = tags ?? [], retention_days = _preferences.RetentionDays, confirm_permanent = action == "delete" }, _lifetime.Token);
             succeeded += result.Number("succeeded"); failed += result.Number("failed"); skipped += result.Number("skipped"); outcomes.AddRange(result.Array("items"));
         }
-        _frozenSelection = null;
+        InvalidateBatchSelection();
         await LoadObjectsAsync();
         if (_selected is not null) await LoadCallsAsync(false);
         if (DataManagementPanel.Visibility == Visibility.Visible) await LoadManagedAsync(false);
@@ -177,7 +171,7 @@ public partial class ExecutionWindow
         ActionMenu(menu, "历史任务与记录管理", () => OpenDataManagerAsync(false));
         ActionMenu(menu, "保存当前筛选", () => { var name = ExecutionDialogs.Prompt(this, "保存筛选", "筛选名称", ""); if (!string.IsNullOrWhiteSpace(name)) { _preferences.SavedFilters[name] = [_conversationView, SearchBox.Text, CallSearchBox.Text, ComboValue(CallStatusCombo)]; SavePreferences(); } return Task.CompletedTask; });
         foreach (var pair in _preferences.SavedFilters.ToArray())
-            ActionMenu(menu, "筛选：" + pair.Key, async () => { var values = pair.Value; if (values.Length != 4) return; _conversationView = values[0]; SearchBox.Text = values[1]; CallSearchBox.Text = values[2]; CallStatusCombo.SelectedItem = CallStatusCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == values[3]); await LoadObjectsAsync(); });
+            ActionMenu(menu, "筛选：" + pair.Key, async () => { var values = pair.Value; if (values.Length != 4) return; InvalidateBatchSelection(); _conversationView = values[0]; SearchBox.Text = values[1]; CallSearchBox.Text = values[2]; CallStatusCombo.SelectedItem = CallStatusCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == values[3]); await LoadObjectsAsync(); });
         ActionMenu(menu, "结构与使用说明", () => { ShowInfo("结构与使用说明", "左侧按工作区组织对话。任务位于当前对话内，任务选择和分支浏览不会改变正在执行的上下文。\n\n单条执行记录显示状态、动作、耗时和时间；点击记录后在下方查看命令、输出、来源和技术信息。右键或使用菜单可批量管理记录。\n\n终止对话会先写入服务端门禁，再取消待审批和运行调用。关闭本窗口只退出观察，不会停止执行。\n\n旧任务缺少步骤时显示“进度未记录”。未归属调用保留原始调用 ID，可以导出、隔离、归档和移入回收站。永久删除不会删除项目源码。\n\n快捷键：Ctrl+F 搜索对话，F5 刷新，Esc 关闭详情，Shift+F10 打开所选条目菜单。"); return Task.CompletedTask; });
         OpenMenu(menu);
     }
@@ -229,23 +223,45 @@ public partial class ExecutionWindow
         var text = $"请读取调用 {row.Id} 的原始请求与失败原因，核对是否已产生部分效果，再决定是否以 retry_of_call_id={row.Id} 重试。不要直接重放摘要中的命令。";
         CopyText(text); ShowInfo("重试说明已复制", text);
     }
-    private async void ContinueBranch_Click(object sender, RoutedEventArgs e)
+    private async void ContinueBranch_Click(object sender, RoutedEventArgs e) => await GuardAsync(() =>
+        ContinueSelectedBranchAsync(target => ExecutionDialogs.Confirm(this, "切换执行分支",
+            $"任务：{target.TaskId}\n分支：{target.ThreadId}\n将继续位置切换到此分支。已运行的命令保留原绑定。", "切换")));
+
+    private void ContinueTask_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTaskId.Length == 0 || _branch.Length == 0) return;
-        if (!ExecutionDialogs.Confirm(this, "切换执行分支", "将此任务的继续位置切换到所选分支。已运行的命令保留原绑定。", "切换")) return;
-        await GuardAsync(async () => { await _client.ControlAsync(new { action = "thread_switch", task_id = _selectedTaskId, thread_id = _branch }, _lifetime.Token); Warn("继续分支已更新。"); });
+        if (_taskActionTarget is not { } target || !IsCurrentTaskTarget(target)) return;
+        var text = $"继续任务 {target.TaskId}，先读取任务及分支 {target.ThreadId} 的最新状态，按检查点继续，已完成的操作不要重复执行。";
+        CopyText(text); Warn("继续任务说明已复制。");
     }
-    private void ContinueTask_Click(object sender, RoutedEventArgs e) { if (_selectedTaskId.Length > 0) { var text = $"继续任务 {_selectedTaskId}，先读取任务及分支 {_branch} 的最新状态，按检查点继续，已完成的操作不要重复执行。"; CopyText(text); Warn("继续任务说明已复制。"); } }
     private void TaskMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTaskId.Length == 0) return;
-        var id = _selectedTaskId; var menu = Menu(Anchor(sender, TaskDetailsPanel));
-        ActionMenu(menu, "设为此对话当前任务", async () => { if (_selected is null || _selected.IsUnknown) return; await _client.ExecutionPostAsync("/internal/runtime/conversations/" + Escape(_selected.Id) + "/current-task", new { task_id = id, task_thread_id = _branch, binding_revision = _conversationSnapshot.Field("state").Number("binding_revision") }, _lifetime.Token); await SelectObjectAsync(_selected); });
-        ActionMenu(menu, "重命名任务", () => RenameAsync("task", [id], _taskSnapshot.Text("title")));
-        ActionMenu(menu, "分类标签", () => TagsAsync("task", [id], ""));
-        ActionMenu(menu, "归档任务", () => BatchAsync("task", [id], "archive"));
-        ActionMenu(menu, "取消任务", async () => { var reason = ExecutionDialogs.Prompt(this, "取消任务", "取消原因", ""); if (string.IsNullOrWhiteSpace(reason)) return; await _client.ControlAsync(new { action = "cancel", task_id = id, summary = reason }, _lifetime.Token); await LoadTaskAsync(id, _branch, true); });
-        ActionMenu(menu, "移入回收站", () => ConfirmBatchAsync("task", [id], "trash")); OpenMenu(menu);
+        if (_taskActionTarget is not { } target || !IsCurrentTaskTarget(target)) return;
+        var id = target.TaskId;
+        var conversation = _selected;
+        var revision = _conversationSnapshot.Field("state").Number("binding_revision");
+        var title = _taskSnapshot.Text("title");
+        var menu = Menu(Anchor(sender, TaskDetailsPanel));
+        void Add(string label, Func<Task> action, bool enabled = true) => ActionMenu(menu, label, async () =>
+        {
+            if (!IsCurrentTaskTarget(target)) { Warn("任务选择已变化，请重新打开操作菜单。"); return; }
+            await action();
+        }, enabled);
+        Add("设为此对话当前任务", async () =>
+        {
+            await _client.ExecutionPostAsync("/internal/runtime/conversations/" + Escape(conversation!.Id) + "/current-task",
+                new { task_id = target.TaskId, task_thread_id = target.ThreadId, binding_revision = revision }, _lifetime.Token);
+            if (IsCurrentTaskTarget(target) && _selected?.Id == conversation.Id) await SelectObjectAsync(_selected);
+        }, conversation is { IsUnknown: false, IsOrphan: false, Trashed: false, Terminated: false });
+        Add("重命名任务", () => RenameAsync("task", [id], title));
+        Add("分类标签", () => TagsAsync("task", [id], ""));
+        Add("归档任务", () => BatchAsync("task", [id], "archive"));
+        Add("取消任务", async () =>
+        {
+            var reason = ExecutionDialogs.Prompt(this, "取消任务", "任务：" + id + "\n取消原因", "");
+            if (!string.IsNullOrWhiteSpace(reason)) await CancelSelectedTaskAsync(target, reason);
+        });
+        Add("移入回收站", () => ConfirmBatchAsync("task", [id], "trash"));
+        OpenMenu(menu);
     }
     private async Task OpenDataManagerAsync(bool attention)
     {
@@ -279,7 +295,7 @@ public partial class ExecutionWindow
     {
         var rows = ManagedObjectsList.SelectedItems.Cast<ExecutionObject>().ToArray(); if (rows.Length == 0) { Warn("请先选择要管理的记录。"); return; }
         var ids = rows.Select(row => row.Id).ToArray(); var kind = rows[0].Kind; var view = ComboValue(DataViewCombo); var menu = Menu(anchor);
-        ActionMenu(menu, "查看详情", async () => { if (kind == "task") { _selectedTaskId = ids[0]; OpenDetails(rows[0].Title, TaskDetailsPanel); await LoadTaskAsync(ids[0], "", true); } else { var row = new ExecutionCallRow(rows[0].Snapshot); _detailCall = row; CallDetailsTabs.DataContext = row; CallDetailsTabs.SelectedIndex = 0; OpenDetails(row.Title, CallDetailsTabs); await LoadCallDetailAsync(row); } }, ids.Length == 1);
+        ActionMenu(menu, "查看详情", async () => { if (kind == "task") { BeginTaskSelection(ids[0], ""); OpenDetails(rows[0].Title, TaskDetailsPanel); await LoadTaskAsync(ids[0], "", true); } else { var row = new ExecutionCallRow(rows[0].Snapshot); _detailCall = row; CallDetailsTabs.DataContext = row; CallDetailsTabs.SelectedIndex = 0; OpenDetails(row.Title, CallDetailsTabs); await LoadCallDetailAsync(row); } }, ids.Length == 1);
         if (kind == "task") ActionMenu(menu, "重命名", () => RenameAsync(kind, ids, rows[0].Title), ids.Length == 1);
         ActionMenu(menu, view == "archived" ? "取消归档" : "归档", () => BatchAsync(kind, ids, view == "archived" ? "unarchive" : "archive"));
         if (kind == "call") ActionMenu(menu, view == "isolated" ? "取消隔离" : "隔离", () => BatchAsync(kind, ids, view == "isolated" ? "unisolate" : "isolate"));
@@ -307,11 +323,19 @@ public partial class ExecutionWindow
         }
     }
     private async Task ExportScopeAsync(string query, string title) => await SaveExportAsync(title, await ReadScopeAsync(query));
-    private async Task ExportConversationsAsync(string[] ids)
+    internal async Task<List<JsonElement>> ReadConversationExportAsync(ConversationExportScope scope)
     {
+        if (!scope.HasTarget) throw new InvalidOperationException("没有有效的导出目标。");
         var calls = new List<JsonElement>();
-        if (ids.Length == 0 && _selected?.IsUnknown == true) calls = await ReadScopeAsync("unattributed=true&view=all");
-        foreach (var id in ids) calls.AddRange(await ReadScopeAsync("conversation_id=" + Escape(id) + "&view=all"));
+        if (scope.Unattributed) calls.AddRange(await ReadScopeAsync("unattributed=true&view=all"));
+        foreach (var id in scope.ConversationIds)
+            calls.AddRange(await ReadScopeAsync("conversation_id=" + Escape(id) + "&view=all"));
+        return calls;
+    }
+    private async Task ExportConversationsAsync(ConversationExportScope scope)
+    {
+        var calls = await ReadConversationExportAsync(scope);
+        if (calls.Count == 0) { Warn(scope.Description + "：0 条执行记录，未生成空文件。"); return; }
         await SaveExportAsync("对话执行记录", calls);
     }
     private async Task ExportCallIdsAsync(string[] ids)
@@ -332,7 +356,7 @@ public partial class ExecutionWindow
     {
         if (e.Key == Key.Escape) { CloseDetails(); e.Handled = true; }
         else if (e.Key == Key.F && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
-        else if (e.Key == Key.F5) { await GuardAsync(async () => { await LoadObjectsAsync(); await LoadCallsAsync(false); await RefreshOverviewAsync(); }); e.Handled = true; }
+        else if (e.Key == Key.F5) { await GuardAsync(RefreshExecutionAsync); e.Handled = true; }
         else if (e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { if (ObjectsList.IsKeyboardFocusWithin) ShowObjectMenu(ObjectsList, SelectedObjectIds()); else if (CallsList.IsKeyboardFocusWithin) ShowCallMenu(CallsList, SelectedCallIds()); else if (ManagedObjectsList.IsKeyboardFocusWithin) ShowDataMenu(ManagedObjectsList); e.Handled = true; }
     }
 }

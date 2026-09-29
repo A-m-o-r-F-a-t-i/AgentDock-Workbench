@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private bool _showOAuth;
     private bool _updatingUi;
     private bool _settingsLoaded;
+    private bool _settingsSaving;
     private List<AcpProfileSettings> _acpProfiles = [];
     private string _acpDefaultProfile = "";
     private string _lastAutoTestOrigin = "";
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
                 _acpDefaultProfile = snapshot.Settings.AcpDefaultProfile;
                 RefreshAcpProfileOverview();
                 _settingsLoaded = true;
+                SaveSettingsButton.IsEnabled = !_settingsSaving;
             }
 
             UpdateTunnelModeUi();
@@ -838,6 +840,7 @@ public partial class MainWindow : Window
 
     private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_settingsSaving || !_settingsLoaded) return;
         if (!int.TryParse(PortTextBox.Text.Trim(), out var port) || port is < 1 or > 65535)
         {
             MessageBox.Show(this, UiText.Get("PortInvalid"), "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -913,18 +916,39 @@ public partial class MainWindow : Window
             AcpProfiles = _acpProfiles.Select(CloneAcpProfile).ToList(),
             AcpDefaultProfile = _acpDefaultProfile
         };
-        var saved = await ExecuteActionAsync(
+        await ExecuteActionAsync(
             UiText.Get("SavingAndRestarting"),
-            () => _runtime.SaveSettingsAsync(settings),
+            () => SaveSettingsSnapshotAsync(settings, () => _runtime.SaveSettingsAsync(settings)),
             SettingsStatusText);
-        if (saved)
+    }
+
+    internal async Task SaveSettingsSnapshotAsync(ControlPanelSettings settings, Func<Task> persist)
+    {
+        if (_settingsSaving) throw new InvalidOperationException("设置正在保存，请勿重复提交。");
+        _settingsSaving = true;
+        SettingsEditorPanel.IsEnabled = false;
+        SaveSettingsButton.IsEnabled = false;
+        try
         {
-            _acpProfiles = settings.AcpProfiles.Select(CloneAcpProfile).ToList();
-            _acpDefaultProfile = settings.AcpDefaultProfile;
-            RefreshAcpProfileOverview();
-            BrowserCdpUrlTextBox.Text = settings.BrowserCdpUrl;
-            SelectBrowserConnectionMode(settings);
-            RefreshBrowserConnectionUi();
+            await persist();
+            var updating = _updatingUi;
+            _updatingUi = true;
+            try
+            {
+                _acpProfiles = settings.AcpProfiles.Select(CloneAcpProfile).ToList();
+                _acpDefaultProfile = settings.AcpDefaultProfile;
+                RefreshAcpProfileOverview();
+                BrowserCdpUrlTextBox.Text = settings.BrowserCdpUrl;
+                SelectBrowserConnectionMode(settings);
+                RefreshBrowserConnectionUi();
+            }
+            finally { _updatingUi = updating; }
+        }
+        finally
+        {
+            _settingsSaving = false;
+            SettingsEditorPanel.IsEnabled = true;
+            SaveSettingsButton.IsEnabled = _settingsLoaded;
         }
     }
 
