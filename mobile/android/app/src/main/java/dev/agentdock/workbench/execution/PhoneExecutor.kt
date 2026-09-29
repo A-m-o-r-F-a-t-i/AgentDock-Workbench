@@ -13,6 +13,9 @@ import dev.agentdock.workbench.data.CoreRequestException
 import dev.agentdock.workbench.data.CredentialStore
 import dev.agentdock.workbench.data.EndpointPolicy
 import dev.agentdock.workbench.termux.LocalCorePairingManager
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -77,6 +80,7 @@ class PhoneExecutor(private val context: Context, private val credentials: Crede
     suspend fun verify(name: String): JSONObject = withContext(Dispatchers.IO) { backend(name).verify("connection-probe") }
 
     suspend fun start(originText: String) = control.withLock {
+        check(!pump.isLocked) { "原执行通道尚未停止，请先核对原会话" }
         require(NotificationManagerCompat.from(context).areNotificationsEnabled() &&
             (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) {
             "本机执行器需要可见通知，请先允许通知"
@@ -146,7 +150,7 @@ class PhoneExecutor(private val context: Context, private val credentials: Crede
                 failures = 0
                 val commands = response.getJSONArray("commands")
                 require(commands.length() <= 4) { "执行批次超过限制" }
-                for (index in 0 until commands.length()) {
+                val returned = coroutineScope { (0 until commands.length()).map { index -> async {
                     val command = commands.getJSONObject(index)
                     require(PhoneExecutorPolicy.validInstruction(command)) { "执行指令协议无效" }
                     val event = JSONObject().put("operation_id", command.getString("operation_id")).put("revision", command.getLong("revision"))
@@ -166,8 +170,9 @@ class PhoneExecutor(private val context: Context, private val credentials: Crede
                         // happened. The next Core instruction only observes the same ID.
                         event.put("state", "unknown").put("input_applied", command.optLong("input_applied", 0))
                     }
-                    events.put(event)
-                }
+                    event
+                } }.awaitAll() }
+                returned.forEach { events.put(it) }
                 stateValue.value = PhoneExecutorState(!stopRequested, true, origin,
                     if (stopRequested) "正在核对原会话取消" else "已连接本机 Core；本批观察 ${commands.length()} 个会话")
                 if (stopRequested && commands.length() == 0) break
@@ -184,7 +189,8 @@ class PhoneExecutor(private val context: Context, private val credentials: Crede
         }
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { runCatching { client.post(PhoneExecutorPolicy.PREFIX + "disconnect") } }
-            stateValue.value = stateValue.value.copy(connected = false, message = "执行通道已停止；未确认的在途结果仍需核对原会话")
+            preferences.edit().putBoolean("enabled", false).commit()
+            stateValue.value = stateValue.value.copy(enabled = false, connected = false, message = "执行通道已停止；未确认的在途结果仍需核对原会话")
         }
     }
 }
