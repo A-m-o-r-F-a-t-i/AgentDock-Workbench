@@ -69,6 +69,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"workdir":          stringProp("Logical command working directory in the selected runtime."),
 		"stdout":           stringProp("Captured stdout segment."),
 		"stderr":           stringProp("Captured stderr segment."),
+		"stdin_error":      stringProp("Initial remote stdin could not be acknowledged; preserve and observe the original session instead of replaying the command."),
 		"outcome_unknown":  boolProp("The remote outcome is unconfirmed; do not replay the original command."),
 		"command_ok":       boolProp("Whether a completed command exited successfully. Omitted while the command is still running."),
 		"command_error":    stringProp("Command process error when execution did not succeed."),
