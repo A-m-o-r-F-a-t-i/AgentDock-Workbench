@@ -23,6 +23,7 @@ type BuildMetrics struct {
 }
 type Directory struct {
 	Revision        string
+	sourceRevision  string
 	Metrics         BuildMetrics
 	records         map[string]packageRecord
 	skills          map[string]SkillMember
@@ -49,9 +50,18 @@ func (d *Directory) Definitions() []Definition {
 	return out
 }
 
+// directoryFiles keeps source identity separate from the cache refresh clock.
+type directoryFiles interface {
+	Add(string)
+	Close()
+	Invalidate()
+	Sync(context.Context) error
+	Revisions() (source, cache string)
+}
+
 type storeSnapshots struct {
 	cache         *snapshot.Cache[*Directory]
-	files         *snapshot.Files
+	files         directoryFiles
 	keyMu         sync.Mutex
 	stamp         string
 	stampAt       time.Time
@@ -91,32 +101,34 @@ func (s *Store) Invalidate() {
 	s.snapshots.keyMu.Unlock()
 }
 func (s *Store) SnapshotStats() snapshot.Stats { return s.snapshots.cache.Stats() }
-func (s *Store) revision(ctx context.Context, force bool) (string, error) {
+func (s *Store) revision(ctx context.Context, force bool) (source, cache string, err error) {
 	if err := s.snapshots.files.Sync(ctx); err != nil {
-		return "", err
+		return "", "", err
 	}
-	revision := s.snapshots.files.Revision()
+	sourceRevision, cacheRevision := s.snapshots.files.Revisions()
 	s.snapshots.keyMu.Lock()
 	defer s.snapshots.keyMu.Unlock()
 	// The bounded stamp checks cover cross-instance atomic writes. Repeated
 	// member lookups during one pass do not perform per-member filesystem I/O.
-	if force || revision != s.snapshots.stampRevision || time.Since(s.snapshots.stampAt) > 10*time.Millisecond {
+	if force || sourceRevision != s.snapshots.stampRevision || time.Since(s.snapshots.stampAt) > 10*time.Millisecond {
 		s.snapshots.stamp = snapshot.Stamps(s.root, filepath.Join(s.root, ".state"), filepath.Join(s.root, ".config"))
 		s.snapshots.stampAt = time.Now()
-		s.snapshots.stampRevision = revision
+		s.snapshots.stampRevision = sourceRevision
 	}
-	return revision + "|" + s.snapshots.stamp, nil
+	return sourceRevision + "|" + s.snapshots.stamp, cacheRevision + "|" + s.snapshots.stamp, nil
 }
 func (s *Store) Snapshot(ctx context.Context) (*Directory, snapshot.Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.budget)
 	defer cancel()
 	var info snapshot.Info
 	for attempt := 0; attempt < 3; attempt++ {
-		revision, err := s.revision(ctx, false)
+		sourceRevision, cacheRevision, err := s.revision(ctx, false)
 		if err != nil {
 			return nil, info, err
 		}
-		value, current, err := s.snapshots.cache.Get(ctx, revision, func(buildCtx context.Context) (*Directory, error) { return s.buildSnapshot(buildCtx, revision) })
+		value, current, err := s.snapshots.cache.Get(ctx, cacheRevision, func(buildCtx context.Context) (*Directory, error) {
+			return s.buildSnapshot(buildCtx, sourceRevision, cacheRevision)
+		})
 		info = current
 		if errors.Is(err, errDirectoryChanged) {
 			continue
@@ -124,11 +136,11 @@ func (s *Store) Snapshot(ctx context.Context) (*Directory, snapshot.Info, error)
 		if err != nil {
 			return nil, info, err
 		}
-		now, err := s.revision(ctx, false)
+		now, _, err := s.revision(ctx, false)
 		if err != nil {
 			return nil, info, err
 		}
-		if now == value.Revision {
+		if now == value.sourceRevision {
 			return value, info, nil
 		}
 	}
@@ -143,14 +155,14 @@ func (s *Store) acquireSnapshot(ctx context.Context, metrics *BuildMetrics) (fun
 	}
 	return lock, nil
 }
-func (s *Store) buildSnapshot(ctx context.Context, requested string) (*Directory, error) {
+func (s *Store) buildSnapshot(ctx context.Context, requested, published string) (*Directory, error) {
 	start := time.Now()
 	metrics := BuildMetrics{}
 	release, err := s.acquireSnapshot(ctx, &metrics)
 	if err != nil {
 		return nil, err
 	}
-	before, err := s.revision(ctx, true)
+	before, _, err := s.revision(ctx, true)
 	if err != nil {
 		release()
 		return nil, err
@@ -248,7 +260,7 @@ func (s *Store) buildSnapshot(ctx context.Context, requested string) (*Directory
 	if err != nil {
 		return nil, err
 	}
-	after, err := s.revision(ctx, true)
+	after, _, err := s.revision(ctx, true)
 	release()
 	if err != nil {
 		return nil, err
@@ -256,7 +268,9 @@ func (s *Store) buildSnapshot(ctx context.Context, requested string) (*Directory
 	if before != after {
 		return nil, errDirectoryChanged
 	}
-	directory := &Directory{Revision: after, records: records, skills: map[string]SkillMember{}, skillMembership: map[string]Membership{}, mcpMembership: map[string]Membership{}}
+	// Propagate the captured cache generation to downstream indexes even when
+	// an unhealthy watcher has missed a member-file event.
+	directory := &Directory{Revision: published, sourceRevision: after, records: records, skills: map[string]SkillMember{}, skillMembership: map[string]Membership{}, mcpMembership: map[string]Membership{}}
 	for _, name := range sortedPackageNames(records) {
 		record := records[name]
 		for _, skill := range sortedKeys(record.skillPaths) {

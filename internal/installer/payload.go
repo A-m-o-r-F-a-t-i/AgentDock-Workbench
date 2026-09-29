@@ -54,10 +54,7 @@ func stageUnixPayload(request Request, journal *rollbackJournal) (stagedInstall,
 	staged := stagedInstall{Journal: journal, LiveBinary: unixLiveBinary(request)}
 	source := strings.TrimSpace(request.BinaryPath)
 	if source == "" && request.PayloadDir != "" {
-		source = firstExisting(
-			filepath.Join(request.PayloadDir, "bin", "agentdock"),
-			filepath.Join(request.PayloadDir, "agentdock"),
-		)
+		source = firstExisting(filepath.Join(request.PayloadDir, "bin", "agentdock"), filepath.Join(request.PayloadDir, "agentdock"))
 	}
 	if source == "" {
 		if fileExists(staged.LiveBinary) {
@@ -66,21 +63,29 @@ func stageUnixPayload(request Request, journal *rollbackJournal) (stagedInstall,
 		}
 		return staged, fmt.Errorf("找不到 AgentDock 二进制")
 	}
-
 	generation := filepath.Join(request.InstallRoot, "versions", request.Version)
-	if err := os.MkdirAll(generation, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(generation), 0o755); err != nil {
 		return staged, err
 	}
-	if err := journal.NoteCreated(generation); err != nil {
+	staging, err := os.MkdirTemp(filepath.Dir(generation), ".install-"+request.Version+"-")
+	if err != nil {
 		return staged, err
 	}
-	stagedBinary := filepath.Join(generation, "agentdock")
+	defer os.RemoveAll(staging)
+	// A no-payload repair retains the installed bundle and other generation
+	// contents. Read them before replacing a same-version source directory.
+	if request.PayloadDir == "" && dirExists(generation) {
+		if err := copyTree(generation, staging, 0); err != nil {
+			return staged, err
+		}
+	}
+	stagedBinary := filepath.Join(staging, "agentdock")
 	if err := copyTree(source, stagedBinary, 0o755); err != nil {
 		return staged, err
 	}
-	staged.Binary = stagedBinary
-	staged.GenerationDir = generation
-
+	if err := os.Chmod(stagedBinary, 0o755); err != nil {
+		return staged, err
+	}
 	bundle := strings.TrimSpace(request.SkillBundle)
 	if bundle == "" && request.PayloadDir != "" {
 		candidate := filepath.Join(request.PayloadDir, "share", "agentdock", "core-skills")
@@ -89,11 +94,28 @@ func stageUnixPayload(request Request, journal *rollbackJournal) (stagedInstall,
 		}
 	}
 	if bundle != "" {
-		destination := filepath.Join(generation, "core-skills")
-		if err := copyTree(bundle, destination, 0o644); err != nil {
+		if err := copyTree(bundle, filepath.Join(staging, "core-skills"), 0o644); err != nil {
 			return staged, err
 		}
-		staged.SkillBundle = destination
+	}
+	if err := os.Chmod(staging, 0o755); err != nil {
+		return staged, err
+	}
+	// Existing same-version content belongs to the rollback snapshot, never
+	// the created-path deletion list. Publish only after all input is copied.
+	if err := journal.Snapshot(generation); err != nil {
+		return staged, err
+	}
+	if err := os.RemoveAll(generation); err != nil {
+		return staged, err
+	}
+	if err := os.Rename(staging, generation); err != nil {
+		return staged, err
+	}
+	staged.Binary = filepath.Join(generation, "agentdock")
+	staged.GenerationDir = generation
+	if bundle != "" {
+		staged.SkillBundle = filepath.Join(generation, "core-skills")
 	}
 	return staged, nil
 }

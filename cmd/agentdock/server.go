@@ -68,7 +68,10 @@ func runServer(ctx context.Context, args []string, stderr io.Writer) error {
 	if flags.NArg() != 0 {
 		return fmt.Errorf("未知命令或参数：%s", flags.Arg(0))
 	}
-	if err := cfg.Normalize(); err != nil {
+	completeConfig := traceStartupPhase(stderr, "configuration")
+	err = cfg.Normalize()
+	completeConfig(err)
+	if err != nil {
 		return err
 	}
 	if err := cfg.ValidateAuth(); err != nil {
@@ -90,7 +93,9 @@ func runServer(ctx context.Context, args []string, stderr io.Writer) error {
 		slog.Warn("desktop runtime repair skipped", "error", err)
 	}
 	slog.Info("server starting", "agentdock_home", cfg.AgentDockHome, "agentdock_default_dir", cfg.AgentDockDefaultDir, "path_model", config.PathModel, "host", cfg.Host, "port", cfg.Port, "stdio", cfg.Stdio, "log_level", cfg.LogLevel, "recall_enabled", cfg.NexusEndpoint != "", "nexus_enabled", cfg.NexusEndpoint != "", "mcp_apps_enabled", cfg.MCPAppsEnabled, "browser_enabled", cfg.BrowserEnabled)
+	completeRuntime := traceStartupPhase(stderr, "runtime")
 	runtime, err := app.NewRuntime(cfg)
+	completeRuntime(err)
 	if err != nil {
 		return err
 	}
