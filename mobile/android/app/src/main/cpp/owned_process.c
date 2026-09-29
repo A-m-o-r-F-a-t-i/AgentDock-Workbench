@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -171,9 +172,18 @@ JNIEXPORT jint JNICALL JNI_FN(write)(JNIEnv *env, jclass klass, jlong handle, jb
     if (offset == size) return 0;
     jbyte buffer[16384]; (*env)->GetByteArrayRegion(env, bytes, offset, size-offset, buffer);
     if ((*env)->ExceptionCheck(env)) return -1;
+    sigset_t blocked, previous;
+    sigemptyset(&blocked); sigaddset(&blocked, SIGPIPE);
+    if (pthread_sigmask(SIG_BLOCK, &blocked, &previous) != 0) { fail(env, "Cannot guard owned stdin signal"); return -1; }
     ssize_t n;
     do { n = write(p->input, buffer, (size_t)(size-offset)); } while (n < 0 && errno == EINTR);
-    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
+    int saved_errno = errno;
+    if (n < 0 && saved_errno == EPIPE && !sigismember(&previous, SIGPIPE)) {
+        struct timespec now = {0, 0};
+        (void)sigtimedwait(&blocked, NULL, &now);
+    }
+    (void)pthread_sigmask(SIG_SETMASK, &previous, NULL);
+    if (n < 0 && (saved_errno == EAGAIN || saved_errno == EWOULDBLOCK)) return 0;
     if (n < 0) { fail(env, "Owned process stdin write failed"); return -1; }
     return (jint)n;
 }
