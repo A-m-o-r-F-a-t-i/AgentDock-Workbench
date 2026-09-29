@@ -10,6 +10,7 @@ type RuntimeOptions struct {
 
 // ExecRequest is the stable exec_command input contract.
 type ExecRequest struct {
+	Backend          string `json:"backend,omitempty"`
 	TargetKind       string `json:"target_kind,omitempty"`
 	ExternalPath     string `json:"external_path,omitempty"`
 	activity.Binding `json:"-"`

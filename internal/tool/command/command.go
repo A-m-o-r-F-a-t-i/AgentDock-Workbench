@@ -75,7 +75,12 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 		}
 	}()
 	prepareCtx, prepareCancel := context.WithTimeout(ctx, timeout)
-	invocation, err := svc.prepareCommandInvocation(prepareCtx, request)
+	var invocation commandInvocation
+	if request.Backend != "" && request.Backend != "default" {
+		invocation, err = svc.prepareAndroidInvocation(prepareCtx, request, timeout)
+	} else {
+		invocation, err = svc.prepareCommandInvocation(prepareCtx, request)
+	}
 	preparationErr := prepareCtx.Err()
 	prepareCancel()
 	if err != nil {
@@ -259,7 +264,10 @@ func snapshotResult(snapshot session.Snapshot) Result {
 	if snapshot.ActivityWarning != "" {
 		result["activity_warning"] = snapshot.ActivityWarning
 	}
-	if snapshot.Completed {
+	if snapshot.OutcomeUnknown {
+		result["outcome_unknown"] = true
+	}
+	if snapshot.Completed && !snapshot.OutcomeUnknown {
 		result["exit_code"] = snapshot.ExitCode
 		result["command_ok"] = snapshot.CommandOK
 	}

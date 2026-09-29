@@ -133,7 +133,9 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 			if snap.Completed {
 				event := base
 				event.Kind, event.Status = "command.completed", snap.Status
-				event.ExitCode, event.CommandOK = &snap.ExitCode, &snap.CommandOK
+				if !snap.OutcomeUnknown {
+					event.ExitCode, event.CommandOK = &snap.ExitCode, &snap.CommandOK
+				}
 				event.TimedOut, event.ElapsedMS = snap.TimedOut, snap.ElapsedMS
 				event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
 				if snap.Status == "exited" {

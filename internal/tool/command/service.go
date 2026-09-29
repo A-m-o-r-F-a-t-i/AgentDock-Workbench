@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/androidbridge"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	"github.com/uvwt/agentdock/internal/tool/command/session"
@@ -26,6 +27,7 @@ type SkillResolver func(ctx context.Context, skillRef string) (SkillLease, error
 type CommandContext func() (context.Context, error)
 
 type Service struct {
+	android        *androidbridge.Broker
 	activityMu     sync.Mutex
 	activeCommands map[string]*session.Session
 	activity       *activity.Store

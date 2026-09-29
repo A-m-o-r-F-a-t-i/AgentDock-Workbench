@@ -19,6 +19,7 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolExecCommand:
 		toolcontract.ActivityProperties(props)
 		toolcontract.TargetProperties(props)
+		props["backend"] = map[string]any{"type": "string", "enum": []string{"default", "termux_host", "android_shizuku"}, "description": "Explicit execution backend; default preserves current behavior. Android requires a ready paired provider, an absolute backend workdir and no host Skill/runtime context. Never retries on another backend."}
 		props["cmd"] = stringProp("Command to run.")
 		props["workdir"] = stringProp(WorkdirDescription())
 		AddRuntimeProperties(props)
