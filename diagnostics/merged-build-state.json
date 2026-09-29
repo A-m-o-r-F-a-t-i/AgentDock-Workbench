@@ -1,0 +1,11 @@
+{
+  "request_run": 36563329075,
+  "source_sha": "de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5",
+  "source_branch": "build/20260929-reviewed-1.1.8",
+  "version": "1.1.8",
+  "publish": false,
+  "installation_tests": true,
+  "ignore_macos_intel_scale": false,
+  "stage": "dispatch_requested",
+  "updated_at": "2026-09-29T11:41:47.462Z"
+}
