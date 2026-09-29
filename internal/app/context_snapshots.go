@@ -20,13 +20,21 @@ type skillIndexSnapshot struct {
 	Items         []capabilitySkillItem
 	DocumentReads int
 }
+type contextFiles interface {
+	Add(string)
+	Close()
+	Sync(context.Context) error
+	Revision() string
+	Revisions() (source, cache string)
+}
+
 type contextSnapshots struct {
 	rules       *snapshot.Cache[agentinstructions.Snapshot]
 	skills      *snapshot.Cache[skillIndexSnapshot]
 	common      *snapshot.Cache[*capabilityCommonSkillIndex]
-	commonFiles *snapshot.Files
-	ruleFiles   *snapshot.Files
-	skillFiles  *snapshot.Files
+	commonFiles contextFiles
+	ruleFiles   contextFiles
+	skillFiles  contextFiles
 	once        sync.Once
 }
 
@@ -75,14 +83,16 @@ func (r *Runtime) cachedInstructions(ctx context.Context, options agentinstructi
 	for _, path := range paths {
 		files.Add(filepath.Dir(path))
 	}
-	keyFor := func() (string, error) {
+	keyFor := func() (source, cache string, err error) {
 		if err := files.Sync(ctx); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return fmt.Sprintf("%s|%s|%t|%s|%s", options.Workdir, options.DefaultDir, options.DisableAutoLoad, files.Revision(), snapshot.Stamps(paths...)), nil
+		sourceRevision, cacheRevision := files.Revisions()
+		stamp := snapshot.Stamps(paths...)
+		return fmt.Sprintf("%s|%s|%t|%s|%s", options.Workdir, options.DefaultDir, options.DisableAutoLoad, sourceRevision, stamp), fmt.Sprintf("%s|%s|%t|%s|%s", options.Workdir, options.DefaultDir, options.DisableAutoLoad, cacheRevision, stamp), nil
 	}
 	for attempt := 0; attempt < 3; attempt++ {
-		key, err := keyFor()
+		source, key, err := keyFor()
 		if err != nil {
 			return agentinstructions.Snapshot{}, err
 		}
@@ -103,11 +113,11 @@ func (r *Runtime) cachedInstructions(ctx context.Context, options agentinstructi
 		if err != nil {
 			return value, err
 		}
-		after, err := keyFor()
+		after, _, err := keyFor()
 		if err != nil {
 			return value, err
 		}
-		if key != after {
+		if source != after {
 			continue
 		}
 		// Callers may add per-request warnings; never hand out the shared slice.
@@ -122,14 +132,16 @@ func (r *Runtime) contextSkillIndex(ctx context.Context, directory *plugin.Direc
 	}
 	files := r.contextSnapshots.skillFiles
 	paths := r.skills.CapabilityStatePaths()
-	keyFor := func() (string, error) {
+	keyFor := func() (source, cache string, err error) {
 		if err := files.Sync(ctx); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return fmt.Sprintf("%s|%t|%s|%s", directory.Revision, includeHeavy, files.Revision(), snapshot.Stamps(paths...)), nil
+		sourceRevision, cacheRevision := files.Revisions()
+		stamp := snapshot.Stamps(paths...)
+		return fmt.Sprintf("%s|%t|%s|%s", directory.Revision, includeHeavy, sourceRevision, stamp), fmt.Sprintf("%s|%t|%s|%s", directory.Revision, includeHeavy, cacheRevision, stamp), nil
 	}
 	for attempt := 0; attempt < 3; attempt++ {
-		key, err := keyFor()
+		source, key, err := keyFor()
 		if err != nil {
 			return nil, snapshot.Info{}, err
 		}
@@ -154,11 +166,11 @@ func (r *Runtime) contextSkillIndex(ctx context.Context, directory *plugin.Direc
 		if err != nil {
 			return nil, info, err
 		}
-		after, err := keyFor()
+		after, _, err := keyFor()
 		if err != nil {
 			return nil, info, err
 		}
-		if key != after {
+		if source != after {
 			continue
 		}
 		reads := value.DocumentReads
