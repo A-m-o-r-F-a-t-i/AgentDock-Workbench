@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:46:05.140Z",
+  "updated_at": "2026-09-29T11:48:08.090Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -44,10 +44,9 @@
     {
       "id": 109389384874,
       "name": "Native darwin amd64",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384874",
-      "active_step": "Native macOS app and packaging contracts"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384874"
     },
     {
       "id": 109389385462,
@@ -73,18 +72,16 @@
     {
       "id": 109389445001,
       "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445001",
-      "active_step": "Actual scheduled task and native process recovery"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445001"
     },
     {
       "id": 109389445025,
       "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445025",
-      "active_step": "Actual scheduled task and native process recovery"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445025"
     },
     {
       "id": 109389466591,
@@ -93,6 +90,22 @@
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389466591",
       "active_step": "Lint, unit test and build APKs"
+    },
+    {
+      "id": 109390848337,
+      "name": "windows / Build verified unsigned Windows packages",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109390848337",
+      "active_step": "Offscreen desktop layout regression"
+    },
+    {
+      "id": 109391102734,
+      "name": "Universal macOS Workbench application",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391102734",
+      "active_step": "Build ad-hoc signed universal DMG and update ZIP"
     }
   ]
 }
