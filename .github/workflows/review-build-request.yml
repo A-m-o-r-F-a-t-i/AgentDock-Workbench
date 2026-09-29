@@ -1,0 +1,99 @@
+name: Requested merged 1.1.8 candidate build
+on:
+  push:
+    branches: [ci/20260929-review-evidence]
+    paths: [.github/workflows/review-build-request.yml]
+permissions:
+  contents: write
+  actions: write
+  checks: read
+  pull-requests: write
+concurrency:
+  group: requested-reviewed-build-20260929
+  cancel-in-progress: false
+jobs:
+  candidate:
+    if: github.repository_id == '1370391430' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          retries: 0
+          script: |
+            const owner=context.repo.owner, repo=context.repo.repo;
+            const source='de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5';
+            const sourceBranch='build/20260929-reviewed-1.1.8';
+            const reportBranch='ci/20260929-review-evidence';
+            const path='diagnostics/merged-build-state.json';
+            const base={owner,repo};
+            const request=async(method,endpoint,args={})=>(await github.request(method+' /repos/{owner}/{repo}/'+endpoint,{...base,...args})).data;
+            const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+            let report={request_run:context.runId,source_sha:source,source_branch:sourceBranch,version:'1.1.8',publish:false,installation_tests:true,ignore_macos_intel_scale:false,stage:'created'};
+            async function persist() {
+              report.updated_at=new Date().toISOString();
+              let sha;
+              try {sha=(await request('GET','contents/{path}',{path,ref:reportBranch})).sha;}
+              catch(error) {if(error.status!==404) throw error;}
+              await request('PUT','contents/{path}',{path,branch:reportBranch,sha,message:'docs: record requested merged candidate build state',content:Buffer.from(JSON.stringify(report,null,2)+'\n').toString('base64')});
+            }
+            try {
+              const head=await request('GET','git/ref/{ref}',{ref:'heads/'+sourceBranch});
+              if(head.object.sha!==source) throw new Error('Frozen build branch does not match reviewed main SHA');
+              let found=(await request('GET','actions/workflows/{workflow_id}/runs',{workflow_id:'workbench-release.yml',branch:sourceBranch,event:'workflow_dispatch',head_sha:source,per_page:20})).workflow_runs;
+              if(found.length>1) throw new Error('Multiple existing candidate runs require manual selection');
+              if(!found.length) {
+                report.stage='dispatch_requested'; await persist();
+                await request('POST','actions/workflows/{workflow_id}/dispatches',{workflow_id:'workbench-release.yml',ref:sourceBranch,inputs:{ref:source,publish:'false',prerelease:'false',installation_tests:'true',ignore_macos_intel_scale:'false'}});
+                for(let i=0;i<18;i++) {
+                  await pause(5000);
+                  found=(await request('GET','actions/workflows/{workflow_id}/runs',{workflow_id:'workbench-release.yml',branch:sourceBranch,event:'workflow_dispatch',head_sha:source,per_page:20})).workflow_runs;
+                  if(found.length) break;
+                }
+              }
+              if(found.length!==1) throw new Error('Dispatch outcome not resolved; do not repeat the dispatch');
+              const run_id=found[0].id;
+              report.run_id=run_id; report.url=found[0].html_url; report.stage='running'; await persist();
+              await request('POST','issues/{issue_number}/comments',{issue_number:25,body:'已冻结合并主线 '+source+'，启动完整候选编译：'+report.url+'。Windows/Linux/macOS/Android 同源验证，安装测试仅在 Actions 隔离 runner 执行；publish=false，不发布、不部署。'});
+              for(let poll=0;poll<60;poll++) {
+                const run=await request('GET','actions/runs/{run_id}',{run_id});
+                if(run.head_sha!==source || run.event!=='workflow_dispatch') throw new Error('Unexpected candidate run identity');
+                const jobs=(await request('GET','actions/runs/{run_id}/jobs',{run_id,per_page:100})).jobs;
+                report.status=run.status; report.conclusion=run.conclusion;
+                report.jobs=jobs.map(j=>({id:j.id,name:j.name,status:j.status,conclusion:j.conclusion,url:j.html_url,active_step:j.steps?.find(s=>s.status==='in_progress')?.name}));
+                if(poll%2===0 || run.status==='completed') await persist();
+                if(run.status==='completed') {
+                  report.stage='completed';
+                  const artifacts=(await request('GET','actions/runs/{run_id}/artifacts',{run_id,per_page:100})).artifacts;
+                  report.artifacts=artifacts.map(a=>({id:a.id,name:a.name,size_bytes:a.size_in_bytes,expired:a.expired,url:`https://github.com/${owner}/${repo}/actions/runs/${run_id}/artifacts/${a.id}`}));
+                  report.complete_artifact=report.artifacts.find(a=>a.name===`workbench-complete-${run_id}` && !a.expired && a.size_bytes>0)||null;
+                  report.publication_steps=jobs.flatMap(j=>(j.steps||[]).filter(s=>s.name==='Publish only verified complete release').map(s=>({name:s.name,status:s.status,conclusion:s.conclusion})));
+                  report.main_checks=(await request('GET','commits/{ref}/check-runs',{ref:source,per_page:100})).check_runs.map(c=>({name:c.name,status:c.status,conclusion:c.conclusion,url:c.html_url}));
+                  report.failures=[];
+                  for(const job of jobs.filter(j=>['failure','timed_out','cancelled'].includes(j.conclusion)).slice(0,10)) {
+                    try {
+                      const response=await github.request('GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs',{...base,job_id:job.id});
+                      const text=typeof response.data==='string'?response.data:Buffer.from(response.data).toString('utf8');
+                      const lines=text.split('\n'), selected=new Set();
+                      for(let i=0;i<lines.length;i++) if(/--- FAIL:|##\[error\]|panic:|RuntimeError:|Traceback|error [A-Z]+\d+/.test(lines[i]) && !lines[i].includes('[36;1m')) {
+                        for(let j=Math.max(0,i-3);j<Math.min(lines.length,i+16);j++) selected.add(j);
+                      }
+                      let excerpt=selected.size?[...selected].sort((a,b)=>a-b).map(i=>lines[i]).join('\n'):lines.slice(-60).join('\n');
+                      excerpt=excerpt.replace(/(bearer\s+)[A-Za-z0-9._~+\/-]+=*/ig,'$1[redacted]').slice(0,16000);
+                      report.failures.push({id:job.id,name:job.name,failed_steps:job.steps.filter(s=>s.conclusion==='failure').map(s=>s.name),excerpt});
+                    } catch(error) {report.failures.push({id:job.id,error:error.message});}
+                  }
+                  report.verified_candidate=run.conclusion==='success' && !!report.complete_artifact && report.publication_steps.length===1 && report.publication_steps[0].conclusion==='skipped';
+                  await persist();
+                  await request('POST','issues/{issue_number}/comments',{issue_number:25,body:'合并候选编译结果：'+run.conclusion+'\n\n源码：'+source+'\n\n构建：'+report.url+'\n\n完整候选产物：'+(report.complete_artifact?.url||'尚未生成')+'\n\n发布步骤状态：'+JSON.stringify(report.publication_steps)+'\n\n状态和失败证据保存在 '+reportBranch+' 的 '+path+'。'});
+                  if(!report.verified_candidate) core.setFailed('Candidate verification did not complete successfully; inspect the persisted evidence');
+                  return;
+                }
+                await pause(60000);
+              }
+              throw new Error('Candidate is still running after observation budget; retain run identity without dispatching again');
+            } catch(error) {
+              report.observation_error=error.message;
+              try {await persist();} catch(saveError) {core.error('Failed to retain observer state: '+saveError.message);}
+              core.setFailed(error.message);
+            }
