@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:56:20.290Z",
+  "updated_at": "2026-09-29T11:58:23.299Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -96,7 +96,7 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109390848337",
-      "active_step": "Build Windows ZIP and offline Setup for each architecture"
+      "active_step": "Verify offline Setup installation and uninstall"
     },
     {
       "id": 109391102734,
@@ -108,42 +108,45 @@
     {
       "id": 109391681212,
       "name": "android / Emulator API 33",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681212",
-      "active_step": "Run navigation and screenshot tests"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681212"
     },
     {
       "id": 109391681260,
       "name": "android / Emulator API 26",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681260",
-      "active_step": "Run navigation and screenshot tests"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681260"
     },
     {
       "id": 109391681297,
       "name": "android / Emulator API 34",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681297",
-      "active_step": "Run navigation and screenshot tests"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681297"
     },
     {
       "id": 109391681317,
       "name": "android / Emulator API 35",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681317",
-      "active_step": "Run navigation and screenshot tests"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681317"
     },
     {
       "id": 109391681366,
       "name": "android / Emulator API 37",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681366"
+    },
+    {
+      "id": 109394790148,
+      "name": "android / Aggregate candidate evidence",
       "status": "in_progress",
       "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109391681366",
-      "active_step": "Run navigation and screenshot tests"
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109394790148",
+      "active_step": "Require every Android job and its actual evidence"
     }
   ]
 }
