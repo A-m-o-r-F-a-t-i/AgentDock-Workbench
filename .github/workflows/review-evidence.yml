@@ -4,71 +4,46 @@ on:
     branches: [ci/20260929-review-evidence]
     paths: [.github/workflows/review-evidence.yml]
 permissions:
-  contents: read
+  contents: write
   actions: read
   checks: read
-  pull-requests: read
+  pull-requests: write
   issues: write
 jobs:
   evidence:
     if: github.repository_id == '1370391430' && github.run_attempt == 1
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Read failed jobs without rerunning or modifying source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os, re, subprocess
-          repo = os.environ['GH_REPO']
-          def gh(*args):
-              result = subprocess.run(['gh', *args], text=True, capture_output=True, timeout=90)
-              if result.returncode:
-                  raise RuntimeError(result.stderr[-1500:])
-              return result.stdout
-          def api(path):
-              return json.loads(gh('api', 'repos/' + repo + '/' + path))
-          jobs = {108668983129, 109375028181, 109376652594}
-          heads = []
-          for number in [21, 23, 25]:
-              try:
-                  pr = api(f'pulls/{number}')
-                  sha = pr['head']['sha']
-                  checks = api(f'commits/{sha}/check-runs?per_page=100')['check_runs']
-                  heads.append({'pr': number, 'sha': sha, 'checks': [{k: c.get(k) for k in ['name','status','conclusion']} for c in checks]})
-                  for check in checks:
-                      if check.get('conclusion') == 'failure' and '/actions/runs/' in check.get('html_url',''):
-                          jobs.add(check['id'])
-              except Exception as error:
-                  heads.append({'pr': number, 'error': str(error)})
-          sections = ['## Requested merge-review evidence', 'Diagnostics only: no test reruns, source changes, publication or device installation.', '```json\n' + json.dumps(heads, ensure_ascii=False, indent=2) + '\n```']
-          for job_id in sorted(jobs)[:8]:
-              try:
-                  job = api(f'actions/jobs/{job_id}')
-                  text = gh('api', f'repos/{repo}/actions/jobs/{job_id}/logs')
-                  lines = text.splitlines()
-                  selected = set()
-                  for i, line in enumerate(lines):
-                      if re.search(r'--- FAIL:|\bFAIL\s+github|panic:|fatal error:|Unformatted Go|\.go:\d+:\d+:|Resource not accessible', line):
-                          selected.update(range(max(0,i-2), min(len(lines),i+14)))
-                  excerpt = '\n'.join(lines[i] for i in sorted(selected))
-                  if not excerpt:
-                      excerpt = '\n'.join(lines[-45:])
-                  excerpt = re.sub(r'(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*', r'\1[redacted]', excerpt)
-                  excerpt = excerpt.replace('```', "'''")[:15000]
-                  failed = [s['name'] for s in job.get('steps',[]) if s.get('conclusion') == 'failure']
-                  sections.extend([f"### Job {job_id}: {job.get('name')} — {job.get('conclusion')}", job.get('html_url',''), 'Failed steps: ' + ', '.join(failed), '```text\n' + excerpt + '\n```'])
-              except Exception as error:
-                  sections.append(f'Job {job_id} evidence unavailable: {error}')
-          body = '\n\n'.join(sections)[:60000]
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
-              report.write(body)
-          result = subprocess.run(['gh','api','--method','POST',f'repos/{repo}/issues/25/comments','--input','-'], input=json.dumps({'body':body}), text=True, capture_output=True, timeout=30)
-          if result.returncode:
-              raise RuntimeError(result.stderr[-1500:])
-          print(json.loads(result.stdout)['html_url'])
-          PY
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner, repo = context.repo.repo;
+            const report = {run_id: context.runId, source_changed: false, jobs: []};
+            for (const job_id of [109375028181, 109375028326, 108668983129, 109384073863]) {
+              try {
+                const job = (await github.request('GET /repos/{owner}/{repo}/actions/jobs/{job_id}', {owner,repo,job_id})).data;
+                const response = await github.request('GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs', {owner,repo,job_id});
+                const text = typeof response.data === 'string' ? response.data : Buffer.from(response.data).toString('utf8');
+                const lines = text.split('\n'), selected = new Set();
+                for (let i=0;i<lines.length;i++) {
+                  if (/--- FAIL:|\bFAIL\s+github|panic:|fatal error:|Unformatted Go|\.go:\d+:\d+:|Traceback|RuntimeError|SyntaxError|Resource not accessible/.test(lines[i])) {
+                    for (let j=Math.max(0,i-2);j<Math.min(lines.length,i+16);j++) selected.add(j);
+                  }
+                }
+                let excerpt = selected.size ? [...selected].sort((a,b)=>a-b).map(i=>lines[i]).join('\n') : lines.slice(-50).join('\n');
+                excerpt = excerpt.replace(/(bearer\s+)[A-Za-z0-9._~+\/-]+=*/ig,'$1[redacted]').slice(0,18000);
+                report.jobs.push({job_id, name:job.name, conclusion:job.conclusion, url:job.html_url, failed_steps:job.steps.filter(s=>s.conclusion==='failure').map(s=>s.name), excerpt});
+              } catch(error) {
+                report.jobs.push({job_id,error:error.message});
+                core.warning(`Evidence ${job_id}: ${error.message}`);
+              }
+            }
+            const body='## Requested merge review — exact failure evidence\n\n```json\n'+JSON.stringify(report,null,2)+'\n```';
+            await core.summary.addRaw(body).write();
+            const branch='ci/20260929-review-evidence', path='diagnostics/review-evidence.json';
+            let sha;
+            try { sha=(await github.request('GET /repos/{owner}/{repo}/contents/{path}', {owner,repo,path,ref:branch})).data.sha; } catch(error) { if(error.status!==404) throw error; }
+            await github.request('PUT /repos/{owner}/{repo}/contents/{path}', {owner,repo,path,branch,sha,message:'docs: retain sanitized requested review evidence',content:Buffer.from(JSON.stringify(report,null,2)+'\n').toString('base64')});
+            try { await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {owner,repo,issue_number:25,body}); }
+            catch(error) { core.warning(`Comment delivery failed; report persisted in ${branch}: ${error.message}`); }
