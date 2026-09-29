@@ -93,8 +93,11 @@ internal static class FrontendSafetyTests
     {
         using var f = new Fixture(); var w = f.Window;
         ReloadSidebar(w);
+        Layout(w);
         Await(Run(w, "SelectAllObjectsAsync"));
         check(Field<string[]>(w, "_frozenSelection").SequenceEqual(new[] { "A1", "A2" }), "WIN-01: initial select-all failed.");
+        check(Named<ListBox>(w, "ObjectsList").SelectedItems.Cast<ExecutionObject>().Count(row => !row.IsGroupFooter) == 2,
+            "WIN-01: fixture never materialized the two selected WPF rows.");
         Named<TextBox>(w, "SearchBox").Text = "A2"; StopSearchTimer(w);
         check(Field<string[]?>(w, "_frozenSelection") is null, "WIN-01: search kept a frozen selection.");
         ReloadSidebar(w);
@@ -252,6 +255,9 @@ internal static class FrontendSafetyTests
             };
             Set(panel, "_capabilityInventory", inventory);
             Invoke(panel, "RenderCapabilityInventory");
+            var pages = Named<TabControl>(panel, "MainPages");
+            pages.SelectedItem = pages.Items.OfType<TabItem>().Single(tab => Equals(tab.Tag, "capabilities"));
+            Layout(panel);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var writes = 0; var reads = 0;
             var mutation = panel.RunCapabilityMutationAsync(async () => { writes++; await release.Task; }, () => { reads++; return Task.CompletedTask; });
@@ -268,7 +274,10 @@ internal static class FrontendSafetyTests
             Await(panel.RunCapabilityMutationAsync(() => Task.CompletedTask, () => { inventory.Errors["plugins"] = "fixture unavailable"; return Task.CompletedTask; }));
             check(!Field<bool>(panel, "_capabilityControlsEnabled"), "WIN-04: unavailable inventory was made editable.");
 
+            pages.SelectedItem = pages.Items.OfType<TabItem>().Single(tab => Equals(tab.Tag, "advanced"));
+            Layout(panel);
             Set(panel, "_settingsLoaded", true);
+            check(Named<TextBox>(panel, "PortTextBox").IsEnabled, "WIN-07: editor was not enabled before save.");
             Named<TextBox>(panel, "BrowserCdpUrlTextBox").Text = "http://127.0.0.1:9222";
             var settings = new ControlPanelSettings { BrowserCdpUrl = "http://127.0.0.1:9222", AcpProfiles = [new AcpProfileSettings { Id = "old", Kind = "custom" }] };
             release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -290,7 +299,13 @@ internal static class FrontendSafetyTests
         finally
         {
             panel.CloseForReplacement();
-            Directory.Delete(root, true);
+            // Render telemetry drains on a worker. Wait for its bounded private
+            // log handle before deleting the fixture; never hide a test failure.
+            PumpUntil(() =>
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); return true; }
+                catch (IOException) { return false; }
+            });
         }
     }
 
@@ -309,7 +324,12 @@ internal static class FrontendSafetyTests
             Window.RemoveHandler(FrameworkElement.LoadedEvent, Delegate.CreateDelegate(typeof(RoutedEventHandler), Window, loaded));
             Set(Window, "_updating", true);
             var row = ExecutionObject.From(JsonSerializer.SerializeToElement(new { conversation_id = "A2", title = "A2", task_ids = Array.Empty<string>(), state = new { workspace_id = "fixture" }, statistics = new { } }), "conversation");
-            Window.Objects.Add(row); Named<ListBox>(Window, "ObjectsList").SelectedItem = row;
+            row.WorkspaceKey = new WorkspaceGroupKey("fixture", "Fixture");
+            Window.Objects.Add(row);
+            // Materialize bindings/templates before exercising native selection.
+            Layout(Window);
+            Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle).Task);
+            Named<ListBox>(Window, "ObjectsList").SelectedItem = row;
             Set(Window, "_selected", row); Set(Window, "_sidebarStreamTask", Task.CompletedTask);
             Set(Window, "_sidebarScope", "active\n");
             Set(Window, "_updating", false); Set(Window, "_initialized", initialized);
