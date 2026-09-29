@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:41:59.962Z",
+  "updated_at": "2026-09-29T11:44:02.601Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -16,10 +16,86 @@
     {
       "id": 109389250254,
       "name": "resolve-source",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389250254"
+    },
+    {
+      "id": 109389384771,
+      "name": "Native linux amd64",
       "status": "in_progress",
       "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389250254",
-      "active_step": "Run actions/checkout@v5"
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384771",
+      "active_step": "Post Run actions/checkout@v5"
+    },
+    {
+      "id": 109389384800,
+      "name": "Native linux arm64",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384800"
+    },
+    {
+      "id": 109389384832,
+      "name": "Native darwin arm64",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384832",
+      "active_step": "Native macOS app and packaging contracts"
+    },
+    {
+      "id": 109389384874,
+      "name": "Native darwin amd64",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384874",
+      "active_step": "Native backend regression"
+    },
+    {
+      "id": 109389385462,
+      "name": "windows / Resolve requested ref once",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389385462"
+    },
+    {
+      "id": 109389385525,
+      "name": "android / Source and bridge contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389385525"
+    },
+    {
+      "id": 109389444678,
+      "name": "windows / Linux transaction and concurrency regression",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389444678",
+      "active_step": "Race detection on critical concurrency contracts"
+    },
+    {
+      "id": 109389445001,
+      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445001",
+      "active_step": "Native backup fidelity and restoration"
+    },
+    {
+      "id": 109389445025,
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445025",
+      "active_step": "Native backup fidelity and restoration"
+    },
+    {
+      "id": 109389466591,
+      "name": "android / Android lint, unit tests and APKs",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389466591",
+      "active_step": "Lint, unit test and build APKs"
     }
   ]
 }
