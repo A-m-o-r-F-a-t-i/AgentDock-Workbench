@@ -64,15 +64,26 @@ internal static class FrontendSafetyTests
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         try
         {
+            var failures = new List<Exception>();
+            var scenarios = new (string Name, Action<Action<bool, string>> Run)[]
+            {
+                ("selection", SelectionSnapshots), ("tasks", TaskTargetsAndRefresh),
+                ("stop", StopAvailability), ("close", InitializationClose),
+                ("export", FixedExports), ("panel", PanelMutationGuards)
+            };
             for (var iteration = 0; iteration < 3; iteration++)
             {
-                SelectionSnapshots(check);
-                TaskTargetsAndRefresh(check);
-                StopAvailability(check);
-                InitializationClose(check);
-                FixedExports(check);
-                PanelMutationGuards(check);
+                foreach (var scenario in scenarios)
+                {
+                    try { scenario.Run(check); Console.WriteLine($"Safety {scenario.Name} iteration {iteration + 1}: passed"); }
+                    catch (Exception error)
+                    {
+                        failures.Add(error);
+                        Console.Error.WriteLine($"Safety {scenario.Name} iteration {iteration + 1}: {error}");
+                    }
+                }
             }
+            if (failures.Count > 0) throw new AggregateException("Native frontend safety regressions failed.", failures);
             Console.WriteLine("WIN-01..WIN-08 native WPF safety regressions passed (3 iterations, fixture transport only).");
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
@@ -88,7 +99,7 @@ internal static class FrontendSafetyTests
         check(Field<string[]?>(w, "_frozenSelection") is null, "WIN-01: search kept a frozen selection.");
         ReloadSidebar(w);
         var selected = (string[])Invoke(w, "SelectedObjectIds")!;
-        check(selected.SequenceEqual(new[] { "A2" }), "WIN-01: narrowed scope retained old IDs.");
+        check(selected.SequenceEqual(new[] { "A2" }), $"WIN-01: narrowed selection=[{string.Join(",", selected)}], cachedScope={Field<string>(w, "_sidebarScope")}, requestedScope={Invoke(w, "SidebarScope")}, rows=[{string.Join(",", w.Objects.Select(row => row.Id))}], selectedRows=[{string.Join(",", Named<ListBox>(w, "ObjectsList").SelectedItems.Cast<ExecutionObject>().Select(row => row.Id))}], warning={Named<TextBlock>(w, "WarningText").Text}");
         Await(Run(w, "BatchAsync", "conversation", selected, "archive", "", null));
         check(f.Transport.Batches.Single().SequenceEqual(new[] { "A2" }), "WIN-01: actual batch request had wrong IDs.");
 
