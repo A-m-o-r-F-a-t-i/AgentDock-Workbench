@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Script governance inventory
+        run: go test ./scripts/test -run '^TestScriptGovernanceInventoryCoversWorkspaceScripts$' -count=1
       - name: Repeated transport regressions
         run: go test ./internal/requesttrace ./internal/mcp ./internal/httpx -run 'TestTrace|TestContextTransport' -count=3 -timeout=5m
       - name: Repeated command tool regressions
