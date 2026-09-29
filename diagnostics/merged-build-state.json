@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T11:44:02.601Z",
+  "updated_at": "2026-09-29T11:46:05.140Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -23,10 +23,9 @@
     {
       "id": 109389384771,
       "name": "Native linux amd64",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384771",
-      "active_step": "Post Run actions/checkout@v5"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384771"
     },
     {
       "id": 109389384800,
@@ -38,10 +37,9 @@
     {
       "id": 109389384832,
       "name": "Native darwin arm64",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384832",
-      "active_step": "Native macOS app and packaging contracts"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384832"
     },
     {
       "id": 109389384874,
@@ -49,7 +47,7 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389384874",
-      "active_step": "Native backend regression"
+      "active_step": "Native macOS app and packaging contracts"
     },
     {
       "id": 109389385462,
@@ -68,10 +66,9 @@
     {
       "id": 109389444678,
       "name": "windows / Linux transaction and concurrency regression",
-      "status": "in_progress",
-      "conclusion": null,
-      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389444678",
-      "active_step": "Race detection on critical concurrency contracts"
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389444678"
     },
     {
       "id": 109389445001,
@@ -79,7 +76,7 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445001",
-      "active_step": "Native backup fidelity and restoration"
+      "active_step": "Actual scheduled task and native process recovery"
     },
     {
       "id": 109389445025,
@@ -87,7 +84,7 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109389445025",
-      "active_step": "Native backup fidelity and restoration"
+      "active_step": "Actual scheduled task and native process recovery"
     },
     {
       "id": 109389466591,
