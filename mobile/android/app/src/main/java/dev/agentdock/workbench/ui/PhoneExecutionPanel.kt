@@ -63,4 +63,5 @@ fun PhoneExecutionPanel(state: WorkbenchUiState) {
             OutlinedButton(onClick = executor::stop, enabled = status.enabled) { Text("停止执行器") }
         }
     }
+    ShizukuExecutionPanel(state.fixture)
 }

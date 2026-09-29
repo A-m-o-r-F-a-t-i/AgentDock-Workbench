@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(agentdock_exec LANGUAGES C)
+add_library(agentdock_exec SHARED owned_process.c)
+target_compile_features(agentdock_exec PRIVATE c_std_11)
+target_compile_options(agentdock_exec PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(agentdock_exec PRIVATE "-Wl,-z,max-page-size=16384")
