@@ -7,7 +7,7 @@
   "installation_tests": true,
   "ignore_macos_intel_scale": false,
   "stage": "running",
-  "updated_at": "2026-09-29T12:00:26.415Z",
+  "updated_at": "2026-09-29T12:02:29.750Z",
   "run_id": 36563343259,
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259",
   "status": "in_progress",
@@ -152,7 +152,7 @@
       "status": "in_progress",
       "conclusion": null,
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/36563343259/job/109395283158",
-      "active_step": "Run actions/setup-go@v6"
+      "active_step": "Isolated ARM64 install repair and uninstall"
     },
     {
       "id": 109395283225,
