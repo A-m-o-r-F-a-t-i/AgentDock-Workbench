@@ -39,12 +39,15 @@ func TestStatusPageRendersConnectionAndResourceLinks(t *testing.T) {
 	body := response.Body.String()
 	for _, expected := range []string{
 		"AgentDock Workbench",
+		"AI Agent task and execution workbench",
+		"Workbench instance is ready.",
 		"https://agentdock.example.com/mcp",
-		"github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench",
-		"uvwt.github.io/agentdock-docs",
-		"1081337019",
+		"https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench",
+		"https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases",
+		"https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/tree/main/docs",
 		`class="state-enabled"`,
 		`class="state-auth"`,
+		`class="resource resource-releases"`,
 		`class="resource resource-documentation"`,
 		">OAuth<",
 		">Enabled<",
@@ -52,6 +55,16 @@ func TestStatusPageRendersConnectionAndResourceLinks(t *testing.T) {
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("status page missing %q", expected)
+		}
+	}
+	for _, unexpected := range []string{
+		"github.com/uvwt/agentdock",
+		"uvwt.github.io/agentdock-docs",
+		"1081337019",
+		"QQ Group",
+	} {
+		if strings.Contains(body, unexpected) {
+			t.Fatalf("status page unexpectedly contains upstream-only resource %q", unexpected)
 		}
 	}
 }
@@ -67,13 +80,16 @@ func TestStatusPageUsesChineseForChineseBrowserLanguage(t *testing.T) {
 	body := response.Body.String()
 	for _, expected := range []string{
 		`<html lang="zh-CN">`,
-		"AI Agent 设备运行时",
-		"已准备好为 AI Agent 提供能力。",
+		"AI Agent 任务与执行工作台",
+		"工作台实例已就绪。",
 		"MCP 端点",
 		`data-copied="已复制"`,
 		"GitHub 仓库",
-		"安装、配置与使用指南。",
-		`href="https://uvwt.github.io/agentdock-docs/zh-CN/"`,
+		"版本发布",
+		"下载安装包并查看版本说明。",
+		"查看本分支的架构、权限、安装与开发说明。",
+		`href="https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases"`,
+		`href="https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/tree/main/docs"`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("Chinese status page missing %q", expected)

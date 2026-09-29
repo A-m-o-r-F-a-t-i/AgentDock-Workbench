@@ -14,11 +14,10 @@ import (
 )
 
 const (
-	agentDockRepositoryURL = "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench"
-	agentDockDocsURL       = "https://uvwt.github.io/agentdock-docs/"
-	agentDockQQGroup       = "1081337019"
-	agentDockQQGroupURL    = "https://qun.qq.com/universal-share/share?ac=1&authKey=Rp86bSzI7vqm87KoYlKawgsPZ440Ubhyezw6Qkgcn3JISwX3zXxsXkbS5598RrY5&busi_data=eyJncm91cENvZGUiOiIxMDgxMzM3MDE5IiwidG9rZW4iOiJ0Mlg1bUU1ZWtuZzF3SHJDT3pSaGsrOURIMlNYaXBlYllOUjNLZ1BUb1hzM2lJSTZjeVNldzU0ajl0SjRVZkx2IiwidWluIjoiMzIwMjA4ODAzMiJ9&data=W28mWvuqaLf_Fwnf0CgAJXuDs6l3A78V7AoWZnizPboCpKoQMzHzZ-UlluYo47U3tmIBHK2xIgWEVEJbTiGsPQ&svctype=4&tempid=h5_group_info"
-	statusPageCSP          = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"
+	agentDockRepositoryURL    = "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench"
+	agentDockReleasesURL      = agentDockRepositoryURL + "/releases"
+	agentDockDocumentationURL = agentDockRepositoryURL + "/tree/main/docs"
+	statusPageCSP             = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"
 )
 
 // 状态页保持完全自包含，避免公开入口依赖第三方静态资源或额外前端构建链路。
@@ -54,21 +53,20 @@ type statusPageText struct {
 	Resources         string
 	Repository        string
 	RepositoryDesc    string
+	Releases          string
+	ReleasesDesc      string
 	Documentation     string
 	DocumentationDesc string
-	QQGroup           string
-	QQGroupDesc       string
 	OpenSource        string
 	License           string
-	DocumentationURL  string
 }
 
 var statusPageEnglish = statusPageText{
 	Lang:              "en",
-	Subtitle:          "AI Agent device runtime",
+	Subtitle:          "AI Agent task and execution workbench",
 	Online:            "Online",
-	ReadyTitle:        "Ready for AI agents.",
-	ReadyDescription:  "This AgentDock Workbench instance is online and ready to expose local capabilities through MCP.",
+	ReadyTitle:        "Workbench instance is ready.",
+	ReadyDescription:  "This AgentDock Workbench instance is online and ready to expose local tools, tasks, and execution capabilities through MCP.",
 	Version:           "Version",
 	System:            "System",
 	Capabilities:      "Capabilities",
@@ -89,21 +87,20 @@ var statusPageEnglish = statusPageText{
 	Resources:         "Resources",
 	Repository:        "GitHub Repository",
 	RepositoryDesc:    "Source code, releases and issue tracking.",
+	Releases:          "Releases",
+	ReleasesDesc:      "Download platform packages and review release notes.",
 	Documentation:     "Documentation",
-	DocumentationDesc: "Installation, configuration and usage guides.",
-	QQGroup:           "QQ Group",
-	QQGroupDesc:       "Community discussion, support and feedback.",
+	DocumentationDesc: "Architecture, permissions, installation and development notes for this fork.",
 	OpenSource:        "AgentDock Workbench · Open Source",
 	License:           "MIT License",
-	DocumentationURL:  agentDockDocsURL,
 }
 
 var statusPageChinese = statusPageText{
 	Lang:              "zh-CN",
-	Subtitle:          "AI Agent 设备运行时",
+	Subtitle:          "AI Agent 任务与执行工作台",
 	Online:            "在线",
-	ReadyTitle:        "已准备好为 AI Agent 提供能力。",
-	ReadyDescription:  "当前 AgentDock Workbench 实例在线，可通过 MCP 提供本机能力。",
+	ReadyTitle:        "工作台实例已就绪。",
+	ReadyDescription:  "当前 AgentDock Workbench 实例在线，可通过 MCP 提供本机工具、任务与执行能力。",
 	Version:           "版本",
 	System:            "系统",
 	Capabilities:      "能力",
@@ -124,13 +121,12 @@ var statusPageChinese = statusPageText{
 	Resources:         "资源",
 	Repository:        "GitHub 仓库",
 	RepositoryDesc:    "源代码、版本发布与问题反馈。",
-	Documentation:     "文档",
-	DocumentationDesc: "安装、配置与使用指南。",
-	QQGroup:           "QQ 群",
-	QQGroupDesc:       "社区交流、使用支持与反馈。",
+	Releases:          "版本发布",
+	ReleasesDesc:      "下载安装包并查看版本说明。",
+	Documentation:     "项目文档",
+	DocumentationDesc: "查看本分支的架构、权限、安装与开发说明。",
 	OpenSource:        "AgentDock Workbench · 开源",
 	License:           "MIT 许可证",
-	DocumentationURL:  agentDockDocsURL + "zh-CN/",
 }
 
 type statusPageData struct {
@@ -148,9 +144,8 @@ type statusPageData struct {
 	AuthEnabled      bool
 	AuthStatus       string
 	RepositoryURL    string
+	ReleasesURL      string
 	DocumentationURL string
-	QQGroup          string
-	QQGroupURL       string
 }
 
 func statusPageHandler(server *mcp.Server, cfg config.Config) http.HandlerFunc {
@@ -184,9 +179,8 @@ func statusPageHandler(server *mcp.Server, cfg config.Config) http.HandlerFunc {
 			AuthEnabled:      authEnabled,
 			AuthStatus:       authLabel(text, cfg),
 			RepositoryURL:    agentDockRepositoryURL,
-			DocumentationURL: text.DocumentationURL,
-			QQGroup:          agentDockQQGroup,
-			QQGroupURL:       agentDockQQGroupURL,
+			ReleasesURL:      agentDockReleasesURL,
+			DocumentationURL: agentDockDocumentationURL,
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

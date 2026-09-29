@@ -274,7 +274,7 @@
       background: var(--accent-bg);
     }
 
-    .resource-community:hover {
+    .resource-releases:hover {
       border-color: var(--violet-border);
       background: var(--violet-bg);
     }
@@ -299,7 +299,7 @@
       background: var(--accent);
     }
 
-    .resource-community .resource-title::before {
+    .resource-releases .resource-title::before {
       background: var(--violet);
     }
 
@@ -455,21 +455,21 @@
             <div class="resource-title">{{.Text.Repository}}</div>
             <div class="resource-desc">{{.Text.RepositoryDesc}}</div>
           </div>
-          <div class="resource-link"><span>github.com/uvwt/agentdock</span><span class="arrow">↗</span></div>
+          <div class="resource-link"><span>github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench</span><span class="arrow">↗</span></div>
+        </a>
+        <a class="resource resource-releases" href="{{.ReleasesURL}}" target="_blank" rel="noreferrer">
+          <div>
+            <div class="resource-title">{{.Text.Releases}}</div>
+            <div class="resource-desc">{{.Text.ReleasesDesc}}</div>
+          </div>
+          <div class="resource-link"><span>github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases</span><span class="arrow">↗</span></div>
         </a>
         <a class="resource resource-documentation" href="{{.DocumentationURL}}" target="_blank" rel="noreferrer">
           <div>
             <div class="resource-title">{{.Text.Documentation}}</div>
             <div class="resource-desc">{{.Text.DocumentationDesc}}</div>
           </div>
-          <div class="resource-link"><span>uvwt.github.io/agentdock-docs</span><span class="arrow">↗</span></div>
-        </a>
-        <a class="resource resource-community" href="{{.QQGroupURL}}" target="_blank" rel="noreferrer">
-          <div>
-            <div class="resource-title">{{.Text.QQGroup}}</div>
-            <div class="resource-desc">{{.Text.QQGroupDesc}}</div>
-          </div>
-          <div class="resource-link"><span>{{.QQGroup}}</span><span class="arrow">↗</span></div>
+          <div class="resource-link"><span>github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/tree/main/docs</span><span class="arrow">↗</span></div>
         </a>
       </div>
     </section>
