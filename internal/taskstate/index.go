@@ -85,7 +85,7 @@ func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "tsk_") || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		data, readErr := readTaskStateFile(filepath.Join(s.root, entry.Name()))
+		data, readErr := s.readTaskStateFile(filepath.Join(s.root, entry.Name()))
 		if readErr != nil {
 			warn("Could not read " + entry.Name())
 			continue

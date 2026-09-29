@@ -1,0 +1,90 @@
+# One-shot release request authorized for PR21. The parent-commit guard prevents
+# later edits or unrelated pushes from starting another release. The existing
+# Workbench workflow remains the only owner of artifact validation/publication.
+name: Requested 1.1.8 prerelease
+on:
+  push:
+    branches: [fix/20260927-android-security-audit]
+    paths: [.github/workflows/prerelease-request-1.1.8.yml]
+permissions:
+  contents: read
+  actions: write
+  issues: write
+concurrency:
+  group: requested-workbench-1.1.8
+  cancel-in-progress: false
+jobs:
+  request:
+    if: github.repository_id == '1370391430' && github.event.deleted != true && github.event.forced != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      REQUEST_SHA: ${{ github.sha }}
+      REQUEST_BRANCH: fix/20260927-android-security-audit
+    steps:
+      - name: Validate one-shot source and dispatch existing release gate
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          parent="$(gh api "repos/$GH_REPO/commits/$REQUEST_SHA" --jq '.parents[0].sha')"
+          test "$parent" = 90b618a314344b2fa0897cc2840f2c4659c1306e
+          remote="$(gh api "repos/$GH_REPO/git/ref/heads/$REQUEST_BRANCH" --jq '.object.sha')"
+          test "$remote" = "$REQUEST_SHA"
+          gh api --method GET "repos/$GH_REPO/contents/internal/buildinfo/buildinfo.go" -f ref="$REQUEST_SHA" -H 'Accept: application/vnd.github.raw+json' > version.go
+          grep -F 'const Version = "1.1.8"' version.go
+          existing="$(gh api --method GET "repos/$GH_REPO/actions/workflows/workbench-release.yml/runs" -f head_sha="$REQUEST_SHA" -f event=workflow_dispatch --jq '.workflow_runs | length')"
+          if [[ "$existing" == 0 ]]; then
+            gh workflow run workbench-release.yml --repo "$GH_REPO" --ref "$REQUEST_BRANCH" -f ref="$REQUEST_SHA" -f publish=true -f prerelease=true -f installation_tests=true -f ignore_macos_intel_scale=false
+          fi
+          for attempt in $(seq 1 12); do
+            gh api --method GET "repos/$GH_REPO/actions/workflows/workbench-release.yml/runs" -f head_sha="$REQUEST_SHA" -f event=workflow_dispatch > runs.json
+            count="$(jq '.workflow_runs | length' runs.json)"
+            if [[ "$count" == 1 ]]; then
+              run_id="$(jq -r '.workflow_runs[0].id' runs.json)"
+              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+              echo "release_run=$run_id" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            test "$count" = 0
+            sleep 5
+          done
+          echo 'Dispatch was submitted but its identity is not visible; inspect before retrying.' >&2
+          exit 1
+      - name: Observe requested release without replaying tests
+        env:
+          RELEASE_RUN: ${{ steps.dispatch.outputs.run_id }}
+        run: gh run watch "$RELEASE_RUN" --repo "$GH_REPO" --exit-status --interval 30
+      - name: Preserve final release evidence on the existing review
+        if: always() && steps.dispatch.outputs.run_id != ''
+        env:
+          RELEASE_RUN: ${{ steps.dispatch.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$RELEASE_RUN" > run.json
+          gh api "repos/$GH_REPO/actions/runs/$RELEASE_RUN/jobs?per_page=100" > jobs.json
+          python3 - <<'PY'
+          import json, os
+          run=json.load(open('run.json')); jobs=json.load(open('jobs.json'))['jobs']
+          lines=['## 1.1.8 prerelease validation', '', 'Source: `'+os.environ['REQUEST_SHA']+'`',
+                 'Run: '+run['html_url'], 'State: '+run['status']+' / '+str(run.get('conclusion')), '',
+                 'Requested channel: prerelease=true, make_latest=false. No production-device installation.', '']
+          for job in jobs:
+              if job.get('conclusion') in ('failure','cancelled','timed_out'):
+                  lines.append('- '+job['name']+': '+job['conclusion']+'; '+job['html_url'])
+          open('review-summary.md','w').write('\n'.join(lines)+'\n')
+          PY
+          if jq -e '.conclusion != "success"' run.json >/dev/null; then
+            gh run view "$RELEASE_RUN" --repo "$GH_REPO" --log-failed > failures.log || true
+            python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('failures.log').read_text(errors='replace').splitlines()
+          selected=[line for line in lines if any(word in line.lower() for word in ('fail','error','panic','exception','missing'))][-35:]
+          with open('review-summary.md','a') as stream:
+              stream.write('\n```text\n'+'\n'.join(selected)[-12000:]+'\n```\n')
+          PY
+          fi
+          gh pr comment 21 --repo "$GH_REPO" --body-file review-summary.md

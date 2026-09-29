@@ -1,0 +1,80 @@
+name: Installer Payload Regression
+
+on:
+  push:
+    branches:
+      - fix/20260927-installer-reliability-speed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-payload-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Payload contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check source formatting
+        run: |
+          set -euo pipefail
+          files=(internal/installer/{engine,apply,payload,payload_copy,payload_copy_test,payload_reliability_test}.go)
+          test -z "$(gofmt -l "${files[@]}")"
+          mkdir -p artifacts/installer-payload
+          go version | tee artifacts/installer-payload/toolchain.txt
+          git rev-parse HEAD | tee artifacts/installer-payload/commit.txt
+      - name: Run focused regressions
+        run: |
+          set -euo pipefail
+          go test ./internal/installer -run '^(TestCopyTree|TestWindowsPublishDoesNotReuseInterruptedStaging|TestWindowsActivationFailureRestoresStableLaunchers|TestUnixSameVersionStageRollbackRestoresGeneration|TestUnixStageFailureLeavesExistingGenerationUntouched|TestUnixNoPayloadRepairKeepsInstalledBundle|TestWindowsPublishFailureCleansOnlyOwnStaging)' -count=3 -timeout=5m -v 2>&1 | tee artifacts/installer-payload/focused.log
+      - name: Verify regressions fail on original source
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          baseline="$RUNNER_TEMP/installer-payload-baseline"
+          git worktree add --detach "$baseline" 0591339a3ba25cbf4c3c8d11d8dae0091e0b2a23
+          cp internal/installer/payload_reliability_test.go "$baseline/internal/installer/"
+          set +e
+          (cd "$baseline" && go test ./internal/installer -run '^(TestWindowsPublishDoesNotReuseInterruptedStaging|TestWindowsActivationFailureRestoresStableLaunchers|TestUnixSameVersionStageRollbackRestoresGeneration|TestUnixStageFailureLeavesExistingGenerationUntouched)$' -count=1 -timeout=5m -v) > artifacts/installer-payload/baseline.log 2>&1
+          result=$?
+          set -e
+          cat artifacts/installer-payload/baseline.log
+          test "$result" -ne 0
+          for name in TestWindowsPublishDoesNotReuseInterruptedStaging TestWindowsActivationFailureRestoresStableLaunchers TestUnixSameVersionStageRollbackRestoresGeneration TestUnixStageFailureLeavesExistingGenerationUntouched; do
+            grep -F -- "--- FAIL: $name " artifacts/installer-payload/baseline.log
+          done
+      - name: Compare copy allocation and throughput
+        run: |
+          set -euo pipefail
+          go test ./internal/installer -run '^$' -bench '^BenchmarkInstallerPayloadCopy$' -benchmem -benchtime=3x -count=3 -timeout=3m 2>&1 | tee artifacts/installer-payload/benchmark.log
+      - name: Run installer and retention suites
+        run: |
+          set -euo pipefail
+          go test -p 2 ./internal/installer ./internal/generationretention ./internal/updateengine -count=1 -timeout=8m 2>&1 | tee artifacts/installer-payload/suites.log
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-payload-${{ runner.os }}-${{ github.sha }}
+          path: artifacts/installer-payload
+          if-no-files-found: error
+          retention-days: 14

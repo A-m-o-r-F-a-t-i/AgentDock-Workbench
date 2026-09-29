@@ -36,7 +36,7 @@ func (s *Store) loadManagementLocked() error {
 	} else if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	data, err := readTaskStateFile(path)
+	data, err := s.readTaskStateFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -180,7 +180,7 @@ func (s *Store) ManagedTasks(ctx context.Context, query TaskQuery) (ManagedTaskP
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "tsk_") || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		data, readErr := readTaskStateFile(filepath.Join(s.root, entry.Name()))
+		data, readErr := s.readTaskStateFile(filepath.Join(s.root, entry.Name()))
 		if readErr != nil {
 			if len(page.Warnings) < 8 {
 				page.Warnings = append(page.Warnings, "无法读取任务："+entry.Name())
@@ -334,7 +334,7 @@ func (s *Store) applyDeleteLocked(id string) error {
 }
 func (s *Store) recoverManagementDeleteLocked() error {
 	path := filepath.Join(s.root, ".management-delete.json")
-	data, err := readTaskStateFile(path)
+	data, err := s.readTaskStateFile(path)
 	if os.IsNotExist(err) {
 		return nil
 	}

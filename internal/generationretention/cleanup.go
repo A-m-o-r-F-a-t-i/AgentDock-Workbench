@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 )
 
 const maxStateFileBytes = 1 << 20
@@ -53,7 +55,7 @@ func CollectPolicy(stateRoot, versionsDir string) (Policy, error) {
 		return Policy{}, fmt.Errorf("resolve generation versions directory: %w", err)
 	}
 
-	active, err := readStateRecord(filepath.Join(root, "active-version.json"), true)
+	active, err := readStateRecord(root, "active-version.json", true)
 	if err != nil {
 		return Policy{}, fmt.Errorf("read active generation pointer: %w", err)
 	}
@@ -73,7 +75,7 @@ func CollectPolicy(stateRoot, versionsDir string) (Policy, error) {
 		filepath.Join("install", "transaction.json"),
 		filepath.Join("update", "transaction.json"),
 	} {
-		record, readErr := readStateRecord(filepath.Join(root, relative), false)
+		record, readErr := readStateRecord(root, relative, false)
 		if readErr != nil {
 			return Policy{}, fmt.Errorf("read generation transaction %s: %w", relative, readErr)
 		}
@@ -121,7 +123,7 @@ func CollectPolicy(stateRoot, versionsDir string) (Policy, error) {
 // Clean removes only immediate, unreferenced generation directories. Removal
 // failures are reported as warnings and are safe to retry.
 func Clean(policy Policy) Report {
-	return clean(policy, os.RemoveAll)
+	return clean(policy, nil)
 }
 
 func clean(policy Policy, removeAll func(string) error) Report {
@@ -132,6 +134,17 @@ func clean(policy Policy, removeAll func(string) error) Report {
 		return report
 	}
 	versionsDir = filepath.Clean(versionsDir)
+	activeKey := canonicalVersion(policy.ActiveVersion)
+	if activeKey == "" || filepath.Dir(versionsDir) == versionsDir {
+		report.Warnings = append(report.Warnings, "generation cleanup skipped: no safe active generation or versions directory")
+		return report
+	}
+	for _, version := range append([]string{policy.FallbackVersion}, policy.ProtectedVersions...) {
+		if strings.TrimSpace(version) != "" && canonicalVersion(version) == "" {
+			report.Warnings = append(report.Warnings, "generation cleanup skipped: invalid protected generation reference")
+			return report
+		}
+	}
 
 	protected := map[string]string{}
 	protectVersion(protected, policy.ActiveVersion)
@@ -146,12 +159,39 @@ func clean(policy Policy, removeAll func(string) error) Report {
 		return canonicalVersion(report.Protected[i]) < canonicalVersion(report.Protected[j])
 	})
 
-	entries, err := os.ReadDir(versionsDir)
+	handle, err := os.OpenRoot(versionsDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("generation cleanup could not open versions: %v", err))
+		}
+		return report
+	}
+	defer handle.Close()
+	entries, err := fs.ReadDir(handle.FS(), ".")
 	if err != nil {
 		if !os.IsNotExist(err) {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("generation cleanup could not enumerate versions: %v", err))
 		}
 		return report
+	}
+	activePresent := false
+	for _, entry := range entries {
+		if entry.IsDir() && canonicalVersion(entry.Name()) == activeKey {
+			activePresent = true
+		}
+	}
+	if !activePresent {
+		report.Warnings = append(report.Warnings, "generation cleanup skipped: active generation is absent from the pinned versions directory")
+		return report
+	}
+	if removeAll == nil {
+		removeAll = func(target string) error {
+			relative, err := filepath.Rel(versionsDir, target)
+			if err != nil || !filepath.IsLocal(relative) || filepath.Dir(relative) != "." {
+				return errors.New("unsafe generation removal target")
+			}
+			return handle.RemoveAll(relative)
+		}
 	}
 	sort.Slice(entries, func(i, j int) bool { return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name()) })
 	for _, entry := range entries {
@@ -176,7 +216,7 @@ func clean(policy Policy, removeAll func(string) error) Report {
 		if err := removeAll(path); err != nil {
 			removal.Error = err.Error()
 			report.Warnings = append(report.Warnings, fmt.Sprintf("generation %s could not be removed: %v", removal.Version, err))
-		} else if _, err := os.Lstat(path); err == nil || !os.IsNotExist(err) {
+		} else if _, err := handle.Lstat(name); err == nil || !os.IsNotExist(err) {
 			if err == nil {
 				removal.Error = "path still exists after removal"
 			} else {
@@ -189,58 +229,44 @@ func clean(policy Policy, removeAll func(string) error) Report {
 	return report
 }
 
-func readStateRecord(path string, required bool) (*stateRecord, error) {
-	file, err := os.Open(path)
+func readStateRecord(root, relative string, required bool) (*stateRecord, error) {
+	data, err := securepath.ReadRegular(root, relative, maxStateFileBytes)
 	if err != nil {
 		if os.IsNotExist(err) && !required {
 			return nil, nil
 		}
 		return nil, err
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maxStateFileBytes {
-		return nil, fmt.Errorf("state file has invalid size or type")
-	}
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
+
 	var record stateRecord
 	if err := json.Unmarshal(data, &record); err != nil {
 		return nil, err
+	}
+	for _, version := range []string{record.SourceVersion, record.TargetVersion, record.ActiveVersion, record.FallbackVersion} {
+		if strings.TrimSpace(version) != "" && canonicalVersion(version) == "" {
+			return nil, errors.New("invalid authoritative generation reference")
+		}
 	}
 	return &record, nil
 }
 
 func collectJournalVersions(root, transactionID, versionsDir string) ([]string, bool, error) {
 	transactionID = strings.TrimSpace(transactionID)
-	if transactionID == "" || filepath.Base(transactionID) != transactionID {
+	if transactionID == "" {
 		return nil, false, nil
 	}
-	path := filepath.Join(root, "install", "rollback", transactionID, "journal.json")
-	file, err := os.Open(path)
+	if transactionID == "." || transactionID == ".." || len(transactionID) > 256 || strings.ContainsAny(transactionID, "/\\\x00:") || filepath.Base(transactionID) != transactionID {
+		return nil, false, errors.New("invalid rollback transaction identity")
+	}
+	relative := filepath.Join("install", "rollback", transactionID, "journal.json")
+	data, err := securepath.ReadRegular(root, relative, maxStateFileBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, false, nil
 		}
-		return nil, false, err
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
 		return nil, true, err
 	}
-	if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maxStateFileBytes {
-		return nil, true, errors.New("rollback journal has invalid size or type")
-	}
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return nil, true, err
-	}
+
 	var journal journalRecord
 	if err := json.Unmarshal(data, &journal); err != nil {
 		return nil, true, err

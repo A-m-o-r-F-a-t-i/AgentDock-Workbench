@@ -60,6 +60,7 @@ func TestOutputBudgetBothAdaptersPreserveCopiesAndInsertion(t *testing.T) {
 			id := queued["insertion"].(insertion.PublicItem).ID
 			envelope := call("read_file", map[string]any{"path": path})
 			assertResponseSupplement(t, envelope, id, message)
+			assertInsertionAttention(t, envelope)
 			structured := asMap(envelope["structuredContent"])
 			visible, _ := structured["content"].(string)
 			if utf8.RuneCountInString(visible) != 1000 || !strings.HasPrefix(body, visible) || envelope["isError"] == true {

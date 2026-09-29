@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/page"
+	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
@@ -280,13 +281,10 @@ func waitForResponse(parent context.Context, diag *diagnostics, action WaitRespo
 }
 
 func fillValue(parent, pageCtx context.Context, action FillAction) error {
-	selector, _ := json.Marshal(action.Selector)
-	value, _ := json.Marshal(action.Value)
-	expr := fmt.Sprintf(`(() => {
-  const el = document.querySelector(%s);
+	const function = `function(selector, value) {
+  const el = document.querySelector(selector);
   if (!el) return {ok:false, reason:'target not found'};
   if (el.disabled || el.readOnly) return {ok:false, reason:'target is not editable'};
-  const value = %s;
   el.focus();
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
     const prototype = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -301,12 +299,12 @@ func fillValue(parent, pageCtx context.Context, action FillAction) error {
   el.dispatchEvent(new Event('input', {bubbles:true}));
   el.dispatchEvent(new Event('change', {bubbles:true}));
   return {ok:true, reason:''};
-})()`, selector, value)
+}`
 	var result struct {
 		OK     bool   `json:"ok"`
 		Reason string `json:"reason"`
 	}
-	if err := runWithContext(parent, pageCtx, chromedp.Evaluate(expr, &result)); err != nil {
+	if err := runWithContext(parent, pageCtx, callPageFunction(function, &result, action.Selector, action.Value)); err != nil {
 		return err
 	}
 	if !result.OK {
@@ -316,29 +314,44 @@ func fillValue(parent, pageCtx context.Context, action FillAction) error {
 }
 
 func selectValue(parent, pageCtx context.Context, action SelectAction) error {
-	selector, _ := json.Marshal(action.Selector)
-	value, _ := json.Marshal(action.Value)
-	expr := fmt.Sprintf(`(() => {
-  const el = document.querySelector(%s);
+	const function = `function(selector, value) {
+  const el = document.querySelector(selector);
   if (!el || el.tagName !== 'SELECT') return {ok:false, reason:'select target not found', selected:''};
-  const value = %s;
   if (!Array.from(el.options).some(option => option.value === value)) return {ok:false, reason:'option value not found', selected:el.value};
   el.value = value;
   el.dispatchEvent(new Event('input', {bubbles:true}));
   el.dispatchEvent(new Event('change', {bubbles:true}));
   return {ok:el.value === value, reason:el.value === value ? '' : 'selected value did not change', selected:el.value};
-})()`, selector, value)
+}`
 	var result struct {
 		OK     bool   `json:"ok"`
 		Reason string `json:"reason"`
 	}
-	if err := runWithContext(parent, pageCtx, chromedp.Evaluate(expr, &result)); err != nil {
+	if err := runWithContext(parent, pageCtx, callPageFunction(function, &result, action.Selector, action.Value)); err != nil {
 		return err
 	}
 	if !result.OK {
 		return browserError(ErrActionFailed, "browser select value is unavailable", "action", &ErrorDetails{Selector: action.Selector, Reason: result.Reason}, nil)
 	}
 	return nil
+}
+
+// callPageFunction passes user values as CDP arguments, never JavaScript source.
+// The remote global object pins the frame execution context for the call.
+func callPageFunction(function string, result any, arguments ...any) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		var global *cdpruntime.RemoteObject
+		if err := chromedp.Evaluate("globalThis", &global).Do(ctx); err != nil {
+			return err
+		}
+		if global == nil || global.ObjectID == "" {
+			return errors.New("page global object is unavailable")
+		}
+		defer func() { _ = cdpruntime.ReleaseObject(global.ObjectID).Do(ctx) }()
+		return chromedp.CallFunctionOn(function, result, func(p *cdpruntime.CallFunctionOnParams) *cdpruntime.CallFunctionOnParams {
+			return p.WithObjectID(global.ObjectID)
+		}, arguments...).Do(ctx)
+	})
 }
 
 func scrollBy(parent, pageCtx context.Context, action ScrollAction) error {

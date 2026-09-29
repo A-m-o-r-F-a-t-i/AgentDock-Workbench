@@ -55,7 +55,7 @@ func (s *Store) IsBundled(skill string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return regularDirectoryExists(path)
+	return s.regularDirectoryExists(path)
 }
 
 // ReplaceBundledSkills reconciles the exact system-Skill set. Existing system

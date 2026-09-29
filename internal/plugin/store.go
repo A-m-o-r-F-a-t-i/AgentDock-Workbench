@@ -741,41 +741,55 @@ func extractZip(path, destination string) error {
 		return newError("PLUGIN_SOURCE_INVALID", "open plugin ZIP archive", map[string]any{"path": path}, err)
 	}
 	defer archive.Close()
+	handle, err := os.OpenRoot(destination)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
+	if len(archive.File) > maxPluginFiles {
+		return newError("PLUGIN_SOURCE_TOO_LARGE", "plugin ZIP exceeds entry limit", nil, nil)
+	}
 	var files int
 	var total int64
 	for _, entry := range archive.File {
-		name := filepath.Clean(filepath.FromSlash(entry.Name))
-		if name == "." || filepath.IsAbs(name) || name == ".." || strings.HasPrefix(name, ".."+string(os.PathSeparator)) {
+		name := filepath.FromSlash(strings.TrimSuffix(strings.ReplaceAll(entry.Name, "\\", "/"), "/"))
+		if !filepath.IsLocal(name) || filepath.Clean(name) == "." || strings.ContainsAny(name, ":\x00") {
 			return newError("PLUGIN_SOURCE_INVALID", "plugin ZIP contains an unsafe path", map[string]any{"path": entry.Name}, nil)
 		}
 		if entry.Mode()&os.ModeSymlink != 0 {
 			return newError("PLUGIN_SOURCE_INVALID", "symbolic links are not allowed in plugin ZIP archives", map[string]any{"path": entry.Name}, nil)
 		}
-		target := filepath.Join(destination, name)
+		target := name
 		if entry.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := handle.MkdirAll(target, 0o700); err != nil {
 				return err
 			}
 			continue
 		}
+		if !entry.Mode().IsRegular() {
+			return newError("PLUGIN_SOURCE_INVALID", "plugin ZIP contains a special file", nil, nil)
+		}
 		files++
-		total += int64(entry.UncompressedSize64)
-		if files > maxPluginFiles || total > maxPluginBytes {
+		if entry.UncompressedSize64 > uint64(maxPluginBytes-total) {
 			return newError("PLUGIN_SOURCE_TOO_LARGE", "plugin ZIP exceeds file or byte limits", map[string]any{"files": files, "bytes": total}, nil)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		total += int64(entry.UncompressedSize64)
+		if err := handle.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 			return err
 		}
 		reader, err := entry.Open()
 		if err != nil {
 			return err
 		}
-		writer, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, entry.Mode().Perm()&0o755)
+		writer, err := handle.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, entry.Mode().Perm()&0o755)
 		if err != nil {
 			reader.Close()
 			return err
 		}
-		_, copyErr := io.Copy(writer, io.LimitReader(reader, int64(entry.UncompressedSize64)+1))
+		written, copyErr := io.Copy(writer, io.LimitReader(reader, int64(entry.UncompressedSize64)+1))
+		if copyErr == nil && written != int64(entry.UncompressedSize64) {
+			copyErr = io.ErrUnexpectedEOF
+		}
 		closeOutErr := writer.Close()
 		closeInErr := reader.Close()
 		if err := errors.Join(copyErr, closeOutErr, closeInErr); err != nil {

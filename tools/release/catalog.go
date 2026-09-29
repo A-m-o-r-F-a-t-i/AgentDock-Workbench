@@ -54,6 +54,7 @@ func verifyDist(dir string, stdout io.Writer) error {
 
 func ReleaseCatalog() []Artifact {
 	archives := []Artifact{
+		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true},
 		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true},
 		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true},
 		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true},

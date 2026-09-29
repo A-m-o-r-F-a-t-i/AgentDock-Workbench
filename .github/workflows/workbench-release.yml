@@ -13,7 +13,11 @@ on:
         required: true
         default: main
       publish:
-        description: 'Publish a formal Latest release only after every platform passes'
+        description: 'Publish only after every platform passes; channel is selected by prerelease'
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Publish a prerelease; preserve the stable Latest release'
         type: boolean
         default: false
       installation_tests:
@@ -77,7 +81,13 @@ jobs:
       architectures: amd64,arm64
       release_build: true
       publish: false
-      installation_tests: ${{ inputs.installation_tests || false }}
+      installation_tests: ${{ inputs.installation_tests || inputs.publish || github.event_name == 'push' }}
+
+  android:
+    needs: resolve-source
+    uses: ./.github/workflows/parallel-android.yml
+    with:
+      source_sha: ${{ needs.resolve-source.outputs.commit }}
 
   windows-arm-package:
     needs: [resolve-source, windows]
@@ -299,8 +309,8 @@ jobs:
           retention-days: 30
 
   publish:
-    needs: [resolve-source, windows, windows-arm-package, unix, macos-app]
-    name: Verify complete artifact set and publish Latest
+    needs: [resolve-source, windows, windows-arm-package, unix, macos-app, android]
+    name: Verify complete artifact set and publish selected channel
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -330,10 +340,13 @@ jobs:
           EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
           EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
           WINDOWS_COMMIT: ${{ needs.windows.outputs.commit }}
+          PRERELEASE: ${{ inputs.prerelease || false }}
         run: |
           set -euo pipefail
           test "$EXPECTED_COMMIT" = "$WINDOWS_COMMIT"
-          python3 scripts/release/publish-workbench.py --input input --dist dist/release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
+          args=()
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          python3 scripts/release/publish-workbench.py --input input --dist dist/release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT" "${args[@]}"
       - name: Include candidate exceptions in the assembled artifact
         if: ${{ inputs.ignore_macos_intel_scale }}
         run: |
@@ -350,4 +363,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
           EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
-        run: python3 scripts/release/publish-workbench.py --input input --dist dist/release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT" --publish
+          PRERELEASE: ${{ inputs.prerelease || false }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          python3 scripts/release/publish-workbench.py --input input --dist dist/release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT" --publish "${args[@]}"

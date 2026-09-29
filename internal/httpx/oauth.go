@@ -372,12 +372,12 @@ func handleAuthorize(w http.ResponseWriter, r *http.Request, cfg config.Config, 
 		return
 	}
 	clientID := values.Get("client_id")
-	redirectURI := values.Get("redirect_uri")
+	registration, registered := codes.ClientRegistration(clientID)
+	redirectURI, redirectAllowed := registeredOAuthRedirect(registration, values.Get("redirect_uri"))
 	challenge := values.Get("code_challenge")
 	method := values.Get("code_challenge_method")
 	state := values.Get("state")
-	if !codes.ValidateClientRedirect(clientID, redirectURI) ||
-		!codes.ClientAllowsGrant(clientID, "authorization_code") {
+	if !registered || !redirectAllowed || !containsString(registration.GrantTypes, "authorization_code") {
 		http.Error(w, "invalid client_id or redirect_uri", http.StatusBadRequest)
 		return
 	}
@@ -422,7 +422,6 @@ func handleAuthorize(w http.ResponseWriter, r *http.Request, cfg config.Config, 
 		r.Form.Set("resource", resource)
 	}
 	loginPassword := auth.ConfiguredLoginValue()
-	registration, _ := codes.ClientRegistration(clientID)
 	if loginPassword != "" && r.Method == http.MethodGet {
 		writeAuthorizeForm(w, values, "", registration.ClientName)
 		return
@@ -443,6 +442,18 @@ func repeatedOAuthParameter(values url.Values, names []string) string {
 		}
 	}
 	return ""
+}
+
+// registeredOAuthRedirect returns the registered value, not the request value.
+// An exact match is required, including scheme, host, port, path and query.
+func registeredOAuthRedirect(registration auth.OAuthClientRegistration, requested string) (string, bool) {
+	requested = strings.TrimSpace(requested)
+	for _, registered := range registration.RedirectURIs {
+		if registered == requested {
+			return registered, true
+		}
+	}
+	return "", false
 }
 func redirectOAuthError(w http.ResponseWriter, r *http.Request, redirectURI, state, code string) {
 	values := url.Values{"error": []string{code}}

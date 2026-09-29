@@ -53,7 +53,7 @@ func (s *Store) uninstallVersionLocked(skill, version string, selection Selectio
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	exists, err := regularDirectoryExists(packagePath)
+	exists, err := s.regularDirectoryExists(packagePath)
 	if err != nil {
 		return UninstallResult{}, err
 	}

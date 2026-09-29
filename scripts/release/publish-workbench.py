@@ -45,16 +45,19 @@ def identity(report: dict,version: str,commit: str) -> None:
 
 
 def expected_payloads(version: str) -> list[str]:
-    return [f'agentdock_{platform}_{arch}.tar.gz' for platform in ['linux','darwin'] for arch in ['amd64','arm64']] + [
+    payloads = [f'agentdock_{platform}_{arch}.tar.gz' for platform in ['linux','darwin'] for arch in ['amd64','arm64']] + [
         f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']] + [
         f'AgentDockSetup-{arch}.exe' for arch in ['amd64','arm64']] + [
         'AgentDock-macos-universal.dmg','AgentDock-macos-universal.zip',
         f'agentdock-workbench_{version}_amd64.deb',f'agentdock-workbench_{version}_arm64.deb',
         f'agentdock-workbench-{version}-1.x86_64.rpm',f'agentdock-workbench-{version}-1.aarch64.rpm',
         'install.sh','install.ps1']
+    if tuple(map(int,version.split('.'))) >= (1,1,8):
+        payloads.append(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
+    return payloads
 
 
-def assemble(inputs: Path,dist: Path,version: str,commit: str) -> dict:
+def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=False) -> dict:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version) or not re.fullmatch(r'[a-f0-9]{40}',commit):
         raise RuntimeError('Invalid release identity')
     if run('git','rev-parse','HEAD')!=commit or run('go','run','./tools/release','version')!=version:
@@ -103,6 +106,21 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str) -> dict:
         if arm_native.get('platform')!='windows/arm64' or arm_native.get('native_installation')!='passed' or arm_native.get('native_execution')!='passed':
             raise RuntimeError('Native Windows ARM64 installation evidence incomplete')
         reports.append(dict(arm_native,assets={}))
+    android = None
+    if tuple(map(int,version.split('.'))) >= (1,1,8):
+        android=read_report(inputs,'verification-android.json');identity(android,version,commit)
+        expected_apis={26,33,34,35,37}
+        if (android.get('product_name')!=PRODUCT or android.get('platform')!='android/arm64' or
+                android.get('apk_validation')!='passed' or android.get('emulator_validation')!='passed' or
+                set(android.get('api_levels',[]))!=expected_apis or len(android.get('emulators',[]))!=5):
+            raise RuntimeError('Android APK or five-API validation incomplete')
+        if {row.get('api') for row in android['emulators']}!=expected_apis:
+            raise RuntimeError('Android API evidence mismatch')
+        for row in android['emulators']:
+            if (type(row.get('tests')) is not int or row['tests']<13 or row.get('passed')!=row['tests'] or
+                    row.get('screenshots',0)<23 or row.get('attempt_exit_codes')!=[0]):
+                raise RuntimeError('Android navigation/screenshot evidence incomplete')
+        reports.append(android)
     scope=read_report(inputs/'windows','verification-scope.json');identity(scope,version,commit)
     if scope.get('resolved_commit')!=commit or scope.get('linux_tested_commit')!=commit:
         raise RuntimeError('Windows workflow lost its immutable validation source')
@@ -128,9 +146,9 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str) -> dict:
             if name not in actual or actual[name]!=checksum:
                 raise RuntimeError(f'Artifact differs from target-platform verification: {name}')
     run('go','run','./tools/release','verify-dist',str(dist))
-    manifest={'schema_version':1,'product_name':PRODUCT,'version':version,'commit':commit,
-              'platforms':[f'{platform}/{arch}' for platform in ['windows','linux','darwin'] for arch in ['amd64','arm64']],
-              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization']},
+    manifest={'schema_version':1,'product_name':PRODUCT,'version':version,'commit':commit,'prerelease':prerelease,
+              'platforms':[f'{platform}/{arch}' for platform in ['windows','linux','darwin'] for arch in ['amd64','arm64']]+(['android/arm64'] if android else []),
+              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization'], 'android':android['signing'] if android else 'not_included'},
               'validation':reports,'windows_verification_scope':scope,
               'assets':[{'name':name,'bytes':(dist/name).stat().st_size,'sha256':actual[name]} for name in sorted(payloads)]}
     (dist/'release-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -165,10 +183,14 @@ def missing_release_assets(record: dict,expected: dict[str,dict]) -> list[str]:
     return sorted(set(expected)-set(actual))
 
 
-def publish(dist: Path,version: str,commit: str) -> None:
+def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
     if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY:
         raise RuntimeError('Publication is restricted to the user fork')
     tag='v'+version
+    title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
+    prerelease_field='prerelease='+str(prerelease).lower()
+    latest_field='make_latest='+('false' if prerelease else 'true')
+    previous_latest=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id') if prerelease else None
     notes=ROOT/f'docs/releases/{tag}.md'
     if not notes.is_file():raise RuntimeError('Final release notes are missing')
     remote=run('git','ls-remote','--tags','origin',f'refs/tags/{tag}',f'refs/tags/{tag}^{{}}')
@@ -186,7 +208,7 @@ def publish(dist: Path,version: str,commit: str) -> None:
         # creation merely because a collection read did not show it yet.
         record=json.loads(run('gh','api','--method','POST',f'repos/{REPOSITORY}/releases',
             '-f',f'tag_name={tag}','-f',f'target_commitish={commit}','-F','draft=true',
-            '-F','prerelease=false','-f',f'name={PRODUCT} {version}','-F',f'body=@{notes}'))
+            '-F',prerelease_field,'-f',latest_field,'-f',f'name={title}','-F',f'body=@{notes}'))
     if not isinstance(record,dict) or type(record.get('id')) is not int or record['id']<=0 or record.get('tag_name')!=tag:
         raise RuntimeError('Created release could not be located; preserve draft and inspect before retrying')
     if not record.get('draft'):
@@ -211,14 +233,17 @@ def publish(dist: Path,version: str,commit: str) -> None:
     if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
         raise RuntimeError('Release identity or draft state changed before publication')
     if missing_release_assets(record,expected):raise RuntimeError('Remote draft asset set is incomplete')
-    run('gh','api','--method','PATCH',endpoint,'-F','draft=false','-F','prerelease=false',
-        '-f','make_latest=true','-f',f'name={PRODUCT} {version}','-F',f'body=@{notes}')
-    latest=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest'))
-    if latest.get('id')!=release_id or latest['tag_name']!=tag or latest['draft'] or latest['prerelease'] or latest['name']!=f'{PRODUCT} {version}':
-        raise RuntimeError('Published release identity/Latest status mismatch')
-    print(latest['html_url'])
+    run('gh','api','--method','PATCH',endpoint,'-F','draft=false','-F',prerelease_field,
+        '-f',latest_field,'-f',f'name={title}','-F',f'body=@{notes}')
+    published=json.loads(run('gh','api',endpoint if prerelease else f'repos/{REPOSITORY}/releases/latest'))
+    if (published.get('id')!=release_id or published['tag_name']!=tag or published['draft'] or
+            published['prerelease']!=prerelease or published['name']!=title):
+        raise RuntimeError('Published release identity/channel mismatch')
+    if prerelease and json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id')!=previous_latest:
+        raise RuntimeError('Prerelease unexpectedly changed the stable Latest release')
+    print(published['html_url'])
     if summary:=os.environ.get('GITHUB_STEP_SUMMARY'):
-        with open(summary,'a',encoding='utf-8') as stream:stream.write(f'## {PRODUCT} {version}\n\n{latest["html_url"]}\n\nVerified source: `{commit}`\n')
+        with open(summary,'a',encoding='utf-8') as stream:stream.write(f'## {PRODUCT} {version}\n\n{published["html_url"]}\n\nVerified source: `{commit}`\n')
 
 
 def main() -> None:
@@ -229,11 +254,12 @@ def main() -> None:
     parser.add_argument('--version',required=True)
     parser.add_argument('--commit',required=True)
     parser.add_argument('--publish',action='store_true')
+    parser.add_argument('--prerelease',action='store_true',help='Publish as a prerelease without replacing stable Latest')
     parser.add_argument('--source-root',type=Path,default=ROOT,help='Verified build source checkout; does not change the artifact SHA')
     args=parser.parse_args()
     ROOT=args.source_root.resolve()
-    manifest=assemble(args.input.resolve(),args.dist.resolve(),args.version,args.commit)
-    print(f'Verified {len(manifest["assets"])} payloads for all six target platforms')
-    if args.publish:publish(args.dist.resolve(),args.version,args.commit)
+    manifest=assemble(args.input.resolve(),args.dist.resolve(),args.version,args.commit,args.prerelease)
+    print(f'Verified {len(manifest["assets"])} payloads across the verified target platforms')
+    if args.publish:publish(args.dist.resolve(),args.version,args.commit,args.prerelease)
 
 if __name__=='__main__':main()

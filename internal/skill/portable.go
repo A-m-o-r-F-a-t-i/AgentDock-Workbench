@@ -2,13 +2,12 @@ package skill
 
 import (
 	"errors"
-	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,26 +16,13 @@ var portableSkillNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,62}[a
 // LoadPortableSkillDocument reads Agent Skills without requiring the host's
 // standalone-package version field. YAML handles quoting, comments and blocks.
 func LoadPortableSkillDocument(root string) (SkillDocument, error) {
-	path := filepath.Join(root, "SKILL.md")
-	info, err := os.Stat(path)
-	if err != nil {
-		return SkillDocument{}, err
-	}
 	const limit = 1 << 20
-	if !info.Mode().IsRegular() || info.Size() > limit {
-		return SkillDocument{}, errors.New("SKILL.md must be a regular file no larger than 1 MiB")
-	}
-	file, err := os.Open(path)
+	data, err := securepath.ReadRegular(root, "SKILL.md", limit)
 	if err != nil {
 		return SkillDocument{}, err
 	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, limit+1))
-	if err != nil {
-		return SkillDocument{}, err
-	}
-	if len(data) > limit || !utf8.Valid(data) {
-		return SkillDocument{}, errors.New("SKILL.md exceeds its size limit or is not UTF-8")
+	if !utf8.Valid(data) {
+		return SkillDocument{}, errors.New("SKILL.md is not UTF-8")
 	}
 	doc, err := ParsePortableSkillDocument(data)
 	if err != nil {

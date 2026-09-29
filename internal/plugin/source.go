@@ -156,15 +156,7 @@ func (m *Store) stageGitSource(ctx context.Context, request SourceRequest) (stag
 	}
 	cleanup := func() { _ = os.RemoveAll(temp) }
 	bare := filepath.Join(temp, "repository.git")
-	args := []string{"-c", "core.hooksPath=" + nullDevicePath(), "-c", "submodule.recurse=false", "clone", "--bare", "--no-recurse-submodules"}
-	if request.GitCommit == "" {
-		args = append(args, "--depth=1")
-	}
-	if request.GitRef != "" {
-		args = append(args, "--branch", request.GitRef)
-	}
-	args = append(args, "--", request.Ref, bare)
-	if output, err := runPluginGit(ctx, "", args...); err != nil {
+	if output, err := clonePluginGit(ctx, request.Ref, bare, request.GitRef, request.GitCommit == ""); err != nil {
 		cleanup()
 		return stagedPluginSource{}, pluginError("PLUGIN_SOURCE_FETCH_FAILED", "source.git.clone", fmt.Errorf("%w: %s", err, strings.TrimSpace(output)))
 	}
@@ -242,46 +234,127 @@ func validateGitSourceRef(ref string) error {
 	return nil
 }
 
-func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, error) {
-	if gitDir != "" {
-		args = append([]string{"--git-dir", gitDir}, args...)
+var gitBranchSelectorPattern = regexp.MustCompile(`^[\pL\pN_][\pL\pN_./+-]*$`)
+var gitCommitExpressionPattern = regexp.MustCompile(`^(HEAD|[a-fA-F0-9]{40})\^\{commit\}$`)
+
+// clonePluginGit fixes the operation and options; repository paths remain operands after --.
+func clonePluginGit(ctx context.Context, source, destination, ref string, shallow bool) (string, error) {
+	if err := validateGitSourceRef(source); err != nil {
+		return "", err
 	}
-	command := exec.CommandContext(ctx, "git", args...)
-	command.Env = append(os.Environ(),
-		"GIT_TERMINAL_PROMPT=0",
-		"GIT_LFS_SKIP_SMUDGE=1",
-		"GIT_OPTIONAL_LOCKS=0",
-	)
-	output, err := command.CombinedOutput()
-	return string(output), err
+	if !filepath.IsAbs(destination) || strings.ContainsRune(destination, 0) {
+		return "", errors.New("invalid Git staging destination")
+	}
+	if len(ref) > 1024 || ref != "" && !gitBranchSelectorPattern.MatchString(ref) {
+		return "", errors.New("invalid Git branch selector")
+	}
+	if strings.HasPrefix(ref, "--") {
+		return "", errors.New("Git options are not branch selectors")
+	}
+	var command *exec.Cmd
+	switch {
+	case shallow && ref != "":
+		command = exec.CommandContext(ctx, "git", "-c", "core.hooksPath="+nullDevicePath(), "-c", "submodule.recurse=false", "clone", "--bare", "--no-recurse-submodules", "--depth=1", "--branch", ref, "--", source, destination)
+	case shallow:
+		command = exec.CommandContext(ctx, "git", "-c", "core.hooksPath="+nullDevicePath(), "-c", "submodule.recurse=false", "clone", "--bare", "--no-recurse-submodules", "--depth=1", "--", source, destination)
+	case ref != "":
+		command = exec.CommandContext(ctx, "git", "-c", "core.hooksPath="+nullDevicePath(), "-c", "submodule.recurse=false", "clone", "--bare", "--no-recurse-submodules", "--branch", ref, "--", source, destination)
+	default:
+		command = exec.CommandContext(ctx, "git", "-c", "core.hooksPath="+nullDevicePath(), "-c", "submodule.recurse=false", "clone", "--bare", "--no-recurse-submodules", "--", source, destination)
+	}
+	return capturePluginGit(command)
+}
+
+func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, error) {
+	if !filepath.IsAbs(gitDir) || strings.ContainsRune(gitDir, 0) {
+		return "", errors.New("invalid Git repository directory")
+	}
+	var command *exec.Cmd
+	switch {
+	case len(args) == 3 && args[0] == "cat-file" && args[1] == "-e" && gitCommitExpressionPattern.MatchString(args[2]):
+		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "cat-file", "-e", "--", args[2])
+	case len(args) == 4 && args[0] == "fetch" && args[1] == "--depth=1" && args[2] == "origin" && fullGitCommitPattern.MatchString(args[3]):
+		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "fetch", "--depth=1", "--", "origin", args[3])
+	case len(args) == 2 && args[0] == "rev-parse" && gitCommitExpressionPattern.MatchString(args[1]):
+		command = exec.CommandContext(ctx, "git", "--git-dir", gitDir, "rev-parse", "--verify", "--end-of-options", args[1])
+	default:
+		return "", errors.New("unsupported Plugin Git operation or revision")
+	}
+	return capturePluginGit(command)
+}
+
+func capturePluginGit(command *exec.Cmd) (string, error) {
+	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_LFS_SKIP_SMUDGE=1", "GIT_OPTIONAL_LOCKS=0")
+	command.WaitDelay = 2 * time.Second
+	var output pluginGitOutput
+	command.Stdout, command.Stderr = &output, &output
+	err := command.Run()
+	return output.String(), err
+}
+
+// A capped diagnostic prefix still drains all writes; it cannot block a noisy child.
+type pluginGitOutput struct {
+	bytes     []byte
+	truncated bool
+}
+
+func (b *pluginGitOutput) Write(value []byte) (int, error) {
+	keep := min(len(value), (64<<10)-len(b.bytes))
+	b.bytes = append(b.bytes, value[:keep]...)
+	b.truncated = b.truncated || keep < len(value)
+	return len(value), nil
+}
+func (b *pluginGitOutput) String() string {
+	if b.truncated {
+		return string(b.bytes) + "\n[Git output truncated after 65536 bytes]"
+	}
+	return string(b.bytes)
 }
 
 func extractGitArchive(ctx context.Context, gitDir, revision, destination string) error {
-	command := exec.CommandContext(ctx, "git", "--git-dir", gitDir, "archive", "--format=tar", revision)
+	if !filepath.IsAbs(gitDir) || !fullGitCommitPattern.MatchString(revision) {
+		return errors.New("invalid Git archive identity")
+	}
+	childCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	command := exec.CommandContext(childCtx, "git", "--git-dir", gitDir, "archive", "--format=tar", revision)
+	command.WaitDelay = 2 * time.Second
+	var diagnostics pluginGitOutput
+	command.Stderr = &diagnostics
 	stdout, err := command.StdoutPipe()
 	if err != nil {
 		return err
 	}
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		return err
-	}
-	if err := command.Start(); err != nil {
+	if err = command.Start(); err != nil {
 		return err
 	}
 	extractErr := extractPluginTar(stdout, destination)
-	stderrData, _ := io.ReadAll(io.LimitReader(stderr, 64<<10))
+	if extractErr != nil {
+		// An early rejected entry leaves later archive bytes in stdout. Cancel
+		// this child before waiting, rather than deadlocking on its full pipe.
+		cancel()
+	} else {
+		_, extractErr = io.Copy(io.Discard, stdout)
+		if extractErr != nil {
+			cancel()
+		}
+	}
 	waitErr := command.Wait()
 	if extractErr != nil {
 		return extractErr
 	}
 	if waitErr != nil {
-		return fmt.Errorf("%w: %s", waitErr, strings.TrimSpace(string(stderrData)))
+		return fmt.Errorf("%w: %s", waitErr, strings.TrimSpace(diagnostics.String()))
 	}
 	return nil
 }
 
 func extractPluginTar(input io.Reader, destination string) error {
+	handle, err := os.OpenRoot(destination)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
 	reader := tar.NewReader(bufio.NewReader(input))
 	var total int64
 	files := 0
@@ -308,30 +381,30 @@ func extractPluginTar(input io.Reader, destination string) error {
 		if filepath.Clean(archivePath) != filepath.FromSlash(relative) {
 			return fmt.Errorf("archive path %q has ambiguous normalization", header.Name)
 		}
-		target := filepath.Join(destination, archivePath)
+		target := filepath.Clean(archivePath)
 		switch header.Typeflag {
 		case tar.TypeXHeader, tar.TypeXGlobalHeader:
 			continue
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := handle.MkdirAll(target, 0o700); err != nil {
 				return err
 			}
 		case tar.TypeReg, tar.TypeRegA:
-			if header.Size < 0 {
-				return errors.New("archive contains a negative-size file")
+			if header.Size < 0 || header.Size > maxPluginExtractedBytes-total {
+				return errors.New("archive file exceeds the remaining extracted-byte budget")
 			}
 			total += header.Size
 			if total > maxPluginExtractedBytes {
 				return fmt.Errorf("Plugin archive exceeds %d extracted bytes", maxPluginExtractedBytes)
 			}
-			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+			if err := handle.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 				return err
 			}
 			mode := os.FileMode(header.Mode).Perm() & 0o755
 			if mode == 0 {
 				mode = 0o600
 			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+			file, err := handle.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 			if err != nil {
 				return err
 			}
@@ -468,6 +541,11 @@ func extractPluginZip(path, destination string) error {
 		return err
 	}
 	defer reader.Close()
+	handle, err := os.OpenRoot(destination)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
 	if len(reader.File) > maxPluginArchiveFiles {
 		return fmt.Errorf("Plugin archive exceeds %d entries", maxPluginArchiveFiles)
 	}
@@ -491,9 +569,9 @@ func extractPluginZip(path, destination string) error {
 		if entry.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("Plugin archive contains symlink %q", entry.Name)
 		}
-		target := filepath.Join(destination, archivePath)
+		target := filepath.Clean(archivePath)
 		if entry.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := handle.MkdirAll(target, 0o700); err != nil {
 				return err
 			}
 			continue
@@ -501,11 +579,11 @@ func extractPluginZip(path, destination string) error {
 		if !entry.Mode().IsRegular() {
 			return fmt.Errorf("Plugin archive contains special file %q", entry.Name)
 		}
-		total += int64(entry.UncompressedSize64)
-		if total > maxPluginExtractedBytes {
+		if entry.UncompressedSize64 > uint64(maxPluginExtractedBytes-total) {
 			return fmt.Errorf("Plugin archive exceeds %d extracted bytes", maxPluginExtractedBytes)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		total += int64(entry.UncompressedSize64)
+		if err := handle.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 			return err
 		}
 		input, err := entry.Open()
@@ -516,12 +594,15 @@ func extractPluginZip(path, destination string) error {
 		if mode == 0 {
 			mode = 0o600
 		}
-		output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+		output, err := handle.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 		if err != nil {
 			input.Close()
 			return err
 		}
-		_, copyErr := io.Copy(output, io.LimitReader(input, int64(entry.UncompressedSize64)+1))
+		written, copyErr := io.Copy(output, io.LimitReader(input, int64(entry.UncompressedSize64)+1))
+		if copyErr == nil && written != int64(entry.UncompressedSize64) {
+			copyErr = io.ErrUnexpectedEOF
+		}
 		closeOut := output.Close()
 		closeIn := input.Close()
 		if copyErr != nil || closeOut != nil || closeIn != nil {
