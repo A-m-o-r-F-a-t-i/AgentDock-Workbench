@@ -64,6 +64,8 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
         Text("Core、配对与公网状态", style = MaterialTheme.typography.headlineSmall)
         Text("连接 Origin、客户端凭据、Core 授权观察和公网可达性是四个独立状态；页面不会从其中一项推断其余项。")
 
+        PhoneExecutionPanel(state)
+
         ResourceSection("连接配置") {
             OutlinedTextField(
                 value = endpoint,

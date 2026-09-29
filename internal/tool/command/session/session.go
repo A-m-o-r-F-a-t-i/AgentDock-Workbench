@@ -48,6 +48,10 @@ type Session struct {
 	activityBinding      activity.Binding
 	activityWarning      string
 	terminationRequested bool
+	external             bool
+	externalState        string
+	outcomeUnknown       bool
+	externalKillMu       sync.Mutex
 
 	runner   commandRunner
 	killOnce sync.Once
@@ -91,6 +95,7 @@ type Snapshot struct {
 	StdoutTruncated      bool
 	StderrTruncated      bool
 	Completed            bool
+	OutcomeUnknown       bool
 	ExitCode             int
 	CommandOK            bool
 	Runtime              string
@@ -358,7 +363,13 @@ func (s *Session) Summary() Summary {
 }
 
 func (s *Session) statusLocked() string {
+	if s.outcomeUnknown {
+		return "unknown"
+	}
 	if !s.completed {
+		if s.external && s.externalState != "" {
+			return s.externalState
+		}
 		return "running"
 	}
 	if s.TimedOut {
@@ -511,6 +522,17 @@ func (s *Session) Kill() (bool, error) {
 	if runner == nil {
 		return false, nil
 	}
+	if s.external {
+		s.externalKillMu.Lock()
+		defer s.externalKillMu.Unlock()
+		// Provider cancellation is idempotent. A transport failure must remain
+		// retryable, rather than consuming native killOnce forever.
+		err := runner.Kill()
+		if err == nil {
+			s.setExternalState("cancel_requested")
+		}
+		return true, err
+	}
 	s.killOnce.Do(func() {
 		s.killErr = runner.Kill()
 		if s.killErr == nil {
@@ -553,6 +575,9 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	stdout := trim(stdoutSegment, maxBytes)
 	stderr := trim(stderrSegment, maxBytes)
 	finished := time.Now()
+	if s.external {
+		status = s.statusLocked()
+	}
 	if s.completed {
 		finished = s.FinishedAt
 		status = s.statusLocked()
@@ -568,7 +593,7 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 		StdoutOutputLines: countLines(stdout), StderrOutputLines: countLines(stderr),
 		StdoutTruncated: maxBytes > 0 && len([]byte(stdoutSegment)) > maxBytes,
 		StderrTruncated: maxBytes > 0 && len([]byte(stderrSegment)) > maxBytes,
-		Completed:       s.completed, ExitCode: s.exitCode,
+		Completed:       s.completed, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
 		CommandOK: s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		Runtime:   s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
 	}

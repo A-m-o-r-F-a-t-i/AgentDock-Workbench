@@ -7,6 +7,8 @@ umask 077
 SELF_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BRIDGE="$SELF_DIR/agentdock-workbench"
 MODULE="$SELF_DIR/agentdock_workbench.py"
+HOST_EXECUTOR="$SELF_DIR/agentdock_host_executor.py"
+[ -f "$HOST_EXECUTOR" ] || { printf 'Missing host executor module\n' >&2; exit 1; }
 [ -f "$MODULE" ] || { printf 'Missing companion module\n' >&2; exit 1; }
 [ -f "$BRIDGE" ] || { printf 'Missing companion file: %s\n' "$BRIDGE" >&2; exit 1; }
 
@@ -14,6 +16,7 @@ pkg update -y
 pkg install -y proot-distro curl jq coreutils util-linux procps openssl-tool tar python
 mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
+install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
 install -m 0700 "$BRIDGE" "$HOME/.termux/tasker/agentdock-workbench"
 properties="$HOME/.termux/termux.properties"
 touch "$properties"

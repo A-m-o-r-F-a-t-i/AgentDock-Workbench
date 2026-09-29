@@ -303,9 +303,13 @@ class WorkbenchViewModel(
         refreshJob?.cancel()
         detailJob?.cancel()
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { graph.credentials.clearCoreCredentials() }
+            graph.phoneExecutor.stop()
+            withContext(Dispatchers.IO) {
+                graph.credentials.clearCoreCredentials()
+                graph.credentials.clear("android_executor")
+            }
             _state.update {
-                it.copy(message = "本机保存的手工、本机配对和 OAuth 凭据均已删除；服务器端授权未伪称已撤销")
+                it.copy(message = "本机 Core 与执行租约凭据已删除，并请求停止本机执行器；服务器端授权仍需在服务器撤销")
             }
             refresh()
         }
@@ -594,7 +598,7 @@ class WorkbenchViewModel(
                     val app = getApplication<Application>()
                     val output = app.contentResolver.openOutputStream(uri, "w") ?: error("无法打开导出目标")
                     java.util.zip.ZipOutputStream(output).use { zip ->
-                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock-workbench-bootstrap.sh")) {
+                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh")) {
                             zip.putNextEntry(java.util.zip.ZipEntry(name))
                             app.assets.open(name).use { it.copyTo(zip) }
                             zip.closeEntry()

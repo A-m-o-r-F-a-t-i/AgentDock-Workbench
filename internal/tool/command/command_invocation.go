@@ -19,12 +19,16 @@ type commandInvocation struct {
 	command      string
 	workdir      string
 	env          []string
+	external     session.ExternalFactory
 	build        session.CommandFactory
 	execution    session.ExecutionContext
 	skillRelease func()
 }
 
 func (invocation commandInvocation) start(ctx context.Context, timeout time.Duration, tty bool, prepare session.PrepareFunc) (*session.Session, session.PreparationStatus, error) {
+	if invocation.external != nil {
+		return session.StartExternal(ctx, timeout, invocation.external)
+	}
 	if invocation.build != nil {
 		return session.StartCommandWithTTY(ctx, invocation.build, timeout, tty, prepare)
 	}

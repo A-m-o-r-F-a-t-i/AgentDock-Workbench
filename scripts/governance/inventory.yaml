@@ -546,3 +546,10 @@ scripts:
     public_contract: false
     deletable: false
     notes: Loopback-only probe fixtures cover response bounds, credential redirects, failed tool results and no automatic replay.
+
+  - path: scripts/ci/parallel-android/test_host_executor.py
+    class: test
+    owner: android
+    public_contract: false
+    deletable: true
+    notes: 使用临时目录和本轮受管子进程验证宿主执行、非零退出、回执幂等、输入确认、PTY、截止时间与独立取消；不接触用户设备运行环境。

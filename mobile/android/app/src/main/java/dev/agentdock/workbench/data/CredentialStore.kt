@@ -81,6 +81,6 @@ class CredentialStore(context: Context) {
     companion object {
         private const val KEY_ALIAS = "agentdock.workbench.credentials.v1"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private val ALLOWED_KEYS = setOf("core_bearer", "oauth_session", "pairing_secret", "public_access_secret")
+        private val ALLOWED_KEYS = setOf("core_bearer", "oauth_session", "pairing_secret", "public_access_secret", "android_executor")
     }
 }

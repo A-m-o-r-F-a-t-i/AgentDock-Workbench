@@ -177,6 +177,9 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	if err := remarshal(contextResult, &result); err != nil {
 		return nil, err
 	}
+	if !nexusLocalOnly && r.androidExecutor != nil {
+		result["android_executor"] = r.androidExecutor.Status()
+	}
 	if !nexusLocalOnly {
 		result["context_diagnostics"] = map[string]any{
 			"complete": false, "binding_status": "pending",
