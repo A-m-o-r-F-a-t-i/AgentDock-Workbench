@@ -23,9 +23,12 @@ var outputContractCoverageInventory = map[string]outputContractCoverageEntry{
 	"search_text":       {Variants: []string{"success"}},
 	"file_edit":         {Variants: []string{"replace", "patch", "add", "move", "delete"}},
 	"exec_command":      {Variants: []string{"success"}},
-	"session_observe":   {Variants: []string{"list"}},
-	"session_act":       {Variants: []string{"kill_all"}},
-	"task_manage":       {Variants: []string{"list"}},
+	// Real Runtime calls in android_device_test.go validate these output variants.
+	"android_device_read": {Variants: []string{"status", "packages"}},
+	"android_device_act":  {Variants: []string{"keyevent"}},
+	"session_observe":     {Variants: []string{"list"}},
+	"session_act":         {Variants: []string{"kill_all"}},
+	"task_manage":         {Variants: []string{"list"}},
 	// All four variants are validated by real calls in workspace_integration_test.go.
 	"workspace_manage":         {Variants: []string{"list", "get", "register", "resolve"}},
 	"evolve":                   {Variants: []string{"propose"}},
