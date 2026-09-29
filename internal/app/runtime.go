@@ -228,6 +228,10 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 	runtime.files = toolfile.New(ws, skills.ResolveResource, runtime.command.CommandEnv)
 	mcpClients.SetCallObserver(runtime.observeRemoteTool)
 	runtime.dynamicMCP = toolmcp.New(mcpClients, envs)
+	runtime.dynamicMCP.SetBuiltinToolLookup(func(name string) (any, bool) {
+		definition, available := runtime.ToolDefinition(name)
+		return definition, available
+	})
 	runtime.plugins = toolplugin.New(
 		pluginStore,
 		func(name string) (toolplugin.SkillItem, bool, error) {

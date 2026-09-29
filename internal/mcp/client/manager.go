@@ -502,83 +502,11 @@ func (m *Manager) ListTools(ctx context.Context, server string) ([]ToolSummary, 
 	return summarizeTools(configs[0].Name, tools), nil
 }
 
-// SearchFiltered applies an optional server predicate before any connection or
-// tools/list request. It lets higher-level capability containers hide members
-// until their container is explicitly loaded without changing MCP persistence.
+// SearchFiltered is the slice-only compatibility entrypoint. Tool-facing callers
+// use SearchCatalogsFiltered so unknown/stale catalogs remain explicit.
 func (m *Manager) SearchFiltered(ctx context.Context, query, server string, limit int, allow func(string) bool) ([]ToolSummary, error) {
-	if err := m.syncRegistryContext(ctx); err != nil {
-		return nil, err
-	}
-	query = strings.ToLower(strings.TrimSpace(query))
-	server = strings.TrimSpace(server)
-	if query == "" {
-		return nil, newError("MCP_QUERY_REQUIRED", "MCP tool search query is required", false, nil, nil)
-	}
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	configs, err := m.searchServers(server)
-	if err != nil {
-		return nil, err
-	}
-	if allow != nil {
-		filtered := configs[:0]
-		for _, cfg := range configs {
-			if allow(cfg.Name) {
-				filtered = append(filtered, cfg)
-			}
-		}
-		configs = filtered
-		if server != "" && len(configs) == 0 {
-			return nil, newError("MCP_SERVER_HIDDEN", "dynamic MCP server is hidden by its capability container", false, map[string]any{"server": server}, nil)
-		}
-	}
-	type scoredTool struct {
-		score int
-		item  ToolSummary
-	}
-	matches := make([]scoredTool, 0)
-	var firstErr error
-	for _, cfg := range configs {
-		tools, ensureErr := m.ensureTools(ctx, cfg.Name)
-		if ensureErr != nil {
-			if server != "" {
-				return nil, ensureErr
-			}
-			if firstErr == nil {
-				firstErr = ensureErr
-			}
-			continue
-		}
-		for _, tool := range tools {
-			score := toolMatchScore(query, tool)
-			if score == 0 {
-				continue
-			}
-			matches = append(matches, scoredTool{score: score, item: toolSummaryForConfig(cfg, tool)})
-		}
-	}
-	if len(matches) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].score != matches[j].score {
-			return matches[i].score > matches[j].score
-		}
-		return matches[i].item.QualifiedName < matches[j].item.QualifiedName
-	})
-	if len(matches) > limit {
-		matches = matches[:limit]
-	}
-	items := make([]ToolSummary, 0, len(matches))
-	for _, match := range matches {
-		items = append(items, match.item)
-	}
-	return items, nil
+	result, err := m.SearchCatalogsFiltered(ctx, query, server, limit, allow)
+	return result.Tools, err
 }
 
 func (m *Manager) InspectTool(ctx context.Context, qualifiedName string) (string, Tool, error) {

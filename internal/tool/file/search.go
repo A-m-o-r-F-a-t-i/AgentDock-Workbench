@@ -103,14 +103,17 @@ func (svc *Service) SearchText(ctx context.Context, request SearchRequest) (Resu
 }
 
 func (svc *Service) searchTextRG(ctx context.Context, p workspace.Path, opts SearchOptions) (Result, bool, error) {
-	if restrictedFileTools(ctx) {
+	// The native engine applies exact doublestar filters before opening files.
+	// rg globs have different precedence (including overriding ignore rules),
+	// so filtered requests must not scan the whole tree and filter only output.
+	if restrictedFileTools(ctx) || len(opts.IncludeGlobs) > 0 || len(opts.ExcludeGlobs) > 0 {
 		return nil, false, nil
 	}
 	rg, err := exec.LookPath("rg")
 	if err != nil {
 		return nil, false, nil
 	}
-	args := []string{"--json", "--line-number", "--column", "--color", "never"}
+	args := []string{"--no-config", "--json", "--line-number", "--column", "--color", "never"}
 	if !opts.Regex {
 		args = append(args, "--fixed-strings")
 	}
@@ -126,24 +129,45 @@ func (svc *Service) searchTextRG(ctx context.Context, p workspace.Path, opts Sea
 	if opts.ContextLines > 0 {
 		args = append(args, "--context", strconv.Itoa(opts.ContextLines))
 	}
-	args = append(args, opts.Query, p.Abs)
+	args = append(args, "--", opts.Query, p.Abs)
 
+	parent := ctx
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, rg, args...)
+	cmd.WaitDelay = time.Second
 	cmd.Dir = p.Abs
 	if info, statErr := os.Stat(p.Abs); statErr == nil && !info.IsDir() {
 		cmd.Dir = filepath.Dir(p.Abs)
 	}
 	processcontrol.Configure(cmd)
-	output, err := cmd.Output()
+	output := &searchOutputCapture{limit: maxRGOutputBytes, cancel: cancel}
+	stderr := &searchOutputCapture{limit: maxRGErrorBytes}
+	cmd.Stdout, cmd.Stderr = output, stderr
+	err = cmd.Run()
+	if parent.Err() != nil {
+		return nil, true, searchExecutionError(parent, "rg", parent.Err())
+	}
+	if output.exceeded {
+		details := map[string]any{"engine": "rg", "resource": "output_bytes", "max_output_bytes": maxRGOutputBytes}
+		addSearchRecoveryGuidance(details, "RESOURCE_LIMIT")
+		return nil, true, toolErrorDetails("RESOURCE_LIMIT", "ripgrep output exceeded the bounded capture budget", "runtime", details)
+	}
+	if ctx.Err() != nil {
+		return nil, true, searchExecutionError(ctx, "rg", ctx.Err())
+	}
 	if err != nil {
 		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
 			return Result{"query": opts.Query, "engine": "rg", "matches": []map[string]any{}, "total_matches": 0, "truncated": false}, true, nil
 		}
-		return nil, true, searchExecutionError(ctx, "rg", err)
+		details := map[string]any{"engine": "rg", "stderr": truncateString(stderr.String(), maxRGErrorBytes), "stderr_truncated": stderr.exceeded}
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			details["exit_code"] = exit.ExitCode()
+		}
+		return nil, true, toolErrorCause("SEARCH_FAILED", "ripgrep search failed", "runtime", details, err)
 	}
-	matches, truncated, ok := svc.parseRGJSON(output, p.Abs, opts)
+	matches, truncated, ok := svc.parseRGJSON(output.Bytes(), p.Abs, opts)
 	if !ok {
 		return nil, true, toolError("SEARCH_FAILED", "failed to parse ripgrep search results", "runtime")
 	}
@@ -274,7 +298,7 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 	bytesScanned := int64(0)
 	skippedLargeFiles := 0
 	limitResource := ""
-	walkErr := filepath.WalkDir(p.Abs, func(abs string, d os.DirEntry, walkErr error) error {
+	walkErr := walkSearchScope(ctx, p.Abs, opts, func(abs string, d os.DirEntry, walkErr error) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -309,6 +333,9 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 			}
 		}
 		if d.IsDir() {
+			if abs != p.Abs && excludedSearchDirectory(requestRel, opts.ExcludeGlobs) {
+				return filepath.SkipDir
+			}
 			if !opts.IncludeIgnored && abs != p.Abs && shouldSkipDir(d.Name()) {
 				return filepath.SkipDir
 			}
@@ -317,7 +344,10 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 			}
 			return nil
 		}
-		if !opts.IncludeHidden && workspace.Hidden(d.Name()) {
+		if !opts.IncludeIgnored && skippedSearchParent(requestRel) {
+			return nil
+		}
+		if !opts.IncludeHidden && hiddenRelativePath(requestRel) {
 			return nil
 		}
 		if len(opts.IncludeGlobs) > 0 && !matchesAny(requestRel, opts.IncludeGlobs) {
@@ -366,6 +396,11 @@ func (svc *Service) searchTextGoWithLimits(ctx context.Context, p workspace.Path
 		}
 		lines := strings.Split(string(data), "\n")
 		for i, line := range lines {
+			if i%256 == 0 {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+			}
 			ok := false
 			column := 0
 			matchText := ""
