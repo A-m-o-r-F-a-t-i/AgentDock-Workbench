@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +32,9 @@ const (
 )
 
 func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if request.SkillRef == "" {
 		request.SkillRef = request.Skill
 	}
@@ -74,6 +76,7 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 	}()
 	prepareCtx, prepareCancel := context.WithTimeout(ctx, timeout)
 	invocation, err := svc.prepareCommandInvocation(prepareCtx, request)
+	preparationErr := prepareCtx.Err()
 	prepareCancel()
 	if err != nil {
 		return nil, err
@@ -84,6 +87,11 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 			invocation.skillRelease()
 		}
 	}()
+	// A resolver may return a usable lease concurrently with cancellation.
+	// Reject it before dispatch while still releasing the acquired lease.
+	if preparationErr != nil {
+		return nil, preparationErr
+	}
 
 	if !svc.sessions.TryReserve(maxConcurrentCommandSessions) {
 		if svc.sessions.Closing() {
@@ -107,6 +115,11 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 	// 背景：exec_command 可能先返回 running，让模型后续通过 session_observe action=status 继续取结果；
 	// 如果子进程绑定到单次 MCP 请求 ctx，请求结束时 git push / npm install 等长任务会被杀掉。
 	// 因此长任务只受 timeout_ms 和 session_act action=kill/kill_all 控制。
+	// Only detach the process lifetime after admitting an uncancelled request.
+	if err := ctx.Err(); err != nil {
+		svc.sessions.FinishStart()
+		return nil, err
+	}
 	s, sandboxStatus, err := invocation.start(commandCtx, timeout, tty, func(command *exec.Cmd) (func(), session.PreparationStatus) {
 		// AgentDock 不额外过滤命令，实际权限边界由所选运行环境决定。
 		privilegeWarning := "exec_command runs with the AgentDock process OS user privileges"
@@ -284,7 +297,7 @@ func (svc *Service) writeStdin(request SessionActRequest) (Result, error) {
 	maxBytes := commandOutputLimit(request.MaxOutputBytes)
 	select {
 	case <-s.Done:
-		return svc.completedSessionResult(s, maxBytes), nil
+		return svc.completedSessionResult(s, maxBytes, false), nil
 	default:
 	}
 
@@ -292,26 +305,30 @@ func (svc *Service) writeStdin(request SessionActRequest) (Result, error) {
 		if err := s.Write(request.Chars); err != nil {
 			select {
 			case <-s.Done:
-				return svc.completedSessionResult(s, maxBytes), nil
+				return svc.completedSessionResult(s, maxBytes, false), nil
 			default:
 			}
-			if !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) {
-				return nil, fmt.Errorf("write session stdin: %w", err)
-			}
+			return nil, fmt.Errorf("write session stdin: %w", err)
 		}
 	}
 	select {
 	case <-s.Done:
-		return svc.completedSessionResult(s, maxBytes), nil
+		return svc.completedSessionResult(s, maxBytes, false), nil
 	default:
 		return snapshotResult(s.Peek("running", maxBytes)), nil
 	}
 }
 
-func (svc *Service) completedSessionResult(s *session.Session, maxBytes int) Result {
+func (svc *Service) completedSessionResult(s *session.Session, maxBytes int, consume bool) Result {
 	err := s.WaitError()
 	s.Cancel()
-	result := snapshotResult(s.Snapshot("exited", maxBytes))
+	var snapshot session.Snapshot
+	if consume {
+		snapshot = s.Snapshot("exited", maxBytes)
+	} else {
+		snapshot = s.Peek("exited", maxBytes)
+	}
+	result := snapshotResult(snapshot)
 	if err != nil {
 		result["command_error"] = err.Error()
 	}
@@ -326,7 +343,7 @@ func (svc *Service) killSession(request SessionActRequest) (Result, error) {
 	}
 	select {
 	case <-s.Done:
-		return svc.completedSessionResult(s, commandOutputLimit(request.MaxOutputBytes)), nil
+		return svc.completedSessionResult(s, commandOutputLimit(request.MaxOutputBytes), false), nil
 	default:
 	}
 	_, killErr := s.Kill()
@@ -346,7 +363,7 @@ func (svc *Service) killSession(request SessionActRequest) (Result, error) {
 			map[string]any{"session_id": s.ID, "wait_ms": sessionKillWait.Milliseconds()},
 		)
 	}
-	result := snapshotResult(s.Snapshot("killed", commandOutputLimit(request.MaxOutputBytes)))
+	result := snapshotResult(s.Peek("killed", commandOutputLimit(request.MaxOutputBytes)))
 	if err := s.WaitError(); err != nil {
 		result["command_error"] = err.Error()
 	}
@@ -441,7 +458,7 @@ func (svc *Service) sessionStatus(request SessionObserveRequest) (Result, error)
 	maxBytes := commandOutputLimit(request.MaxOutputBytes)
 	select {
 	case <-s.Done:
-		return svc.completedSessionResult(s, maxBytes), nil
+		return svc.completedSessionResult(s, maxBytes, true), nil
 	default:
 		return snapshotResult(s.Snapshot("running", maxBytes)), nil
 	}

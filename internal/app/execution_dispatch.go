@@ -13,6 +13,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	"github.com/uvwt/agentdock/internal/permission"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
@@ -47,6 +48,10 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		return nil, err
 	}
 	parent := activity.FromContext(ctx)
+	if parent.CallID == "" {
+		requesttrace.BindCall(ctx, callID)
+		requesttrace.Stage(ctx, "runtime_admission")
+	}
 	snapshot, resolveErr := r.resolveExecutionScope(ctx)
 	snapshot.CallID, snapshot.ParentCallID, snapshot.RetryOfCallID = callID, parent.CallID, ""
 	initial := snapshot
@@ -320,6 +325,9 @@ func (r *Runtime) executionError(err error, state executionObservation) error {
 		copy.Details = map[string]any{}
 	}
 	copy.Details["call_id"] = state.binding.CallID
+	if state.binding.RequestID != "" {
+		copy.Details["request_id"] = state.binding.RequestID
+	}
 	if state.binding.ConversationID != "" {
 		copy.Details["conversation_id"] = state.binding.ConversationID
 	}
@@ -589,6 +597,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	handlerStarted := time.Now()
 	waitMS := handlerStarted.Sub(p.state.started).Milliseconds()
 	p.state.waitMS, p.state.executed = &waitMS, true
+	requesttrace.Dispatched(ctx, p.state.binding.CallID)
 	if p.spec.Name == "session_act" && stringArg(p.args, "action") == "kill_all" {
 		result, err = r.executeSessionSelection(ctx, p)
 	} else {

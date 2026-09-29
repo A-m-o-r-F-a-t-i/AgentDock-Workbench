@@ -1,0 +1,48 @@
+name: Context transport regression
+on:
+  push:
+    branches: [fix/20260928-context-transport]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  context:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Script governance inventory
+        run: go test ./scripts/test -run '^TestScriptGovernanceInventoryCoversWorkspaceScripts$' -count=1
+      - name: Repeated transport regressions
+        run: go test ./internal/requesttrace ./internal/mcp ./internal/httpx -run 'TestTrace|TestContextTransport' -count=3 -timeout=5m
+      - name: Repeated command tool regressions
+        run: go test ./internal/tool/command/... -run '^TestAgentTools' -count=3 -timeout=5m
+      - name: Full affected package suites
+        run: go test -p 2 ./internal/activity ./internal/app ./internal/mcp ./internal/httpx ./internal/tool/command/... -count=1 -timeout=8m
+      - name: Trace race detection
+        if: runner.os == 'Linux'
+        run: go test -race ./internal/requesttrace ./internal/mcp ./internal/httpx -run 'TestTrace|TestContextTransport' -count=1 -timeout=5m
+      - name: Command tool race detection
+        if: runner.os == 'Linux'
+        run: go test -race ./internal/tool/command/... -run '^TestAgentTools' -count=1 -timeout=5m
+      - name: Protocol probe tests
+        run: python scripts/test/test-context-probe.py
+      - name: Vet affected boundaries
+        run: go vet ./internal/requesttrace ./internal/activity ./internal/app ./internal/mcp ./internal/httpx ./internal/tool/command/...
+      - uses: actions/setup-dotnet@v4
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '8.0.x'
+      - name: Desktop model compatibility
+        if: runner.os == 'Windows'
+        run: dotnet run --project desktop/windows/control-panel-tests/AgentDock.ControlPanel.Tests.csproj

@@ -26,6 +26,9 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 		}
 	}
 	guidance := map[string]any{"source": "agentdock", "schema_version": 1}
+	if binding.RequestID != "" {
+		guidance["request_id"] = binding.RequestID
+	}
 	for key, value := range bindingArguments(binding) {
 		if value != "" && key != "activity_label" {
 			guidance[key] = value

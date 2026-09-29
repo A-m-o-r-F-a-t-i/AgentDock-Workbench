@@ -20,6 +20,7 @@ import (
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 type Server struct {
@@ -36,7 +37,7 @@ type Server struct {
 func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 	server := &Server{runtime: runtime, cfg: cfg}
 	serverOptions := &mcpsdk.ServerOptions{
-		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{"agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true}}},
+		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{ContextResponseCapability: map[string]any{"text_modes": []string{"full", "summary"}, "structured_required": true}, "agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true}}},
 		Instructions: initialServerInstructions(runtime, cfg),
 	}
 	server.sdk = mcpsdk.NewServer(
@@ -46,6 +47,7 @@ func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 	if runtime != nil {
 		server.sdk.AddReceivingMiddleware(server.presentationMiddleware)
 		server.sdk.AddReceivingMiddleware(server.observeDiscovery)
+		server.sdk.AddReceivingMiddleware(server.traceProtocol)
 		runtime.OnDisplaySettingsChanged(server.refreshPresentation)
 		server.refreshPresentation()
 	}
@@ -108,10 +110,15 @@ func (s *Server) Invoke(ctx context.Context, name string, arguments map[string]a
 	if s == nil || s.runtime == nil {
 		return nil, errors.New("AgentDock runtime is not initialized")
 	}
+	var traceErr error
+	ctx, traceErr = requesttrace.Ensure(ctx, "")
+	if traceErr != nil {
+		return nil, traceErr
+	}
 	ctx, response := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, response, false)
 	result, err := s.runtime.Call(ctx, name, arguments)
-	envelope := toolEnvelope(name, result, err)
+	envelope := responseEnvelope(ctx, name, result, err)
 	return s.finishResponse(ctx, name, arguments, response, envelope)
 }
 
@@ -159,14 +166,25 @@ func (s *Server) registerTool(def ToolDefinition) {
 
 func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 	started := time.Now()
+	var traceErr error
+	ctx, traceErr = requesttrace.Ensure(ctx, "")
+	if traceErr != nil {
+		return nil, traceErr
+	}
+	requesttrace.Stage(ctx, "mcp_metadata")
 	if request != nil && request.Params != nil {
+		ctx = contextWireProtocol(ctx, request.Params.Meta)
 		var err error
-		ctx, err = requestConversationContext(ctx, request.Params.Meta)
+		ctx, err = contextResponseOptions(ctx, request.Params.Meta)
+		if err == nil {
+			ctx, err = requestConversationContext(ctx, request.Params.Meta)
+		}
 		if err == nil {
 			ctx, err = s.requestInsertionSession(ctx, request)
 		}
 		if err != nil {
 			_, _ = s.runtime.RejectToolCall(ctx, name, err.Error())
+			requesttrace.Stage(ctx, "mcp_metadata")
 			return nil, &sdkjsonrpc.Error{Code: sdkjsonrpc.CodeInvalidParams, Message: err.Error()}
 		}
 	}
@@ -175,20 +193,21 @@ func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.Call
 		if err := json.Unmarshal(request.Params.Arguments, &arguments); err != nil {
 			slog.Warn("tool params invalid", "tool", name, "duration_ms", time.Since(started).Milliseconds())
 			_, _ = s.runtime.RejectToolCall(ctx, name, "tool arguments must be a JSON object")
+			requesttrace.Stage(ctx, "mcp_arguments")
 			return nil, &sdkjsonrpc.Error{Code: sdkjsonrpc.CodeInvalidParams, Message: "tool arguments must be a JSON object"}
 		}
 	}
 	ctx, pendingResponse := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, pendingResponse, false)
-	slog.Info("tool started", "tool", name)
+	slog.Info("tool started", "tool", name, "request_id", requesttrace.ID(ctx))
 	result, err := s.runtime.Call(ctx, name, arguments)
-	finishedAttrs := []any{"tool", name, "duration_ms", time.Since(started).Milliseconds(), "ok", err == nil}
+	finishedAttrs := []any{"tool", name, "request_id", requesttrace.ID(ctx), "call_id", requesttrace.Read(ctx).CallID, "duration_ms", time.Since(started).Milliseconds(), "ok", err == nil}
 	if err != nil {
 		finishedAttrs = append(finishedAttrs, "error", err)
 	}
 	slog.Info("tool finished", finishedAttrs...)
 
-	envelope, finishErr := s.finishResponse(ctx, name, arguments, pendingResponse, toolEnvelope(name, result, err))
+	envelope, finishErr := s.finishResponse(ctx, name, arguments, pendingResponse, responseEnvelope(ctx, name, result, err))
 	if finishErr != nil {
 		return nil, finishErr
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 // resolveExecutionScope runs once at the shared ingress, before validation.
@@ -16,7 +17,7 @@ func (r *Runtime) resolveExecutionScope(ctx context.Context) (activity.Execution
 	}
 	conversation, err := (activity.ConversationResolver{Registry: r.conversations}).Resolve(ctx)
 	source := activity.SourceFromContext(ctx)
-	binding := activity.ExecutionScope{ConversationID: conversation.ID, Source: source.Namespace,
+	binding := activity.ExecutionScope{RequestID: requesttrace.ID(ctx), ConversationID: conversation.ID, Source: source.Namespace,
 		BindingQuality: conversation.Attribution, SourceOwnerKey: activity.SourceOwnerKey(ctx), Visibility: "normal"}
 	if binding.BindingQuality == "" {
 		binding.BindingQuality = "unattributed"

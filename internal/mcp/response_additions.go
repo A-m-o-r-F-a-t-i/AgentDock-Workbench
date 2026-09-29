@@ -3,11 +3,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/app"
+	"github.com/uvwt/agentdock/internal/requesttrace"
 )
 
 // finishResponse is the one adapter boundary for SDK and direct Bridge calls.
@@ -19,13 +19,15 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 			s.runtime.RecordToolResponse(pending, map[string]any{"isError": true, "error": returnErr.Error(), "output_state": "not_stored"})
 		}
 	}()
+	requesttrace.Stage(ctx, "response_encode")
+	original = responseTrace(ctx, original)
 	encoded, err := json.Marshal(original)
 	if err != nil {
-		return nil, fmt.Errorf("encode MCP tool result: %w", err)
+		return nil, invocationError(ctx, "response_encode", "MCP response encoding failed; inspect the original call before retrying", err)
 	}
 	var check mcpsdk.CallToolResult
 	if err := json.Unmarshal(encoded, &check); err != nil {
-		return nil, fmt.Errorf("decode MCP tool result: %w", err)
+		return nil, invocationError(ctx, "response_decode", "MCP response validation failed; inspect the original call before retrying", err)
 	}
 	var envelope map[string]any
 	if err := json.Unmarshal(encoded, &envelope); err != nil {
@@ -52,6 +54,10 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	envelope = appendTrustedAdditions(envelope, pending.CompletedAdditions())
 	if !s.uiEnabled() {
 		envelope = filterTextOnlyEnvelope(envelope, name == "mcp_tool_call")
+	}
+	envelope, err = measureContextResponse(ctx, name, envelope)
+	if err != nil {
+		return nil, invocationError(ctx, "response_measure", "MCP response measurement failed; do not replay the original tool", err)
 	}
 	s.runtime.RecordToolResponse(pending, envelope)
 	return envelope, nil
