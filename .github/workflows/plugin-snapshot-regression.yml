@@ -53,19 +53,21 @@ jobs:
           mkdir -p "$RUNNER_TEMP/snapshot-results"
           git rev-parse HEAD > "$RUNNER_TEMP/snapshot-results/commit.txt"
       - name: Prove the same regression fails on unmodified main
+        shell: python
         run: |
-          set -euo pipefail
-          baseline="$RUNNER_TEMP/snapshot-before"
-          mkdir -p "$baseline"
-          git archive "$BASELINE_COMMIT" | tar -x -C "$baseline"
-          cp internal/snapshot/clock_regression_test.go "$baseline/internal/snapshot/clock_regression_test.go"
-          set +e
-          (cd "$baseline" && go test ./internal/snapshot -run '^TestUnhealthySourceRevisionIgnoresClock$' -count=1 -v -timeout=60s) > "$RUNNER_TEMP/snapshot-results/before.log" 2>&1
-          result=$?
-          set -e
-          cat "$RUNNER_TEMP/snapshot-results/before.log"
-          test "$result" -ne 0
-          grep -q 'wall clock changed the source revision' "$RUNNER_TEMP/snapshot-results/before.log"
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          baseline = pathlib.Path(os.environ["RUNNER_TEMP"]) / "snapshot-before"
+          subprocess.run(["git", "worktree", "add", "--detach", str(baseline), os.environ["BASELINE_COMMIT"]], check=True)
+          shutil.copyfile("internal/snapshot/clock_regression_test.go", baseline / "internal/snapshot/clock_regression_test.go")
+          result = subprocess.run(["go", "test", "./internal/snapshot", "-run", "^TestUnhealthySourceRevisionIgnoresClock$", "-count=1", "-v", "-timeout=60s"], cwd=baseline, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=180)
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "snapshot-results" / "before.log"
+          output.write_text(result.stdout, encoding="utf-8")
+          print(result.stdout)
+          if result.returncode == 0 or "wall clock changed the source revision" not in result.stdout:
+              raise SystemExit("The unmodified source did not reproduce the expected clock-revision failure")
       - name: Repeat clock and source-change regressions
         run: |
           set -euo pipefail
