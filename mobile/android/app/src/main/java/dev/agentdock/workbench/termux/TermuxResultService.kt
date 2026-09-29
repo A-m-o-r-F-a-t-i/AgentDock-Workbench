@@ -6,21 +6,63 @@ import android.os.Bundle
 import android.os.IBinder
 import dev.agentdock.workbench.WorkbenchApplication
 import dev.agentdock.workbench.model.BridgeOperation
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.Channel
 import org.json.JSONObject
 
 class TermuxResultService : Service() {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val callbacks = Channel<Intent>(capacity = 144)
+    // Accessed only on Main, including completion after IO processing.
+    private var queued = 0
+    private var latestStartId = 0
+
+    override fun onCreate() {
+        super.onCreate()
+        scope.launch {
+            for (intent in callbacks) {
+                try {
+                    handle(intent)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // No invented success: an unreadable callback remains available
+                    // for original-ID reconciliation after the transport times out.
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        queued--
+                        if (queued == 0) stopSelf(latestStartId)
+                    }
+                }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        try {
-            intent?.let { runCatching { handle(it) } }
-        } finally {
-            stopSelf(startId)
+        latestStartId = startId
+        if (intent != null) {
+            queued++
+            if (callbacks.trySend(Intent(intent)).isFailure) queued--
         }
+        if (queued == 0) stopSelf(startId)
         return START_NOT_STICKY
     }
 
-    private fun handle(intent: Intent) {
+    override fun onDestroy() {
+        callbacks.close()
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    private suspend fun handle(intent: Intent) {
         val operationId = intent.getStringExtra(EXTRA_OPERATION_ID).orEmpty()
         val requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         val nonce = intent.getStringExtra(EXTRA_NONCE).orEmpty()
@@ -71,6 +113,13 @@ class TermuxResultService : Service() {
             stderrTruncated = stderrOriginal > stderr.length || stderr.length >= TermuxContract.MAX_RESULT_CHARS,
             resultJson = result.dataJson
         )
+        if (result.phase == "succeeded" && result.dataJson.isNotBlank()) {
+            val data = JSONObject(result.dataJson)
+            if (expected.operation in setOf("operation_query", "resume", "cancel_operation")) {
+                store.reconcile(expected, data)
+            }
+            graph.settings.observeNodeOperation(expected, data)
+        }
     }
 
     companion object {

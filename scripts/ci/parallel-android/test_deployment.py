@@ -82,12 +82,16 @@ class DeploymentTest(unittest.TestCase):
         self.tmp.cleanup()
     def make(self, fault=lambda _: None):
         return m.Deployment(self.home, lambda root, config: FakeBackend(root, config, self.state), lambda: self.now[0], fault)
-    def release(self, version='1.1.8', corrupt_digest=False):
+    def release(self, version='1.1.8', corrupt_digest=False, build_marker=''):
         content = io.BytesIO()
         with tarfile.open(fileobj=content, mode='w:gz') as archive:
             data = version.encode()
             entry = tarfile.TarInfo('bin/agentdock'); entry.size = len(data); entry.mode = 0o755
             archive.addfile(entry, io.BytesIO(data))
+            if build_marker:
+                marker = build_marker.encode()
+                entry = tarfile.TarInfo('build.txt'); entry.size = len(marker)
+                archive.addfile(entry, io.BytesIO(marker))
         data = content.getvalue()
         digest = m.hashlib.sha256(data).hexdigest()
         manifest = {'schema_version': 1, 'platform': 'linux', 'arch': 'arm64', 'version': version,
@@ -313,6 +317,155 @@ class DeploymentTest(unittest.TestCase):
         preview = self.manager.dispatch('cleanup_preview', 'preview', {})
         result = self.manager.dispatch('cleanup', 'clean_good', {'confirm_cleanup': True, 'preview_digest': preview['data']['preview_digest']})
         self.assertEqual('ok', result['status'])
+
+    def test_identical_artifact_with_new_id_preserves_distinct_fallback(self):
+        self.seed(); payload = self.release()
+        self.manager.dispatch('update', 'upgrade', payload)
+        fallback = m.read_json(self.manager.root / 'fallback.json')
+        starts = len(self.state['starts']); stops = self.state['stops']
+        result = self.make().dispatch('update', 'same_artifact', payload)
+        self.assertEqual('updated', result['status'])
+        self.assertEqual(fallback, m.read_json(self.manager.root / 'fallback.json'))
+        self.assertNotEqual(self.manager.pointer('current'), self.manager.pointer('previous'))
+        self.assertTrue((self.manager.root / 'versions/old').is_dir())
+        self.assertEqual(starts, len(self.state['starts'])); self.assertEqual(stops, self.state['stops'])
+        self.assertFalse((self.manager.root / 'backups/same_artifact').exists())
+        self.make().dispatch('resume', 'repeat_same', {'target_operation_id': 'same_artifact'})
+        self.assertEqual(fallback, m.read_json(self.manager.root / 'fallback.json'))
+
+    def test_same_version_different_artifact_is_a_real_transition(self):
+        self.seed(); self.manager.dispatch('update', 'build_one', self.release())
+        first = self.manager.pointer('current')
+        self.manager.dispatch('update', 'build_two', self.release(build_marker='different build'))
+        self.assertNotEqual(first, self.manager.pointer('current'))
+        self.assertEqual(first, self.manager.pointer('previous'))
+
+    def test_identical_artifact_respects_stop_intent(self):
+        self.seed(); payload = self.release()
+        self.manager.dispatch('update', 'upgrade', payload)
+        self.manager.dispatch('stop', 'stop', {})
+        starts = len(self.state['starts'])
+        self.manager.dispatch('install', 'same_stopped', dict(payload, start_after_install=False))
+        self.assertEqual('stopped', self.manager.desired())
+        self.assertEqual(starts, len(self.state['starts']))
+        self.assertEqual('old', self.manager.pointer('previous'))
+
+    def test_single_port_authority_ignores_legacy_conflicting_file(self):
+        (self.manager.root / 'port').write_text('8765')
+        result = self.manager.dispatch('configure', 'new_port', {'node': {'port': 9876}})
+        self.assertEqual('ok', result['status'])
+        manager = self.make(); manager.initialize()
+        command = m.core_launch_command(manager.config)
+        self.assertEqual(9876, manager.backend.config['port'])
+        self.assertIn('AGENTDOCK_PORT=9876;', command)
+        self.assertNotIn('cat /opt/agentdock-workbench/port', command)
+        self.assertEqual('8765', (manager.root / 'port').read_text())
+
+    def test_rejected_config_write_keeps_persisted_port_authority(self):
+        write = m.atomic_json
+        def reject(path, value):
+            if path == self.manager.root / 'node.json':
+                raise OSError('injected config write error')
+            return write(path, value)
+        with patch.object(m, 'atomic_json', reject):
+            result = self.manager.dispatch('configure', 'bad_write', {'node': {'port': 9876}})
+        self.assertEqual('failed', result['status'])
+        manager = self.make()
+        self.assertEqual(8765, manager.config['port'])
+        self.assertIn('AGENTDOCK_PORT=8765;', m.core_launch_command(manager.config))
+
+    def test_restore_does_not_replace_unknown_destination(self):
+        self.seed(); self.state['fail_versions'].add('1.1.8')
+        def fault(phase):
+            if phase == 'failed-new-data-quarantined': raise SimulatedCrash()
+        with self.assertRaises(SimulatedCrash):
+            self.make(fault).dispatch('update', 'interrupted', self.release())
+        destination = self.manager.root / 'data'; destination.mkdir()
+        (destination / 'unknown.txt').write_text('do not overwrite')
+        result = self.make().dispatch('resume', 'resume_unknown', {'target_operation_id': 'interrupted'})
+        self.assertEqual('requires_user_action', result['status'])
+        self.assertEqual('do not overwrite', (destination / 'unknown.txt').read_text())
+        self.assertTrue((self.manager.root / 'backups/interrupted/.snapshot-complete.json').is_file())
+
+    def _bootstrap(self, names, fail_list=False, repeat=False):
+        mock = self.home / 'mock-bin'; mock.mkdir()
+        installed = self.home / 'containers'; installed.write_text(names)
+        calls = self.home / 'calls'
+        for name in ('pkg', 'termux-reload-settings'):
+            path = mock / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o700)
+        path = mock / 'proot-distro'
+        path.write_text('''#!/bin/sh
+printf '%s\\n' "$*" >> "$AUDIT_CALLS"
+case "$1" in
+  list) [ "$2" = --quiet ] || exit 8
+        [ "$AUDIT_FAIL_LIST" = 0 ] || exit 9
+        cat "$AUDIT_INSTALLED" ;;
+  install) grep -Fxq "$2" "$AUDIT_INSTALLED" && exit 1
+           printf '%s\\n' "$2" >> "$AUDIT_INSTALLED" ;;
+  login) exit 0 ;;
+  *) exit 7 ;;
+esac
+'''); path.chmod(0o700)
+        env = dict(os.environ, HOME=str(self.home), PATH=str(mock)+os.pathsep+os.environ['PATH'],
+                   AUDIT_CALLS=str(calls), AUDIT_INSTALLED=str(installed), AUDIT_FAIL_LIST='1' if fail_list else '0')
+        script = MODULE.with_name('agentdock-workbench-bootstrap.sh')
+        result = subprocess.run(['/bin/sh', str(script)], env=env, capture_output=True, text=True, timeout=15)
+        if repeat:
+            self.assertEqual(0, result.returncode, result.stderr)
+            result = subprocess.run(['/bin/sh', str(script)], env=env, capture_output=True, text=True, timeout=15)
+        return result, calls.read_text()
+
+    def test_bootstrap_installed_debian_is_not_reinstalled(self):
+        result, calls = self._bootstrap('debian\n')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn('install debian', calls); self.assertIn('login debian', calls)
+
+    def test_bootstrap_installs_once_and_can_repeat(self):
+        result, calls = self._bootstrap('', repeat=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, calls.count('install debian'))
+
+    def test_bootstrap_other_container_is_not_debian(self):
+        result, calls = self._bootstrap('ubuntu\ndebian-test\n')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('install debian\n', calls)
+
+    def test_bootstrap_failed_list_does_not_install(self):
+        result, calls = self._bootstrap('debian\n', fail_list=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn('install debian', calls); self.assertNotIn('login debian', calls)
+
+
+def restore_phase_case(explicit, phase):
+    def test(self):
+        self.seed()
+        payload = self.release()
+        identity = 'restore_window'
+        if explicit:
+            self.manager.dispatch('update', 'before_rollback', payload)
+            operation = 'rollback'; payload = {'confirm_data_restore': True, 'start_after_install': True}
+            label = 'pre-rollback-data'
+        else:
+            self.state['fail_versions'].add('1.1.8')
+            operation = 'update'; label = 'failed-new-data'
+        def fault(current):
+            if current == label + '-' + phase: raise SimulatedCrash()
+        with self.assertRaises(SimulatedCrash):
+            self.make(fault).dispatch(operation, identity, payload)
+        result = self.make().dispatch('resume', 'resume_restore', {'target_operation_id': identity})
+        self.assertEqual('rolled_back', result['status'])
+        self.assertEqual('1.1.7', self.manager.current_version())
+        self.assertEqual('preserve settings', (self.manager.root / 'data/config.txt').read_text())
+        self.assertEqual('user project', (self.manager.root / 'workspace/project.txt').read_text())
+        starts = len(self.state['starts'])
+        self.make().dispatch('resume', 'repeat_restore', {'target_operation_id': identity})
+        self.assertEqual(starts, len(self.state['starts']))
+    return test
+
+for explicit in (False, True):
+    for phase in ('prepared', 'quarantined', 'published', 'marked'):
+        setattr(DeploymentTest, 'test_restore_%s_%s' % ('explicit' if explicit else 'failed_upgrade', phase),
+                restore_phase_case(explicit, phase))
 
 # Each phase is a distinct unittest case so a skipped phase cannot disappear from CI evidence.
 def phase_case(phase):

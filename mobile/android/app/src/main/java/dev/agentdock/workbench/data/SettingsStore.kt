@@ -5,9 +5,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.agentdock.workbench.model.WorkbenchSettings
+import dev.agentdock.workbench.model.BridgeOperation
+import dev.agentdock.workbench.termux.NodeIntentPolicy
+import org.json.JSONObject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -47,6 +51,8 @@ class SettingsStore(private val context: Context) {
         val granularManagement = booleanPreferencesKey("granular_management")
         val granularOther = booleanPreferencesKey("granular_other")
         val desiredNodeState = stringPreferencesKey("desired_node_state")
+        val nodeIntentRevision = longPreferencesKey("node_intent_revision")
+        val nodeIntentOperationId = stringPreferencesKey("node_intent_operation_id")
         val projectTree = stringPreferencesKey("project_tree_uri")
         val artifactTree = stringPreferencesKey("artifact_tree_uri")
         val onboarding = booleanPreferencesKey("onboarding_complete")
@@ -60,8 +66,20 @@ class SettingsStore(private val context: Context) {
         context.workbenchDataStore.edit { preferences -> encode(preferences, transform(decode(preferences))) }
     }
 
-    suspend fun setDesiredNodeState(value: String) = update { it.copy(desiredNodeState = value) }
-    suspend fun setGuardianPaused(value: Boolean) = update { it.copy(guardianPaused = value) }
+    suspend fun beginNodeOperation(operation: String, identity: String, payload: JSONObject): Long {
+        var revision = -1L
+        update { current -> NodeIntentPolicy.begin(current, operation, identity, payload).also { revision = it.nodeIntentRevision } }
+        return revision
+    }
+
+    suspend fun observeNodeOperation(request: BridgeOperation, data: JSONObject) =
+        update { NodeIntentPolicy.observe(it, request, data) }
+
+    suspend fun rejectUnsentNodeOperation(request: BridgeOperation, before: WorkbenchSettings) = update { current ->
+        if (current.nodeIntentOperationId == request.operationId && current.nodeIntentRevision == request.intentRevision)
+            current.copy(desiredNodeState = before.desiredNodeState, nodeIntentOperationId = before.nodeIntentOperationId)
+        else current
+    }
 
     private fun decode(p: Preferences): WorkbenchSettings = WorkbenchSettings(
         theme = p[Keys.theme] ?: "system",
@@ -95,6 +113,8 @@ class SettingsStore(private val context: Context) {
         granularManagement = p[Keys.granularManagement] ?: true,
         granularOther = p[Keys.granularOther] ?: false,
         desiredNodeState = p[Keys.desiredNodeState] ?: "stopped",
+        nodeIntentRevision = p[Keys.nodeIntentRevision] ?: 0L,
+        nodeIntentOperationId = p[Keys.nodeIntentOperationId] ?: "",
         projectTreeUri = p[Keys.projectTree] ?: "",
         artifactTreeUri = p[Keys.artifactTree] ?: "",
         onboardingComplete = p[Keys.onboarding] ?: false
@@ -132,6 +152,8 @@ class SettingsStore(private val context: Context) {
         p[Keys.granularManagement] = value.granularManagement
         p[Keys.granularOther] = value.granularOther
         p[Keys.desiredNodeState] = value.desiredNodeState
+        p[Keys.nodeIntentRevision] = value.nodeIntentRevision
+        p[Keys.nodeIntentOperationId] = value.nodeIntentOperationId
         p[Keys.projectTree] = value.projectTreeUri
         p[Keys.artifactTree] = value.artifactTreeUri
         p[Keys.onboarding] = value.onboardingComplete

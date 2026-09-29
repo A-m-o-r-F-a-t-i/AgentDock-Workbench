@@ -3,6 +3,7 @@ package dev.agentdock.workbench.lifecycle
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import dev.agentdock.workbench.WorkbenchApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,8 @@ class BootReceiver : BroadcastReceiver() {
                 val settings = graph.settings.current()
                 GuardianScheduler.configure(context, settings)
                 GuardianScheduler.enqueueBootCheck(context, settings)
+            } catch (_: Exception) {
+                Log.w("AgentDockGuardian", "Boot check scheduling failed; no node command was dispatched")
             } finally {
                 result.finish()
             }

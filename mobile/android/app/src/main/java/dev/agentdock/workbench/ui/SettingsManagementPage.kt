@@ -53,7 +53,7 @@ fun SettingsManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, m
 
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) model.setNotificationsEnabled(true)
-        else model.showNotice("系统通知权限未授予，通知和守护保持关闭。")
+        else { model.setNotificationsEnabled(false); model.showNotice("系统通知权限未授予，通知和守护已请求关闭。") }
     }
 
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {

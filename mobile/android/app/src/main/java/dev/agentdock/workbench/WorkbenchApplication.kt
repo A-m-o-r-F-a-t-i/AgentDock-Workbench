@@ -9,6 +9,8 @@ import dev.agentdock.workbench.data.WorkbenchRepository
 import dev.agentdock.workbench.termux.PendingOperationStore
 import dev.agentdock.workbench.termux.LocalCorePairingManager
 import dev.agentdock.workbench.termux.TermuxCommandDispatcher
+import dev.agentdock.workbench.lifecycle.GuardianController
+import dev.agentdock.workbench.lifecycle.AndroidGuardianEffects
 
 class WorkbenchApplication : Application() {
     lateinit var graph: AppGraph
@@ -30,5 +32,6 @@ class AppGraph(application: Application) {
     val remoteOAuth = RemoteOAuthPairingManager(credentials)
     val projects = SafProjectStore(application)
     val repository = WorkbenchRepository(application, settings, credentials)
-    val termux = TermuxCommandDispatcher(application, operations, localPairing)
+    val termux = TermuxCommandDispatcher(application, operations, localPairing, settings)
+    val guardian = GuardianController(settings::current, settings::update, AndroidGuardianEffects(application))
 }

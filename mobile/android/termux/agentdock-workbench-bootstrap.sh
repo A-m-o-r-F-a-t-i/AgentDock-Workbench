@@ -23,7 +23,13 @@ else
   printf '\nallow-external-apps=true\n' >>"$properties"
 fi
 termux-reload-settings 2>/dev/null || true
-if ! proot-distro list 2>/dev/null | grep -Eq 'debian.*\(installed\)|debian.*installed'; then
+# proot-distro 5.x quiet output is one installed container name per line.
+# A failed/unsupported query is not evidence that Debian is absent.
+if ! installed_containers="$(proot-distro list --quiet)"; then
+  printf '%s\n' 'Unable to list containers; proot-distro 5.x with list --quiet is required. No container was reinstalled.' >&2
+  exit 1
+fi
+if ! printf '%s\n' "$installed_containers" | grep -Fxq 'debian'; then
   proot-distro install debian
 fi
 proot-distro login debian -- /bin/sh -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl tar jq procps openssl && apt-get clean'
