@@ -715,3 +715,19 @@
 "Isolate" = "Isolate";
 "Remove isolation" = "Remove isolation";
 "Steps: %@ / %@" = "Steps: %@ / %@";
+
+"A supplement must contain 1–8192 UTF-8 bytes." = "A supplement must contain 1–8192 UTF-8 bytes.";
+
+"Too many unresolved submissions. Read their receipts before sending to another conversation." = "Too many unresolved submissions. Read their receipts before sending to another conversation.";
+
+"%@ / %@ UTF-8 bytes" = "%@ / %@ UTF-8 bytes";
+
+"Reload output from start" = "Reload output from start";
+
+"The candidate plugin package did not pass validation." = "The candidate plugin package did not pass validation.";
+
+"Update validated plugin package?" = "Update validated plugin package?";
+
+"Rebind plugin source and update?" = "Rebind plugin source and update?";
+
+"The installed source differs from the selected package. Confirm this source change explicitly." = "The installed source differs from the selected package. Confirm this source change explicitly.";

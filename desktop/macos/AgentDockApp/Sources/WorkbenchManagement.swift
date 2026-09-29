@@ -114,3 +114,36 @@ extension WorkbenchAPIClient {
         }
     }
 }
+
+
+extension WorkbenchAPIClient {
+    @MainActor
+    func updateLocalPlugin(name: String, source: String,
+                           confirmCandidate: (WorkbenchJSON) -> Bool,
+                           confirmSourceChange: (WorkbenchJSON, WorkbenchJSON) -> Bool) async throws -> WorkbenchJSON {
+        let endpoint = WorkbenchResource.plugins.endpoint
+        let candidate = try await post(endpoint, body: .object(["action": .string("validate"), "source": .string(source)]))
+        try Task.checkCancellation()
+        guard candidate.flag("valid") else {
+            throw WorkbenchClientError.invalidResponse(L10n.text("The candidate plugin package did not pass validation."))
+        }
+        guard confirmCandidate(candidate) else { throw WorkbenchClientError.cancelled }
+        try Task.checkCancellation()
+        var fields: [String: WorkbenchJSON] = ["action": .string("update"), "name": .string(name),
+            "source": .string(source), "confirmed": .bool(true)]
+        do {
+            return try await post(endpoint, body: .object(fields))
+        } catch let error as WorkbenchClientError {
+            // This specific Core error is emitted before committing a replacement.
+            // Network failures and all other errors never trigger a write retry.
+            guard case let .http(_, code, _) = error,
+                  code == "PLUGIN_SOURCE_CHANGE_CONFIRMATION_REQUIRED" else { throw error }
+            let installed = try await get(endpoint + "/" + encodedPathComponent(name))
+            try Task.checkCancellation()
+            guard confirmSourceChange(installed, candidate) else { throw WorkbenchClientError.cancelled }
+            try Task.checkCancellation()
+            fields["confirmed_source_change"] = .bool(true)
+            return try await post(endpoint, body: .object(fields))
+        }
+    }
+}

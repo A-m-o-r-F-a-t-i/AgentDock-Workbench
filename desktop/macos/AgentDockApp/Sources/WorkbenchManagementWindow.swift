@@ -256,6 +256,24 @@ final class WorkbenchManagementWindow: NSWindowController, NSWindowDelegate, NST
             guard let values = WorkbenchForms.fields(title: L10n.text("Register workspace"), message: L10n.text("The WB01 workspace interface must be integrated. No second workspace store is created."), fields: [(L10n.text("Name"), ""), (L10n.text("Absolute directory"), "")]), values[1].hasPrefix("/") else { return }
             fields["name"] = .string(values[0]); fields["root"] = .string(values[1]); fields["kind"] = .string("repository"); fields["runtime"] = .string("unix")
         }
+        if type == .plugins, action == "update" {
+            let name = fields["name"]?.stringValue ?? ""
+            let source = fields["source"]?.stringValue ?? ""
+            mutate { [weak self, client] in
+                guard let self else { throw WorkbenchClientError.cancelled }
+                return try await client.updateLocalPlugin(name: name, source: source, confirmCandidate: { [weak self] candidate in
+                    guard self?.window?.isVisible == true, !Task.isCancelled else { return false }
+                    return WorkbenchForms.confirm(L10n.text("Update validated plugin package?"),
+                        name + "\n" + source + "\n" + String(candidate.prettyPrinted.prefix(8192)))
+                }, confirmSourceChange: { [weak self] installed, candidate in
+                    guard self?.window?.isVisible == true, !Task.isCancelled else { return false }
+                    return WorkbenchForms.confirm(L10n.text("Rebind plugin source and update?"),
+                        L10n.text("The installed source differs from the selected package. Confirm this source change explicitly.") +
+                        "\n" + String(installed.prettyPrinted.prefix(4096)) + "\n" + source + "\n" + String(candidate.prettyPrinted.prefix(4096)))
+                })
+            }
+            return
+        }
         guard WorkbenchForms.confirm(L10n.text("Confirm resource operation?"), type.title + " · " + action + "\n" + WorkbenchJSON.object(fields).prettyPrinted) else { return }
         mutate { [client] in try await client.post(type.endpoint, body: .object(fields)) }
     }

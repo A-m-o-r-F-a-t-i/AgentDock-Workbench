@@ -201,10 +201,7 @@ extension WorkbenchAPIClient {
 
     @discardableResult
     func enqueueInsertion(conversationID: String, submissionID: String, text: String) async throws -> WorkbenchJSON {
-        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty, normalized.utf8.count <= 16 * 1024 else {
-            throw WorkbenchClientError.configuration(L10n.text("A supplement must contain 1–16384 bytes."))
-        }
+        let normalized = try WorkbenchInsertionInput.normalized(text)
         return try await post("/internal/runtime/conversations/\(try encodedPathComponent(conversationID))/insertions", body: .object([
             "submission_id": .string(submissionID),
             "text": .string(normalized)

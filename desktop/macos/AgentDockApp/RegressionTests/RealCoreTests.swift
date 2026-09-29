@@ -12,6 +12,32 @@ final class RealCoreTests: XCTestCase {
             try WorkbenchConnection(baseURL: URL(string: value.text("base_url"))!, bearerToken: wrongToken ? "wrong-fixture-token" : value.text("token"))
         }
     }
+    @MainActor func testQuietNativeSSESurvivesHeartbeatAndOldResourceTimeout() async throws {
+        let value = try fixture(), api = client(try fixture())
+        let page = try await api.sidebar(WorkbenchSidebarRequest())
+        var finished = false
+        var failure: String?
+        let consumer = Task { @MainActor in
+            defer { finished = true }
+            do {
+                for try await _ in api.eventStream(
+                    path: api.callStreamPath(conversationID: value.text("conversation_a"), after: page.latestSequence),
+                    lastEventID: String(page.latestSequence)) {}
+            } catch {
+                if !Task.isCancelled { failure = error.localizedDescription }
+            }
+        }
+        defer { consumer.cancel() }
+        // Real sockets and Core's 15-second heartbeats; no synthetic immediate EOF.
+        try await Task.sleep(nanoseconds: 32_000_000_000)
+        XCTAssertFalse(finished, failure ?? "SSE ended before the quiet observation completed")
+        XCTAssertNil(failure)
+        consumer.cancel()
+        let deadline = Date().addingTimeInterval(3)
+        while !finished, Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(finished, "Cancelling the consumer must release the native stream")
+    }
+
     func testAuthenticatedNativeReadsAndPayload() async throws {
         let value = try fixture(), api = client(try fixture())
         var sidebarRequest = WorkbenchSidebarRequest()

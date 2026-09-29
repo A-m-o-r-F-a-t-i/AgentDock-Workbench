@@ -186,7 +186,7 @@ final class WorkbenchWindowController: NSWindowController, NSWindowDelegate, NST
         sidebar.onLoadMore = { [weak self] in self?.model.loadMoreWorkspace($0) }
         sidebar.onHistory = { [weak self] in self?.manager.present(.conversations) }
         sidebar.onAddWorkspace = { [weak self] in self?.manager.present(.workspaces) }
-        detail.onReadPayload = { [weak self] in self?.model.loadPayload(source: $0) }
+        detail.onReadPayload = { [weak self] source, restart in self?.model.loadPayload(source: source, restart: restart) }
         detail.onOpenPolicy = { [weak self] in self?.openPolicy() }
 
         timeline.onCallSelected = { [weak self] id in

@@ -21,6 +21,7 @@ final class WorkbenchTimelineViewController: NSViewController, NSTableViewDataSo
     private var entries = [WorkbenchTimelineEntry]()
     private var selectedEntryID = ""
     private var suppressSelection = false
+    private var eligibilityHint = ""
 
     init() {
         let composerPair = WorkbenchUI.scrollableText(editable: true)
@@ -171,7 +172,8 @@ final class WorkbenchTimelineViewController: NSViewController, NSTableViewDataSo
             composerHint.stringValue = L10n.text("Select an active conversation to insert a supplement.")
         }
         composer.isEditable = canCompose && !model.isOperating
-        sendButton.isEnabled = canCompose && !model.isOperating && !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        eligibilityHint = composerHint.stringValue
+        updateComposerValidation()
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { entries.count }
@@ -195,13 +197,20 @@ final class WorkbenchTimelineViewController: NSViewController, NSTableViewDataSo
         }
     }
 
-    func textDidChange(_ notification: Notification) {
-        sendButton.isEnabled = composer.isEditable && !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    func textDidChange(_ notification: Notification) { updateComposerValidation() }
+
+    private func updateComposerValidation() {
+        let text = composer.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let count = text.utf8.count
+        let valid = count <= WorkbenchInsertionInput.maximumBytes
+        sendButton.isEnabled = composer.isEditable && !text.isEmpty && valid
+        let countText = L10n.format("%@ / %@ UTF-8 bytes", String(count), String(WorkbenchInsertionInput.maximumBytes))
+        composerHint.stringValue = (valid ? eligibilityHint : L10n.text("A supplement must contain 1–8192 UTF-8 bytes.")) + "\n" + countText
     }
 
     @objc private func sendInsertion(_ sender: Any?) {
         let value = composer.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { return }
+        guard sendButton.isEnabled, !value.isEmpty else { return }
         onSendInsertion?(value)
         // Preserve the draft while the submission outcome is unknown.
     }

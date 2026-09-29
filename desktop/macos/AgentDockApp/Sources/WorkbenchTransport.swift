@@ -8,7 +8,7 @@ struct WorkbenchConnection: Equatable, Sendable {
         guard let configuration = ServiceConfiguration.load(from: paths.environment) else {
             throw WorkbenchClientError.configuration(L10n.text("AgentDock Core is not configured. Complete installation or repair the configuration first."))
         }
-        let host = configuration.healthHost.lowercased()
+        let host = ServiceConfiguration.normalizedHost(configuration.healthHost)
         guard ["127.0.0.1", "::1", "localhost"].contains(host) else {
             throw WorkbenchClientError.configuration(L10n.format("Workbench connects only to Core's direct loopback address. Current address: %@.", String(describing: configuration.healthHost)))
         }
@@ -16,22 +16,16 @@ struct WorkbenchConnection: Equatable, Sendable {
         guard !token.isEmpty else {
             throw WorkbenchClientError.configuration(L10n.text("Core configuration is missing the local Bearer Token."))
         }
-        var components = URLComponents()
-        components.scheme = "http"
-        components.host = host
-        components.port = configuration.port
-        components.path = "/"
-        guard let url = components.url else {
+        guard let url = ServiceConfiguration.httpEndpoint(host: host, port: configuration.port, path: "/") else {
             throw WorkbenchClientError.configuration(L10n.text("Unable to construct the Core loopback address."))
         }
-        baseURL = url
-        bearerToken = token
+        try self.init(baseURL: url, bearerToken: token)
     }
 
     init(baseURL: URL, bearerToken: String) throws {
         guard baseURL.scheme?.lowercased() == "http",
               let host = baseURL.host?.lowercased(),
-              ["127.0.0.1", "::1", "localhost"].contains(host) else {
+              ["127.0.0.1", "::1", "localhost"].contains(ServiceConfiguration.normalizedHost(host)) else {
             throw WorkbenchClientError.configuration(L10n.text("A test or runtime connection must use direct loopback HTTP."))
         }
         guard baseURL.user == nil, baseURL.password == nil, baseURL.query == nil, baseURL.fragment == nil,
@@ -52,6 +46,7 @@ struct WorkbenchSidebarRequest: Equatable, Sendable {
     var cursors: [String: String] = [:]
     var defaultMode = "auto"
     var selectedConversationID = ""
+    var includeImportant = true
 
     var json: WorkbenchJSON {
         .object([
@@ -61,7 +56,8 @@ struct WorkbenchSidebarRequest: Equatable, Sendable {
             "modes": .object(modes.mapValues(WorkbenchJSON.string)),
             "cursors": .object(cursors.mapValues(WorkbenchJSON.string)),
             "default_mode": .string(defaultMode),
-            "selected_id": .string(selectedConversationID)
+            "selected_id": .string(selectedConversationID),
+            "include_important": .bool(includeImportant)
         ])
     }
 }
@@ -73,40 +69,47 @@ final class WorkbenchAPIClient {
 
     typealias ConnectionProvider = () throws -> WorkbenchConnection
 
+    static let streamIdleTimeout: TimeInterval = 60
+    static let streamResourceTimeout: TimeInterval = 24 * 60 * 60
     private let session: URLSession
+    private let streamSession: URLSession
     private let ownsSession: Bool
+    private let ownsStreamSession: Bool
     private let connectionProvider: ConnectionProvider
     private let maximumResponseBytes: Int
     private let redirectGuard = WorkbenchRedirectGuard()
 
     init(
         session: URLSession? = nil,
+        streamSession: URLSession? = nil,
         maximumResponseBytes: Int = WorkbenchAPIClient.maximumResponseBytes,
         connectionProvider: @escaping ConnectionProvider = { try WorkbenchConnection() }
     ) {
-        if let session {
-            self.session = session
-            ownsSession = false
-        } else {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.timeoutIntervalForRequest = 12
-            configuration.timeoutIntervalForResource = 20
-            configuration.waitsForConnectivity = false
-            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-            configuration.urlCache = nil
-            configuration.httpCookieStorage = nil
-            configuration.httpShouldSetCookies = false
-            configuration.httpMaximumConnectionsPerHost = 4
-            configuration.connectionProxyDictionary = [:]
-            self.session = URLSession(configuration: configuration)
-            ownsSession = true
-        }
+        self.session = session ?? URLSession(configuration: Self.sessionConfiguration(stream: false))
+        ownsSession = session == nil
+        self.streamSession = streamSession ?? session ?? URLSession(configuration: Self.sessionConfiguration(stream: true))
+        ownsStreamSession = streamSession == nil && session == nil
         self.maximumResponseBytes = max(1024, maximumResponseBytes)
         self.connectionProvider = connectionProvider
     }
 
+    static func sessionConfiguration(stream: Bool) -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = stream ? streamIdleTimeout : 12
+        configuration.timeoutIntervalForResource = stream ? streamResourceTimeout : 20
+        configuration.waitsForConnectivity = false
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpMaximumConnectionsPerHost = 4
+        configuration.connectionProxyDictionary = [:]
+        return configuration
+    }
+
     deinit {
         if ownsSession { session.invalidateAndCancel() }
+        if ownsStreamSession { streamSession.invalidateAndCancel() }
     }
 
     func get(_ path: String) async throws -> WorkbenchJSON {
@@ -122,11 +125,11 @@ final class WorkbenchAPIClient {
             let task = Task {
                 do {
                     let connection = try connectionProvider()
-                    var request = try makeRequest(connection: connection, method: "GET", path: streamPath, body: nil)
+                    var request = try makeRequest(connection: connection, method: "GET", path: streamPath, body: nil, isStream: true)
                     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
                     request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
                     if !lastEventID.isEmpty { request.setValue(lastEventID, forHTTPHeaderField: "Last-Event-ID") }
-                    let (bytes, response) = try await session.bytes(for: request, delegate: redirectGuard)
+                    let (bytes, response) = try await streamSession.bytes(for: request, delegate: redirectGuard)
                     defer { bytes.task.cancel() }
                     guard let http = response as? HTTPURLResponse else {
                         throw WorkbenchClientError.invalidResponse(L10n.text("The Core activity stream did not return an HTTP response."))
@@ -200,7 +203,7 @@ final class WorkbenchAPIClient {
         }
     }
 
-    private func makeRequest(connection: WorkbenchConnection, method: String, path: String, body: WorkbenchJSON?) throws -> URLRequest {
+    private func makeRequest(connection: WorkbenchConnection, method: String, path: String, body: WorkbenchJSON?, isStream: Bool = false) throws -> URLRequest {
         guard let url = URL(string: path, relativeTo: connection.baseURL)?.absoluteURL,
               url.scheme == connection.baseURL.scheme,
               url.host?.lowercased() == connection.baseURL.host?.lowercased(),
@@ -209,7 +212,7 @@ final class WorkbenchAPIClient {
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 12
+        request.timeoutInterval = isStream ? Self.streamIdleTimeout : 12
         request.setValue("Bearer \(connection.bearerToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AgentDock-Workbench/macOS", forHTTPHeaderField: "User-Agent")
