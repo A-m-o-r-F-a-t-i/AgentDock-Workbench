@@ -532,3 +532,17 @@ scripts:
     owner: release
     public_contract: false
     notes: 合成夹具覆盖Android缺失证据、取消、混合源码、截图及APK损坏。
+
+  - path: scripts/diagnostics/probe-context.py
+    class: dev
+    owner: runtime
+    public_contract: false
+    deletable: false
+    notes: Authenticated bounded MCP context probe; never retries tools/call, redirects credentials, or exports rule text.
+
+  - path: scripts/test/test-context-probe.py
+    class: test
+    owner: runtime
+    public_contract: false
+    deletable: false
+    notes: Loopback-only probe fixtures cover response bounds, credential redirects, failed tool results and no automatic replay.
