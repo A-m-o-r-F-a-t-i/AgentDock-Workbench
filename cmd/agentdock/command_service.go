@@ -32,7 +32,10 @@ func runServiceCommand(ctx context.Context, args []string, stdout, stderr io.Wri
 			defer logOutput.Close()
 			stderr = logOutput
 		}
-		if err := desktopruntime.PrepareCoreEnvironment(*runtimeRoot); err != nil {
+		completeEnvironment := traceStartupPhase(stderr, "environment")
+		err = desktopruntime.PrepareCoreEnvironment(*runtimeRoot)
+		completeEnvironment(err)
+		if err != nil {
 			if logOutput != nil {
 				fmt.Fprintf(stderr, "agentdock: %v\n", err)
 			}

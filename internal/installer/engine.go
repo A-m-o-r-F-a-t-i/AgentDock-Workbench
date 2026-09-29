@@ -997,39 +997,6 @@ func randomHex(byteCount int) (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
-func copyTree(src, dst string, mode os.FileMode) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		if err := os.MkdirAll(dst, 0o755); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			if err := copyTree(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name()), mode); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if mode == 0 {
-		mode = info.Mode()
-	}
-	return os.WriteFile(dst, data, mode)
-}
-
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()

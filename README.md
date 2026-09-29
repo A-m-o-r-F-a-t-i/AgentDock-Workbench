@@ -6,97 +6,96 @@ English | [简体中文](./README.zh-CN.md)
 
 # AgentDock Workbench
 
-**AgentDock Workbench 1.1.7** · [Release notes and platform packages](./docs/releases/v1.1.7.md) · [Acceptance matrix](./docs/acceptance-1.1.7.md) · [Layered permissions](./docs/permission-profiles.md) · [Insertion delivery](./docs/insertion-delivery-1.1.7.md). This fork extends [upstream AgentDock](https://github.com/uvwt/agentdock) with its task and execution workbench. Native Windows, Linux and macOS x64/ARM64 packages are built in this repository; the Windows activity-center UI remains platform-specific.
+**A task, execution, and permission workbench for AI agents operating real devices.**
 
-**Give AI agents secure, controlled access to every machine you operate.**
+AgentDock Workbench connects ChatGPT, Claude, Codex, and other MCP clients to local computers, remote servers, and mobile nodes. It combines the AgentDock runtime with a conversation-centered control plane for tasks, tool calls, approvals, permissions, mid-task instructions, plugins, and multi-device operations.
 
-Open ChatGPT in your browser and manage multiple computers and servers from one conversation. Write code, change configuration, run commands, and deploy in the real environment where the work belongs—without consuming a dedicated Codex coding quota.
-
-
-[Documentation](https://uvwt.github.io/agentdock-docs/) · [Download](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Community](https://qun.qq.com/universal-share/share?ac=1&authKey=Rp86bSzI7vqm87KoYlKawgsPZ440Ubhyezw6Qkgcn3JISwX3zXxsXkbS5598RrY5&busi_data=eyJncm91cENvZGUiOiIxMDgxMzM3MDE5IiwidG9rZW4iOiJ0Mlg1bUU1ZWtuZzF3SHJDT3pSaGsrOURIMlNYaXBlYllOUjNLZ1BUb1hzM2lJSTZjeVNldzU0ajl0SjRVZkx2IiwidWluIjoiMzIwMjA4ODAzMiJ9&data=W28mWvuqaLf_Fwnf0CgAJXuDs6l3A78V7AoWZnizPboCpKoQMzHzZ-UlluYo47U3tmIBHK2xIgWEVEJbTiGsPQ&svctype=4&tempid=h5_group_info)
+[Download releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Stable v1.1.7](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.7) · [Preview v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [Report an issue](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
-[![License](https://img.shields.io/github/license/uvwt/agentdock)](./LICENSE)
+[![License](https://img.shields.io/github/license/A-m-o-r-F-a-t-i/AgentDock-Workbench)](./LICENSE)
 
 </div>
 
 <p align="center">
   <img
     src="./docs/assets/agentdock-multi-device.png"
-    alt="AgentDock: operate multiple devices from one AI conversation"
+    alt="AgentDock Workbench managing multiple devices from one AI conversation"
     width="100%"
   />
 </p>
 
-## What is AgentDock?
+## Project purpose
 
-AgentDock is an independent tool runtime for AI agents.
+AgentDock Workbench is an independently maintained extension of [AgentDock](https://github.com/uvwt/agentdock). The runtime exposes files, commands, Git, Skills, dynamic MCP servers, browser automation, and other host capabilities through MCP. The Workbench adds the management layer needed to operate those capabilities as a durable product rather than a collection of isolated tool calls.
 
-It provides unified, secure, and controlled file, command, Git, Skill, MCP, browser automation, and task execution across local computers, remote servers, and containers. Connect multiple AgentDock instances to coordinate work across devices and finish multi-machine workflows in a single conversation.
+The project does not provide a chat interface or perform model inference. Your AI client supplies the model and conversation; AgentDock Workbench runs authorized operations in the connected environment and records what happened.
 
-AgentDock does not provide a chat interface or perform model inference. It focuses on one responsibility:
+## Workbench capabilities
 
-> Let AI agents operate real environments within explicit permission boundaries and return structured, traceable, and verifiable results.
+| Area | What the Workbench provides |
+| --- | --- |
+| Conversation-first navigation | Organizes active and historical conversations by workspace, with search, pinning, archiving, recovery, and explicit selection state. |
+| Recoverable tasks | Persists goals, steps, threads, checkpoints, blockers, and final review so long-running work can continue after interruption. |
+| Execution activity center | Tracks root calls and child calls, parameters, output, duration, files changed, errors, approvals, and terminal state without treating background probes as user work. |
+| Mid-task insertion and stop | Sends new user instructions into an active conversation, records delivery and acknowledgement state, and supports stopping a conversation or a specific call. |
+| Layered permissions | Separates the permission profile, approval policy, and approval reviewer; global and workspace settings remain visible and auditable. |
+| Skills, plugins, and MCP | Discovers, installs, enables, disables, and inspects Skills, self-contained plugins, and dynamic MCP servers through one management surface. |
+| Multi-device operation | Connects local machines, servers, containers, and mobile nodes while preserving the target workspace and execution identity. |
+| Installation and recovery | Uses explicit installation, update, rollback, retention, and health states instead of reporting an operation complete before it is verified. |
+
+## Architecture
 
 ```text
-              ChatGPT / Claude / Codex
-                        │
-                        │ MCP (multiple instances supported)
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-   ┌───────────┐ ┌───────────┐ ┌───────────┐
-   │ AgentDock │ │ AgentDock │ │ AgentDock │
-   │ Local Mac │ │ LAN Host  │ │ Cloud VPS │
-   └─────┬─────┘ └─────┬─────┘ └─────┬─────┘
-         │             │             │
-         ▼             ▼             ▼
-   Files · Shell · Git  Tunnels       Proxy · Deploy
+ ChatGPT / Claude / Codex / other MCP client
+                       │
+              MCP + Bearer/OAuth
+                       │
+              AgentDock Core runtime
+       ┌───────────────┼────────────────┐
+       │               │                │
+ Workbench UI      Management CLI   Tool runtime
+       │               │                │
+ Conversations     Tasks / calls     Files / shell / Git
+ Permissions       Approvals         Skills / plugins / MCP
+ Insert / stop     Logs / export     Browser / deployment
+                       │
+       Local computer · Server · Container · Mobile node
 ```
 
-## What can AgentDock do?
+A conversation is resolved from trusted host metadata. Tasks and calls inherit that binding, and approvals attach to the concrete call being reviewed. This prevents the management interface from guessing identity from the currently selected window or the most recently active task.
 
-- Manage multiple computers and servers directly from ChatGPT without repeatedly switching SSH sessions
-- Write code, modify projects, run tests, and operate Git in the real local or remote environment without depending on a dedicated coding-agent quota
-- Manage VPS hosts, Docker services, reverse proxies, and deployment configuration
-- Inspect logs, processes, ports, and actual runtime state
-- Operate authenticated web pages and macOS desktop applications
-- Connect multiple AgentDock instances and coordinate cross-device work in one conversation
-- Extend capabilities through Skills and dynamic MCP servers
-- Persist long-running task state and continue after an interruption
-- Use the same tool model across macOS, Linux, Windows, and containers
-- And more
+## Platform status
 
-## This fork and upstream AgentDock
+| Platform | Experience | Release status |
+| --- | --- | --- |
+| Windows | Native WPF Workbench, graphical installer, task and activity center, permission management, insertion, updates, and recovery. | Main stable desktop experience. |
+| macOS | Native Swift/AppKit Workbench using the shared Core management contract. | Expanded in the v1.1.8 preview. |
+| Android | Kotlin/Jetpack Compose Workbench connected to an external Termux/PRoot Core, with deployment and keep-alive controls. | Introduced in the v1.1.8 preview. |
+| Linux | Headless Core and management CLI for local, server, and scripted operation. | Available through release packages and source builds. |
+| Containers / VPS | Headless runtime with MCP, CLI, authentication, and remote access options. | Deployment depends on the selected release asset and environment. |
 
-This README keeps the comparison concise. See [the detailed feature differences and migration guide](./docs/official-version-differences-and-migration.md) for the fork's plugin model, `AGENTS.md` injection, execution center, Windows desktop extensions, and state boundaries. Switching between the upstream release and this fork requires uninstalling the previous distribution and starting with clean state, or converting only reviewed text configuration in a backup copy; credentials and runtime journals must not be copied directly.
+Release assets vary by version and CPU architecture. Check the asset list and release notes before installing. The latest stable release remains v1.1.7; v1.1.8 is currently a pre-release for cross-platform validation.
+
+## Typical workflows
+
+- Let an AI agent modify a real project, run its tests, inspect failures, and commit the verified result on the target machine.
+- Continue a multi-hour task after a disconnected browser session by restoring its persisted steps and checkpoints.
+- Inspect exactly which tool calls belong to a conversation, including child calls, output, errors, and file changes.
+- Insert a requirement while work is running without starting a second task or losing the current execution context.
+- Require user approval for selected operations while keeping hard filesystem, network, and sandbox limits in force.
+- Manage several AgentDock nodes from one conversation and direct each operation to the correct workspace and device.
 
 ## Quick start
 
-Regular users can install AgentDock from the official package for their operating system. You do not need the source code or Go.
+1. Open [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) and choose the stable release or the current preview.
+2. Download the package matching your operating system and CPU architecture.
+3. Start AgentDock Core and, where available, the native Workbench client.
+4. Obtain the MCP endpoint and Bearer Token or complete the OAuth connection flow.
+5. Add the endpoint to the MCP, Tools, or Connectors settings of your AI client.
 
-See [Install AgentDock](https://uvwt.github.io/agentdock-docs/docs/getting-started/install) for the complete instructions.
-
-| Platform | Documentation |
-| --- | --- |
-| Docker | [Docker installation](https://uvwt.github.io/agentdock-docs/docs/getting-started/docker) |
-| Linux | [Automated Linux installation](https://uvwt.github.io/agentdock-docs/docs/getting-started/linux) |
-| Linux / VPS | [Manual systemd deployment](https://uvwt.github.io/agentdock-docs/docs/getting-started/vps) |
-| macOS | [macOS installation](https://uvwt.github.io/agentdock-docs/docs/getting-started/macos) |
-| Windows | [Graphical Windows installer](https://uvwt.github.io/agentdock-docs/docs/getting-started/windows) |
-
-### Choose a connection option
-
-- **Local only:** the client and AgentDock run on the same computer.
-- **Temporary public address:** ChatGPT, a phone, or another remote device needs access and no domain is ready. The address may change after the Tunnel restarts.
-- **Fixed domain:** a stable address for long-term use. Requires a Cloudflare-managed domain and Tunnel Token.
-- **Tailscale Funnel (Windows Desktop):** use the signed-in device's `.ts.net` HTTPS origin without a Tunnel Token. AgentDock forwards its complete origin, retains Bearer/OAuth authentication, and only removes mappings it owns. See [configuration, conflicts and recovery](./docs/tailscale-funnel.md).
-
-After installation, get the MCP URL and Bearer Token or OAuth sign-in details from the control panel or terminal, then add them to the MCP, Tools, or Connectors settings in your client. Public access must keep authentication enabled. Do not include credentials in screenshots, issues, or public conversations.
-
-## Connect an AI client
-
-AgentDock exposes tools over MCP Streamable HTTP. The exact client syntax varies, but a typical configuration looks like this:
+A typical local MCP configuration is:
 
 ```json
 {
@@ -111,136 +110,53 @@ AgentDock exposes tools over MCP Streamable HTTP. The exact client syntax varies
 }
 ```
 
-## Core capabilities
+Keep authentication enabled for every non-local connection. Do not publish tokens, OAuth credentials, private origins, approval payloads, or execution logs containing secrets.
 
-### Files and commands
+## Project documentation
 
-- Read and search UTF-8 text, traverse directories, and apply structured edits
-- Atomic file writes, path boundaries, and private-directory protection
-- Command execution with timeout and output limits
-- Separate stdout, stderr, and exit status
-- Long-running command sessions, PTY, observation, input, and termination
-- Output truncation and sensitive-value redaction
-- macOS, Linux, Windows, and WSL support
-
-### Skills and dynamic MCP
-
-Official and community Skill sources live in [uvwt/agentdock-skills](https://github.com/uvwt/agentdock-skills). This repository only keeps core Skills that must ship with the AgentDock runtime, including bootstrap/security Skills and the built-in `agentdock-user-guide` official user guide.
-
-- Validate, install, uninstall, activate, enable, disable, and roll back Skill packages
-- Store active Skills in a [Codex-style visible directory tree](docs/skill-directory-layout.md) while keeping inactive versions and transaction state hidden
-- Stable, development, canary, and pinned release channels
-- Isolated environment variables and runtimes for each Skill
-- Register, enable, disable, refresh, and remove dynamic MCP servers
-- Streamable HTTP and stdio transports
-- Search tools, inspect schemas, and perform controlled calls
-- Configuration isolation between MCP servers
-- Install [self-contained heavy plugins](docs/heavy-plugins.md) that directly carry their Skills, MCP definitions, implementation files, switches, and two-stage progressive disclosure without a plugin cache layer
-
-### Native ACP
-
-AgentDock can optionally act as a native ACP client and host a local coding-agent adapter.
-
-- Desktop control panels provide presets for Codex, Claude, and Grok; host configuration controls whether ACP is enabled and which adapter is selected.
-- Use `acp_session` to create and manage sessions, `acp_prompt` to run and observe prompts, and `acp_interaction` to answer agent permission requests.
-- Optional ACP operations are available only when the connected adapter advertises the corresponding capability.
-- ACP working directories follow the host process or container security boundary rather than an AgentDock filesystem allowlist.
-
-### Browser and desktop automation
-
-- Start, close, and clean up browser sessions
-- Navigate, click, type, select, and wait
-- Inspect page text, interactive elements, errors, and network responses
-- Persist login state, use dedicated browser profiles, and capture screenshots
-- Use system Chrome and macOS desktop automation
-
-### Recoverable tasks
-
-- Persist task state
-- Define explicit goals, steps, and completion conditions
-- Record staged checkpoints
-- Track blockers and resume after interruption
-- Perform final review and evidence-based completion checks
-- Reuse workflow templates
-
-### Recall and NexusDock integration
-
-AgentDock can optionally pair with NexusDock as a multi-device aggregation entrypoint:
-
-- Long-term project memory
-- Runbooks and experience records
-- Workflow templates
-- Private notes
-- Multi-device state coordination
-- Temporary signed Artifact downloads proxied by NexusDock while the source node is online
-
-## Runtime directories
-
-| Path | Purpose |
+| Topic | Document |
 | --- | --- |
-| `~/AgentDock` | Default working directory for relative file operations |
-| `~/.agentdock` | AgentDock state, configuration, sessions, and extension data |
+| Task and execution center | [Execution center](./docs/execution-center.md) |
+| Core management interface | [Execution center API](./docs/execution-center-api.md) |
+| Permission model | [Permission profiles](./docs/permission-profiles.md) |
+| Custom permission settings | [Custom permission settings](./docs/permissions-custom-settings.md) |
+| Mid-task instruction delivery | [Insertion delivery](./docs/insertion-delivery-1.1.7.md) |
+| AGENTS.md context injection | [Agent context](./docs/agents-context.md) |
+| Skills and self-contained plugins | [Agent plugins](./docs/agent-plugins.md) |
+| Tailscale Funnel access | [Tailscale Funnel](./docs/tailscale-funnel.md) |
+| Differences from upstream and migration | [Version differences and migration](./docs/official-version-differences-and-migration.md) |
+| Stable release details | [v1.1.7 release notes](./docs/releases/v1.1.7.md) |
+| Preview release details | [v1.1.8 release notes](./docs/releases/v1.1.8.md) |
 
-## Ports
+## Repository layout
 
-Default MCP URL for Docker, native installs, and local development:
+| Path | Responsibility |
+| --- | --- |
+| `cmd/` | AgentDock command-line entrypoints. |
+| `internal/` | Core runtime, state, permissions, tasks, calls, installation, and platform services. |
+| `api/` | Public and management API definitions. |
+| `desktop/` | Native desktop clients and desktop-specific integration. |
+| `mobile/` | Android Workbench and mobile integration. |
+| `core-skills/` | Skills that ship with the runtime. |
+| `packaging/` | Installers, release packaging, and platform delivery files. |
+| `docs/` | Architecture, behavior, release, migration, and validation documentation. |
 
-`http://127.0.0.1:8765/mcp`
+## Development and verification
 
-Ports are configurable. Clients must use the address defined by the actual deployment.
-
-For public deployments, enable Bearer Token or OAuth authentication and use HTTPS. Never expose an unauthenticated MCP service to the public internet.
-
-## Development and contribution
-
-Run the full check before submitting code:
+Read [AGENTS.md](./AGENTS.md) before changing the repository. Run the complete repository check before submitting changes:
 
 ```bash
 make check
 ```
 
-GitHub Actions continuously run tests, static checks, builds, and release validation.
+GitHub Actions performs continuous integration, static checks, platform builds, package construction, and release validation. Platform-specific packaging and installation tests are separate delivery states; a successful source build does not by itself prove that an installer or upgrade path has been validated.
 
-User documentation is maintained separately in [`uvwt/agentdock-docs`](https://github.com/uvwt/agentdock-docs). Changes to user-visible behavior, configuration, installation, or tool schemas should update the matching documentation in the same change set.
+Submit reproducible bugs and feature requests through [GitHub Issues](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues). Include the Workbench version, operating system, relevant call or task state, and redacted logs when they affect the failure.
 
-Changes involving device pairing, cross-node tool routing, Recall, or Workflow integrations may also require coordinated changes in [`uvwt/nexusdock`](https://github.com/uvwt/nexusdock). The shared protocol is maintained in [`uvwt/agentdock-protocol`](https://github.com/uvwt/agentdock-protocol). When changing shared interfaces or data structures, update the protocol definitions first, then align both implementations and their protocol dependency versions, check compatibility, update the corresponding documentation, and link related cross-repository changes in the PR.
+## Relationship to upstream
 
-Submit bugs and feature requests through [GitHub Issues](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues).
-
-## Support the project
-
-<p>If <b>AgentDock</b> helps you, please consider giving it a <b>Star</b> ⭐. Thank you for your support</p>
-<table>
-<thead>
-<tr>
-<th align="center">WeChat</th>
-<th align="center">Alipay</th>
-</tr>
-</thead>
-<tbody><tr>
-<td align="center"><img src="./docs/assets/donation/wechat-cropped.JPG" alt="WeChat donation QR code" height="200"></td>
-<td align="center"><img src="./docs/assets/donation/alipay.JPG" alt="Alipay donation QR code" height="200"></td>
-</tr>
-</tbody>
-</table>
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=uvwt/agentdock&type=Date)](https://star-history.com/#uvwt/agentdock&Date)
-
-## Related links
-
-- [Documentation](https://uvwt.github.io/agentdock-docs/)
-- [Documentation source](https://github.com/uvwt/agentdock-docs)
-- [GitHub Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
-- [GitHub Container Registry](https://github.com/uvwt/agentdock/pkgs/container/agentdock)
-- [Docker Hub](https://hub.docker.com/r/agentdockio/agentdock)
-- [Linux Do](https://linux.do/)
+AgentDock Workbench is based on the Apache-2.0-licensed [upstream AgentDock project](https://github.com/uvwt/agentdock) and retains the required license and attribution. Workbench-specific features, releases, documentation, installation behavior, and support are maintained in this repository. Review the [migration guide](./docs/official-version-differences-and-migration.md) before switching between the upstream distribution and AgentDock Workbench because their state and installation boundaries are not interchangeable.
 
 ## License
 
 Apache License 2.0. See [LICENSE](./LICENSE).
-
-## Community
-
-[Join the QQ group (1081337019)](https://qun.qq.com/universal-share/share?ac=1&authKey=Rp86bSzI7vqm87KoYlKawgsPZ440Ubhyezw6Qkgcn3JISwX3zXxsXkbS5598RrY5&busi_data=eyJncm91cENvZGUiOiIxMDgxMzM3MDE5IiwidG9rZW4iOiJ0Mlg1bUU1ZWtuZzF3SHJDT3pSaGsrOURIMlNYaXBlYllOUjNLZ1BUb1hzM2lJSTZjeVNldzU0ajl0SjRVZkx2IiwidWluIjoiMzIwMjA4ODAzMiJ9&data=W28mWvuqaLf_Fwnf0CgAJXuDs6l3A78V7AoWZnizPboCpKoQMzHzZ-UlluYo47U3tmIBHK2xIgWEVEJbTiGsPQ&svctype=4&tempid=h5_group_info)

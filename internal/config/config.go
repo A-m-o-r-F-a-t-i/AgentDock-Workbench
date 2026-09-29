@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/uvwt/agentdock/internal/fs/securepath"
 )
 
 const (
@@ -204,18 +202,8 @@ func (c *Config) Normalize() error {
 		if !filepath.IsAbs(cleaned) {
 			return fmt.Errorf("%s must resolve to an absolute path: %s", path.label, cleaned)
 		}
-		if err := os.MkdirAll(cleaned, 0o700); err != nil {
-			return fmt.Errorf("create %s %s: %w", path.label, cleaned, err)
-		}
-		info, err := os.Stat(cleaned)
-		if err != nil {
-			return fmt.Errorf("stat %s %s: %w", path.label, cleaned, err)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("%s is not a directory: %s", path.label, cleaned)
-		}
-		if err := securepath.EnsurePrivate(cleaned); err != nil {
-			return fmt.Errorf("secure %s %s: %w", path.label, cleaned, err)
+		if err := prepareDirectory(cleaned, path.label == "AgentDockHome"); err != nil {
+			return fmt.Errorf("prepare %s %s: %w", path.label, cleaned, err)
 		}
 		*path.value = cleaned
 	}

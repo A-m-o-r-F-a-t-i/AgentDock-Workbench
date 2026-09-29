@@ -531,6 +531,9 @@ func activateWindows(ctx context.Context, request Request, staged stagedInstall)
 			if !fileExists(file.source) {
 				return activatedInstall{}, fmt.Errorf("payload 缺少 %s", filepath.Base(file.source))
 			}
+			if err := staged.Journal.Snapshot(file.target); err != nil {
+				return activatedInstall{}, err
+			}
 			if err := copyTree(file.source, file.target, file.mode); err != nil {
 				return activatedInstall{}, err
 			}
@@ -690,20 +693,16 @@ func repairWindowsGeneration(request Request, journal *rollbackJournal, layout u
 		return stagedInstall{}, err
 	}
 	version := updateengine.NormalizeVersion(request.Version)
-	staging := filepath.Join(layout.VersionsDir(), ".repair-"+version)
-	if err := os.RemoveAll(staging); err != nil && !os.IsNotExist(err) {
+	staging, err := os.MkdirTemp(layout.VersionsDir(), ".repair-"+version+"-")
+	if err != nil {
 		return stagedInstall{}, err
 	}
-	if err := os.MkdirAll(staging, 0o700); err != nil {
-		return stagedInstall{}, err
-	}
+	defer os.RemoveAll(staging) // Never reuse a directory left by an interrupted attempt.
 	if err := copyWindowsGenerationPayload(request.PayloadDir, staging); err != nil {
-		_ = os.RemoveAll(staging)
 		return stagedInstall{}, err
 	}
 	generation := layout.GenerationDir(version)
 	if err := journal.Snapshot(generation); err != nil {
-		_ = os.RemoveAll(staging)
 		return stagedInstall{}, err
 	}
 	if err := os.RemoveAll(generation); err != nil && !os.IsNotExist(err) {
@@ -732,13 +731,13 @@ func publishWindowsGeneration(request Request, journal *rollbackJournal, layout 
 	if version == "" {
 		version = updateengine.NormalizeVersion("0.0.0")
 	}
-	staging := filepath.Join(layout.VersionsDir(), ".bootstrap-"+version)
-	if err := os.MkdirAll(staging, 0o700); err != nil {
+	staging, err := os.MkdirTemp(layout.VersionsDir(), ".bootstrap-"+version+"-")
+	if err != nil {
 		return stagedInstall{}, err
 	}
+	defer os.RemoveAll(staging) // Also clean up failures before publication.
 	payload := request.PayloadDir
 	if err := copyWindowsGenerationPayload(payload, staging); err != nil {
-		_ = os.RemoveAll(staging)
 		return stagedInstall{}, err
 	}
 	generation := layout.GenerationDir(version)
