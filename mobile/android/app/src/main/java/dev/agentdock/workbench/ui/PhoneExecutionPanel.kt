@@ -1,5 +1,9 @@
 package dev.agentdock.workbench.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import dev.agentdock.workbench.BuildConfig
+import dev.agentdock.workbench.execution.PhoneDiagnostics
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -61,6 +65,12 @@ fun PhoneExecutionPanel(state: WorkbenchUiState) {
                 }
             }, enabled = !busy && !status.enabled) { Text("启用本机执行器") }
             OutlinedButton(onClick = executor::stop, enabled = status.enabled) { Text("停止执行器") }
+            OutlinedButton(onClick = {
+                val report = PhoneDiagnostics.snapshot(BuildConfig.PRODUCT_VERSION, BuildConfig.CANDIDATE_SHA,
+                    status.enabled, status.connected, executor.capabilities())
+                app.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("AgentDock 手机连接诊断", report.toString(2)))
+                message = "已复制连接状态与构建信息，不包含令牌、命令或环境变量。"
+            }) { Text("复制连接诊断") }
         }
     }
     ShizukuExecutionPanel(state.fixture)

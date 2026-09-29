@@ -696,7 +696,7 @@ func (r *Runtime) RuntimeCallStop(ctx context.Context, id string) (Result, error
 	}
 	r.executionMu.Lock()
 	live := r.activeCalls[id]
-	if live != nil && call.ToolName != "exec_command" { /* cancellation follows the durable stop record below */
+	if live != nil && !isCommandExecutionTool(call.ToolName) { /* cancellation follows the durable stop record below */
 	}
 	r.executionMu.Unlock()
 	binding := call.Binding
@@ -707,10 +707,10 @@ func (r *Runtime) RuntimeCallStop(ctx context.Context, id string) (Result, error
 	if err != nil {
 		return nil, err
 	}
-	if live != nil && call.ToolName != "exec_command" {
+	if live != nil && !isCommandExecutionTool(call.ToolName) {
 		live.cancel()
 	}
-	if r.command.CallActivityRunning(id) || live != nil && call.ToolName == "exec_command" {
+	if r.command.CallActivityRunning(id) || live != nil && isCommandExecutionTool(call.ToolName) {
 		stopped, stopErr := r.stopStartingCommand(ctx, id)
 		status := "succeeded"
 		summary := "已发送停止请求，等待进程退出。"

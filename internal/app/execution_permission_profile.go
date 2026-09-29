@@ -89,6 +89,21 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 				f.WorkspaceBound = false
 			}
 		}
+	case "android_device_read":
+		// Status is local metadata. System reads are outside a workspace; capture
+		// additionally writes a file and cannot bypass a read-only file profile.
+		f.EffectsKnown = true
+		f.WorkspaceBound = f.Action == "status"
+		if f.Action != "status" {
+			f.Filesystem = permission.FileRead
+		}
+		if f.Action == "screenshot" || f.Action == "ui_dump" {
+			f.Filesystem = permission.FileWrite
+		}
+	case "android_device_act":
+		// Starting applications and arbitrary system effects are not confined to
+		// a filesystem sandbox even though their arguments are validated.
+		f.Network = true
 	case "task_manage":
 		// Task metadata is host-owned control state, not arbitrary filesystem I/O.
 		f.EffectsKnown = f.ReadOnly || f.Management

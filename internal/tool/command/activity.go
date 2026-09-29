@@ -52,7 +52,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 		close(done)
 		return done
 	}
-	secrets := make([]string, 0, len(request.Env))
+	secrets := append([]string{}, request.AuditSecrets...)
 	for _, value := range request.Env {
 		secrets = append(secrets, value)
 	}
@@ -71,7 +71,11 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 		}
 	}
 	redactor := activity.NewRedactor(secrets...)
-	base := activity.Event{Binding: request.Binding, ToolName: "exec_command", SessionID: s.ID, DisplayCommand: request.Cmd, Title: request.Label}
+	auditTool := "exec_command"
+	if request.AuditToolName == "android_device_read" || request.AuditToolName == "android_device_act" {
+		auditTool = request.AuditToolName
+	}
+	base := activity.Event{Binding: request.Binding, ToolName: auditTool, SessionID: s.ID, DisplayCommand: request.Cmd, Title: request.Label}
 	execution := s.Summary()
 	base.Runtime, base.Workdir = execution.Runtime, execution.Workdir
 	appendEvent := func(event activity.Event) {

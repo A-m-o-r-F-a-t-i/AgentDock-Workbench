@@ -351,6 +351,9 @@ func (r *Runtime) executionRedactor(args map[string]any) activity.Redactor {
 	if value := stringArg(args, "value"); value != "" {
 		values = append(values, value)
 	}
+	if text := stringArg(args, "text"); text != "" {
+		values = append(values, text)
+	}
 	return activity.NewRedactor(values...)
 }
 func (r *Runtime) describeExecution(name string, args map[string]any, state executionObservation) string {
@@ -379,7 +382,7 @@ func (r *Runtime) describeExecution(name string, args map[string]any, state exec
 // arbitrary third-party nested data. The fixed request stays in memory.
 func (r *Runtime) executionParameters(args map[string]any) string {
 	selected := map[string]any{}
-	for _, key := range []string{"action", "name", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms"} {
+	for _, key := range []string{"action", "name", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms", "package", "component", "namespace", "key", "operation", "mode", "permission", "capture_dir", "x", "y", "x2", "y2", "keycode"} {
 		if value, found := args[key]; found {
 			selected[key] = value
 		}
@@ -387,7 +390,7 @@ func (r *Runtime) executionParameters(args map[string]any) string {
 	if nested, ok := args["arguments"].(map[string]any); ok {
 		selected["argument_count"] = len(nested)
 	}
-	for _, key := range []string{"content", "patch", "stdin"} {
+	for _, key := range []string{"content", "patch", "stdin", "text", "value"} {
 		if value, ok := args[key].(string); ok {
 			selected[key+"_bytes"] = len(value)
 		}
@@ -400,6 +403,9 @@ func (r *Runtime) executionScope(p *preparedExecution) string {
 	scope := "当前进程操作系统账户权限；此模式不提升权限，也不限制任意命令内部的文件访问。"
 	if p.spec.Name == "exec_command" && androidBackend(p.args) {
 		scope = "手机执行后端：" + stringArg(p.args, "backend") + "\n工作目录：" + stringArg(p.args, "workdir") + "\n使用该后端的实际 Android 授权身份；不会自动改用其他后端。"
+	}
+	if p.spec.Name == "android_device_read" || p.spec.Name == "android_device_act" {
+		scope = "手机结构化系统操作：" + stringArg(p.args, "action") + "；使用已验证的 android_shizuku 后端实际身份，不更改后端。"
 	}
 	if p.sessionIDs != nil {
 		scope += "\n本次停止的固定会话集合：" + fmt.Sprint(p.sessionIDs)
@@ -421,7 +427,7 @@ func (r *Runtime) executionFacts(name string, args map[string]any, state executi
 	case "insertion_ack":
 		// A receipt cannot change tasks, commands, permissions or user text.
 		f.ReadOnly = true
-	case "agentdock_context", "workspace_context", "read_file", "list_dir", "search_text", "view_image", "mcp_tool_search", "mcp_tool_list", "mcp_tool_inspect", "plugin_load", "session_observe", "browser_snapshot":
+	case "agentdock_context", "workspace_context", "read_file", "list_dir", "search_text", "view_image", "mcp_tool_search", "mcp_tool_list", "mcp_tool_inspect", "plugin_load", "session_observe", "browser_snapshot", "android_device_read":
 		f.ReadOnly = true
 	case "task_manage":
 		switch f.Action {
@@ -439,6 +445,8 @@ func (r *Runtime) executionFacts(name string, args map[string]any, state executi
 	case "session_act":
 		f.Management = f.Action == "kill"
 		f.Reason = "向命令进程写入数据或批量停止可能改变任务执行，需要确认。"
+	case "android_device_act":
+		f.Reason = "固定 Android 操作会控制应用、修改系统设置或输入事件，使用已授权 Shizuku 身份执行。"
 	case "exec_command":
 		f.Reason = "任意命令可能修改文件、安装软件、访问网络或控制服务，需要确认实际命令与工作目录。"
 	case "file_edit":
@@ -579,7 +587,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	}
 	// Only execution tools persist a branch binding. Inspecting a completed task
 	// or switching the viewed branch must not change its continuation point.
-	if state.binding.TaskID != "" && (p.spec.Name == "exec_command" || p.spec.Name == "file_edit" || p.spec.Name == "mcp_tool_call" || p.spec.Name == "browser_act") {
+	if state.binding.TaskID != "" && (isCommandExecutionTool(p.spec.Name) || p.spec.Name == "file_edit" || p.spec.Name == "mcp_tool_call" || p.spec.Name == "browser_act") {
 		if _, err := r.taskTools.ResolveBinding(state.binding, true); err != nil {
 			return r.finishPrepared(p, nil, err, "failed")
 		}
@@ -624,7 +632,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	if p.spec.Name == "session_observe" && (stringArg(p.args, "action") == "list" || stringArg(p.args, "action") == "") {
 		result = r.filterSessionList(ctx, result, p.state.binding)
 	}
-	if p.spec.Name == "exec_command" && err == nil && stringArg(result, "session_id") != "" {
+	if isCommandExecutionTool(p.spec.Name) && err == nil && stringArg(result, "session_id") != "" {
 		phase := activity.Event{Binding: state.binding, Kind: "call.phases", ToolName: p.spec.Name}
 		phase.ExecutionElapsedMS, phase.WaitElapsedMS = &executionMS, &waitMS
 		if auditErr := r.appendExecution(phase); auditErr != nil {

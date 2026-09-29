@@ -8,6 +8,7 @@ func buildToolSpecs() []ToolSpec {
 	specs = append(specs, insertionToolSpecs()...)
 	specs = append(specs, fileToolSpecs()...)
 	specs = append(specs, commandToolSpecs()...)
+	specs = append(specs, androidDeviceToolSpecs()...)
 	specs = append(specs, taskManageToolSpecs()...)
 	specs = append(specs, workspaceToolSpecs()...)
 	specs = append(specs, evolutionToolSpecs()...)
