@@ -31,6 +31,12 @@
             </intent-filter>
         </activity>
 
+        <service android:name=".execution.HostResultService" android:exported="false" />
+        <service android:name=".execution.PhoneExecutorService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled command execution for a paired local AgentDock Core, with visible status and explicit stop control" />
+        </service>
+
         <service
             android:name=".termux.TermuxResultService"
             android:exported="false" />

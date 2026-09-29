@@ -25,6 +25,7 @@ class WorkbenchApplication : Application() {
 class AppGraph(application: Application) {
     val settings = SettingsStore(application)
     val credentials = CredentialStore(application)
+    val phoneExecutor = dev.agentdock.workbench.execution.PhoneExecutor(application, credentials)
     val operations = PendingOperationStore(application)
     val localPairing = LocalCorePairingManager(application, credentials).also {
         it.cleanupExpired(System.currentTimeMillis())
