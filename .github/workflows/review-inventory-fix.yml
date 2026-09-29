@@ -1,0 +1,36 @@
+name: Apply reviewed context probe inventory fix
+on:
+  push:
+    branches: [ci/20260929-review-evidence]
+    paths: [.github/workflows/review-inventory-fix.yml]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  inventory:
+    if: github.repository_id == '1370391430' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner=context.repo.owner, repo=context.repo.repo;
+            const branch='fix/20260928-context-transport';
+            const expected='3c90b615429acdeab581f7c26625363b80e2279f';
+            const head=(await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}',{owner,repo,ref:'heads/'+branch})).data.object.sha;
+            if(head!==expected) throw new Error('Source changed; review again before applying inventory fix');
+            const path='scripts/governance/inventory.yaml';
+            const current=(await github.request('GET /repos/{owner}/{repo}/contents/{path}',{owner,repo,path,ref:branch})).data;
+            const old=Buffer.from(current.content,'base64').toString('utf8');
+            const entries=[
+              {path:'scripts/diagnostics/probe-context.py',class:'dev',notes:'Authenticated bounded MCP context probe; never retries tools/call, redirects credentials, or exports rule text.'},
+              {path:'scripts/test/test-context-probe.py',class:'test',notes:'Loopback-only probe fixtures cover response bounds, credential redirects, failed tool results and no automatic replay.'}
+            ];
+            let next=old.replace(/\s*$/,'')+'\n';
+            for(const entry of entries) {
+              if(old.includes('path: '+entry.path)) throw new Error('Entry already exists; do not duplicate');
+              next+='\n  - path: '+entry.path+'\n    class: '+entry.class+'\n    owner: runtime\n    public_contract: false\n    deletable: false\n    notes: '+entry.notes+'\n';
+            }
+            const result=(await github.request('PUT /repos/{owner}/{repo}/contents/{path}',{owner,repo,path,branch,sha:current.sha,message:'fix(ci): register context probe and regression scripts in governance inventory',content:Buffer.from(next).toString('base64')})).data;
+            await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments',{owner,repo,issue_number:25,body:'审查阻塞已定位：两个新增探针脚本遗漏治理清单，导致 Windows/Linux 全量测试失败。已保持原门禁不变并补全两项登记：'+result.commit.sha+'。随后由审查工具提交专项治理门禁并重新运行 CI。'});
