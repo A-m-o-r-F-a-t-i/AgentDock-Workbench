@@ -1,0 +1,98 @@
+name: Rebuild reviewed 1.1.8 (2026-09-30)
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/rebuild-request-118-20260930.yml]
+permissions:
+  contents: read
+  actions: write
+  issues: write
+concurrency:
+  group: rebuild-reviewed-118-20260930
+  cancel-in-progress: false
+jobs:
+  request:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      SOURCE_SHA: 24d04ef2a60e4b538b26051ee68c2554defface1
+      REQUEST_SHA: ${{ github.sha }}
+    steps:
+      - name: Dispatch once and report immutable build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, time
+          root = pathlib.Path('evidence')
+          repo, source = os.environ['GH_REPO'], os.environ['SOURCE_SHA']
+          def run(*args):
+              return subprocess.check_output(args, text=True, encoding='utf-8', timeout=90).strip()
+          def api(path, *args):
+              value = run('gh', 'api', 'repos/' + repo + '/' + path, *args)
+              return json.loads(value) if value else None
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          assert os.environ['GITHUB_REF'] == 'refs/heads/ci/20260930-rebuild-118-request'
+          request = api('git/commits/' + os.environ['REQUEST_SHA'])
+          assert [x['sha'] for x in request['parents']] == [source], 'Unreviewed request parent'
+          assert api('git/ref/heads/ci/20260930-rebuild-118-request')['object']['sha'] == os.environ['REQUEST_SHA']
+          assert api('git/ref/heads/main')['object']['sha'] == source, 'main changed before request'
+          path = 'actions/workflows/workbench-release.yml/runs?event=workflow_dispatch&head_sha=' + source + '&per_page=100'
+          runs = api(path)['workflow_runs']
+          assert len(runs) <= 1, 'Ambiguous build identity; no dispatch replayed'
+          if not runs:
+              run('gh', 'workflow', 'run', 'workbench-release.yml', '--repo', repo, '--ref', 'main',
+                  '-f', 'ref=' + source, '-f', 'publish=false', '-f', 'prerelease=true',
+                  '-f', 'installation_tests=true', '-f', 'ignore_macos_intel_scale=false')
+              for _ in range(18):
+                  time.sleep(5)
+                  runs = api(path)['workflow_runs']
+                  if runs: break
+          assert len(runs) == 1, 'Dispatch outcome unknown; inspect Actions, do not replay'
+          build = runs[0]
+          assert build['head_sha'] == source and build['event'] == 'workflow_dispatch'
+          assert build['path'] == '.github/workflows/workbench-release.yml'
+          run_id = build['id']
+          (root / 'request.json').write_text(json.dumps({'source_sha': source, 'build_run_id': run_id, 'url': build['html_url']}, indent=2))
+          header = ('## 1.1.8 全平台重新构建\n\n固定源码：`' + source + '`\n\n' +
+                    build['html_url'] + '\n\n启用原生安装验收；不豁免 macOS 性能测试；本构建不修改现有预发布。\n\n')
+          comment = api('issues/36/comments', '--method', 'POST', '-f', 'body=' + header + '已领取构建，正在核验。')
+          last = None
+          for _ in range(340):
+              build = api('actions/runs/' + str(run_id))
+              jobs = api('actions/runs/' + str(run_id) + '/jobs?per_page=100')
+              assert jobs['total_count'] <= 100, 'Unexpected job pagination; inspect before publication'
+              states = [(j['name'], j['status'], j['conclusion']) for j in jobs['jobs']]
+              signature = (build['status'], build['conclusion'], states)
+              (root / 'build-run.json').write_text(json.dumps(build, indent=2))
+              (root / 'build-jobs.json').write_text(json.dumps(jobs, indent=2))
+              if signature != last:
+                  body = header + '| Job | Status | Result |\n| --- | --- | --- |\n'
+                  body += '\n'.join('| ' + ' | '.join(str(v or '—').replace('|', '/') for v in row) + ' |' for row in states)
+                  body += '\n\n构建状态：' + build['status'] + ' / ' + str(build['conclusion'])
+                  api('issues/comments/' + str(comment['id']), '--method', 'PATCH', '-f', 'body=' + body)
+                  last = signature
+              if build['status'] == 'completed':
+                  if build['conclusion'] != 'success':
+                      logs = subprocess.run(['gh', 'run', 'view', str(run_id), '--repo', repo, '--log-failed'], capture_output=True, text=True, timeout=90)
+                      (root / 'failure.log').write_text(logs.stdout + logs.stderr)
+                      api('issues/36/comments', '--method', 'POST', '-f', 'body=构建未通过，旧预发布保持不变。失败日志末段：\n```text\n' + (logs.stdout + logs.stderr)[-24000:] + '\n```')
+                      raise RuntimeError('Immutable build failed; release was not touched')
+                  break
+              time.sleep(20)
+          else:
+              raise RuntimeError('Build monitoring timed out; no release mutation was attempted')
+          print(json.dumps({'build_run_id': run_id, 'commit': source, 'conclusion': build['conclusion']}))
+          PY
+      - name: Retain request and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-request-118-${{ github.run_id }}
+          path: evidence/
+          retention-days: 30
+          if-no-files-found: error
