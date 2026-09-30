@@ -1,0 +1,74 @@
+name: Sync canonical v1.1.8 release notes
+on:
+  push:
+    branches: [ci/20260930-sync-release-notes-118]
+    paths: [.github/workflows/sync-release-notes-118-20260930.yml]
+permissions:
+  contents: write
+concurrency:
+  group: sync-release-notes-v1.1.8
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      MAIN_SHA: acf2f607efc94a6b672f288ff268a933fd6a1293
+      RELEASE_ID: '399662600'
+      LATEST_ID: '396401499'
+      RELEASE_SOURCE_SHA: 24d04ef2a60e4b538b26051ee68c2554defface1
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: acf2f607efc94a6b672f288ff268a933fd6a1293
+      - name: Replace only the v1.1.8 Release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          repo=os.environ['GH_REPO']; main=os.environ['MAIN_SHA']
+          release_id=int(os.environ['RELEASE_ID']); latest_id=int(os.environ['LATEST_ID'])
+          source=os.environ['RELEASE_SOURCE_SHA']
+          def api(path, method='GET', payload=None):
+              cmd=['gh','api','repos/'+repo+'/'+path,'--method',method]
+              data=None
+              if payload is not None:
+                  cmd += ['--input','-']
+                  data=json.dumps(payload,ensure_ascii=False)
+              out=subprocess.check_output(cmd,input=data,text=True,encoding='utf-8',timeout=90)
+              return json.loads(out) if out.strip() else None
+          def asset_projection(record):
+              return sorted([{k:a.get(k) for k in ['id','name','size','digest','state']} for a in record.get('assets',[])],
+                            key=lambda a:a['id'])
+          request=api('git/commits/'+os.environ['GITHUB_SHA'])
+          assert [p['sha'] for p in request['parents']]==[main], 'request branch must contain only this workflow on top of reviewed main'
+          assert api('git/ref/heads/main')['object']['sha']==main, 'main moved before Release body sync'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==main
+          notes=pathlib.Path('docs/releases/v1.1.8.md').read_text(encoding='utf-8')
+          forbidden=['本次重新预发布更新','重新预发布日期','本次重发','Actions run','测试结果','回归测试通过']
+          assert all(term not in notes for term in forbidden)
+          before=api('releases/'+str(release_id))
+          tagged=api('releases/tags/v1.1.8')
+          latest=api('releases/latest')
+          assert before['id']==release_id and tagged['id']==release_id
+          assert before['tag_name']=='v1.1.8' and before['target_commitish']==source
+          assert before['name']=='AgentDock Workbench 1.1.8 Pre-release'
+          assert before['prerelease'] is True and before['draft'] is False
+          assert latest['id']==latest_id and latest['tag_name']=='v1.1.7' and latest['prerelease'] is False and latest['draft'] is False
+          old_assets=asset_projection(before)
+          assert len(old_assets)==8
+          updated=api('releases/'+str(release_id),'PATCH',{'body':notes})
+          assert updated['id']==release_id and updated['tag_name']=='v1.1.8'
+          after=api('releases/'+str(release_id)); tagged_after=api('releases/tags/v1.1.8'); latest_after=api('releases/latest')
+          assert after['id']==release_id and tagged_after['id']==release_id
+          assert after['body'].replace('\r\n','\n').rstrip()==notes.rstrip()
+          assert after['target_commitish']==source and after['name']==before['name']
+          assert after['prerelease'] is True and after['draft'] is False
+          assert asset_projection(after)==old_assets
+          assert latest_after['id']==latest_id and latest_after['tag_name']=='v1.1.7'
+          print(json.dumps({'release_id':release_id,'body_synced':True,'assets_unchanged':len(old_assets),'latest':'v1.1.7'},ensure_ascii=False))
+          PY
