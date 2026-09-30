@@ -1,0 +1,113 @@
+name: Tool failure audit regression
+
+on:
+  push:
+    branches: [fix/20260929-tool-failure-audit]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'internal/mcp/client/**'
+      - 'internal/tool/mcp/**'
+      - 'internal/tool/file/search*'
+      - 'internal/app/discovery_routing_test.go'
+      - 'internal/app/runtime.go'
+      - '.github/workflows/tool-failure-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tool-failure-audit-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    name: Failure audit (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+      AGENTDOCK_REQUIRE_RG: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Ensure native ripgrep on Linux
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v rg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ripgrep
+          fi
+          rg --version
+      - name: Ensure native ripgrep on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command rg -ErrorAction SilentlyContinue)) {
+            choco install ripgrep -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          rg --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record exact validation source
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/failure-audit-results"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/failure-audit-results/commit.txt"
+          go version
+          git diff --check
+      - name: Reproduce regression on unchanged baseline
+        shell: python
+        run: |
+          import os, pathlib, shutil, subprocess
+          base = pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-before'
+          subprocess.run(['git', 'worktree', 'add', '--detach', str(base), os.environ['BASELINE_COMMIT']], check=True)
+          shutil.copyfile('internal/app/discovery_routing_test.go', base / 'internal/app/discovery_routing_test.go')
+          result = subprocess.run(['go', 'test', './internal/app', '-run', '^TestAuditBuiltinSearchNeverInitializesDynamicServers$', '-count=1', '-timeout=90s', '-v'], cwd=base, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=240)
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-results/before.log').write_text(result.stdout, encoding='utf-8')
+          print(result.stdout)
+          if result.returncode == 0 or 'unscoped built-in search was poisoned by unrelated credentials' not in result.stdout:
+              raise SystemExit('Unmodified baseline did not reproduce the expected discovery failure')
+      - name: Repeated focused regressions
+        run: |
+          set -euo pipefail
+          go test -p 2 ./internal/mcp/client ./internal/tool/mcp ./internal/tool/file ./internal/app -run '^TestAudit' -count=3 -v -timeout=3m | tee "$RUNNER_TEMP/failure-audit-results/focused.log"
+      - name: Full affected package suites
+        run: |
+          set -euo pipefail
+          go test -p 2 ./internal/mcp/client ./internal/tool/mcp ./internal/tool/file ./internal/app ./internal/tool/command/... -count=1 -timeout=10m | tee "$RUNNER_TEMP/failure-audit-results/packages.log"
+      - name: Race detection and vet
+        run: |
+          set -euo pipefail
+          go test -race -p 2 ./internal/mcp/client ./internal/tool/mcp ./internal/tool/file ./internal/app -run '^TestAudit' -count=1 -timeout=5m | tee "$RUNNER_TEMP/failure-audit-results/race.log"
+          go vet ./internal/mcp/client ./internal/tool/mcp ./internal/tool/file ./internal/app
+      - uses: actions/setup-dotnet@v5
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '8.0.x'
+      - name: Windows desktop model regression
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          dotnet run --project desktop/windows/control-panel-tests/AgentDock.ControlPanel.Tests.csproj --configuration Release | tee "$RUNNER_TEMP/failure-audit-results/desktop.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: failure-audit-${{ matrix.os }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/failure-audit-results
+          retention-days: 14
+          if-no-files-found: error

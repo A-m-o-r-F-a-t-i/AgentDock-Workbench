@@ -95,7 +95,12 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["server"] = stringProp("Optional server filter used.")
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
 		props["count"] = intProp("Matching tool count.")
-		props["catalogs"] = arrayProp("Current revisions and discovered facts for the matching servers; does not load unrelated plugins.")
+		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
+		props["complete"] = boolProp("All visible catalogs are current and matching results fit the response limit.")
+		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
+		props["cache_only"] = boolProp("No remote service is initialized or refreshed by this unscoped search.")
+		props["builtin_tools"] = arrayProp("Exact available AgentDock built-in match; invoke through the host tool, not mcp_tool_call.")
+		props["next_action"] = stringProp("Next discovery action; never authorizes or automatically executes a business operation.")
 	case ToolList:
 		props = catalogSchemaProperties()
 	case ToolInspect:

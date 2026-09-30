@@ -67,6 +67,13 @@ func TestNormalPluginDirectDisclosureAndHeavySwitch(t *testing.T) {
 		if (len(contextView.Plugins) == 1) != heavy {
 			t.Fatalf("wrong plugin summary: %#v", contextView.Plugins)
 		}
+		if !heavy {
+			// Broad discovery is cache-only. Load this explicitly selected service
+			// before checking that its tools remain visible to broad search.
+			if _, err := rt.Call(context.Background(), "mcp_tool_list", map[string]any{"server": "easyeda-test"}); err != nil {
+				t.Fatal(err)
+			}
+		}
 		result, err = rt.Call(context.Background(), "mcp_tool_search", map[string]any{"query": "route", "limit": 10})
 		if err != nil {
 			t.Fatal(err)

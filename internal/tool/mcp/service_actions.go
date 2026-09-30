@@ -113,6 +113,16 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	query := request.Query
 	server := strings.TrimSpace(request.Server)
 	limit := boundedInt(intValue(request.Limit, 10), 10, 1, 100)
+	if server == "" && s.builtinLookup != nil {
+		if definition, available := s.builtinLookup(strings.TrimSpace(query)); available {
+			return Result{
+				"query": query, "server": "", "count": 0,
+				"tools": []any{}, "catalogs": []any{}, "builtin_tools": []any{definition},
+				"complete": true, "truncated": false, "cache_only": true,
+				"next_action": "Invoke the returned built-in tool through the host. Do not search for it in a dynamic MCP server or wrap it in mcp_tool_call.",
+			}, nil
+		}
+	}
 	var allow func(string) bool
 	if server == "" {
 		pluginOwned := make(map[string]bool)
@@ -141,22 +151,19 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	} else if err := s.ensureAvailable(server); err != nil {
 		return nil, err
 	}
-	tools, err := s.mcpClients.SearchFiltered(ctx, query, server, limit, allow)
+	found, err := s.mcpClients.SearchCatalogsFiltered(ctx, query, server, limit, allow)
 	if err != nil {
 		return nil, dynamicMCPToolError(err)
 	}
-	names := []string{}
-	seen := map[string]bool{}
-	for _, tool := range tools {
-		if !seen[tool.Server] {
-			names = append(names, tool.Server)
-			seen[tool.Server] = true
-		}
+	result := Result{
+		"query": query, "server": server, "tools": found.Tools, "count": len(found.Tools),
+		"catalogs": found.Catalogs, "complete": found.Complete, "truncated": found.Truncated,
+		"cache_only": found.CacheOnly,
 	}
-	if server != "" && !seen[server] {
-		names = append(names, server)
+	if !found.Complete {
+		result["next_action"] = "Select a server from catalogs and use mcp_tool_list; an undiscovered or stale catalog is not evidence that a capability is absent."
 	}
-	return Result{"query": query, "server": server, "tools": tools, "count": len(tools), "catalogs": s.mcpClients.Snapshots(names)}, nil
+	return result, nil
 }
 
 func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error) {
@@ -188,6 +195,13 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 }
 
 func dynamicMCPToolError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var existing *ToolError
+	if errors.As(err, &existing) {
+		return existing
+	}
 	var mcpErr *mcpclient.Error
 	if !errors.As(err, &mcpErr) {
 		return toolErrorCause("MCP_ERROR", err.Error(), "external", nil, err)
