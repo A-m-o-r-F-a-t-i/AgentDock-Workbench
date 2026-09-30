@@ -1,0 +1,155 @@
+name: Verify republished 1.1.8 and remove empty superseded draft
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/finalize-republished-118-20260930.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+concurrency:
+  group: workbench-release-24d04ef2a60e4b538b26051ee68c2554defface1
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      SOURCE_SHA: 24d04ef2a60e4b538b26051ee68c2554defface1
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 24d04ef2a60e4b538b26051ee68c2554defface1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36656538592
+          name: workbench-complete-36656538592
+          path: verified-build
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36658662915
+          name: republished-118-evidence-36658662915
+          path: previous-attempt
+      - name: Verify published bytes and remove only the exact empty superseded draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence downloaded-installers
+          python3 - <<'PY' 2>&1 | tee evidence/verification.log
+          import hashlib,json,os,pathlib,subprocess,traceback
+          repo=os.environ['GH_REPO']; sha=os.environ['SOURCE_SHA']; rid=399662600
+          root=pathlib.Path('evidence')
+          def api(path,method='GET'):
+              raw=subprocess.check_output(['gh','api','repos/'+repo+'/'+path,'--method',method],text=True,timeout=90)
+              return json.loads(raw) if raw.strip() else None
+          def save(name,value): (root/name).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+          def digest(file):
+              with file.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
+          def one(folder,name):
+              matches=list(pathlib.Path(folder).rglob(name)); assert len(matches)==1 and matches[0].is_file() and not matches[0].is_symlink()
+              return matches[0]
+          def verify_release():
+              record=api('releases/'+str(rid)); tagged=api('releases/tags/v1.1.8'); tag=api('git/ref/tags/v1.1.8'); latest=api('releases/latest')
+              assert record['id']==rid and tagged['id']==rid and record['tag_name']=='v1.1.8'
+              assert record['draft'] is False and record['prerelease'] is True and record['target_commitish']==sha
+              assert record['name']=='AgentDock Workbench 1.1.8 Pre-release'
+              assert record['body'].replace('\r\n','\n').rstrip()==pathlib.Path('docs/releases/v1.1.8.md').read_text().rstrip()
+              assert tag['object']['type']=='commit' and tag['object']['sha']==sha
+              assert latest['id']==396401499 and latest['tag_name']=='v1.1.7' and not latest['draft'] and not latest['prerelease']
+              return record,latest,tag
+          try:
+              assert os.environ['GITHUB_REPOSITORY']==repo and os.environ['GITHUB_RUN_ATTEMPT']=='1'
+              assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==sha
+              assert api('git/ref/heads/main')['object']['sha']==sha
+              build=api('actions/runs/36656538592')
+              assert build['status']=='completed' and build['conclusion']=='success' and build['head_sha']==sha
+              assert build['path']=='.github/workflows/workbench-release.yml' and build['repository']['full_name']==repo
+              previous=api('actions/runs/36658662915')
+              assert previous['status']=='completed' and previous['conclusion']=='failure'
+              assert previous['head_sha']=='e9132058ee23581963a4060690f8f7253bf095d4'
+              assert previous['path']=='.github/workflows/republish-reviewed-118-20260930.yml'
+              mf=one('verified-build','release-manifest.json'); manifest=json.loads(mf.read_text())
+              assert manifest['version']=='1.1.8' and manifest['commit']==sha and manifest['prerelease'] is True
+              prior_manifest=json.loads(one('previous-attempt','release-manifest.json').read_text())
+              assert prior_manifest==manifest, 'Previously published payloads differ from original completed build'
+              names={'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
+                     'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
+                     'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
+                     'AgentDock-Workbench-1.1.8-Android-test-signed.apk'}
+              expected={a['name']:{'size':a['bytes'],'digest':'sha256:'+a['sha256']} for a in manifest['assets'] if a['name'] in names}
+              assert set(expected)==names
+              record,latest,tag=verify_release()
+              assets=api('releases/'+str(rid)+'/assets?per_page=100')
+              assert len(assets)==8 and {a['name'] for a in assets}==names and len({a['id'] for a in assets})==8
+              for asset in assets:
+                  assert asset['state']=='uploaded' and {k:asset[k] for k in ['size','digest']}==expected[asset['name']]
+                  built=one('verified-build',asset['name'])
+                  assert built.stat().st_size==asset['size'] and 'sha256:'+digest(built)==asset['digest']
+                  downloaded=pathlib.Path('downloaded-installers')/asset['name']
+                  with downloaded.open('xb') as stream:
+                      subprocess.run(['gh','api','repos/'+repo+'/releases/assets/'+str(asset['id']),'-H','Accept: application/octet-stream'],stdout=stream,check=True,timeout=180)
+                  assert downloaded.stat().st_size==asset['size'] and 'sha256:'+digest(downloaded)==asset['digest']
+              old_failure=json.loads(one('previous-attempt','actual-release-on-failure.json').read_text())
+              stale=api('releases/397692739')
+              assert stale['id']==397692739 and stale['draft'] is True and stale['prerelease'] is True
+              assert stale['tag_name']=='untagged-6efcc983d29005732493' and stale['target_commitish']==sha
+              assert stale.get('assets',[])==[] and api('releases/397692739/assets?per_page=100')==[]
+              for key in ['id','tag_name','name','body','target_commitish','draft','prerelease']:
+                  assert stale[key]==old_failure[key], 'Superseded draft changed after the recorded failure'
+              assert api('actions/runs/36656945363')['conclusion']=='success'
+              backup=api('actions/artifacts/11072897715')
+              assert not backup['expired'] and backup['digest']=='sha256:6c4bd034c784fb4136ac2ecf04238d99751166383adc1e62a05e6bd01c8d5e98'
+              save('superseded-empty-draft.json',stale)
+              save('verified-new-assets-before-cleanup.json',assets)
+              api('releases/397692739','DELETE')
+              record,latest,tag=verify_release()
+              current=api('releases/'+str(rid)+'/assets?per_page=100')
+              project=lambda rows: sorted([{k:a[k] for k in ['id','name','size','digest','state']} for a in rows],key=lambda a:a['id'])
+              assert project(current)==project(assets)
+              save('published-release.json',record); save('published-assets.json',assets); save('stable-latest.json',latest); save('tag.json',tag)
+              save('source-build.json',build); save('release-manifest.json',manifest)
+              result={'state':'published_prerelease_verified','version':'1.1.8','commit':sha,'release_id':rid,
+                      'public_installers_verified':8,'build_run_id':36656538592,'publication_run_id':36658662915,
+                      'final_verification_run_id':os.environ['GITHUB_RUN_ID'],'removed_empty_draft_id':397692739,
+                      'backup_run_id':36656945363,'backup_artifact_id':11072897715,'stable_latest':'v1.1.7','url':record['html_url']}
+              save('result.json',result)
+              print(json.dumps(result,ensure_ascii=False))
+          except Exception:
+              (root/'failure.txt').write_text(traceback.format_exc())
+              raise
+          PY
+      - name: Retain independent final verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: republished-118-final-verification-${{ github.run_id }}
+          path: evidence/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Report actual final status
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          root=pathlib.Path('evidence'); result=root/'result.json'
+          body='## 1.1.8 独立最终核验\n\n运行：https://github.com/'+os.environ['GH_REPO']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n\nJob：'+os.environ['RESULT']+'\n\n'
+          if result.exists():
+              body+='```json\n'+result.read_text()+'\n```\n\n已重新下载全部 8 个公开安装包，大小及 SHA-256 与原全平台成功构建完全一致。原发布记录在更新标签后变为 untagged 草稿，新公开预发布 ID 为 399662600；仅删除旧的已确认空草稿，没有重放上传、更新标签或发布操作。Latest v1.1.7 保持不变。\n\n'
+              assets=json.loads((root/'published-assets.json').read_text())
+              body+='| 安装包 | Bytes | SHA-256 |\n| --- | ---: | --- |\n'+'\n'.join('| '+a['name']+' | '+str(a['size'])+' | '+a['digest']+' |' for a in assets)
+          else:
+              for name in ['failure.txt','verification.log']:
+                  file=root/name
+                  if file.exists(): body+='### '+name+'\n```text\n'+file.read_text()[-10000:]+'\n```\n'
+          subprocess.run(['gh','api','repos/'+os.environ['GH_REPO']+'/issues/36/comments','--method','POST','-f','body='+body],check=True,timeout=90)
+          PY
