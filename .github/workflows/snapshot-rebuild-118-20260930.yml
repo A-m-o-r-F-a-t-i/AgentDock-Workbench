@@ -1,0 +1,32 @@
+name: Snapshot remaining 1.1.8 build steps
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/snapshot-rebuild-118-20260930.yml]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+jobs:
+  inspect:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+    steps:
+      - name: Read actual job steps and report remaining work
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess
+          repo=os.environ['GH_REPO']
+          def api(path): return json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/'+path],text=True,timeout=60))
+          run=api('actions/runs/36656538592')
+          assert run['head_sha']=='24d04ef2a60e4b538b26051ee68c2554defface1'
+          response=api('actions/runs/36656538592/jobs?filter=latest&per_page=100')
+          assert response['total_count']<=100
+          remaining=[{k:job.get(k) for k in ['name','status','conclusion','started_at','completed_at','steps','html_url']} for job in response['jobs'] if job['status']!='completed' or job['conclusion'] not in ['success','skipped']]
+          body='## 原构建剩余步骤快照（只读）\n\n构建状态：'+run['status']+' / '+str(run['conclusion'])+'\n\n```json\n'+json.dumps(remaining,ensure_ascii=False,indent=2)+'\n```'
+          subprocess.run(['gh','api','repos/'+repo+'/issues/36/comments','--method','POST','-f','body='+body],check=True,timeout=60)
+          PY
