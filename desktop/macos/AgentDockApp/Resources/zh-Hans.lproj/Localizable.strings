@@ -715,3 +715,19 @@
 "Isolate" = "隔离";
 "Remove isolation" = "取消隔离";
 "Steps: %@ / %@" = "步骤：%@ / %@";
+
+"A supplement must contain 1–8192 UTF-8 bytes." = "补充内容必须为 1–8192 个 UTF-8 字节。";
+
+"Too many unresolved submissions. Read their receipts before sending to another conversation." = "未决提交过多，请先读取投递回执，再向其他对话发送。";
+
+"%@ / %@ UTF-8 bytes" = "%@ / %@ 个 UTF-8 字节";
+
+"Reload output from start" = "从头重新读取输出";
+
+"The candidate plugin package did not pass validation." = "候选插件包未通过校验。";
+
+"Update validated plugin package?" = "更新为已校验的插件包？";
+
+"Rebind plugin source and update?" = "重新绑定插件来源并更新？";
+
+"The installed source differs from the selected package. Confirm this source change explicitly." = "已安装来源与所选插件包不同，请明确确认本次来源变更。";

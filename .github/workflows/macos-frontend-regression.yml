@@ -1,0 +1,73 @@
+name: macOS frontend regressions
+
+on:
+  push:
+    branches: [fix/20260929-macos-frontend]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/macos/**'
+      - 'internal/app/conversation_sidebar*'
+      - 'internal/app/conversation_history.go'
+      - 'scripts/ci/parallel-macos/**'
+      - '.github/workflows/macos-frontend-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-frontend-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native frontend regression (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify exact source and architecture
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+          git diff --check
+          python3 scripts/test/check-macos-i18n.py
+      - name: Sidebars and insertion regressions
+        run: |
+          go test ./internal/app -run '^TestSidebar' -count=3 -timeout=180s
+          go test ./internal/insertion -count=1 -timeout=120s
+      - name: Swift native interaction, transport, and real Core tests
+        env:
+          RUN_EXISTING_MACOS_TESTS: '0'
+        run: zsh scripts/ci/parallel-macos/run-workbench-tests.sh
+      - name: Keep native evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-frontend-${{ matrix.arch }}-${{ github.run_id }}
+          path: evidence/${{ matrix.arch }}/
+          if-no-files-found: warn
+          retention-days: 14

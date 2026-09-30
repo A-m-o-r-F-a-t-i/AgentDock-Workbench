@@ -72,10 +72,10 @@ struct ServiceConfiguration: Equatable {
     let acpDefaultProfile: String
 
     var healthHost: String {
-        switch host {
+        switch Self.normalizedHost(host) {
         case "0.0.0.0", "": return "127.0.0.1"
         case "::", "[::]": return "::1"
-        default: return host
+        default: return Self.normalizedHost(host)
         }
     }
 
@@ -87,13 +87,28 @@ struct ServiceConfiguration: Equatable {
         return URL(string: publicURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/mcp")
     }
 
-    private func endpoint(path: String) -> URL? {
+    static func normalizedHost(_ value: String) -> String {
+        let host = value.lowercased()
+        if host.hasPrefix("["), host.hasSuffix("]") {
+            return String(host.dropFirst().dropLast())
+        }
+        return host
+    }
+
+    static func httpEndpoint(host: String, port: Int, path: String) -> URL? {
+        guard (1...65535).contains(port) else { return nil }
+        let host = normalizedHost(host)
         var components = URLComponents()
         components.scheme = "http"
-        components.host = healthHost
+        // URLComponents serializes this host in the URI authority.
+        components.host = host.contains(":") ? "[\(host)]" : host
         components.port = port
         components.path = path
         return components.url
+    }
+
+    private func endpoint(path: String) -> URL? {
+        Self.httpEndpoint(host: healthHost, port: port, path: path)
     }
 
     static func load(from path: URL) -> ServiceConfiguration? {

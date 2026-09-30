@@ -36,7 +36,8 @@ final class WorkbenchViewModel {
     private var serverAnchor: Date?
     private var uptimeAnchor = ProcessInfo.processInfo.systemUptime
     private var streamCursor: UInt64 = 0
-    private var submissionKeys = [String: (text: String, id: String)]()
+    private var submissions = WorkbenchInsertionSubmissions()
+    private var payloadGeneration = 0
 
     init(client: WorkbenchAPIClient = WorkbenchAPIClient(), fixtureMode: Bool = false) {
         self.client = client
@@ -120,7 +121,7 @@ final class WorkbenchViewModel {
                 if changed { selectConversation(selected?.navigationID ?? "") }
                 else if let selected { snapshot.selectedConversation = selected }
                 if !changed, reason != "poll" || snapshot.calls.calls.isEmpty { loadSelection() }
-                if streamTask == nil { startStream(after: newSidebar.latestSequence) }
+                if streamTask == nil, reason != "stream-reconnect" { startStream(after: newSidebar.latestSequence) }
                 notify()
             } catch {
                 guard generation == refreshGeneration, !Task.isCancelled else { return }
@@ -202,11 +203,12 @@ final class WorkbenchViewModel {
                 guard currentEpoch == epoch, selected.navigationID == selectedNavigationID else { return }
                 snapshot.selectedConversation = detailed; snapshot.permission = permission
                 snapshot.insertions = insertions; snapshot.task = task
+                submissions.observe(conversation: selected.id, page: insertions)
                 var page = calls
                 page.calls = Self.mergeCalls(calls.calls, snapshot.calls.calls)
                 snapshot.calls = page
                 if !page.calls.contains(where: { $0.id == selectedCallID }) { selectedCallID = page.calls.first?.id ?? "" }
-                snapshot.selectedCall = page.calls.first { $0.id == selectedCallID }
+                setSelectedCall(page.calls.first { $0.id == selectedCallID })
                 snapshot.message = warnings.isEmpty ? L10n.text("Conversation details synchronized") : warnings.joined(separator: " · ")
                 notify()
             } catch {
@@ -218,8 +220,9 @@ final class WorkbenchViewModel {
     func selectCall(_ id: String) {
         guard id != selectedCallID else { return }
         detailTask?.cancel(); payloadTask?.cancel()
+        payloadGeneration += 1
         selectedCallID = id; payloadSlices.removeAll(); isReadingPayload = false
-        snapshot.selectedCall = snapshot.calls.calls.first { $0.id == id }; notify()
+        setSelectedCall(snapshot.calls.calls.first { $0.id == id }); notify()
         guard !fixtureMode, !id.isEmpty else { return }
         let currentEpoch = epoch
         detailTask = Task { [weak self] in
@@ -229,7 +232,7 @@ final class WorkbenchViewModel {
                 try Task.checkCancellation()
                 guard currentEpoch == epoch, id == selectedCallID else { return }
                 snapshot.calls.calls = Self.mergeCalls(snapshot.calls.calls, [value])
-                snapshot.selectedCall = snapshot.calls.calls.first { $0.id == id }
+                setSelectedCall(snapshot.calls.calls.first { $0.id == id })
                 notify()
             } catch {
                 guard currentEpoch == epoch, id == selectedCallID, !Task.isCancelled else { return }
@@ -237,9 +240,22 @@ final class WorkbenchViewModel {
             }
         }
     }
+    private func setSelectedCall(_ call: WorkbenchCall?) {
+        let previous = snapshot.selectedCall
+        let changed = ["request", "response"].filter { source in
+            previous?.id != call?.id || (previous?.raw[source] ?? .null) != (call?.raw[source] ?? .null)
+        }
+        if !changed.isEmpty {
+            payloadGeneration += 1
+            payloadTask?.cancel(); isReadingPayload = false
+            for source in changed { payloadSlices.removeValue(forKey: source) }
+        }
+        snapshot.selectedCall = call
+    }
+
     func loadPayload(source: String, restart: Bool = false) {
         guard !fixtureMode, !selectedCallID.isEmpty, !isReadingPayload else { return }
-        let id = selectedCallID, currentEpoch = epoch
+        let id = selectedCallID, currentEpoch = epoch, generation = payloadGeneration
         let offset = restart ? 0 : (payloadSlices[source]?.nextOffset ?? 0)
         guard restart || payloadSlices[source]?.hasMore != false else { return }
         isReadingPayload = true; notify()
@@ -249,13 +265,13 @@ final class WorkbenchViewModel {
                 let json = try await client.callPayload(id, source: source, offset: offset)
                 let slice = try WorkbenchPayloadSlice(json: json)
                 try Task.checkCancellation()
-                guard currentEpoch == epoch, id == selectedCallID else { return }
+                guard generation == payloadGeneration, currentEpoch == epoch, id == selectedCallID else { return }
                 guard !slice.hasMore || slice.nextOffset > offset else {
                     throw WorkbenchClientError.invalidResponse(L10n.text("The output cursor did not advance; repeated reads were stopped."))
                 }
                 payloadSlices[source] = slice; isReadingPayload = false; notify()
             } catch {
-                guard currentEpoch == epoch, id == selectedCallID, !Task.isCancelled else { return }
+                guard generation == payloadGeneration, currentEpoch == epoch, id == selectedCallID, !Task.isCancelled else { return }
                 isReadingPayload = false
                 snapshot.message = L10n.format("Failed to read chunked output: %@", String(describing: error.localizedDescription)); notify()
             }
@@ -307,7 +323,7 @@ final class WorkbenchViewModel {
                             if matches {
                                 snapshot.calls.calls = Self.mergeCalls(snapshot.calls.calls, [call])
                                 if call.id == selectedCallID {
-                                    snapshot.selectedCall = snapshot.calls.calls.first { $0.id == call.id }
+                                    setSelectedCall(snapshot.calls.calls.first { $0.id == call.id })
                                 }
                             }
                             if !call.conversationID.isEmpty,
@@ -324,8 +340,10 @@ final class WorkbenchViewModel {
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
-                    snapshot.stale = true
                     snapshot.message = L10n.format("Activity stream disconnected: %@", String(describing: error.localizedDescription)); notify()
+                    // A stream outage alone does not invalidate an authenticated REST snapshot.
+                    // Verify REST now; its result owns the stale/mutation gate.
+                    if !isRefreshing { refresh(reason: "stream-reconnect") }
                     if let error = error as? WorkbenchClientError, !error.retryable {
                         streamTask = nil; return
                     }
@@ -410,17 +428,21 @@ final class WorkbenchViewModel {
               conversation.insertionEligible == true else {
             snapshot.message = L10n.text("Insertion eligibility is unconfirmed. Refresh the Core state."); notify(); return
         }
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.utf8.count <= 16384 else { return }
-        let key = submissionKeys[conversation.id]
-        let submission = key?.text == text ? key!.id : "macos-\(UUID().uuidString.lowercased())"
-        if submissionKeys.count >= 100 { submissionKeys.removeAll() }
-        submissionKeys[conversation.id] = (text, submission)
+        let normalized: String
+        let submission: String
+        do {
+            normalized = try WorkbenchInsertionInput.normalized(text)
+            submissions.observe(conversation: conversation.id, page: snapshot.insertions)
+            submission = try submissions.id(conversation: conversation.id, text: normalized)
+        } catch {
+            snapshot.message = error.localizedDescription; notify(); return
+        }
         let currentEpoch = epoch
         performOperation { [weak self] in
             guard let self else { return .object([:]) }
             do {
-                let result = try await client.enqueueInsertion(conversationID: conversation.id, submissionID: submission, text: text)
+                let result = try await client.enqueueInsertion(conversationID: conversation.id, submissionID: submission, text: normalized)
+                submissions.observe(conversation: conversation.id, insertion: WorkbenchInsertion(json: result["insertion"]))
                 if currentEpoch == epoch { observeInsertion(conversation.id, submission: submission) }
                 return result
             } catch {
@@ -440,6 +462,7 @@ final class WorkbenchViewModel {
                     try Task.checkCancellation()
                     guard currentEpoch == epoch else { return }
                     snapshot.insertions = page
+                    submissions.observe(conversation: conversationID, page: page)
                     if let item = page.items.first(where: { $0.raw.text("submission_id") == submission }) {
                         snapshot.message = item.detailText; notify()
                         if item.terminal { return }

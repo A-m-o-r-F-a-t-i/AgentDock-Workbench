@@ -19,13 +19,14 @@ const (
 )
 
 type SidebarRequest struct {
-	View        string            `json:"view"`
-	Search      string            `json:"search"`
-	Limits      map[string]int    `json:"limits,omitempty"`
-	Modes       map[string]string `json:"modes,omitempty"`
-	Cursors     map[string]string `json:"cursors,omitempty"`
-	DefaultMode string            `json:"default_mode,omitempty"`
-	SelectedID  string            `json:"selected_id,omitempty"`
+	IncludeImportant bool              `json:"include_important,omitempty"`
+	View             string            `json:"view"`
+	Search           string            `json:"search"`
+	Limits           map[string]int    `json:"limits,omitempty"`
+	Modes            map[string]string `json:"modes,omitempty"`
+	Cursors          map[string]string `json:"cursors,omitempty"`
+	DefaultMode      string            `json:"default_mode,omitempty"`
+	SelectedID       string            `json:"selected_id,omitempty"`
 }
 
 type SidebarGroup struct {
@@ -233,9 +234,8 @@ func (r *Runtime) RuntimeConversationSidebar(ctx context.Context, request Sideba
 			if err != nil {
 				return result, err
 			}
-			group.Conversations = append(arrivals, ordered[:min(limit, len(ordered))]...)
+			projectSidebarHistoryRows(&group, items, ordered, arrivals, limit, request.IncludeImportant, request.SelectedID)
 			group.HistoryCursor, group.HistoryReset, group.HistoryLimit = token, reset, limit
-			group.HasMore = len(ordered) > limit
 		}
 		group.Shown = len(group.Conversations)
 		result.Groups = append(result.Groups, group)
@@ -276,4 +276,35 @@ func projectSidebarRows(group *SidebarGroup, items []ConversationItem, limit int
 	}
 	group.Shown = len(group.Conversations)
 	group.HasMore = history && group.Shown < group.Total
+}
+
+// Important navigation rows do not consume the frozen ordinary-history quota.
+// Opt-in keeps all existing clients' default pagination contract unchanged.
+func projectSidebarHistoryRows(group *SidebarGroup, current, ordered, arrivals []ConversationItem, limit int, includeImportant bool, selectedID string) {
+	if !includeImportant {
+		group.Conversations = append(arrivals, ordered[:min(limit, len(ordered))]...)
+		group.HasMore = len(ordered) > limit
+		return
+	}
+	important := make([]ConversationItem, 0)
+	ids := make(map[string]struct{})
+	for _, item := range current {
+		if !item.IsUnattributed && (item.Pinned || sidebarExecutionVisible(item) || item.ID != "" && item.ID == selectedID) {
+			important = append(important, item)
+			ids[item.ID] = struct{}{}
+		}
+	}
+	ordinary := func(items []ConversationItem) []ConversationItem {
+		rows := make([]ConversationItem, 0, len(items))
+		for _, item := range items {
+			if _, exists := ids[item.ID]; !exists || item.IsUnattributed {
+				rows = append(rows, item)
+			}
+		}
+		return rows
+	}
+	ordered, arrivals = ordinary(ordered), ordinary(arrivals)
+	group.Conversations = append(important, arrivals...)
+	group.Conversations = append(group.Conversations, ordered[:min(limit, len(ordered))]...)
+	group.HasMore = len(ordered) > limit
 }

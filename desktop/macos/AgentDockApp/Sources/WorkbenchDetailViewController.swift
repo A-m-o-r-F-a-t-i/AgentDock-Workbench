@@ -9,10 +9,11 @@ final class WorkbenchDetailViewController: NSViewController {
     var onConversationAction: ((String) -> Void)?
     var onPermissionMode: ((String) -> Void)?
     var onInsertionAction: ((String, String) -> Void)?
-    var onReadPayload: ((String) -> Void)?
+    var onReadPayload: ((String, Bool) -> Void)?
     var onOpenPolicy: (() -> Void)?
     private let readRequestButton = NSButton()
     private let readOutputButton = NSButton()
+    private let reloadOutputButton = NSButton()
     private let payloadCaption = WorkbenchUI.label(L10n.text("Output hidden by default"), font: .systemFont(ofSize: 11), lines: 3)
     private var loadedOutput = ""
 
@@ -114,8 +115,13 @@ final class WorkbenchDetailViewController: NSViewController {
         view = root
     }
 
+    private var permissionDraft: String?
+    private var permissionContext = ""
+    private var permissionServerTitle = ""
+
     func render(_ model: WorkbenchViewModel, selectedInsertion: WorkbenchInsertion?) {
         let snapshot = model.snapshot
+        let insertionChanged = currentInsertion?.id != selectedInsertion?.id
         currentInsertion = selectedInsertion
         currentCall = selectedInsertion == nil ? snapshot.selectedCall : nil
         currentPermission = snapshot.permission
@@ -124,7 +130,7 @@ final class WorkbenchDetailViewController: NSViewController {
             titleLabel.stringValue = L10n.text("User supplement")
             subtitleLabel.stringValue = insertion.detailText
             insertionText.string = insertion.text + "\n\n" + insertion.raw.prettyPrinted
-            tabs.selectTabViewItem(at: 3)
+            if insertionChanged { tabs.selectTabViewItem(at: 3) }
         } else if let call = snapshot.selectedCall {
             titleLabel.stringValue = call.title
             subtitleLabel.stringValue = call.metadataText
@@ -143,10 +149,16 @@ final class WorkbenchDetailViewController: NSViewController {
         }
 
         taskText.string = snapshot.task?.detailText ?? L10n.text("This conversation has no active task, or this Core version does not provide task details.")
+        let context = snapshot.selectedConversation?.navigationID ?? ""
+        if context != permissionContext {
+            permissionContext = context; permissionDraft = nil; permissionServerTitle = ""
+        }
         if let permission = snapshot.permission {
             permissionText.string = permission.summaryText + L10n.text("\n\nSettings\n") + permission.settings.prettyPrinted
             let mode = permission.mode == "read_only" ? "readonly" : permission.mode
-            permissionMode.selectItem(withTitle: modeTitle(mode))
+            permissionServerTitle = modeTitle(mode)
+            if permissionDraft == permissionServerTitle { permissionDraft = nil }
+            permissionMode.selectItem(withTitle: permissionDraft ?? permissionServerTitle)
         } else {
             permissionText.string = L10n.text("The permission interface is unavailable. Workbench will not replace effective Core permissions with local defaults.")
             permissionMode.selectItem(at: 0)
@@ -171,7 +183,18 @@ final class WorkbenchDetailViewController: NSViewController {
         }
         readRequestButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["request"]?.hasMore != false
         readOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["response"]?.hasMore != false
+        reloadOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload
         updateActions(model)
+    }
+
+    @objc private func permissionSelectionChanged() {
+        let title = permissionMode.titleOfSelectedItem
+        permissionDraft = title == permissionServerTitle ? nil : title
+    }
+
+    @objc private func reloadOutput() {
+        guard currentCall != nil else { return }
+        onReadPayload?("response", true)
     }
 
     private var conversationActions: [(title: String, key: String)] {
@@ -207,6 +230,9 @@ final class WorkbenchDetailViewController: NSViewController {
         configureButton(readOutputButton, title: L10n.text("Expand output / Next chunk"), action: #selector(readOutput))
         readOutputButton.setAccessibilityIdentifier("workbench.output.load")
         right.addArrangedSubview(readOutputButton)
+        configureButton(reloadOutputButton, title: L10n.text("Reload output from start"), action: #selector(reloadOutput))
+        reloadOutputButton.setAccessibilityIdentifier("workbench.output.reload")
+        right.addArrangedSubview(reloadOutputButton)
         right.addArrangedSubview(WorkbenchUI.button(L10n.text("Copy current output chunk"), target: self, action: #selector(copyOutput)))
         right.addArrangedSubview(payloadCaption)
         right.addArrangedSubview(outputScroll)
@@ -226,6 +252,9 @@ final class WorkbenchDetailViewController: NSViewController {
         permissionText.setAccessibilityIdentifier("workbench.detail.permission")
         permissionMode.addItems(withTitles: [L10n.text("Approval required"), L10n.text("Full permission"), L10n.text("Read only")])
         permissionMode.setAccessibilityLabel(L10n.text("Permission mode"))
+        permissionMode.setAccessibilityIdentifier("workbench.permission.mode")
+        permissionMode.target = self
+        permissionMode.action = #selector(permissionSelectionChanged)
         applyPermissionButton.title = L10n.text("Apply permission mode")
         applyPermissionButton.target = self
         applyPermissionButton.action = #selector(applyPermission(_:))
@@ -309,6 +338,7 @@ final class WorkbenchDetailViewController: NSViewController {
         copyButton.isEnabled = currentCall != nil || currentInsertion != nil
         exportButton.isEnabled = currentCall != nil || currentInsertion != nil
         conversationMenu.isEnabled = !model.selectedConversationID.isEmpty && !model.isOperating && !model.snapshot.stale
+        permissionMode.isEnabled = currentPermission != nil && !model.isOperating && !model.snapshot.stale
         applyPermissionButton.isEnabled = currentPermission != nil && !model.selectedConversationID.isEmpty && !model.isOperating && !model.snapshot.stale
         retryInsertionButton.isEnabled = currentInsertion?.manualRetryAvailable == true && currentInsertion?.terminal == false && !model.isOperating
         cancelInsertionButton.isEnabled = currentInsertion?.terminal == false && !model.isOperating
@@ -346,8 +376,8 @@ final class WorkbenchDetailViewController: NSViewController {
 
     @objc private func openChildren() { if let id = currentCall?.id { onChildCalls?(id) } }
     @objc private func stopCall(_ sender: Any?) { onStopCall?() }
-    @objc private func readRequest() { onReadPayload?("request") }
-    @objc private func readOutput() { onReadPayload?("response") }
+    @objc private func readRequest() { onReadPayload?("request", false) }
+    @objc private func readOutput() { onReadPayload?("response", false) }
     @objc private func openPolicy() { onOpenPolicy?() }
     @objc private func copyOutput() {
         guard !loadedOutput.isEmpty else { return }
