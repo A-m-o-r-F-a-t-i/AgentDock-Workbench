@@ -1,0 +1,31 @@
+name: Inspect 1.1.8 build dispatch
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/inspect-rebuild-request-20260930.yml]
+permissions:
+  contents: read
+  actions: read
+  issues: write
+jobs:
+  inspect:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+    steps:
+      - name: Read original failure and matching builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run view 36656526230 --repo "$GH_REPO" --log-failed > failure.log 2>&1 || true
+          gh api "repos/$GH_REPO/actions/workflows/workbench-release.yml/runs?head_sha=24d04ef2a60e4b538b26051ee68c2554defface1&event=workflow_dispatch&per_page=100" > runs.json
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path('runs.json').read_text())
+          info=[{k:x.get(k) for k in ['id','status','conclusion','head_sha','html_url','path','created_at']} for x in r['workflow_runs']]
+          pathlib.Path('comment.md').write_text('## 构建调度诊断（只读）\n\n```json\n'+json.dumps(info,indent=2)+'\n```\n\n```text\n'+pathlib.Path('failure.log').read_text()[-26000:]+'\n```')
+          PY
+          gh api "repos/$GH_REPO/issues/36/comments" --method POST -F body=@comment.md
