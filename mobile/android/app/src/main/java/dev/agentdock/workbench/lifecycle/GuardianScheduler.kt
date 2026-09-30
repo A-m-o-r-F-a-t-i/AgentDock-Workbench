@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import dev.agentdock.workbench.model.WorkbenchSettings
 import java.util.concurrent.TimeUnit
 
@@ -17,6 +18,7 @@ object GuardianScheduler {
 
     fun configure(context: Context, settings: WorkbenchSettings) {
         val manager = WorkManager.getInstance(context)
+        if (!settings.bootHealthCheckEnabled || settings.guardianPaused) manager.cancelUniqueWork(UNIQUE_BOOT)
         if (!settings.guardianEnabled || settings.guardianPaused) {
             manager.cancelUniqueWork(UNIQUE_PERIODIC)
             return
@@ -30,6 +32,7 @@ object GuardianScheduler {
     fun enqueueBootCheck(context: Context, settings: WorkbenchSettings) {
         if (!settings.bootHealthCheckEnabled || settings.guardianPaused) return
         val request = OneTimeWorkRequestBuilder<GuardianWorker>()
+            .setInputData(workDataOf(GuardianWorker.CHECK_KIND to GuardianWorker.BOOT_CHECK))
             .setInitialDelay(30, TimeUnit.SECONDS)
             .setConstraints(constraints(settings))
             .build()
@@ -37,7 +40,7 @@ object GuardianScheduler {
     }
 
     private fun constraints(settings: WorkbenchSettings) = Constraints.Builder()
-        .setRequiredNetworkType(if (settings.onlyOnWifi) NetworkType.UNMETERED else NetworkType.NOT_REQUIRED)
+        .setRequiredNetworkType(if (settings.onlyOnWifi) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
         .setRequiresCharging(settings.onlyWhileCharging)
         .build()
 }

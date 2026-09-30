@@ -3,7 +3,8 @@ package dev.agentdock.workbench.lifecycle
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.ContextCompat
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import dev.agentdock.workbench.WorkbenchApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,23 +18,15 @@ class GuardianActionReceiver : BroadcastReceiver() {
             try {
                 val graph = (context.applicationContext as WorkbenchApplication).graph
                 when (intent.action) {
-                    ACTION_PAUSE -> {
-                        graph.settings.setGuardianPaused(true)
-                        context.stopService(Intent(context, GuardianService::class.java))
-                        GuardianScheduler.configure(context, graph.settings.current())
-                    }
-                    ACTION_RESUME -> {
-                        graph.settings.setGuardianPaused(false)
-                        val settings = graph.settings.current()
-                        GuardianScheduler.configure(context, settings)
-                        if (settings.guardianEnabled) ContextCompat.startForegroundService(context, Intent(context, GuardianService::class.java))
-                    }
+                    ACTION_PAUSE -> graph.guardian.setPaused(true)
+                    ACTION_RESUME -> graph.guardian.setPaused(false)
                     ACTION_STOP_CORE -> {
-                        // Persist first: guardian pause and Core stop are distinct states.
-                        graph.settings.setDesiredNodeState("stopped")
                         graph.termux.dispatch("stop", JSONObject().put("source", "notification"))
                     }
                 }
+            } catch (error: CancellationException) { throw error
+            } catch (_: Exception) {
+                Log.w("AgentDockGuardian", "Guardian action failed; retained operation state requires review")
             } finally {
                 result.finish()
             }

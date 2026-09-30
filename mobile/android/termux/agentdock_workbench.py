@@ -419,6 +419,17 @@ class NodeBackend:
         result = subprocess.run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(key), "-rawin", "-in", str(manifest), "-sigfile", str(signature)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, close_fds=True)
         check(result.returncode == 0, "trust_failed", "发布清单签名验证失败")
 
+def core_launch_command(config: dict) -> str:
+    # The validated node.json port is authoritative; ignore legacy port files.
+    port = Deployment.validate_config(config)["port"]
+    return ('export AGENTDOCK_HOME=/opt/agentdock-workbench/data; '
+            'export AGENTDOCK_DEFAULT_DIR=/opt/agentdock-workbench/workspace; '
+            f'export AGENTDOCK_HOST=127.0.0.1; export AGENTDOCK_PORT={port}; '
+            'export AGENTDOCK_AUTH_TOKEN="$(cat /opt/agentdock-workbench/auth-token)"; '
+            'export AGENTDOCK_MCP_APPS_ENABLED=false; '
+            'exec /opt/agentdock-workbench/current/bin/agentdock')
+
+
 def launch_owned(root: Path) -> None:
     root = root.resolve(strict=True)
     config = Deployment.validate_config(read_json(root / "node.json", DEFAULT_CONFIG))
@@ -430,7 +441,7 @@ def launch_owned(root: Path) -> None:
     check(stamp.startswith(f"{pid}:{pid}:{pid}:"), "unknown_process", "无法建立独立受管进程组")
     atomic_bytes(root / "core.pid", str(pid).encode())
     atomic_bytes(root / "core.identity", stamp.encode())
-    command = 'export AGENTDOCK_HOME=/opt/agentdock-workbench/data; export AGENTDOCK_DEFAULT_DIR=/opt/agentdock-workbench/workspace; export AGENTDOCK_HOST=127.0.0.1; export AGENTDOCK_PORT="$(cat /opt/agentdock-workbench/port)"; export AGENTDOCK_AUTH_TOKEN="$(cat /opt/agentdock-workbench/auth-token)"; export AGENTDOCK_MCP_APPS_ENABLED=false; exec /opt/agentdock-workbench/current/bin/agentdock'
+    command = core_launch_command(config)
     os.execvp("proot-distro", ["proot-distro", "login", config["distro"], "--bind", f"{root}:/opt/agentdock-workbench", "--", "/bin/sh", "-lc", command])
 
 class Deployment:
@@ -460,12 +471,16 @@ class Deployment:
         return result
 
     def initialize(self) -> None:
-        for name in ("versions", "data", "workspace", "logs", "transactions", "backups", "quarantine"):
+        for name in ("versions", "workspace", "logs", "transactions", "backups", "quarantine"):
             (self.root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+        # Missing data can be an intentional restore publication window.
+        # Do not alter that evidence before resume/cancel examines the journal.
+        pending = any(record.get("kind") == "deployment" and record.get("status") not in TERMINAL
+                      for _, record in self.journal_records())
+        if not pending:
+            (self.root / "data").mkdir(mode=0o700, parents=True, exist_ok=True)
         if not (self.root / "node.json").exists():
             atomic_json(self.root / "node.json", self.config)
-        if not (self.root / "port").exists():
-            atomic_bytes(self.root / "port", str(self.config["port"]).encode())
 
     @contextlib.contextmanager
     def lock(self):
@@ -608,7 +623,9 @@ class Deployment:
         outward = "ok" if status == "cancelled" else status
         if status == "succeeded":
             outward = {"install": "installed", "update": "updated", "rollback": "rolled_back"}.get(journal["operation"], "ok")
-        return {"status": outward, "message": message, "data": self.query(journal["operation_id"])}
+        data = self.query(journal["operation_id"])
+        data["desired_state"] = self.desired()
+        return {"status": outward, "message": message, "data": data}
 
     def make_journal(self, operation: str, identity: str, payload: dict) -> dict:
         fingerprint = hashlib.sha256(json_bytes(payload)).hexdigest()
@@ -711,6 +728,7 @@ class Deployment:
             check(shutil.disk_usage(self.root).free > size + 64 * 1024 * 1024, "disk_full", "恢复空间不足；备份保持完整")
             shutil.copytree(source / "data", restored, symlinks=True)
             atomic_bytes(restored / ".restore-ready", b"1")
+        self.fault(label + "-prepared")
         if not quarantine.exists() and destination.exists():
             os.replace(destination, quarantine)
             fsync_directory(self.root)
@@ -721,6 +739,7 @@ class Deployment:
             self.fault(label + "-published")
         check((destination / ".restore-ready").exists(), "restore_conflict", "恢复目标已有未知数据；未覆盖")
         atomic_json(marker, {"schema_version": 1, "backup": backup})
+        self.fault(label + "-marked")
         (destination / ".restore-ready").unlink(missing_ok=True)
         if restored.exists():
             shutil.rmtree(restored)
@@ -767,6 +786,14 @@ class Deployment:
                     self.prepare_install(journal)
             if journal["phase"] == "prepared":
                 check(self.metadata(journal["target"]).get("binary_sha256") == sha256(self.root / "versions" / journal["target"] / "bin/agentdock"), "verification_failed", "暂存二进制已改变，未切换")
+                if operation in {"install", "update"} and journal["source"] == journal["target"]:
+                    # A new request ID does not make an identical signed artifact
+                    # a version transition. Preserve the distinct fallback.
+                    if (payload.get("start_after_install") is True and self.desired() == "running"
+                            and not self.backend.health(journal["target_version"])):
+                        self.backend.start(journal["target_version"])
+                        check(self.backend.health(journal["target_version"]), "health_failed", "当前制品启动验证失败")
+                    return self.finish(journal, "succeeded", "已安装相同制品，保留现有回退版本与数据备份")
                 self.save(journal, "stop", source_was_healthy=self.source_healthy(journal))
             if journal["phase"] == "stop":
                 self.backend.stop()
@@ -789,7 +816,7 @@ class Deployment:
                 self.save(journal, "commit")
             if journal["phase"] == "commit":
                 atomic_json(self.root / "health-proof.json", {"version_directory": journal["target"], "binary_sha256": self.metadata(journal["target"])["binary_sha256"], "verified_at": self.clock()})
-                if journal["source"] and journal.get("source_was_healthy"):
+                if journal["source"] and journal["source"] != journal["target"] and journal.get("source_was_healthy"):
                     atomic_json(self.root / "fallback.json", {"version_directory": journal["source"], "backup": journal["backup"], "product_version": journal["source_version"]})
                     self.set_pointer("previous", journal["source"])
                 result = self.finish(journal, "succeeded", "版本、管理鉴权和健康验证通过，部署事务已提交")
@@ -934,7 +961,9 @@ class Deployment:
         self.validate_payload(operation, payload)
         if operation in READ_ONLY:
             if operation == "operation_query":
-                return {"status": "ok", "message": "只读取原操作记录，未重放", "data": self.query(payload.get("target_operation_id", ""))}
+                data = self.query(payload.get("target_operation_id", ""))
+                data["desired_state"] = self.desired()
+                return {"status": "ok", "message": "只读取原操作记录，未重放", "data": data}
             if operation == "logs":
                 return self.logs(payload)
             if operation == "cleanup_preview":
@@ -982,6 +1011,8 @@ class Deployment:
             self.save(record)
             try:
                 result = self.runtime_operation(operation, identity, payload)
+                if operation != "pair_local_core":
+                    result.setdefault("data", {}).setdefault("desired_state", self.desired())
                 terminal_status = "succeeded" if result["status"] in {"ok", "healthy", "running", "stopped", "adopted"} else "failed"
                 stored_result = result
                 if operation == "pair_local_core" and terminal_status == "succeeded":
@@ -1041,7 +1072,6 @@ class Deployment:
             check(self.backend.owned_pid() is None, "node_running", "节点运行时不修改运行配置，请先停止")
             self.config = self.validate_config(payload.get("node", {}))
             atomic_json(self.root / "node.json", self.config)
-            atomic_bytes(self.root / "port", str(self.config["port"]).encode())
             self.backend = self.backend_factory(self.root, self.config)
             return {"status": "ok", "message": "节点配置已保存；未启动 Core", "data": self.config}
         if operation in ("start", "restart"):
@@ -1061,7 +1091,8 @@ class Deployment:
             backend = self.backend_factory(candidate, config)
             check(backend.owned_pid() is None or backend.health(), "unknown_process", "已有节点身份未验证；未接管")
             atomic_bytes(self.state / "adopted-root", str(candidate).encode())
-            return {"status": "adopted", "message": "只建立受管目录引用，未替换程序、配置或身份"}
+            return {"status": "adopted", "message": "只建立受管目录引用，未替换程序、配置或身份",
+                    "data": {"desired_state": read_text(candidate / "desired-state", "stopped")}}
         if operation == "cleanup":
             check(payload.get("confirm_cleanup") is True, "confirmation_required", "清理前必须预览并确认")
             preview = self.cleanup(True)

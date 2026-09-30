@@ -41,6 +41,10 @@ object ProjectArchivePolicy {
     const val MAX_RELATIVE_PATH_CHARS = 4096
     const val MAX_DIRECTORY_DEPTH = 128
 
+    fun requireFileSize(bytes: Long) {
+        require(bytes in -1..MAX_FILE_BYTES) { "工程单文件超过可重新导入的大小上限" }
+    }
+
     internal fun <T> collectBounded(entries: Enumeration<T>, maximum: Int = MAX_ENTRIES): List<T> {
         require(maximum in 1..MAX_ENTRIES) { "归档枚举上限无效" }
         val result = ArrayList<T>(minOf(maximum, 256))
@@ -86,7 +90,7 @@ object ProjectArchivePolicy {
             require(parts.size <= MAX_DIRECTORY_DEPTH && parts.all { part ->
                 part.isNotBlank() && part !in setOf(".", "..") && part.length <= 255 && part.all { char -> char.code >= 32 }
             }) { "归档路径越界、层级过深或包含控制字符" }
-            require(entry.declaredSize in -1..MAX_FILE_BYTES) { "归档单文件超过上限" }
+            requireFileSize(entry.declaredSize)
             ArchivePlanEntry(parts.joinToString("/"), entry.directory, entry.declaredSize)
         }
         require(normalized.map { it.path }.distinct().size == normalized.size) { "归档包含重复路径" }
@@ -246,7 +250,7 @@ class SafProjectStore(context: Context) {
         val visitedDirectories = HashSet<String>()
         try {
             (resolver.openOutputStream(destination, "w") ?: throw IOException("文档提供程序无法打开导出目标")).use { raw ->
-                ZipOutputStream(raw.buffered()).use { zip ->
+                ZipOutputStream(ArchiveOutputStream(raw.buffered())).use { zip ->
                     fun walk(parent: SafEntry, prefix: String, depth: Int) {
                         val parentUri = Uri.parse(parent.uri)
                         ProjectArchivePolicy.registerDirectory(visitedDirectories, DocumentsContract.getDocumentId(parentUri))
@@ -258,12 +262,16 @@ class SafProjectStore(context: Context) {
                                 zip.closeEntry()
                                 walk(child, relative, depth + 1)
                             } else {
+                                ProjectArchivePolicy.requireFileSize(child.sizeBytes)
                                 zip.putNextEntry(ZipEntry(relative).apply { time = 0 })
                                 (resolver.openInputStream(Uri.parse(child.uri)) ?: throw IOException("文档提供程序无法读取工程文件")).use { input ->
                                     val buffer = ByteArray(64 * 1024)
+                                    var fileBytes = 0L
                                     while (true) {
                                         val read = input.read(buffer)
                                         if (read < 0) break
+                                        fileBytes += read
+                                        ProjectArchivePolicy.requireFileSize(fileBytes)
                                         total += read
                                         require(total <= ProjectArchivePolicy.MAX_EXPANDED_BYTES) { "工程导出总量超过上限" }
                                         zip.write(buffer, 0, read)

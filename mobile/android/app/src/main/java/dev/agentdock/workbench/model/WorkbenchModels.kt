@@ -60,6 +60,8 @@ data class WorkbenchSettings(
     val granularManagement: Boolean = true,
     val granularOther: Boolean = false,
     val desiredNodeState: String = "stopped",
+    val nodeIntentRevision: Long = 0L,
+    val nodeIntentOperationId: String = "",
     val projectTreeUri: String = "",
     val artifactTreeUri: String = "",
     val onboardingComplete: Boolean = false
@@ -98,7 +100,9 @@ data class BridgeOperation(
     val exitCode: Int? = null,
     val stdoutTruncated: Boolean = false,
     val stderrTruncated: Boolean = false,
-    val resultJson: String = ""
+    val resultJson: String = "",
+    val intentRevision: Long = -1L,
+    val targetOperationId: String = ""
 )
 
 data class WorkbenchItem(

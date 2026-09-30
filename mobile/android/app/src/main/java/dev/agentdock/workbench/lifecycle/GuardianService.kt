@@ -12,7 +12,8 @@ import androidx.core.app.NotificationCompat
 import dev.agentdock.workbench.MainActivity
 import dev.agentdock.workbench.R
 import dev.agentdock.workbench.WorkbenchApplication
-import dev.agentdock.workbench.model.NodeHealth
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,7 +50,7 @@ class GuardianService : Service() {
 
     private suspend fun runLoop() {
         val graph = (application as WorkbenchApplication).graph
-        while (scope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val settings = graph.settings.current()
             if (!settings.guardianEnabled || settings.guardianPaused) {
                 updateNotification(notification(getString(R.string.guardian_paused), paused = true))
@@ -62,17 +63,13 @@ class GuardianService : Service() {
                 delay(settings.guardianIntervalMinutes.coerceIn(15, 1440) * 60_000L)
                 continue
             }
-            val snapshot = runCatching { graph.repository.refresh() }.getOrNull()
-            val healthy = snapshot?.coreHealth == NodeHealth.Healthy
-            val message = when {
-                healthy -> "Core ${snapshot?.coreVersion.orEmpty()} 正常"
-                settings.desiredNodeState == "stopped" -> "Core 已按用户期望停止"
-                else -> snapshot?.connectionMessage ?: "Core 状态不可用"
-            }
+            val message = try {
+                val operation = GuardianPolicy.operation(settings, bootCheck = false) ?: return
+                val pending = graph.termux.dispatch(operation, JSONObject().put("source", "foreground_guardian"))
+                graph.termux.awaitCompletion(pending.operationId)?.message ?: "本机检查回执尚未确认，请查询原操作"
+            } catch (error: CancellationException) { throw error
+            } catch (_: Exception) { "本机 Termux 检查未完成，请核对桥连接与权限" }
             updateNotification(notification(message, paused = false))
-            if (!healthy && settings.autoRepairEnabled && settings.desiredNodeState == "running") {
-                runCatching { graph.termux.dispatch("guardian_check", JSONObject().put("source", "foreground_guardian")) }
-            }
             delay(settings.guardianIntervalMinutes.coerceIn(15, 1440) * 60_000L)
         }
     }

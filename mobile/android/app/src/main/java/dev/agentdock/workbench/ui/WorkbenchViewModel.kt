@@ -1,12 +1,8 @@
 package dev.agentdock.workbench.ui
 
-import android.Manifest
 import android.app.Application
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -20,7 +16,6 @@ import dev.agentdock.workbench.data.ListQuery
 import dev.agentdock.workbench.data.ManagementContract
 import dev.agentdock.workbench.data.SafEntry
 import dev.agentdock.workbench.lifecycle.GuardianScheduler
-import dev.agentdock.workbench.lifecycle.GuardianService
 import dev.agentdock.workbench.model.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -102,8 +97,8 @@ class WorkbenchViewModel(
     val resources = CoreResourceController(viewModelScope, { graph.repository.managementClient() },
         { _state.value.fixture }, { _state.value.snapshot }, ::showNotice, ::refresh)
 
-    private var activityStream: Job? = null
-    private var callStream: Job? = null
+    private val activityStream = RestartableCoreStream(viewModelScope)
+    private val callStream = RestartableCoreStream(viewModelScope)
     private var refreshJob: Job? = null
     private var detailJob: Job? = null
     private var payloadJob: Job? = null
@@ -352,11 +347,7 @@ class WorkbenchViewModel(
                 val origin = dev.agentdock.workbench.data.EndpointPolicy.resolve(settings.endpoint, settings.remoteEndpointEnabled)
                 val session = withContext(Dispatchers.IO) { graph.remoteOAuth.begin(origin) }
                 pending = session
-                val application = getApplication<Application>()
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(session.authorizationUrl.toString()))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                check(intent.resolveActivity(application.packageManager) != null) { "没有可处理 OAuth 授权页的外部浏览器" }
-                application.startActivity(intent)
+                dev.agentdock.workbench.data.OAuthBrowserLauncher.open(getApplication(), session.authorizationUrl)
                 val status = withContext(Dispatchers.IO) { graph.remoteOAuth.awaitAndStore(session) }
                 stopStreams()
                 _state.update {
@@ -400,10 +391,6 @@ class WorkbenchViewModel(
     fun capabilityAction(kind: String, item: WorkbenchItem, enable: Boolean) = perform { graph.repository.capabilityAction(kind, item.id, enable) }
 
     fun runTermux(operation: String, arguments: JSONObject = JSONObject()) = perform {
-        when (operation) {
-            "start", "restart" -> graph.settings.setDesiredNodeState("running")
-            "stop" -> graph.settings.setDesiredNodeState("stopped")
-        }
         val payload = JSONObject(arguments.toString()).put("source", "android_ui")
         if (operation in setOf("install", "update")) payload.put("apk_version", BuildConfig.PRODUCT_VERSION)
         val pending = withContext(Dispatchers.IO) { graph.termux.dispatch(operation, payload) }
@@ -414,20 +401,7 @@ class WorkbenchViewModel(
         if (_state.value.fixture) { fixtureBlocked(); return }
         viewModelScope.launch {
             try {
-                val before = graph.settings.current()
-                if (enabled && !before.notificationsEnabled) {
-                    showNotice("启用守护前必须先启用通知；守护需要持续可见的停止入口。")
-                    return@launch
-                }
-                if (enabled && Build.VERSION.SDK_INT >= 33 &&
-                    ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    showNotice("系统通知权限尚未授予，未启动守护。")
-                    return@launch
-                }
-                graph.settings.update { it.copy(guardianEnabled = enabled, guardianPaused = if (enabled) false else it.guardianPaused) }
-                GuardianScheduler.configure(getApplication(), graph.settings.current())
-                if (enabled) ContextCompat.startForegroundService(getApplication(), Intent(getApplication(), GuardianService::class.java))
-                else getApplication<Application>().stopService(Intent(getApplication(), GuardianService::class.java))
+                graph.guardian.setEnabled(enabled)
             } catch (error: CancellationException) { throw error } catch (error: Exception) { showError(error) }
         }
     }
@@ -436,13 +410,7 @@ class WorkbenchViewModel(
         if (_state.value.fixture) { fixtureBlocked(); return }
         viewModelScope.launch {
             try {
-                graph.settings.update {
-                    if (enabled) it.copy(notificationsEnabled = true)
-                    else it.copy(notificationsEnabled = false, guardianEnabled = false, guardianPaused = false)
-                }
-                val settings = graph.settings.current()
-                GuardianScheduler.configure(getApplication(), settings)
-                if (!enabled) getApplication<Application>().stopService(Intent(getApplication(), GuardianService::class.java))
+                graph.guardian.setNotifications(enabled)
                 showNotice(if (enabled) "通知开关已启用；Android 13+ 仍需系统授权。" else "通知和节点守护均已关闭；Core 未被停止。")
             } catch (error: CancellationException) { throw error
             } catch (error: Exception) { showError(error) }
@@ -453,11 +421,7 @@ class WorkbenchViewModel(
         if (_state.value.fixture) { fixtureBlocked(); return }
         viewModelScope.launch {
             try {
-                graph.settings.setGuardianPaused(paused)
-                val settings = graph.settings.current()
-                GuardianScheduler.configure(getApplication(), settings)
-                if (paused) getApplication<Application>().stopService(Intent(getApplication(), GuardianService::class.java))
-                else if (settings.guardianEnabled) ContextCompat.startForegroundService(getApplication(), Intent(getApplication(), GuardianService::class.java))
+                graph.guardian.setPaused(paused)
             } catch (error: CancellationException) { throw error } catch (error: Exception) { showError(error) }
         }
     }
@@ -690,17 +654,13 @@ class WorkbenchViewModel(
     private fun showError(error: Throwable) = _state.update { it.copy(message = ManagementContract.failure(error)) }
 
     private fun startStreams() {
-        if (activityStream == null) activityStream = viewModelScope.launch {
-            graph.repository.observeActivity(0) { event ->
+        activityStream.start(graph.repository::observeActivity) { event ->
                 _state.update { it.copy(liveStatus = if (event.event in setOf("disconnected", "stopped")) event.data else "活动流 #${event.id}") }
                 if (event.event !in setOf("disconnected", "stopped")) scheduleRefresh()
-            }
         }
-        if (callStream == null) callStream = viewModelScope.launch {
-            graph.repository.observeCalls(0) { event ->
+        callStream.start(graph.repository::observeCalls) { event ->
                 _state.update { it.copy(liveStatus = if (event.event in setOf("disconnected", "stopped")) event.data else "调用流 #${event.id}") }
                 if (event.event !in setOf("disconnected", "stopped")) scheduleRefresh()
-            }
         }
     }
 
@@ -709,8 +669,8 @@ class WorkbenchViewModel(
         payloadGeneration++; payloadJob?.cancel(); detailJob?.cancel()
         refreshGeneration++; refreshJob?.cancel()
         _state.update { it.copy(payload = null, detail = null, snapshot = WorkbenchSnapshot()) }
-        activityStream?.cancel(); activityStream = null
-        callStream?.cancel(); callStream = null
+        activityStream.stop()
+        callStream.stop()
         refreshDebounce?.cancel()
     }
 

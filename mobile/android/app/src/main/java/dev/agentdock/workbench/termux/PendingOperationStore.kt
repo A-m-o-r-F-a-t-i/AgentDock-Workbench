@@ -7,7 +7,7 @@ import org.json.JSONObject
 import java.io.File
 import java.nio.charset.StandardCharsets
 
-class PendingOperationStore(context: Context) {
+class PendingOperationStore(context: Context, private val clock: () -> Long = System::currentTimeMillis) {
     val changes = kotlinx.coroutines.flow.MutableStateFlow(0L)
     private val directory = File(context.filesDir, "operations").apply { mkdirs() }
 
@@ -15,8 +15,14 @@ class PendingOperationStore(context: Context) {
     fun create(value: BridgeOperation) {
         require(validId(value.operationId) && validId(value.requestId))
         check(get(value.operationId) == null) { "Operation ID already exists" }
-        trim(reserve = 1)
+        expirePending()
+        trim(value.operation)
         check(list(MAX_FILES).size < MAX_FILES) { "Unresolved operation capacity reached" }
+        if (value.operation !in TermuxResultPolicy.recoveryOperations) {
+            check(list(MAX_FILES).count { it.operation !in TermuxResultPolicy.recoveryOperations } < NORMAL_CAPACITY) {
+                "Unresolved operation capacity reached; recovery/query slots remain available"
+            }
+        }
         write(value)
     }
 
@@ -29,12 +35,48 @@ class PendingOperationStore(context: Context) {
     }
 
     @Synchronized
-    fun list(limit: Int = 50): List<BridgeOperation> = directory.listFiles()
+    fun list(limit: Int = MAX_FILES): List<BridgeOperation> {
+        expirePending()
+        return records().take(limit.coerceIn(1, MAX_FILES))
+    }
+
+    private fun records(): List<BridgeOperation> = directory.listFiles()
         .orEmpty()
         .filter { it.isFile && it.name.endsWith(".json") && it.length() <= MAX_FILE_BYTES }
         .sortedByDescending { it.lastModified() }
-        .take(limit.coerceIn(1, MAX_FILES))
+        .take(MAX_FILES)
         .mapNotNull { runCatching { decode(it.readText(StandardCharsets.UTF_8)) }.getOrNull() }
+
+    private fun expirePending() {
+        val now = clock()
+        records().filter { it.phase in TermuxResultPolicy.pendingPhases && now - it.createdAtEpochMs > TermuxResultPolicy.MAX_CALLBACK_AGE_MS }
+            .forEach { write(it.copy(phase = "unknown", updatedAtEpochMs = now,
+                message = "回执等待超时；业务结果未知，请查询原操作，勿重放写入")) }
+    }
+
+    /** Only a validated, explicitly bound query/continuation may settle an old record. */
+    @Synchronized
+    fun reconcile(request: BridgeOperation, data: JSONObject): Boolean {
+        require(request.operation in setOf("operation_query", "resume", "cancel_operation"))
+        val query = get(request.operationId) ?: return false
+        require(query.requestId == request.requestId && query.nonce == request.nonce && query.phase == "succeeded")
+        val target = query.targetOperationId
+        require(target.isNotBlank() && data.optString("operation_id") == target)
+        val original = get(target) ?: return false
+        require(data.optString("operation") == original.operation)
+        if (original.phase in setOf("succeeded", "failed", "cancelled")) return false
+        val phase = when (data.optString("status")) {
+            "succeeded" -> "succeeded"
+            "failed", "rolled_back" -> "failed"
+            "cancelled" -> "cancelled"
+            "requires_user_action" -> "requires_user_action"
+            else -> return false
+        }
+        write(original.copy(phase = phase, updatedAtEpochMs = clock(),
+            message = "原操作查询已核对：" + TermuxResultPolicy.safeMessage(data.optString("message", phase)),
+            resultJson = BridgeResultData.sanitize(data)))
+        return true
+    }
 
     @Synchronized
     fun finish(
@@ -49,11 +91,12 @@ class PendingOperationStore(context: Context) {
         val current = checkNotNull(get(expected.operationId)) { "Unknown operation" }
         require(current.requestId == expected.requestId && current.nonce == expected.nonce)
         if (current.phase in TermuxResultPolicy.terminalPhases) return current
-        require(phase in TermuxResultPolicy.pendingPhases || phase in TermuxResultPolicy.terminalPhases)
+        if (current.phase == "unknown" && phase in TermuxResultPolicy.pendingPhases) return current
+        require(phase == "unknown" || phase in TermuxResultPolicy.pendingPhases || phase in TermuxResultPolicy.terminalPhases)
         val next = current.copy(
             phase = phase,
             message = TermuxResultPolicy.safeMessage(message).take(MAX_MESSAGE_CHARS),
-            updatedAtEpochMs = System.currentTimeMillis(),
+            updatedAtEpochMs = clock(),
             exitCode = exitCode,
             stdoutTruncated = stdoutTruncated,
             stderrTruncated = stderrTruncated,
@@ -79,12 +122,16 @@ class PendingOperationStore(context: Context) {
         }
     }
 
-    private fun trim(reserve: Int) {
-        val records = list(MAX_FILES)
-        val removable = records.filter { it.phase in TermuxResultPolicy.terminalPhases }
-            .sortedBy { it.updatedAtEpochMs }
-        val count = (records.size + reserve - MAX_FILES).coerceAtLeast(0)
-        removable.take(count).forEach { AtomicFile(file(it.operationId)).delete() }
+    private fun trim(operation: String) {
+        val values = records().toMutableList()
+        val normal = operation !in TermuxResultPolicy.recoveryOperations
+        while (values.size >= MAX_FILES || normal && values.count { it.operation !in TermuxResultPolicy.recoveryOperations } >= NORMAL_CAPACITY) {
+            val normalFull = normal && values.count { it.operation !in TermuxResultPolicy.recoveryOperations } >= NORMAL_CAPACITY
+            val candidate = values.filter { it.phase in setOf("succeeded", "failed", "cancelled") &&
+                (!normalFull || it.operation !in TermuxResultPolicy.recoveryOperations) }.minByOrNull { it.updatedAtEpochMs } ?: break
+            AtomicFile(file(candidate.operationId)).delete()
+            values.remove(candidate)
+        }
     }
 
     private fun file(operationId: String) = File(directory, "$operationId.json")
@@ -103,6 +150,8 @@ class PendingOperationStore(context: Context) {
         .put("stdout_truncated", value.stdoutTruncated)
         .put("stderr_truncated", value.stderrTruncated)
         .put("result_data", value.resultJson.takeIf { it.isNotBlank() }?.let(::JSONObject) ?: JSONObject.NULL)
+        .put("intent_revision", value.intentRevision)
+        .put("target_operation_id", value.targetOperationId)
 
     private fun decode(value: String): BridgeOperation {
         val json = JSONObject(value)
@@ -119,13 +168,17 @@ class PendingOperationStore(context: Context) {
             exitCode = if (json.isNull("exit_code")) null else json.getInt("exit_code"),
             stdoutTruncated = json.optBoolean("stdout_truncated"),
             stderrTruncated = json.optBoolean("stderr_truncated"),
-            resultJson = json.optJSONObject("result_data")?.toString().orEmpty()
+            resultJson = json.optJSONObject("result_data")?.toString().orEmpty(),
+            intentRevision = json.optLong("intent_revision", -1L),
+            targetOperationId = json.optString("target_operation_id", "")
         )
     }
 
     companion object {
         private const val MAX_FILE_BYTES = 64 * 1024L
-        private const val MAX_FILES = 128
+        private const val NORMAL_CAPACITY = 128
+        private const val RECOVERY_CAPACITY = 16
+        private const val MAX_FILES = NORMAL_CAPACITY + RECOVERY_CAPACITY
         private const val MAX_MESSAGE_CHARS = 2048
         private fun validId(value: String) = Regex("^[A-Za-z0-9_-]{1,96}$").matches(value)
     }

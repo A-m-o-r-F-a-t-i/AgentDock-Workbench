@@ -9,7 +9,8 @@ import java.util.ArrayDeque
 object TermuxResultPolicy {
     const val MAX_CALLBACK_AGE_MS = 2 * 60 * 60 * 1000L
     val pendingPhases = setOf("queued", "running")
-    val terminalPhases = setOf("succeeded", "failed", "pending_manifest", "requires_user_action")
+    val terminalPhases = setOf("succeeded", "failed", "cancelled", "pending_manifest", "requires_user_action")
+    val recoveryOperations = setOf("probe", "status", "operation_query", "stop", "resume", "cancel_operation")
 
     fun mayComplete(operation: BridgeOperation, nowEpochMs: Long): Boolean {
         val age = nowEpochMs - operation.createdAtEpochMs
