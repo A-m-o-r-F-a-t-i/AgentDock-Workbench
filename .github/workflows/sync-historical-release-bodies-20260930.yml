@@ -1,0 +1,247 @@
+name: Sync canonical historical Release bodies
+
+on:
+  push:
+    branches: [ci/20260930-sync-historical-release-bodies]
+    paths: [.github/workflows/sync-historical-release-bodies-20260930.yml]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: sync-historical-release-bodies-20260930
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      MAIN_SHA: 63e82c6d65cfa55b881b8ff7790a17ebc305b768
+      REQUEST_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 63e82c6d65cfa55b881b8ff7790a17ebc305b768
+
+      - name: Update only canonical Release bodies and verify identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import traceback
+
+          repo = os.environ['GH_REPO']
+          main_sha = os.environ['MAIN_SHA']
+          request_sha = os.environ['REQUEST_SHA']
+          evidence = pathlib.Path('evidence')
+          releases = [
+              ('v1.0.0', 389276037),
+              ('v1.0.1', 389402873),
+              ('v1.1.0', 392400887),
+              ('v1.1.1', 392432737),
+              ('v1.1.2', 392674672),
+              ('v1.1.3', 392880511),
+              ('v1.1.4', 393873648),
+              ('v1.1.5', 394467279),
+              ('v1.1.6', 395558490),
+              ('v1.1.7', 396401499),
+          ]
+          forbidden = [
+              '本次重新预发布更新',
+              '重新预发布日期',
+              '本次重发',
+              'GitHub Actions',
+              'Actions run',
+              '工作流运行',
+              '测试结果',
+              '验证记录',
+              '本次构建',
+          ]
+
+          def api(path, method='GET', payload=None):
+              command = ['gh', 'api', 'repos/' + repo + '/' + path, '--method', method]
+              data = None
+              if payload is not None:
+                  command += ['--input', '-']
+                  data = json.dumps(payload, ensure_ascii=False)
+              output = subprocess.check_output(
+                  command,
+                  input=data,
+                  text=True,
+                  encoding='utf-8',
+                  timeout=120,
+              )
+              return json.loads(output) if output.strip() else None
+
+          def normalize(text):
+              return text.replace('\r\n', '\n').rstrip()
+
+          def metadata(record):
+              author = record.get('author') or {}
+              return {
+                  'id': record.get('id'),
+                  'tag_name': record.get('tag_name'),
+                  'target_commitish': record.get('target_commitish'),
+                  'name': record.get('name'),
+                  'draft': record.get('draft'),
+                  'prerelease': record.get('prerelease'),
+                  'immutable': record.get('immutable', False),
+                  'created_at': record.get('created_at'),
+                  'published_at': record.get('published_at'),
+                  'html_url': record.get('html_url'),
+                  'author': {'id': author.get('id'), 'login': author.get('login')},
+              }
+
+          def assets(rows):
+              return sorted(
+                  [
+                      {
+                          key: row.get(key)
+                          for key in ['id', 'name', 'size', 'digest', 'state', 'content_type']
+                      }
+                      for row in rows
+                  ],
+                  key=lambda row: row['id'],
+              )
+
+          result = {
+              'main_sha': main_sha,
+              'request_sha': request_sha,
+              'state': 'preflight',
+              'updated': [],
+          }
+          try:
+              assert os.environ['GITHUB_REPOSITORY'] == repo
+              assert os.environ['GITHUB_REF'] == 'refs/heads/ci/20260930-sync-historical-release-bodies'
+              assert os.environ['GITHUB_RUN_ATTEMPT'] == '1', 'Inspect current Release bodies before retrying'
+              assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == main_sha
+
+              request = api('git/commits/' + request_sha)
+              assert [parent['sha'] for parent in request['parents']] == [main_sha]
+              assert api('git/ref/heads/main')['object']['sha'] == main_sha
+
+              latest_before = api('releases/latest')
+              assert latest_before['id'] == 396401499 and latest_before['tag_name'] == 'v1.1.7'
+              assert latest_before['draft'] is False and latest_before['prerelease'] is False
+
+              snapshots = {}
+              for tag, release_id in releases:
+                  notes_path = pathlib.Path('docs/releases') / (tag + '.md')
+                  assert notes_path.is_file(), 'Missing canonical notes for ' + tag
+                  notes = notes_path.read_text(encoding='utf-8')
+                  assert notes.startswith('# '), 'Release notes require a title: ' + tag
+                  for term in forbidden:
+                      assert term not in notes, f'{tag} contains forbidden process text: {term}'
+
+                  record = api('releases/' + str(release_id))
+                  tagged = api('releases/tags/' + tag)
+                  tag_ref = api('git/ref/tags/' + tag)
+                  rows = api('releases/' + str(release_id) + '/assets?per_page=100')
+                  assert record['id'] == release_id and tagged['id'] == release_id
+                  assert record['tag_name'] == tag and tagged['tag_name'] == tag
+                  assert record['draft'] is False and record['prerelease'] is False
+                  assert not record.get('immutable', False)
+                  assert len({row['id'] for row in rows}) == len(rows)
+                  assert len({row['name'] for row in rows}) == len(rows)
+                  snapshots[tag] = {
+                      'id': release_id,
+                      'notes': notes,
+                      'metadata': metadata(record),
+                      'assets': assets(rows),
+                      'tag_ref': tag_ref['object'],
+                  }
+
+              evidence.joinpath('before.json').write_text(
+                  json.dumps(
+                      {
+                          'latest': metadata(latest_before),
+                          'releases': snapshots,
+                      },
+                      ensure_ascii=False,
+                      indent=2,
+                  ) + '\n',
+                  encoding='utf-8',
+              )
+              result['state'] = 'preflight_complete'
+              evidence.joinpath('result.json').write_text(
+                  json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+                  encoding='utf-8',
+              )
+
+              for tag, release_id in releases:
+                  api('releases/' + str(release_id), 'PATCH', {'body': snapshots[tag]['notes']})
+                  result['updated'].append(tag)
+                  evidence.joinpath('result.json').write_text(
+                      json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+                      encoding='utf-8',
+                  )
+
+              verified = {}
+              for tag, release_id in releases:
+                  record = api('releases/' + str(release_id))
+                  tagged = api('releases/tags/' + tag)
+                  tag_ref = api('git/ref/tags/' + tag)
+                  rows = api('releases/' + str(release_id) + '/assets?per_page=100')
+                  before = snapshots[tag]
+                  assert record['id'] == release_id and tagged['id'] == release_id
+                  assert normalize(record['body']) == normalize(before['notes'])
+                  assert metadata(record) == before['metadata']
+                  assert assets(rows) == before['assets']
+                  assert tag_ref['object'] == before['tag_ref']
+                  verified[tag] = {
+                      'metadata': metadata(record),
+                      'assets': assets(rows),
+                      'body_matches': True,
+                  }
+
+              latest_after = api('releases/latest')
+              assert metadata(latest_after) == metadata(latest_before)
+              assert api('git/ref/heads/main')['object']['sha'] == main_sha
+
+              result['state'] = 'complete'
+              result['verified_release_count'] = len(verified)
+              result['latest'] = 'v1.1.7'
+              evidence.joinpath('after.json').write_text(
+                  json.dumps(
+                      {
+                          'latest': metadata(latest_after),
+                          'releases': verified,
+                      },
+                      ensure_ascii=False,
+                      indent=2,
+                  ) + '\n',
+                  encoding='utf-8',
+              )
+              evidence.joinpath('result.json').write_text(
+                  json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+                  encoding='utf-8',
+              )
+              print(json.dumps(result, ensure_ascii=False))
+          except Exception:
+              result['state'] = 'failed'
+              result['error'] = traceback.format_exc()
+              evidence.joinpath('result.json').write_text(
+                  json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+                  encoding='utf-8',
+              )
+              raise
+          PY
+
+      - name: Retain body-sync evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-release-body-sync-${{ github.run_id }}
+          path: evidence/
+          retention-days: 90
+          if-no-files-found: error
