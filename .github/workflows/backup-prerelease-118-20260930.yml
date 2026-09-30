@@ -1,0 +1,77 @@
+name: Back up existing 1.1.8 prerelease
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/backup-prerelease-118-20260930.yml]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+jobs:
+  backup:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+    steps:
+      - name: Verify identity and download only eight original installers
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo=os.environ['GH_REPO']; root=pathlib.Path('backup'); assets_dir=root/'assets'; assets_dir.mkdir(parents=True)
+          def api(path): return json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/'+path],text=True,timeout=60))
+          release=api('releases/397692739'); latest=api('releases/latest'); tag=api('git/ref/tags/v1.1.8')
+          assert release['id']==397692739 and release['tag_name']=='v1.1.8' and release['prerelease'] is True and release['draft'] is False
+          assert latest['id']==396401499 and latest['tag_name']=='v1.1.7' and not latest['prerelease'] and not latest['draft']
+          obj=tag['object']
+          for _ in range(4):
+              if obj['type']=='commit': break
+              assert obj['type']=='tag'
+              obj=api('git/tags/'+obj['sha'])['object']
+          assert obj['type']=='commit' and obj['sha']=='4bd778d4077bbe58cfe19e4abb777f660694377b'
+          names={'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
+                 'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
+                 'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
+                 'AgentDock-Workbench-1.1.8-Android-test-signed.apk'}
+          assets=api('releases/397692739/assets?per_page=100')
+          assert len(assets)==8 and {a['name'] for a in assets}==names and len({a['id'] for a in assets})==8
+          proof=[]
+          for asset in assets:
+              assert asset['state']=='uploaded' and re.fullmatch(r'sha256:[a-f0-9]{64}',asset.get('digest',''))
+              target=assets_dir/asset['name']
+              with target.open('xb') as output:
+                  subprocess.run(['gh','api','repos/'+repo+'/releases/assets/'+str(asset['id']),'-H','Accept: application/octet-stream'],stdout=output,check=True,timeout=180)
+              with target.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+              assert target.stat().st_size==asset['size'] and 'sha256:'+digest==asset['digest']
+              proof.append({k:asset[k] for k in ['id','name','size','digest','state']})
+          current=api('releases/397692739/assets?per_page=100')
+          project=lambda values: sorted([{k:a[k] for k in ['id','name','size','digest','state']} for a in values],key=lambda a:a['id'])
+          assert project(current)==project(assets), 'Release changed during backup'
+          assert api('git/ref/tags/v1.1.8')['object']==tag['object']
+          assert api('releases/latest')['id']==latest['id']
+          for name,value in [('release.json',release),('latest.json',latest),('tag.json',tag),('assets.json',assets),('verified-assets.json',proof)]:
+              (root/name).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps({'release_id':release['id'],'tag_commit':obj['sha'],'latest':latest['tag_name'],'verified_installers':len(proof)}))
+          PY
+      - name: Retain original prerelease recovery snapshot
+        id: archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: prerelease-118-original-${{ github.run_id }}
+          path: backup/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Report backup evidence
+        env:
+          BACKUP_ID: ${{ steps.archive.outputs.artifact-id }}
+          BACKUP_URL: ${{ steps.archive.outputs.artifact-url }}
+          BACKUP_DIGEST: ${{ steps.archive.outputs.artifact-digest }}
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,subprocess
+          items=json.loads(pathlib.Path('backup/verified-assets.json').read_text())
+          text='## 旧 1.1.8 预发布已备份（尚未修改发布）\n\nRelease ID：397692739；旧源码：`4bd778d4077bbe58cfe19e4abb777f660694377b`。正式 Latest 已核验为 v1.1.7。\n\n备份运行：'+os.environ['GITHUB_RUN_ID']+'\n\n备份资产：'+os.environ['BACKUP_URL']+'\n\nArtifact ID：'+os.environ['BACKUP_ID']+'；快照 SHA-256：`'+os.environ['BACKUP_DIGEST']+'`。\n\n8 个原安装包逐一核验大小和 GitHub SHA-256 一致；Release 元数据、标签和校验清单一并保存 90 天。\n\n'+ '\n'.join('- `'+x['name']+'` — '+str(x['size'])+' bytes；`'+x['digest']+'`' for x in items)
+          subprocess.run(['gh','api','repos/'+os.environ['GH_REPO']+'/issues/36/comments','--method','POST','-f','body='+text],check=True,timeout=60)
+          PY
