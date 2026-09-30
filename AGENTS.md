@@ -44,6 +44,16 @@ Build the final Windows package with `.github/workflows/windows-package.yml` in
 `A-m-o-r-F-a-t-i/agentdock`. Source, tests, package construction, installation tests
 and publication are separate delivery states. Report unexecuted checks honestly.
 
+## Release notes
+
+Before creating or editing `docs/releases/v*.md` or a GitHub Release body, read
+`docs/release-notes-policy.md`. Release notes are the complete user-facing delta
+from the previous published version to the target version. A same-version rebuild
+or asset replacement does not create a separate re-release section or date-based
+changelog. Merge all user-visible fixes into their platform or feature sections,
+give major new capabilities enough detail, keep the download chooser compact, and
+keep CI/test results, run IDs and publication mechanics out of the Release body.
+
 Implementation map: `docs/implementation-1.1.5.md`.
 
 For the 1.1.5 delivery, run static and isolated automated regression only. Do not
