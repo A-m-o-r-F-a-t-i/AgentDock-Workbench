@@ -16,6 +16,7 @@ public partial class MainWindow
     private readonly HashSet<string> _expandedPlugins = new(StringComparer.Ordinal);
     private int _capabilityLoadGeneration;
     private bool _capabilityControlsEnabled = true;
+    private bool _capabilityMutationBusy;
 
     private async Task RefreshCapabilitiesAsync(bool coreAvailable = true, bool showErrors = true)
     {
@@ -61,6 +62,7 @@ public partial class MainWindow
             RenderCapabilityInventory();
             CapabilityStatusText.Text = UiText.Get("LoadingCapabilities") + " " + CapabilityInventoryStatus();
         });
+        var refreshed = false;
         try
         {
             var inventory = await _runtime.GetCapabilityInventoryAsync(progress);
@@ -68,11 +70,12 @@ public partial class MainWindow
             foreach (var section in new[] { "plugins", "skills", "mcp" }) MergeCapabilitySection(section, inventory);
             RenderCapabilityInventory();
             CapabilityStatusText.Text = CapabilityInventoryStatus();
+            refreshed = _capabilityInventory.Errors.Count == 0;
         }
         finally
         {
             if (generation == _capabilityLoadGeneration) ++_capabilityLoadGeneration;
-            SetCapabilityControlsEnabled(true);
+            SetCapabilityControlsEnabled(refreshed);
         }
     }
 
@@ -104,31 +107,56 @@ public partial class MainWindow
     private void SetCapabilityControlsEnabled(bool enabled)
     {
         // Expanders and read-only metadata remain usable while status is pending.
-        _capabilityControlsEnabled = enabled;
+        _capabilityControlsEnabled = enabled && !_capabilityMutationBusy;
         RenderCapabilityInventory();
+    }
+
+    // The injected operations keep mutation/readback ownership explicit and let
+    // the native tests exercise real controls without a production Core.
+    internal async Task RunCapabilityMutationAsync(Func<Task> mutation, Func<Task> readBack)
+    {
+        if (!await _capabilityGate.WaitAsync(0))
+            throw new InvalidOperationException("能力设置正在处理，请在当前操作完成后重试。");
+        var refreshed = false;
+        _capabilityMutationBusy = true;
+        try
+        {
+            SetCapabilityControlsEnabled(false);
+            Exception? failure = null;
+            try { await mutation(); }
+            catch (Exception error) { failure = error; }
+            try
+            {
+                await readBack();
+                refreshed = _capabilityInventory.Errors.Count == 0;
+            }
+            catch (Exception readError)
+            {
+                if (failure is not null) throw new AggregateException("修改结果与读回结果需要核对。", failure, readError);
+                throw;
+            }
+            if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+        finally
+        {
+            _capabilityMutationBusy = false;
+            try { SetCapabilityControlsEnabled(refreshed); }
+            finally { _capabilityGate.Release(); }
+        }
     }
 
     private async Task ExecuteCapabilityActionAsync(string pendingText, Func<Task> action)
     {
-        if (!await _capabilityGate.WaitAsync(0))
-        {
-            return;
-        }
         try
         {
             CapabilityStatusText.Text = pendingText;
-            await action();
-            await LoadCapabilityInventoryCoreAsync();
+            await RunCapabilityMutationAsync(action, LoadCapabilityInventoryCoreAsync);
         }
         catch (Exception ex)
         {
             CapabilityStatusText.Text = ex.Message;
             MessageBox.Show(this, ex.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
             RenderCapabilityInventory();
-        }
-        finally
-        {
-            _capabilityGate.Release();
         }
     }
 
@@ -212,6 +240,7 @@ public partial class MainWindow
         var remove = new Button
         {
             Content = UiText.Get("Delete"),
+            IsEnabled = _capabilityControlsEnabled,
             Tag = plugin.Name,
             MinWidth = 70,
             Margin = new Thickness(8, 0, 0, 0)

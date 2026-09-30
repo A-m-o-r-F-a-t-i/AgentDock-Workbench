@@ -303,7 +303,7 @@
 
       <TabItem Tag="advanced" Header="{local:Loc AdvancedSettings}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="18">
+          <StackPanel x:Name="SettingsEditorPanel" Margin="18">
             <GroupBox Header="{local:Loc BasicSettings}">
               <Grid>
                 <Grid.ColumnDefinitions>
@@ -427,7 +427,7 @@
                        MinHeight="22"
                        Margin="0,0,0,8" />
             <StackPanel Orientation="Horizontal">
-              <Button Content="{local:Loc SaveAndRestart}" Click="SaveSettingsButton_Click" />
+              <Button x:Name="SaveSettingsButton" IsEnabled="False" Content="{local:Loc SaveAndRestart}" Click="SaveSettingsButton_Click" />
               <Button Content="{local:Loc OpenLogsFolder}" Click="OpenLogsButton_Click" />
               <Button Content="{local:Loc OpenConfigFolder}" Click="OpenConfigButton_Click" />
             </StackPanel>

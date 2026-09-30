@@ -27,6 +27,7 @@ public partial class ExecutionWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _selectionCancellation, _streamCancellation;
     private Task? _streamTask;
+    private Task? _initializationTask;
     private readonly DispatcherTimer _filterTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _callSearchTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly DispatcherTimer _pulse = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -67,14 +68,27 @@ public partial class ExecutionWindow : Window
         CollectionViewSource.GetDefaultView(Objects).GroupDescriptions.Add(new PropertyGroupDescription(nameof(ExecutionObject.WorkspaceKey)));
         _filterTimer.Tick += async (_, _) => { _filterTimer.Stop(); await GuardAsync(() => LoadObjectsAsync()); };
         _callSearchTimer.Tick += async (_, _) => { _callSearchTimer.Stop(); await GuardAsync(() => LoadCallsAsync(false)); };
-        _pulse.Tick += async (_, _) => await TickAsync();
+        _pulse.Tick += Pulse_Tick;
     }
-    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    private async void Window_Loaded(object sender, RoutedEventArgs e) => await (_initializationTask ??= InitializeWindowAsync());
+    private async void Pulse_Tick(object? sender, EventArgs e) => await TickAsync();
+
+    private async Task InitializeWindowAsync()
     {
+        if (_closed) return;
         LoadPreferences(); FontSize = _preferences.FontSize; ApplyTheme(); ApplyCallPresentation();
         _conversationView = _preferences.LastView is "archived" or "trash" ? _preferences.LastView : "active";
         DesktopTheme.Changed += Theme_Changed;
-        await GuardAsync(async () => { await LoadWorkspacesAsync(); _initialized = true; await RefreshOverviewAsync(); await LoadObjectsAsync(); });
+        await GuardAsync(async () =>
+        {
+            await LoadWorkspacesAsync();
+            if (_closed) return;
+            _initialized = true;
+            await RefreshOverviewAsync();
+            if (_closed) return;
+            await LoadObjectsAsync();
+        });
+        if (_closed) return;
         _initialized = true; _pulse.Start(); _ready.TrySetResult();
     }
     private async Task GuardAsync(Func<Task> action)
@@ -140,7 +154,9 @@ public partial class ExecutionWindow : Window
     {
         if (_selected is not null) _scrollStates[_selected.SelectionKey] = (FindVisualChild<ScrollViewer>(CallsList)?.VerticalOffset ?? 0, _following);
         SaveComposerDraft();
+        InvalidateBatchSelection();
         _generation++; _taskEpoch++; _streamEpoch++;
+        BeginTaskSelection("", "");
         _selectionCancellation?.Cancel(); _selectionCancellation?.Dispose();
         _selectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _streamCancellation?.Cancel();
@@ -203,56 +219,8 @@ public partial class ExecutionWindow : Window
             CurrentTaskStatus.Text = CurrentTaskNext.Text = "";
             CurrentTaskProgress.Visibility = Visibility.Collapsed;
         }
-        _selectedTaskId = chosen?.Id ?? "";
-        if (_selectedTaskId.Length > 0) await LoadTaskAsync(_selectedTaskId, "", false);
-    }
-    private async Task LoadTaskAsync(string id, string branch, bool details)
-    {
-        var generation = _generation; var epoch = ++_taskEpoch;
-        var raw = await _client.ExecutionGetAsync("/internal/runtime/tasks/" + Escape(id), SelectionToken);
-        var task = raw.Field("task"); if (task.ValueKind == JsonValueKind.Undefined) task = raw;
-        JsonElement threadList;
-        try { threadList = await _client.ExecutionGetAsync("/internal/runtime/tasks/" + Escape(id) + "/threads", SelectionToken); }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) { threadList = default; }
-        var threads = threadList.Array("threads");
-        var active = branch.Length > 0 ? branch : id == _currentConversationTaskId ? _conversationSnapshot.Field("state").Text("active_task_thread_id", "main") : task.Text("active_thread_id", "main");
-        if (active.Length == 0) active = "main";
-        JsonElement threadRaw;
-        try { threadRaw = await _client.ExecutionGetAsync("/internal/runtime/tasks/" + Escape(id) + "/threads/" + Escape(active), SelectionToken); }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) { threadRaw = default; }
-        var thread = threadRaw.Field("thread");
-        if (generation != _generation || epoch != _taskEpoch) return;
-        _taskSnapshot = task;
-        var steps = thread.Field("steps").ValueKind == JsonValueKind.Array ? thread.Array("steps") : task.Array("steps");
-        var done = steps.Count(step => step.Text("status") == "completed");
-        var currentId = thread.Text("current_step_id", task.Text("current_step_id"));
-        var current = steps.FirstOrDefault(step => step.Text("id") == currentId).Text("title");
-        if (!details)
-        {
-            CurrentTaskStatus.Text = steps.Length == 0 ? "进度未记录" : $"{done}/{steps.Length}";
-            CurrentTaskProgress.Visibility = steps.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-            CurrentTaskProgress.Value = steps.Length == 0 ? 0 : done * 100.0 / steps.Length;
-            CurrentTaskNext.Text = current; CurrentTaskNext.ToolTip = current;
-        }
-        if (details || TaskDetailsPanel.Visibility == Visibility.Visible)
-        {
-            _branch = active;
-            _updating = true;
-            try
-            {
-                BranchCombo.ItemsSource = threads.Select(value => new ExecutionChoice(value.Text("id", "main"), value.Text("title", value.Text("id", "main")))).ToArray();
-                BranchCombo.SelectedValue = active;
-            }
-            finally { _updating = false; }
-            var next = thread.Text("next_action", task.Text("next_action"));
-            TaskGoalText.Text = task.Text("goal") + (next.Length > 0 ? "\n下一动作：" + next : "");
-            TaskStepsText.Text = steps.Length == 0 ? "进度未记录" : string.Join("\n", steps.Select(step => ExecutionJson.State(step.Text("status")) + "  " + step.Text("title")));
-            var conditions = task.Array("conditions"); if (conditions.Length == 0) conditions = task.Array("completion_conditions");
-            TaskAcceptanceText.Text = "验收条件\n" + (conditions.Length == 0 ? "未记录" : string.Join("\n", conditions.Select(condition => condition.ValueKind == JsonValueKind.String ? condition.GetString() : condition.Text("text", condition.Pretty()))));
-            var milestones = await _client.ExecutionGetAsync("/internal/runtime/tasks/" + Escape(id) + "/activity?milestones=true&limit=100&after=0", SelectionToken);
-            if (generation != _generation || epoch != _taskEpoch) return;
-            MilestonesText.Text = string.Join("\n", milestones.Array("events").Select(value => value.Text("summary")));
-        }
+        if (_selectedTaskId != (chosen?.Id ?? "")) BeginTaskSelection(chosen?.Id ?? "", "");
+        if (_selectedTaskId.Length > 0) await LoadTaskAsync(_selectedTaskId, _branch, false);
     }
     private async Task LoadCallsAsync(bool older)
     {
@@ -372,7 +340,7 @@ public partial class ExecutionWindow : Window
             _ticks++;
             if (_ticks % 3 == 0) await GuardAsync(RefreshOverviewAsync);
 			if (_detailCall is { } row && CallDetailsTabs.Visibility == Visibility.Visible && (row.CanStop || !row.DetailLoaded || row.RequestPayload.NeedsLoad || row.ResponsePayload.NeedsLoad)) await GuardAsync(() => LoadCallDetailAsync(row));
-            if (_ticks % 5 == 0 && _selectedTaskId.Length > 0 && TaskDetailsPanel.Visibility != Visibility.Visible) await GuardAsync(() => LoadTaskAsync(_selectedTaskId, "", false));
+            if (_ticks % 5 == 0) await GuardAsync(RefreshSelectedTaskAsync);
 			if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastSidebarRefresh) >= TimeSpan.FromSeconds(_streamConnected ? 60 : 3) && ObjectsList.SelectedItems.Count <= 1 && _frozenSelection is null && _openMenus == 0 && _sidebarPaging.Count == 0 && !_sidebarLoading && SidebarAutomaticRefreshAllowed()) await GuardAsync(() => LoadObjectsAsync());
             if (_ticks % 3 == 0) await GuardAsync(RefreshInsertionsAsync);
             UpdateStopButton();
@@ -399,7 +367,7 @@ public partial class ExecutionWindow : Window
     private async void Objects_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_updating || !_initialized) return;
-        _frozenSelection = null;
+        InvalidateBatchSelection();
         if (ObjectsList.SelectedItem is ExecutionObject { IsGroupFooter: false } item && item.SelectionKey != _selected?.SelectionKey) await GuardAsync(() => SelectObjectAsync(item));
     }
     private async void Calls_Changed(object sender, SelectionChangedEventArgs e)
@@ -415,13 +383,14 @@ public partial class ExecutionWindow : Window
         if ((CallDetailsTabs.SelectedItem as TabItem)?.Tag?.ToString() == "source")
             await GuardAsync(() => LoadSourceAsync(row));
     }
-    private async void TaskChoice_Changed(object sender, SelectionChangedEventArgs e) { if (_updating || !_initialized || TaskChoiceCombo.SelectedItem is not ExecutionChoice choice) return; _selectedTaskId = choice.Id; await GuardAsync(() => LoadTaskAsync(choice.Id, "", false)); }
-    private async void Branch_Changed(object sender, SelectionChangedEventArgs e) { if (!_updating && _initialized && BranchCombo.SelectedItem is ExecutionChoice branch && _selectedTaskId.Length > 0) await GuardAsync(() => LoadTaskAsync(_selectedTaskId, branch.Id, true)); }
-    private async void TaskDetails_Click(object sender, RoutedEventArgs e) { if (_selectedTaskId.Length == 0) return; OpenDetails((TaskChoiceCombo.SelectedItem as ExecutionChoice)?.Title ?? "任务详情", TaskDetailsPanel); await GuardAsync(() => LoadTaskAsync(_selectedTaskId, "", true)); }
+    private async void TaskChoice_Changed(object sender, SelectionChangedEventArgs e) { if (_updating || !_initialized || TaskChoiceCombo.SelectedItem is not ExecutionChoice choice) return; BeginTaskSelection(choice.Id, ""); await GuardAsync(() => LoadTaskAsync(choice.Id, "", false)); }
+    private async void Branch_Changed(object sender, SelectionChangedEventArgs e) { if (!_updating && _initialized && BranchCombo.SelectedItem is ExecutionChoice branch && _selectedTaskId.Length > 0) { BeginTaskSelection(_selectedTaskId, branch.Id); await GuardAsync(() => LoadTaskAsync(_selectedTaskId, branch.Id, true)); } }
+    private async void TaskDetails_Click(object sender, RoutedEventArgs e) { if (_selectedTaskId.Length == 0) return; OpenDetails((TaskChoiceCombo.SelectedItem as ExecutionChoice)?.Title ?? "任务详情", TaskDetailsPanel); await GuardAsync(() => LoadTaskAsync(_selectedTaskId, _branch, true)); }
     private async void FilterTask_Click(object sender, RoutedEventArgs e) { _taskFilter = _taskFilter == _selectedTaskId ? "" : _selectedTaskId; FilterTaskButton.Content = _taskFilter.Length == 0 ? "筛选此任务" : "显示全部"; await GuardAsync(() => LoadCallsAsync(false)); }
     private void Search_Changed(object sender, TextChangedEventArgs e)
     {
         if (!_initialized) return;
+        InvalidateBatchSelection();
         // Invalidate immediately, even for A -> B -> A inside the debounce.
         _objectEpoch++; _sidebarRequest?.Cancel();
         _filterTimer.Stop(); _filterTimer.Start();
@@ -466,7 +435,7 @@ public partial class ExecutionWindow : Window
 		_following = false; UpdateFollowButton();
 		await TryLoadOlderCallsAsync();
 	}
-    private async void Refresh_Click(object sender, RoutedEventArgs e) => await GuardAsync(async () => { ResetSidebarRecoveryBudget(); await LoadWorkspacesAsync(); await LoadObjectsAsync(); await LoadCallsAsync(false); await RefreshOverviewAsync(); });
+    private async void Refresh_Click(object sender, RoutedEventArgs e) => await GuardAsync(RefreshExecutionAsync);
     private void CloseDetails_Click(object sender, RoutedEventArgs e) => CloseDetails();
     private void DismissWarning_Click(object sender, RoutedEventArgs e)
     {
@@ -528,6 +497,10 @@ public partial class ExecutionWindow : Window
     private void Window_Closed(object? sender, EventArgs e)
     {
         if (_closed) return; _closed = true; SavePreferences();
+        InvalidateBatchSelection();
+        BeginTaskSelection("", "");
+        _ready.TrySetCanceled();
+        _pulse.Tick -= Pulse_Tick;
         DesktopTheme.Changed -= Theme_Changed;
         _activityClock.Dispose();
 		StopSidebar();

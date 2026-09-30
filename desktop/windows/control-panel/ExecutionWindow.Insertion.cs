@@ -55,6 +55,9 @@ public partial class ExecutionWindow
         !_conversationSnapshot.HasDate("terminated_at") && _activityClock.ServerNow is { } now &&
         ConversationActivityClock.CanInsert(selected.LastToolCallAt, now, false);
 
+    private bool CanTerminateConversation() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false, Terminated: false } &&
+        !_conversationSnapshot.HasDate("terminated_at");
+
     private void UpdateComposerAvailability()
     {
         if (InsertionPanel is null || _closed) return;
@@ -64,8 +67,9 @@ public partial class ExecutionWindow
         InsertButton.ToolTip = eligible ? "插入补充要求" : "最近 3 分钟没有工具调用";
         if (eligible && (_bottomPane is null || _bottomPane == InsertionPanel)) OpenDetails("", InsertionPanel);
         else if (!eligible && _bottomPane == InsertionPanel) { SaveComposerDraft(); HideBottomPane(); }
-        StopConversationButton.Visibility = eligible ? Visibility.Visible : Visibility.Collapsed;
-        StopConversationButton.IsEnabled = eligible;
+        var canTerminate = CanTerminateConversation();
+        StopConversationButton.Visibility = canTerminate ? Visibility.Visible : Visibility.Collapsed;
+        StopConversationButton.IsEnabled = canTerminate;
         SendInsertionButton.IsEnabled = eligible && _selected is { } selected && !_insertionSending.Contains(selected.Id) &&
             !string.IsNullOrWhiteSpace(InsertionTextBox.Text) && Encoding.UTF8.GetByteCount(InsertionTextBox.Text) <= InsertionTextLimit;
     }
