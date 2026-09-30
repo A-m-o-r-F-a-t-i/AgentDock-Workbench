@@ -1,0 +1,54 @@
+name: Read dispatch diagnostics
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/inspect-rebuild-v2-20260930.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  probe:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      failure: ${{ steps.read.outputs.failure }}
+      runs: ${{ steps.read.outputs.runs }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+    steps:
+      - id: read
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess
+          repo=os.environ['GH_REPO']
+          cmds={'failure':['gh','run','view','36656526230','--repo',repo,'--log-failed'],
+                'runs':['gh','api','repos/'+repo+'/actions/workflows/workbench-release.yml/runs?head_sha=24d04ef2a60e4b538b26051ee68c2554defface1&event=workflow_dispatch&per_page=100']}
+          for name,cmd in cmds.items():
+              try:
+                  p=subprocess.run(cmd,capture_output=True,text=True,timeout=90)
+                  text=p.stdout+'\n'+p.stderr
+                  if name=='runs' and p.returncode==0:
+                      text=json.dumps([{k:r.get(k) for k in ['id','head_sha','status','conclusion']} for r in json.loads(p.stdout)['workflow_runs']])
+                  elif name=='failure':
+                      lines=text.splitlines()
+                      matches=[line for line in lines if any(s in line for s in ['gh:','Error:','Error(','HTTP','AssertionError','Traceback','command not found','fatal:'])]
+                      text=' | '.join(matches[-8:]) if matches else text[-1800:]
+                  print(name+': '+text)
+                  message=('exit='+str(p.returncode)+' '+text).replace('\n',' ').replace('\r',' ')[-1800:]
+              except Exception as exc: message=repr(exc)
+              with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write(name+'='+message+'\n')
+          PY
+  failure:
+    needs: probe
+    name: 'Failure detail: ${{ needs.probe.outputs.failure }}'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo 'Original failure has been inspected without replay.'
+  runs:
+    needs: probe
+    name: 'Matching builds: ${{ needs.probe.outputs.runs }}'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo 'Matching builds were listed read-only.'
