@@ -1,0 +1,232 @@
+name: Republish verified 1.1.8 prerelease (2026-09-30)
+on:
+  push:
+    branches: [ci/20260930-rebuild-118-request]
+    paths: [.github/workflows/republish-reviewed-118-20260930.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+concurrency:
+  group: workbench-release-24d04ef2a60e4b538b26051ee68c2554defface1
+  cancel-in-progress: false
+jobs:
+  republish:
+    if: github.repository_id == '1370391430' && !github.event.deleted && !github.event.forced
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: A-m-o-r-F-a-t-i/AgentDock-Workbench
+      SOURCE_SHA: 24d04ef2a60e4b538b26051ee68c2554defface1
+      SOURCE_RUN: '36656538592'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 24d04ef2a60e4b538b26051ee68c2554defface1
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify immutable build, native gates and retained backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p publication-evidence
+          python3 - <<'PY' 2>&1 | tee publication-evidence/preflight.log
+          import json,os,pathlib,subprocess
+          repo=os.environ['GH_REPO']; sha=os.environ['SOURCE_SHA']; rid=os.environ['SOURCE_RUN']
+          def api(path): return json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/'+path],text=True,timeout=60))
+          assert os.environ['GITHUB_REPOSITORY']==repo
+          assert os.environ['GITHUB_REF']=='refs/heads/ci/20260930-rebuild-118-request'
+          assert os.environ['GITHUB_RUN_ATTEMPT']=='1', 'Inspect partial effects before requesting another publication'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==sha
+          assert api('git/ref/heads/main')['object']['sha']==sha, 'Main changed after the reviewed build'
+          build=api('actions/runs/'+rid)
+          assert build['status']=='completed' and build['conclusion']=='success'
+          assert build['head_sha']==sha and build['repository']['full_name']==repo
+          assert build['path']=='.github/workflows/workbench-release.yml' and build['event']=='workflow_dispatch'
+          response=api('actions/runs/'+rid+'/jobs?filter=latest&per_page=100')
+          assert response['total_count']<=100
+          jobs={job['name']:job for job in response['jobs']}
+          required=['resolve-source','windows / Resolve requested ref once','windows / Linux transaction and concurrency regression',
+                    'windows / Build verified unsigned Windows packages','Universal macOS Workbench application',
+                    'windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)',
+                    'windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)',
+                    'Native Windows ARM64 install and uninstall','android / Source and bridge contracts',
+                    'android / Android lint, unit tests and APKs','android / Aggregate candidate evidence']
+          required += ['Native '+system+' '+arch for system in ['linux','darwin'] for arch in ['amd64','arm64']]
+          required += ['android / Emulator API '+str(level) for level in [26,33,34,35,37]]
+          for name in required: assert jobs.get(name,{}).get('conclusion')=='success', 'Required validation missing: '+name
+          assembly=jobs.get('Verify complete artifact set and publish selected channel',{})
+          assert assembly.get('conclusion')=='success'
+          assert any(s['name']=='Validate reports and assemble complete release' and s['conclusion']=='success' for s in assembly['steps'])
+          backup_run=api('actions/runs/36656945363')
+          assert backup_run['status']=='completed' and backup_run['conclusion']=='success'
+          assert backup_run['head_sha']=='d70a162d05adb4922a765ec6b1aad7f0d1482c8f'
+          assert backup_run['path']=='.github/workflows/backup-prerelease-118-20260930.yml'
+          snapshot=api('actions/artifacts/11072897715')
+          assert snapshot['name']=='prerelease-118-original-36656945363' and not snapshot['expired']
+          assert snapshot['workflow_run']['id']==36656945363
+          assert snapshot['digest']=='sha256:6c4bd034c784fb4136ac2ecf04238d99751166383adc1e62a05e6bd01c8d5e98'
+          root=pathlib.Path('publication-evidence')
+          for name,obj in [('source-build.json',build),('source-jobs.json',response),('backup-artifact.json',snapshot)]:
+              (root/name).write_text(json.dumps(obj,ensure_ascii=False,indent=2)+'\n')
+          print('Verified all '+str(len(required))+' native/platform jobs, complete assembly and original-release backup.')
+          PY
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36656538592
+          pattern: workbench-*-*-36656538592
+          path: input/unix
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36656538592
+          name: agentdock-windows-1.1.8-36656538592
+          path: input/windows
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36656538592
+          name: workbench-android-36656538592
+          path: input/android
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 36656945363
+          name: prerelease-118-original-36656945363
+          path: original-backup
+      - name: Revalidate all payloads before any release mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B scripts/test/test-workbench-release.py 2>&1 | tee publication-evidence/publisher-regression.log
+          python3 -B scripts/release/publish-workbench.py --input input --dist dist/release --version 1.1.8 --commit "$SOURCE_SHA" --prerelease 2>&1 | tee publication-evidence/assembly.log
+      - name: Replace only the backed-up prerelease and verify public bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' 2>&1 | tee publication-evidence/republication.log
+          import importlib.util,json,os,pathlib,subprocess,traceback
+          repo=os.environ['GH_REPO']; sha=os.environ['SOURCE_SHA']; rid=397692739
+          root=pathlib.Path('publication-evidence'); backup=pathlib.Path('original-backup'); dist=pathlib.Path('dist/release').resolve()
+          def api(path,method='GET',payload=None):
+              cmd=['gh','api','repos/'+repo+'/'+path,'--method',method]
+              if payload is not None: cmd += ['--input','-']
+              value=subprocess.check_output(cmd,input=json.dumps(payload) if payload is not None else None,text=True,timeout=120)
+              return json.loads(value) if value.strip() else None
+          def save(name,obj): (root/name).write_text(json.dumps(obj,ensure_ascii=False,indent=2)+'\n')
+          spec=importlib.util.spec_from_file_location('verified_publisher',pathlib.Path('scripts/release/publish-workbench.py').resolve())
+          publisher=importlib.util.module_from_spec(spec); spec.loader.exec_module(publisher)
+          expected_names=set(publisher.public_installers('1.1.8'))
+          old=json.loads((backup/'release.json').read_text()); old_tag=json.loads((backup/'tag.json').read_text())
+          old_assets=json.loads((backup/'assets.json').read_text())
+          project=lambda rows: sorted([{k:a[k] for k in ['id','name','size','digest','state']} for a in rows],key=lambda a:a['id'])
+          def check_latest():
+              latest=api('releases/latest')
+              assert latest['id']==396401499 and latest['tag_name']=='v1.1.7' and not latest['draft'] and not latest['prerelease']
+              return latest
+          def check_current_old():
+              current=api('releases/'+str(rid))
+              assert current['id']==rid and current['tag_name']=='v1.1.8' and current['prerelease'] is True and current['draft'] is False
+              assert not current.get('immutable',False)
+              for key in ['name','body','target_commitish']: assert current[key]==old[key], 'Release metadata changed: '+key
+              assert project(api('releases/'+str(rid)+'/assets?per_page=100'))==project(old_assets), 'Old asset set changed'
+              assert api('git/ref/tags/v1.1.8')['object']==old_tag['object'], 'Tag changed after backup'
+              assert api('git/ref/heads/main')['object']['sha']==sha
+              check_latest()
+              return current
+          try:
+              assert old['id']==rid and old['tag_name']=='v1.1.8' and old['prerelease'] and not old['draft']
+              assert len(old_assets)==8 and {a['name'] for a in old_assets}==expected_names and len({a['id'] for a in old_assets})==8
+              for item in old_assets:
+                  file=backup/'assets'/item['name']
+                  assert file.is_file() and not file.is_symlink() and file.stat().st_size==item['size']
+                  assert 'sha256:'+publisher.digest(file)==item['digest']
+              manifest=json.loads((dist/'release-manifest.json').read_text())
+              assert manifest['commit']==sha and manifest['version']=='1.1.8' and manifest['prerelease'] is True
+              expected={item['name']:{'size':item['bytes'],'digest':'sha256:'+item['sha256']} for item in manifest['assets'] if item['name'] in expected_names}
+              assert set(expected)==expected_names
+              for name,entry in expected.items():
+                  file=dist/name
+                  assert file.is_file() and not file.is_symlink() and file.stat().st_size==entry['size'] and 'sha256:'+publisher.digest(file)==entry['digest']
+              current=check_current_old()
+              found=publisher.find_release('v1.1.8')
+              assert found is not None and found['id']==rid and not found['draft']
+              save('before-release.json',current)
+              save('transition.json',{'stage':'validated_before_writes','old_release_id':rid,'source_sha':sha,'backup_artifact_id':11072897715})
+              draft=api('releases/'+str(rid),'PATCH',{'draft':True,'prerelease':True,'make_latest':'false'})
+              assert draft['id']==rid and draft['draft'] is True and draft['prerelease'] is True and draft['tag_name']=='v1.1.8'
+              save('transition.json',{'stage':'old_release_draft','release_id':rid,'source_sha':sha})
+              assert project(api('releases/'+str(rid)+'/assets?per_page=100'))==project(old_assets)
+              for item in old_assets:
+                  actual=api('releases/assets/'+str(item['id']))
+                  assert project([actual])==project([item]), 'Asset identity changed before deletion'
+                  api('releases/assets/'+str(item['id']),'DELETE')
+              assert api('releases/'+str(rid)+'/assets?per_page=100')==[]
+              assert api('git/ref/tags/v1.1.8')['object']==old_tag['object']
+              tag=api('git/refs/tags/v1.1.8','PATCH',{'sha':sha,'force':True})
+              assert tag['object']['type']=='commit' and tag['object']['sha']==sha
+              current=api('releases/'+str(rid),'PATCH',{'target_commitish':sha,'draft':True,'prerelease':True,'make_latest':'false'})
+              assert current['id']==rid and current['draft'] is True and current['target_commitish']==sha
+              save('transition.json',{'stage':'new_tag_verified_empty_draft','release_id':rid,'source_sha':sha})
+              publisher.publish(dist,'1.1.8',sha,True)
+              published=api('releases/'+str(rid)); assets=api('releases/'+str(rid)+'/assets?per_page=100')
+              assert published['id']==rid and not published['draft'] and published['prerelease'] is True and published['target_commitish']==sha
+              assert published['body']==pathlib.Path('docs/releases/v1.1.8.md').read_text().strip() or published['body']==pathlib.Path('docs/releases/v1.1.8.md').read_text()
+              assert len(assets)==8 and {item['name'] for item in assets}==expected_names
+              assert publisher.missing_release_assets({'assets':assets},expected)==[]
+              assert api('git/ref/tags/v1.1.8')['object']=={'sha':sha,'type':'commit','url':'https://api.github.com/repos/'+repo+'/git/commits/'+sha}
+              latest=check_latest()
+              downloads=pathlib.Path('verified-public-downloads'); downloads.mkdir()
+              for item in assets:
+                  file=downloads/item['name']
+                  with file.open('xb') as stream:
+                      subprocess.run(['gh','api','repos/'+repo+'/releases/assets/'+str(item['id']),'-H','Accept: application/octet-stream'],stdout=stream,check=True,timeout=180)
+                  assert file.stat().st_size==expected[item['name']]['size'] and 'sha256:'+publisher.digest(file)==expected[item['name']]['digest']
+              save('published-release.json',published); save('published-assets.json',assets); save('stable-latest.json',latest)
+              save('publication-result.json',{'state':'published_prerelease_verified','release_id':rid,'version':'1.1.8','commit':sha,'build_run_id':36656538592,'publication_run_id':os.environ['GITHUB_RUN_ID'],'backup_run_id':36656945363,'backup_artifact_id':11072897715,'public_installers_verified':8,'stable_latest':'v1.1.7','url':published['html_url']})
+              save('transition.json',{'stage':'published_and_download_verified','release_id':rid,'source_sha':sha})
+              print('Published and downloaded all eight installers with matching SHA-256; stable Latest is unchanged.')
+          except Exception:
+              (root/'failure.txt').write_text(traceback.format_exc())
+              try:
+                  save('actual-release-on-failure.json',api('releases/'+str(rid)))
+                  save('actual-tag-on-failure.json',api('git/ref/tags/v1.1.8'))
+              except Exception: pass
+              raise
+          PY
+      - name: Retain publication evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: republished-118-evidence-${{ github.run_id }}
+          path: |
+            publication-evidence/
+            dist/release/release-manifest.json
+            dist/release/SHA256SUMS
+          retention-days: 90
+          if-no-files-found: error
+      - name: Report actual result
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          root=pathlib.Path('publication-evidence'); result=root/'publication-result.json'
+          body='## 1.1.8 重新预发布执行结果\n\n运行：https://github.com/'+os.environ['GH_REPO']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n\nJob：'+os.environ['RESULT']+'\n\n'
+          if result.exists(): body+='```json\n'+result.read_text()+'\n```'
+          else:
+              body+='尚未确认重发完成；请依据实际状态检查，不得盲目重放发布操作。\n\n'
+              for name in ['transition.json','failure.txt','preflight.log','assembly.log','republication.log']:
+                  file=root/name
+                  if file.exists(): body+='### '+name+'\n```text\n'+file.read_text()[-6000:]+'\n```\n'
+          subprocess.run(['gh','api','repos/'+os.environ['GH_REPO']+'/issues/36/comments','--method','POST','-f','body='+body],check=True,timeout=90)
+          PY
