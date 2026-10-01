@@ -16,4 +16,4 @@ macOS已经通过NSApplication.appearance对现有及后建原生窗口应用主
 
 ## 验证
 
-Windows回归在Actions创建未显示的真实HWND，读取DWM属性验证初始与切换状态、后建窗口、事件解绑和高对比度策略。macOS原生测试验证窗口继承。Android包含主题解析单测和无Core/Termux依赖的Compose系统栏仪器测试。
+Windows回归在Actions创建未显示的真实HWND，读取DWM深色模式并检查标题颜色设置回执，验证初始与切换状态、后建窗口、事件解绑和高对比度策略。标题背景和文字颜色遵循DwmSetWindowAttribute设置接口，不使用不支持的getter反查。macOS原生测试验证窗口继承。Android包含主题解析单测和无Core/Termux依赖的Compose系统栏仪器测试。

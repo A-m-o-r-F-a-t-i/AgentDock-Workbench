@@ -75,29 +75,33 @@ internal static class NativeWindowTheme
 
     private static int ColorRef(Color value) => value.R | value.G << 8 | value.B << 16;
 
-    private static void Apply(Window window)
+    internal readonly record struct ApplyResult(int Mode, int? Caption, int? Text);
+
+    internal static ApplyResult? Apply(Window window)
     {
         // Reading Handle never creates a window or launches a service.
         var handle = new WindowInteropHelper(window).Handle;
-        if (handle == IntPtr.Zero || Application.Current is not { } app) return;
+        if (handle == IntPtr.Zero || Application.Current is not { } app) return null;
         if (app.TryFindResource("AppBackground") is not SolidColorBrush background ||
-            app.TryFindResource("PrimaryText") is not SolidColorBrush foreground) return;
+            app.TryFindResource("PrimaryText") is not SolidColorBrush foreground) return null;
         var attributes = Attributes(DesktopTheme.EffectiveDark, SystemParameters.HighContrast, background.Color, foreground.Color);
-        TrySet(handle, ImmersiveDarkMode, attributes.Mode);
+        var mode = TrySet(handle, ImmersiveDarkMode, attributes.Mode);
+        int? caption = null, text = null;
         if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
         {
             // Explicit palette colors also honor an app override opposite to
             // the OS theme. High contrast restores DWM's own default colors.
-            TrySet(handle, CaptionColor, attributes.Caption);
-            TrySet(handle, TextColor, attributes.Text);
+            caption = TrySet(handle, CaptionColor, attributes.Caption);
+            text = TrySet(handle, TextColor, attributes.Text);
         }
+        return new ApplyResult(mode, caption, text);
     }
 
-    private static void TrySet(IntPtr handle, int attribute, int value)
+    private static int TrySet(IntPtr handle, int attribute, int value)
     {
-        try { _ = DwmSetWindowAttribute(handle, attribute, ref value, sizeof(int)); }
-        catch (DllNotFoundException) { /* Older systems retain their native chrome. */ }
-        catch (EntryPointNotFoundException) { /* Unsupported API: no content-theme failure. */ }
+        try { return DwmSetWindowAttribute(handle, attribute, ref value, sizeof(int)); }
+        catch (DllNotFoundException) { return unchecked((int)0x80004001); }
+        catch (EntryPointNotFoundException) { return unchecked((int)0x80004001); }
         // Unsupported attributes return an HRESULT; they do not prevent startup.
     }
 

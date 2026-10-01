@@ -19,11 +19,11 @@ internal static class NativeChromeTests
             windows.Add(first);
             DesktopTheme.Initialize(root);
             var firstHandle = new WindowInteropHelper(first).EnsureHandle();
-            CheckNative(firstHandle, check);
+            CheckNative(first, check);
             foreach (var preference in new[] { "light", "dark", "system", "dark" })
             {
                 DesktopTheme.Save(preference);
-                CheckNative(firstHandle, check);
+                CheckNative(first, check);
                 check(first.WindowStyle == WindowStyle.SingleBorderWindow && first.ResizeMode == ResizeMode.CanResize,
                     "Native theme replaced system window chrome or resize behavior");
             }
@@ -32,10 +32,10 @@ internal static class NativeChromeTests
             windows.Add(later);
             var laterHandle = new WindowInteropHelper(later).EnsureHandle();
             later.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent, later));
-            CheckNative(laterHandle, check);
+            CheckNative(later, check);
             DesktopTheme.Save("light");
-            CheckNative(firstHandle, check);
-            CheckNative(laterHandle, check);
+            CheckNative(first, check);
+            CheckNative(later, check);
             var beforeClose = NativeWindowTheme.TrackedCount;
             later.Close(); windows.Remove(later);
             check(NativeWindowTheme.TrackedCount == beforeClose - 1, "Closed native window retained theme handlers");
@@ -53,19 +53,24 @@ internal static class NativeChromeTests
         }
     }
 
-    private static void CheckNative(IntPtr handle, Action<bool, string> check)
+    private static void CheckNative(Window window, Action<bool, string> check)
     {
+        var handle = new WindowInteropHelper(window).Handle;
         check(handle != IntPtr.Zero, "Native caption test requires a real HWND");
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
         var resources = System.Windows.Application.Current.Resources;
         var expected = NativeWindowTheme.Attributes(DesktopTheme.EffectiveDark, SystemParameters.HighContrast,
             ((SolidColorBrush)resources["AppBackground"]).Color, ((SolidColorBrush)resources["PrimaryText"]).Color);
-        foreach (var item in new[] { (NativeWindowTheme.ImmersiveDarkMode, expected.Mode),
-            (NativeWindowTheme.CaptionColor, expected.Caption), (NativeWindowTheme.TextColor, expected.Text) })
-        {
-            var code = DwmGetWindowAttribute(handle, item.Item1, out var actual, sizeof(int));
-            check(code == 0 && actual == item.Item2, $"Native caption attribute {item.Item1}: HRESULT={code}, actual={actual}, expected={item.Item2}");
-        }
+        var code = DwmGetWindowAttribute(handle, NativeWindowTheme.ImmersiveDarkMode, out var actual, sizeof(int));
+        check(code == 0 && actual == expected.Mode,
+            $"Native dark-mode lifecycle: HRESULT={code}, actual={actual}, expected={expected.Mode}");
+        // Caption/text colors are documented for DwmSetWindowAttribute only.
+        // Reading them with DwmGetWindowAttribute returns E_INVALIDARG even
+        // when setting them succeeded. Exercise the production setter against
+        // the real HWND and require successful native acknowledgements.
+        var applied = NativeWindowTheme.Apply(window);
+        check(applied is { Mode: 0, Caption: 0, Text: 0 },
+            $"DWM did not accept the native theme attributes: {applied}");
     }
 
     [DllImport("dwmapi.dll", ExactSpelling = true)]
