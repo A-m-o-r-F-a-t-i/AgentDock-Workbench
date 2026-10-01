@@ -317,9 +317,7 @@ private final class WorkbenchSidebarConversationCellView: NSTableCellView {
         metadataLabel.stringValue = conversation.metadataText
         pinLabel.stringValue = conversation.pinned ? L10n.text("Pin") : ""
         let color: NSColor
-        if conversation.inFlight { color = WorkbenchPalette.accent }
-        else if conversation.recentlyActive { color = WorkbenchPalette.success }
-        else if conversation.pendingCount > 0 { color = WorkbenchPalette.warning }
+        if conversation.recentlyActive { color = WorkbenchPalette.success }
         else { color = WorkbenchPalette.secondaryText.withAlphaComponent(0.45) }
         dot.layer?.backgroundColor = color.cgColor
         toolTip = conversation.title + "\n" + conversation.metadataText

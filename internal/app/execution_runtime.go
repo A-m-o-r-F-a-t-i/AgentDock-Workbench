@@ -75,7 +75,14 @@ func (r *Runtime) RuntimeExecutionOverview(ctx context.Context) (Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	return Result{"statistics": stats, "append_queue": r.activity.AppendStatistics(), "conversation_activity": conversations, "in_flight": r.confirmedConversationActivity(), "server_now": time.Now().UTC(), "permission_mode": policy.GlobalMode, "policy_revision": policy.Revision, "schema_version": 2}, nil
+	items, err := r.conversations.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	return Result{"statistics": stats, "append_queue": r.activity.AppendStatistics(), "conversation_activity": conversations,
+		"conversation_summary": summarizeConversations(items, conversations, now),
+		"in_flight":            r.confirmedConversationActivity(), "server_now": now, "permission_mode": policy.GlobalMode, "policy_revision": policy.Revision, "schema_version": 2}, nil
 }
 func (r *Runtime) RuntimeConversations(ctx context.Context, query ExecutionListQuery) (ConversationPage, error) {
 	page := ConversationPage{Conversations: []ConversationItem{}, ServerNow: time.Now().UTC()}

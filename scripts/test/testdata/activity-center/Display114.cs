@@ -63,25 +63,20 @@ internal static partial class Program
             .GetField("_activitySummaryTimer", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(main);
         Require(summaryTimer is { IsEnabled: true } && summaryTimer.Interval <= TimeSpan.FromSeconds(3),
             "Main window activity summary is not refreshed periodically.");
-        var activitySummary = ActivitySummaryFormatter.Format(
-            JsonSerializer.SerializeToElement(new { statistics = new { running = 2, pending = 3, unknown = 35 } }),
-            JsonSerializer.SerializeToElement(new { total = 8, selected_ids = new[] { "a", "b", "c", "d", "e", "f", "g" } }));
+        var activitySummary = ActivitySummaryFormatter.Format(JsonSerializer.SerializeToElement(new
+        {
+            statistics = new { running = 19, pending = 3, unknown = 35 },
+            conversation_summary = new { recently_active = 2, total = 7 }
+        }));
         Require(activitySummary == "2 运行中 · 3 待审批 · 7 总对话",
-            "Main window activity summary did not replace unknown results with total conversations.");
-        foreach (var selectionPage in new[]
+            "Main window must count recently active conversations independently of executing calls.");
+        var emptySummary = ActivitySummaryFormatter.Format(JsonSerializer.SerializeToElement(new
         {
-            "{\"total\":1}", // Empty selected_ids is omitted; only the unattributed group exists.
-            "{\"total\":0}",
-            "{\"total\":1,\"selected_ids\":[]}"
-        })
-        {
-            using var selection = JsonDocument.Parse(selectionPage);
-            var emptySummary = ActivitySummaryFormatter.Format(
-                JsonSerializer.SerializeToElement(new { statistics = new { running = 0, pending = 0 } }),
-                selection.RootElement);
-            Require(emptySummary == "0 运行中 · 0 待审批 · 0 总对话",
-                "The unattributed navigation group was counted as a real conversation.");
-        }
+            statistics = new { running = 4, pending = 0 },
+            conversation_summary = new { recently_active = 0, total = 0 }
+        }));
+        Require(emptySummary == "0 运行中 · 0 待审批 · 0 总对话",
+            "The unattributed navigation group was counted as a real conversation.");
         main.Close();
         DesktopTheme.Save("light");
         File.WriteAllText(Path.Combine(root, "display-114-results.json"), JsonSerializer.Serialize(new { passed = true, checks = new[] { "nullable_timing", "rpc_process_split", "edit_preview", "activity_half_open_window", "labels", "detailed_mode_persistence", "checked_menu", "default_border", "shared_theme", "activity_summary_refresh", "activity_summary_format", "activity_summary_empty_selection" } }));

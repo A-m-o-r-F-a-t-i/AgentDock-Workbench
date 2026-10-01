@@ -204,6 +204,7 @@ foreach (var titleCase in new[] {
 var childStats = new ExecutionCallRow(Json("{\"parent_call_id\":\"root\",\"file_edit\":{\"insertions\":2,\"deletions\":1}}"));
 Check(!childStats.HasEditStatistics && childStats.AddedLinesText == "", "child span does not duplicate root totals");
 await PrivilegeTransitionTests.Run(Check);
+ActivitySummaryTests.Run(Check);
 OutputPolicyTests.Run(Check);
 InsertionTimelineTests.Run(Check);
 Console.WriteLine($"Desktop pure-policy regression passed: {assertions} assertions. No UI or installer was launched.");

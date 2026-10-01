@@ -83,7 +83,7 @@ public sealed class ExecutionObject : INotifyPropertyChanged
         }
     }
     public bool VisibleInAuto => RecentlyActive || InFlight;
-    public string ExecutionStateText => PendingCount > 0 ? $"待审批 {PendingCount}" : InFlight ? "执行中" : "";
+    public string ExecutionStateText => PendingCount > 0 ? $"待审批 {PendingCount}" : "";
     public string ExecutionStateHint => PendingCount > 0 ? "存在等待本机审批的根调用；近期交互标识会独立过期。" : InFlight ? "根调用或后台命令仍在运行，可继续查看或停止；近期交互标识会独立过期。" : "";
     public void Apply(ExecutionObject item)
     {
