@@ -12,8 +12,9 @@ internal static partial class Program
     {
         var now = new DateTimeOffset(2026, 9, 21, 14, 0, 0, TimeSpan.Zero);
         Require(ConversationActivityClock.IsRecent(now, now, false), "A current request was not active.");
-        Require(ConversationActivityClock.IsRecent(now, now.AddMilliseconds(29900), false), "Activity ended before 30 seconds.");
-        Require(!ConversationActivityClock.IsRecent(now, now.AddSeconds(30), false), "Activity included the 30-second endpoint.");
+        var activityDeadline = now + ConversationActivityClock.ActivityWindow;
+        Require(ConversationActivityClock.IsRecent(now, activityDeadline.AddTicks(-1), false), "Activity ended before the shared recent-interaction deadline.");
+        Require(!ConversationActivityClock.IsRecent(now, activityDeadline, false), "Activity included the shared half-open endpoint.");
         Require(!ConversationActivityClock.IsRecent(now, now.AddTicks(-1), false), "Future timestamps invented activity.");
         Require(!ConversationActivityClock.IsRecent(now, now, true), "Terminated conversations remained active.");
         Require(!ConversationActivityClock.IsRecent(null, now, false), "Missing timestamps became zero-age activity.");
