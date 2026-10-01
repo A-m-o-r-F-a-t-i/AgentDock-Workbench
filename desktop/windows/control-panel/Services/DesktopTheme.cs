@@ -14,13 +14,19 @@ internal static class DesktopTheme
     private static ResourceDictionary? _colors;
     private static bool _subscribed;
     internal static string Preference { get; private set; } = "system";
+    internal static bool EffectiveDark { get; private set; }
     internal static string LoadWarning { get; private set; } = "";
     internal static event EventHandler? Changed;
 
     internal static void Initialize(string runtimeRoot)
     {
+        NativeWindowTheme.Initialize();
         var path = Path.Combine(runtimeRoot, "execution-center-settings.json");
-        if (string.Equals(_path, path, StringComparison.OrdinalIgnoreCase)) return;
+        if (string.Equals(_path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            NativeWindowTheme.RefreshWindows();
+            return;
+        }
         _path = path;
         try { Preference = Normalize(ReadPreferences()["theme"]?.GetValue<string>()); LoadWarning = ""; }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException)
@@ -79,7 +85,8 @@ internal static class DesktopTheme
         var application = Application.Current;
         if (application is null) return;
         var dictionaries = application.Resources.MergedDictionaries;
-        var colors = new ResourceDictionary { Source = new Uri("/agentdock-tray;component/Themes/" + (IsDark() ? "Dark" : "Light") + ".xaml", UriKind.Relative) };
+        EffectiveDark = IsDark();
+        var colors = new ResourceDictionary { Source = new Uri("/agentdock-tray;component/Themes/" + (EffectiveDark ? "Dark" : "Light") + ".xaml", UriKind.Relative) };
         var previous = _colors is null ? -1 : dictionaries.IndexOf(_colors);
         if (previous < 0)
         {
@@ -87,17 +94,22 @@ internal static class DesktopTheme
         }
         if (previous >= 0) dictionaries[previous] = colors; else dictionaries.Add(colors);
         _colors = colors;
+        NativeWindowTheme.RefreshWindows();
         Changed?.Invoke(null, EventArgs.Empty);
     }
 
     private static void SystemThemeChanged(object sender, UserPreferenceChangedEventArgs args)
     {
-        if (Preference == "system") Application.Current?.Dispatcher.BeginInvoke(Apply);
+        // High-contrast changes also affect native chrome in an explicit theme.
+        if (Preference == "system" || args.Category is UserPreferenceCategory.Accessibility or
+            UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
+            Application.Current?.Dispatcher.BeginInvoke(Apply);
     }
 
     internal static void Dispose()
     {
         if (_subscribed) SystemEvents.UserPreferenceChanged -= SystemThemeChanged;
         _subscribed = false;
+        NativeWindowTheme.Dispose();
     }
 }
