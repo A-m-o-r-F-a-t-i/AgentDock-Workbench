@@ -55,6 +55,16 @@ jobs:
         run: |
           dotnet run --project desktop/windows/control-panel-layout-tests/AgentDock.ControlPanel.LayoutTests.csproj -c Release -- "$env:GITHUB_WORKSPACE" "$env:GITHUB_WORKSPACE/dist/layout-validation" 2>&1 | Tee-Object dist/wpf-regression.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Native proxy recovery and local API regressions
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        env:
+          AGENTDOCK_PROXY_ACCEPTANCE: '1'
+        run: |
+          dotnet build desktop/windows/control-panel-network-tests/AgentDock.ControlPanel.NetworkTests.csproj -c Release -r win-x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --no-build --project desktop/windows/control-panel-network-tests/AgentDock.ControlPanel.NetworkTests.csproj -c Release -r win-x64 2>&1 | Tee-Object dist/proxy-regression.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
