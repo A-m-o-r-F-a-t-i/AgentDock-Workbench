@@ -40,3 +40,10 @@ APK 使用显式 Termux package/component、固定脚本路径、封闭操作集
 The explicitly enabled APK connects outbound to the paired local Core and does not follow the management UI remote selection. Local registration creates a restricted executor lease stored with Keystore. No APK network listener is introduced.
 
 Explicit mobile backends require absolute backend-local working directories. They do not inherit PRoot runtime/Skill paths. Core commands, permissions, activity, session observation and cancellation remain authoritative. A start is offered once; uncertain delivery is observed by its original ID. Output offsets, input sequences and response revisions deduplicate retries. The Termux supervisor enforces deadlines independently and is separate from the deployment transaction bridge.
+
+
+## Optional system execution and structured device tools
+
+Shizuku is an independent opt-in backend of the same outbound execution adapter. Its protected Provider and versioned UserService perform native authorization and short control calls; independent supervised processes enforce deadlines and cancellation. The APK does not pair wireless debugging or open a public command listener. The actual UID is reported by a successful probe.
+
+`internal/tool/androiddevice/` owns pure action validation and closed read/write schemas. `specs_android_device.go` registers the tools and reuses the command service under the original binding. Generated commands keep the structured tool name in the journal and share session ownership, stopping and asynchronous completion. System paths are never rewritten as PRoot workspaces. Capture files use explicit shared storage and are returned as paths only after their completion state is checked. See [device-tools.md](device-tools.md) and [shizuku-provider.md](shizuku-provider.md).
