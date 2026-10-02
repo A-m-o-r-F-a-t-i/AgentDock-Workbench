@@ -37,10 +37,14 @@ $cases = @(
     @{Line='"C:\Agent Dock\agentdock-core.exe" "VERSION" "--json"'; Probe=$true},
     @{Line='"C:\Agent Dock\agentdock-core.exe" service status --runtime-root "C:\Agent Dock"'; Probe=$true},
     @{Line='"C:\Agent Dock\agentdock-core.exe" "service" "status"'; Probe=$true},
+    @{Line='"C:\Agent Dock\agentdock-core.exe" config runtime-get --runtime-root "C:\Agent Dock"'; Probe=$true},
+    @{Line='"C:\Agent Dock\agentdock-core.exe" "config" "runtime-get"'; Probe=$true},
     @{Line='"C:\Agent Dock\agentdock-core.exe" service launch-core --runtime-root "C:\Agent Dock"'; Probe=$false},
     @{Line='"C:\Agent Dock\agentdock-core.exe"'; Probe=$false},
     @{Line='agentdock-core.exe serve'; Probe=$false},
     @{Line='agentdock-core.exe service statusjunk'; Probe=$false},
+    @{Line='agentdock-core.exe config runtime-getjunk'; Probe=$false},
+    @{Line='agentdock-core.exe config runtime-update --runtime-root C:\AgentDock --options-json {}'; Probe=$false},
     @{Line='agentdock-core.exe version unexpected'; Probe=$false},
     @{Line='"C:\service status\agentdock-core.exe" service launch-core'; Probe=$false},
     @{Line=''; Probe=$false},
@@ -53,7 +57,8 @@ $processes = @(
     'agentdock-core.exe service launch-core --runtime-root C:\AgentDock',
     'agentdock-core.exe service launch-core --runtime-root C:\AgentDock',
     'agentdock-core.exe version --json',
-    'agentdock-core.exe service status --runtime-root C:\AgentDock'
+    'agentdock-core.exe service status --runtime-root C:\AgentDock',
+    'agentdock-core.exe config runtime-get --runtime-root C:\AgentDock'
 )
 $daemons = @($processes | Where-Object { -not (Test-CoreReadOnlyProbe -CommandLine $_) })
 if ($daemons.Count -ne 2) { throw 'Duplicate daemons were concealed by the probe classifier.' }

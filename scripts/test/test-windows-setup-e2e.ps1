@@ -128,10 +128,10 @@ function Test-CoreReadOnlyProbe {
     param([string] $CommandLine)
 
     # The stable shim forwards both the daemon and tray read-only probes to the
-    # same generation executable. Do not count version/status probes as daemons.
-    # Unknown or unavailable command lines remain candidates and must not vanish.
+    # same generation executable. Do not count version, service-status or runtime
+    # configuration reads as daemons. Unknown command lines remain candidates.
     if ([string]::IsNullOrWhiteSpace($CommandLine)) { return $false }
-    return $CommandLine -match '(?i)^\s*(?:"[^"]+"|\S+)\s+(?:"?version"?(?:\s+"?--json"?)?\s*$|"?service"?\s+"?status"?(?:\s|$))'
+    return $CommandLine -match '(?i)^\s*(?:"[^"]+"|\S+)\s+(?:"?version"?(?:\s+"?--json"?)?\s*$|"?service"?\s+"?status"?(?:\s|$)|"?config"?\s+"?runtime-get"?(?:\s|$))'
 }
 
 function Format-ProcessIdentity {
