@@ -19,6 +19,9 @@ import (
 
 func registerRuntimeAPI(mux *http.ServeMux, runtime runtimeapi.Runtime, cfg config.Config, oauthStore *auth.OAuthStore) {
 	h := runtimeAPIHandler(runtime, cfg, oauthStore)
+	if android, ok := runtime.(androidExecutorRuntime); ok {
+		mux.HandleFunc(androidExecutorPrefix, androidExecutorHandler(android.AndroidExecutor(), cfg))
+	}
 	mux.HandleFunc("/internal/runtime/status", h)
 	mux.HandleFunc("/internal/runtime/capabilities", h)
 	mux.HandleFunc("/internal/runtime/skills", h)

@@ -41,6 +41,9 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 	if request.Cmd == "" {
 		return nil, toolError("INVALID_ARGUMENT", "cmd is required", "validation")
 	}
+	if (request.Backend == "termux_host" || request.Backend == "android_shizuku") && len(request.Stdin) > 16384 {
+		return nil, toolError("ANDROID_STDIN_TOO_LARGE", "Initial Android stdin exceeds 16 KiB; no command was started", "validation")
+	}
 	if err := request.Binding.Validate(); err != nil {
 		return nil, toolError("INVALID_ACTIVITY_BINDING", err.Error(), "validation")
 	}
@@ -75,7 +78,12 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 		}
 	}()
 	prepareCtx, prepareCancel := context.WithTimeout(ctx, timeout)
-	invocation, err := svc.prepareCommandInvocation(prepareCtx, request)
+	var invocation commandInvocation
+	if request.Backend != "" && request.Backend != "default" {
+		invocation, err = svc.prepareAndroidInvocation(prepareCtx, request, timeout)
+	} else {
+		invocation, err = svc.prepareCommandInvocation(prepareCtx, request)
+	}
 	preparationErr := prepareCtx.Err()
 	prepareCancel()
 	if err != nil {
@@ -143,21 +151,6 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 	activityDone := svc.trackCommandActivity(s, request, journal)
 	journalTransferred = true
 	svc.sessions.FinishStart()
-	if request.Stdin != "" {
-		if err := s.Write(request.Stdin); err != nil {
-			s.Kill()
-			s.Cancel()
-			return nil, fmt.Errorf("write command stdin: %w", err)
-		}
-	}
-	if !tty {
-		if err := s.CloseStdin(); err != nil && !errors.Is(err, os.ErrClosed) {
-			s.Kill()
-			s.Cancel()
-			return nil, fmt.Errorf("close command stdin: %w", err)
-		}
-	}
-
 	storeSession := func(reason string) Result {
 		svc.storeReservedSession(s)
 		reservationActive = false
@@ -166,6 +159,32 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 		result["session_reason"] = reason
 		result["observe_after_ms"] = 1000
 		return result
+	}
+
+	preserveInputFailure := func() Result {
+		result := storeSession("initial_stdin_unconfirmed")
+		result["stdin_error"] = "Initial input was not acknowledged; cancellation was requested. Observe the original session and do not resend input."
+		return result
+	}
+	if request.Stdin != "" {
+		if err := s.Write(request.Stdin); err != nil {
+			s.Kill()
+			s.Cancel()
+			if invocation.external != nil {
+				return preserveInputFailure(), nil
+			}
+			return nil, fmt.Errorf("write command stdin: %w", err)
+		}
+	}
+	if !tty {
+		if err := s.CloseStdin(); err != nil && !errors.Is(err, os.ErrClosed) {
+			s.Kill()
+			s.Cancel()
+			if invocation.external != nil {
+				return preserveInputFailure(), nil
+			}
+			return nil, fmt.Errorf("close command stdin: %w", err)
+		}
 	}
 
 	switch executionMode {
@@ -259,7 +278,10 @@ func snapshotResult(snapshot session.Snapshot) Result {
 	if snapshot.ActivityWarning != "" {
 		result["activity_warning"] = snapshot.ActivityWarning
 	}
-	if snapshot.Completed {
+	if snapshot.OutcomeUnknown {
+		result["outcome_unknown"] = true
+	}
+	if snapshot.Completed && !snapshot.OutcomeUnknown {
 		result["exit_code"] = snapshot.ExitCode
 		result["command_ok"] = snapshot.CommandOK
 	}

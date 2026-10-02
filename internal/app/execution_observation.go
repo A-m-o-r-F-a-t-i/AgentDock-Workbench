@@ -52,7 +52,10 @@ func (r *Runtime) prepareObservedExecution(ctx context.Context, name string, arg
 		state.binding.WorkspaceID = selected.ID
 		state.selected = &selected
 	}
-	if state.scoped && (name == "exec_command" || name == "file_edit") {
+	if name == "exec_command" && androidBackend(args) && (stringArg(args, "target_kind") != "" || stringArg(args, "external_path") != "") {
+		return state, toolError("ANDROID_TARGET_CONFLICT", "Android backend workdir is explicit in its own namespace; host target_kind/external_path must not be supplied", "validation")
+	}
+	if state.scoped && (name == "exec_command" || name == "file_edit") && !(name == "exec_command" && androidBackend(args)) {
 		if runtimeName := stringArg(args, "runtime"); runtimeName != "" && runtimeName != selected.Runtime {
 			return state, workspaceFailure(errors.New("runtime conflicts with the selected workspace"), state.binding, &selected)
 		}
@@ -338,4 +341,9 @@ func (r *Runtime) recordFileChanges(args map[string]any, result Result, state ex
 		}
 		r.recordObservedEvent(event, result)
 	}
+}
+
+func androidBackend(args map[string]any) bool {
+	backend := stringArg(args, "backend")
+	return backend == "termux_host" || backend == "android_shizuku"
 }

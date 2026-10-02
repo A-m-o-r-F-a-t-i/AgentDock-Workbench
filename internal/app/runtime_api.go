@@ -20,7 +20,12 @@ const runtimeAPISource = "agentdock-api"
 
 func (r *Runtime) RuntimeStatus() Result {
 	tools := r.ToolNames()
+	android := map[string]any{"connected": false}
+	if r.androidExecutor != nil {
+		android = r.androidExecutor.Status()
+	}
 	return Result{
+		"android_executor":      android,
 		"ok":                    true,
 		"source":                runtimeAPISource,
 		"service":               config.ServerName,

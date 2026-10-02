@@ -27,21 +27,16 @@ func (s *Session) ActivitySnapshot(cursor *OutputCursor) Snapshot {
 	out, outGap := activityOutput(s.stdout.Bytes(), s.stdoutTotalBytes, s.stdoutDroppedBytes, cursor.Stdout)
 	errout, errGap := activityOutput(s.stderr.Bytes(), s.stderrTotalBytes, s.stderrDroppedBytes, cursor.Stderr)
 	cursor.Stdout, cursor.Stderr = s.stdoutTotalBytes, s.stderrTotalBytes
-	finished, status := time.Now(), "running"
+	finished, status := time.Now(), s.statusLocked()
 	if s.completed {
-		finished, status = s.FinishedAt, "exited"
-		if s.terminationRequested {
-			status = "killed"
-		}
-		if s.TimedOut {
-			status = "timeout"
-		}
+		finished = s.FinishedAt
 	}
+
 	return Snapshot{
 		Binding: s.activityBinding, ActivityWarning: s.activityWarning, SessionID: s.ID,
 		Status: status, Stdout: out, Stderr: errout, ElapsedMS: finished.Sub(s.StartedAt).Milliseconds(),
-		TimedOut: s.TimedOut, Terminal: s.Terminal, Completed: s.completed, ExitCode: s.exitCode,
-		CommandOK:            s.completed && s.exitCode == 0 && !s.TimedOut,
+		TimedOut: s.TimedOut, Terminal: s.Terminal, Completed: s.completed, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
+		CommandOK:            s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		TerminationRequested: s.terminationRequested,
 		StdoutTotalBytes:     s.stdoutTotalBytes, StderrTotalBytes: s.stderrTotalBytes,
 		StdoutDroppedBytes: s.stdoutDroppedBytes, StderrDroppedBytes: s.stderrDroppedBytes,

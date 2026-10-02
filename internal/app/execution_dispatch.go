@@ -379,7 +379,7 @@ func (r *Runtime) describeExecution(name string, args map[string]any, state exec
 // arbitrary third-party nested data. The fixed request stays in memory.
 func (r *Runtime) executionParameters(args map[string]any) string {
 	selected := map[string]any{}
-	for _, key := range []string{"action", "name", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "target_kind", "dry_run", "timeout_ms"} {
+	for _, key := range []string{"action", "name", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms"} {
 		if value, found := args[key]; found {
 			selected[key] = value
 		}
@@ -398,6 +398,9 @@ func (r *Runtime) executionParameters(args map[string]any) string {
 
 func (r *Runtime) executionScope(p *preparedExecution) string {
 	scope := "当前进程操作系统账户权限；此模式不提升权限，也不限制任意命令内部的文件访问。"
+	if p.spec.Name == "exec_command" && androidBackend(p.args) {
+		scope = "手机执行后端：" + stringArg(p.args, "backend") + "\n工作目录：" + stringArg(p.args, "workdir") + "\n使用该后端的实际 Android 授权身份；不会自动改用其他后端。"
+	}
 	if p.sessionIDs != nil {
 		scope += "\n本次停止的固定会话集合：" + fmt.Sprint(p.sessionIDs)
 	}

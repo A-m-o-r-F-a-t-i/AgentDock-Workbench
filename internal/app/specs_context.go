@@ -42,6 +42,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output := maps.Clone(contract.OutputSchema["properties"].(map[string]any))
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
+	output["android_executor"] = androidExecutorStatusSchema()
 	output["plugins"] = pluginIndexSchema()
 	output["tasks"] = taskIndexSchema()
 	output["workspace"] = map[string]any{"type": "object", "additionalProperties": true, "required": []string{"workspace_id", "root", "runtime", "rules_revision"}}
@@ -96,6 +97,33 @@ func instructionFilesSchema() map[string]any {
 						"duplicate_of": map[string]any{"type": "string"},
 					},
 				},
+			},
+		},
+	}
+}
+
+// Describe the opt-in provider without weakening the closed context contract.
+func androidExecutorStatusSchema() map[string]any {
+	capability := map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"ready", "state"},
+		"properties": map[string]any{
+			"ready": map[string]any{"type": "boolean"},
+			"state": map[string]any{"type": "string", "maxLength": 80},
+			"uid":   map[string]any{"type": "integer", "minimum": 0, "maximum": 2147483647},
+		},
+	}
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"protocol", "node_id", "connected", "backends", "inflight"},
+		"properties": map[string]any{
+			"protocol":  map[string]any{"type": "integer", "const": 1},
+			"node_id":   map[string]any{"type": "string"},
+			"connected": map[string]any{"type": "boolean"},
+			"inflight":  map[string]any{"type": "integer", "minimum": 0, "maximum": 32},
+			"backends": map[string]any{
+				"type": "object", "additionalProperties": false,
+				"properties": map[string]any{"termux_host": capability, "android_shizuku": capability},
 			},
 		},
 	}

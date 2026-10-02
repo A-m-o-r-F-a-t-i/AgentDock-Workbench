@@ -11,6 +11,7 @@ import (
 
 	acpruntime "github.com/uvwt/agentdock/internal/acp"
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/androidbridge"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	"github.com/uvwt/agentdock/internal/evolution"
@@ -38,6 +39,7 @@ import (
 type Result = toolcore.Result
 
 type Runtime struct {
+	androidExecutor          *androidbridge.Broker
 	sidebarHistory           sidebarHistoryCache
 	pluginStore              *pluginregistry.Store
 	contextSnapshots         *contextSnapshots
@@ -224,6 +226,8 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		}
 		return toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}, nil
 	}, runtime.commandExecutionContext)
+	runtime.androidExecutor = androidbridge.New(instance)
+	runtime.command.SetAndroidBroker(runtime.androidExecutor)
 	runtime.command.SetActivityStore(activityStore)
 	runtime.files = toolfile.New(ws, skills.ResolveResource, runtime.command.CommandEnv)
 	mcpClients.SetCallObserver(runtime.observeRemoteTool)
@@ -364,6 +368,9 @@ func (r *Runtime) Close() error {
 				closeErrors = append(closeErrors, fmt.Errorf("close browser runtime: %w", err))
 			}
 		}
+		if r.androidExecutor != nil {
+			r.androidExecutor.Close()
+		}
 		if r.command != nil {
 			if err := r.command.Close(); err != nil {
 				closeErrors = append(closeErrors, err)
@@ -452,3 +459,6 @@ func (r *Runtime) validateToolArguments(name string, args map[string]any) error 
 	}
 	return nil
 }
+
+// AndroidExecutor exposes only the local provider transport, never tool admission.
+func (r *Runtime) AndroidExecutor() *androidbridge.Broker { return r.androidExecutor }

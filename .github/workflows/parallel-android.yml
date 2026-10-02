@@ -161,6 +161,7 @@ jobs:
             bash -n "$script"
           done
           python3 scripts/ci/parallel-android/test-evidence.py
+          python3 scripts/ci/parallel-android/test_host_executor.py
           python3 - <<'PY_CHECK'
           import ast
           from pathlib import Path

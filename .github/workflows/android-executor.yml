@@ -1,0 +1,47 @@
+name: Android Executor Core Contracts
+on:
+  pull_request:
+    branches: [main, 'fix/android-termux-protocol', 'feat/android-host-executor', 'feat/android-shizuku-provider']
+    paths: ['internal/**', 'mobile/android/**', 'scripts/ci/parallel-android/**', '.github/workflows/android-executor.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-executor-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test affected Core packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source-sha.txt
+          go test -count=1 -timeout=15m ./internal/androidbridge ./internal/tool/command/... ./internal/app ./internal/httpx ./internal/runtimeapi 2>&1 | tee evidence/core-tests.txt
+      - name: Race detector on transport and command sessions
+        if: runner.os == 'Linux'
+        shell: bash
+        run: go test -race -count=2 -timeout=5m ./internal/androidbridge ./internal/tool/command/session
+      - name: Isolated Termux host executor tests
+        if: runner.os == 'Linux'
+        run: python3 scripts/ci/parallel-android/test_host_executor.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-executor-core-${{ runner.os }}-${{ github.sha }}
+          path: evidence
+          retention-days: 14

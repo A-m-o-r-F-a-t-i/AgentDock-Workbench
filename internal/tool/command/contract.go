@@ -19,6 +19,7 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolExecCommand:
 		toolcontract.ActivityProperties(props)
 		toolcontract.TargetProperties(props)
+		props["backend"] = map[string]any{"type": "string", "enum": []string{"default", "termux_host", "android_shizuku"}, "description": "Explicit execution backend; default preserves current behavior. Android requires a ready paired provider, an absolute backend workdir and no host Skill/runtime context. Never retries on another backend."}
 		props["cmd"] = stringProp("Command to run.")
 		props["workdir"] = stringProp(WorkdirDescription())
 		AddRuntimeProperties(props)
@@ -68,6 +69,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"workdir":          stringProp("Logical command working directory in the selected runtime."),
 		"stdout":           stringProp("Captured stdout segment."),
 		"stderr":           stringProp("Captured stderr segment."),
+		"stdin_error":      stringProp("Initial remote stdin could not be acknowledged; preserve and observe the original session instead of replaying the command."),
+		"outcome_unknown":  boolProp("The remote outcome is unconfirmed; do not replay the original command."),
 		"command_ok":       boolProp("Whether a completed command exited successfully. Omitted while the command is still running."),
 		"command_error":    stringProp("Command process error when execution did not succeed."),
 		"exit_code":        intProp("Process exit code, when available."),

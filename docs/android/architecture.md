@@ -34,3 +34,9 @@ APK 使用显式 Termux package/component、固定脚本路径、封闭操作集
 部署模块在任何维护窗口前验证受信公钥、清单签名、Linux/ARM64、产品版本、SHA-256、归档结构和可执行文件版本。事务阶段写入 journal，可按原 operation ID 续接或取消。切换前停止受管进程并创建带摘要的一致性数据快照；新版本身份、管理鉴权、版本和工作目录探针失败时恢复旧指针与旧数据，并隔离失败数据。清理保护 current、验证回退点和未完成事务引用。
 
 自动恢复仅在 desired=`running` 时启动当前版本，不执行更新；失败次数、指数退避和熔断持久化。用户停止先写 desired=`stopped`，守护不会逆转停止意图。
+
+## Optional phone execution adapter
+
+The explicitly enabled APK connects outbound to the paired local Core and does not follow the management UI remote selection. Local registration creates a restricted executor lease stored with Keystore. No APK network listener is introduced.
+
+Explicit mobile backends require absolute backend-local working directories. They do not inherit PRoot runtime/Skill paths. Core commands, permissions, activity, session observation and cancellation remain authoritative. A start is offered once; uncertain delivery is observed by its original ID. Output offsets, input sequences and response revisions deduplicate retries. The Termux supervisor enforces deadlines independently and is separate from the deployment transaction bridge.
