@@ -2,7 +2,6 @@ package dev.agentdock.workbench.termux
 
 import android.app.Service
 import android.content.Intent
-import android.os.Bundle
 import android.os.IBinder
 import dev.agentdock.workbench.WorkbenchApplication
 import dev.agentdock.workbench.model.BridgeOperation
@@ -72,18 +71,31 @@ class TermuxResultService : Service() {
         if (!TermuxResultPolicy.mayComplete(expected, System.currentTimeMillis())) return
         if (expected.requestId != requestId || expected.nonce != nonce || intent.action != TermuxContract.CALLBACK_ACTION_PREFIX + requestId) return
 
-        val bundle = intent.getBundleExtra(TermuxContract.EXTRA_RESULT_BUNDLE) ?: Bundle.EMPTY
-        val stdout = bundle.getString(TermuxContract.RESULT_STDOUT).orEmpty()
-        val stderr = bundle.getString(TermuxContract.RESULT_STDERR).orEmpty()
-        val stdoutOriginal = bundle.getInt(TermuxContract.RESULT_STDOUT_ORIGINAL_LENGTH, stdout.length)
-        val stderrOriginal = bundle.getInt(TermuxContract.RESULT_STDERR_ORIGINAL_LENGTH, stderr.length)
-        val exitCode = bundle.getInt(TermuxContract.RESULT_EXIT_CODE, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-        val pluginError = bundle.getInt(TermuxContract.RESULT_ERR, 0)
-        val pluginMessage = bundle.getString(TermuxContract.RESULT_ERRMSG).orEmpty()
-        var result = if (stdoutOriginal > stdout.length) {
-            ValidatedTermuxResult("failed", "Termux 回执被截断，结果待重新核对")
-        } else {
-            TermuxResultValidator.validate(expected, stdout, stderr, exitCode, pluginError, pluginMessage)
+        val bundle = intent.getBundleExtra(TermuxContract.EXTRA_RESULT_BUNDLE) ?: intent.extras
+        @Suppress("DEPRECATION")
+        val fields = bundle?.let { values ->
+            TermuxCallbackProtocol.resultKeys.filter { values.containsKey(it) }.associateWith { values.get(it) }
+        }
+        val decoded = TermuxCallbackProtocol.decode(fields)
+        if (decoded == TermuxCallbackDecision.AwaitCompletion) return
+        if (decoded is TermuxCallbackDecision.Unavailable || decoded is TermuxCallbackDecision.ChannelError) {
+            val message = when (decoded) {
+                is TermuxCallbackDecision.Unavailable -> decoded.reason
+                is TermuxCallbackDecision.ChannelError -> "Termux 执行通道错误（${decoded.code}）"
+                else -> error("unreachable")
+            }
+            store.finish(expected, "unknown", "$message；业务结果未知，请查询原操作，勿重放写入", null,
+                (decoded as? TermuxCallbackDecision.Unavailable)?.stdoutTruncated == true,
+                (decoded as? TermuxCallbackDecision.Unavailable)?.stderrTruncated == true)
+            return
+        }
+        decoded as TermuxCallbackDecision.Result
+        val stdout = decoded.stdout
+        val exitCode = decoded.exitCode
+        var result = TermuxResultValidator.validate(expected, stdout, decoded.stderr, exitCode, TermuxCallbackProtocol.RESULT_OK, "")
+        if (!result.receiptValid) {
+            store.finish(expected, "unknown", result.message + "；业务结果未知，请查询原操作", null, false, false)
+            return
         }
         if (expected.operation == "pair_local_core") {
             result = if (result.phase == "succeeded") {
@@ -109,8 +121,8 @@ class TermuxResultService : Service() {
             phase = result.phase,
             message = result.message,
             exitCode = exitCode,
-            stdoutTruncated = stdoutOriginal > stdout.length || stdout.length >= TermuxContract.MAX_RESULT_CHARS,
-            stderrTruncated = stderrOriginal > stderr.length || stderr.length >= TermuxContract.MAX_RESULT_CHARS,
+            stdoutTruncated = false,
+            stderrTruncated = false,
             resultJson = result.dataJson
         )
         if (result.phase == "succeeded" && result.dataJson.isNotBlank()) {
@@ -129,38 +141,46 @@ class TermuxResultService : Service() {
     }
 }
 
-data class ValidatedTermuxResult(val phase: String, val message: String, val dataJson: String = "")
+data class ValidatedTermuxResult(
+    val phase: String,
+    val message: String,
+    val dataJson: String = "",
+    val receiptValid: Boolean = true
+)
 
 object TermuxResultValidator {
+    private fun rejected(message: String) = ValidatedTermuxResult("failed", message, receiptValid = false)
+
     fun validate(
         expected: BridgeOperation,
         stdout: String,
         stderr: String,
         exitCode: Int?,
-        pluginError: Int,
+        pluginError: Int?,
         @Suppress("UNUSED_PARAMETER") pluginMessage: String,
         nowEpochMs: Long = System.currentTimeMillis()
     ): ValidatedTermuxResult {
         if (!TermuxResultPolicy.mayComplete(expected, nowEpochMs)) {
-            return ValidatedTermuxResult("failed", "回执已过期或操作已有终态，请查询原操作记录")
+            return rejected("回执已过期或操作已有终态，请查询原操作记录")
         }
-        if (pluginError != 0) return ValidatedTermuxResult("failed", "Termux 执行通道错误（$pluginError）")
+        if (pluginError != TermuxCallbackProtocol.RESULT_OK) return rejected("Termux 执行通道返回码无效（${pluginError ?: "missing"}）")
+        if (exitCode == null) return rejected("Termux 回执缺少命令退出码")
         if (stdout.length > TermuxContract.MAX_RESULT_CHARS || stderr.length > TermuxContract.MAX_RESULT_CHARS ||
-            stdout.toByteArray(Charsets.UTF_8).size > TermuxContract.MAX_RESULT_CHARS) {
-            return ValidatedTermuxResult("failed", "Termux 回执超过大小限制")
+            stdout.toByteArray(Charsets.UTF_8).size.toLong() + stderr.toByteArray(Charsets.UTF_8).size > TermuxContract.MAX_RESULT_CHARS) {
+            return rejected("Termux 回执超过大小限制")
         }
         val json = runCatching { JSONObject(stdout) }.getOrElse {
-            return ValidatedTermuxResult("failed", "Termux 未返回有效 JSON；原始输出不写入操作摘要")
+            return rejected("Termux 未返回有效 JSON；原始输出不写入操作摘要")
         }
         if (json.opt("schema_version") != 1 ||
             json.optString("operation_id") != expected.operationId ||
             json.optString("request_id") != expected.requestId ||
             json.optString("nonce") != expected.nonce ||
             json.optString("operation") != expected.operation
-        ) return ValidatedTermuxResult("failed", "Termux 回执与请求绑定不一致")
+        ) return rejected("Termux 回执与请求绑定不一致")
 
         if (TermuxResultPolicy.containsSecretFields(json)) {
-            return ValidatedTermuxResult("failed", "旧桥返回了凭据字段，已拒绝导入；请更新桥并使用管理连接配对")
+            return rejected("旧桥返回了凭据字段，已拒绝导入；请更新桥并使用管理连接配对")
         }
         val dataJson = BridgeResultData.sanitize(json.optJSONObject("data"))
         if (exitCode != 0) return ValidatedTermuxResult("failed",
@@ -172,7 +192,7 @@ object TermuxResultValidator {
             status == "requires_user_action" -> ValidatedTermuxResult("requires_user_action", message, dataJson)
             status in setOf("ok", "healthy", "running", "stopped", "adopted", "installed", "updated", "rolled_back") && exitCode == 0 ->
                 ValidatedTermuxResult("succeeded", message, dataJson)
-            else -> ValidatedTermuxResult("failed", message.ifBlank { "Termux operation failed (exit ${exitCode ?: "unknown"})" })
+            else -> rejected("Termux 回执状态无法识别，请查询原操作")
         }
     }
 }

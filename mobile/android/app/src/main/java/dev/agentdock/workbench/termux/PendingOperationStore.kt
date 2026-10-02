@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets
 
 class PendingOperationStore(context: Context, private val clock: () -> Long = System::currentTimeMillis) {
     val changes = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    private val applicationContext = context.applicationContext
     private val directory = File(context.filesDir, "operations").apply { mkdirs() }
 
     @Synchronized
@@ -50,8 +51,11 @@ class PendingOperationStore(context: Context, private val clock: () -> Long = Sy
     private fun expirePending() {
         val now = clock()
         records().filter { it.phase in TermuxResultPolicy.pendingPhases && now - it.createdAtEpochMs > TermuxResultPolicy.MAX_CALLBACK_AGE_MS }
-            .forEach { write(it.copy(phase = "unknown", updatedAtEpochMs = now,
-                message = "回执等待超时；业务结果未知，请查询原操作，勿重放写入")) }
+            .forEach {
+                write(it.copy(phase = "unknown", updatedAtEpochMs = now,
+                    message = "回执等待超时；业务结果未知，请查询原操作，勿重放写入"))
+                TermuxResultCallbacks.release(applicationContext, it)
+            }
     }
 
     /** Only a validated, explicitly bound query/continuation may settle an old record. */
@@ -103,6 +107,7 @@ class PendingOperationStore(context: Context, private val clock: () -> Long = Sy
             resultJson = resultJson
         )
         write(next)
+        if (phase !in TermuxResultPolicy.pendingPhases) TermuxResultCallbacks.release(applicationContext, next)
         return next
     }
 
