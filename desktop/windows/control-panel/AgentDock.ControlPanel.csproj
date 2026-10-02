@@ -35,6 +35,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="AgentDock.ControlPanel.LayoutTests" />
     <InternalsVisibleTo Include="AgentDock.ControlPanel.NativeTests" />
+    <InternalsVisibleTo Include="AgentDock.ControlPanel.NetworkTests" />
+    <PackageReference Include="System.Net.Http.WinHttpHandler" Version="10.0.12" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" GeneratePathProperty="true" />
   </ItemGroup>
   <Target Name="EnsureAgentDockRuntimeSplitProtectedData"

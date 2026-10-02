@@ -15,7 +15,7 @@ public sealed partial class RuntimeService
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.UserInfo.Length > 0 ||
             (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
             return new UrlTestResult(false, null, TimeSpan.Zero, UiText.Get("InvalidPublicAddress"));
-        using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(6) });
+        using var client = new HttpClient(RuntimeHttpClients.CreatePublicHandler(uri));
         return await CheckPublicDiscoveryAsync(client, uri.GetLeftPart(UriPartial.Authority), cancellationToken);
     }
 
