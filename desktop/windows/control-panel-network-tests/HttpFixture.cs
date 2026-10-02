@@ -72,7 +72,13 @@ internal sealed class HttpFixture : IAsyncDisposable
                     var count = int.Parse(length);
                     if (count is < 0 or > 8192) throw new IOException("Fixture body limit.");
                     var chars = new char[count];
-                    await reader.ReadExactlyAsync(chars, deadline.Token);
+                    var offset = 0;
+                    while (offset < chars.Length)
+                    {
+                        var read = await reader.ReadAsync(chars.AsMemory(offset), deadline.Token);
+                        if (read == 0) throw new EndOfStreamException("Incomplete fixture request body.");
+                        offset += read;
+                    }
                     body = new string(chars);
                 }
                 var request = new Request(parts[0], parts[1], headers, body);
