@@ -21,6 +21,7 @@ val candidateRunAttempt = providers.gradleProperty("agentdockCandidateRunAttempt
 android {
     namespace = "dev.agentdock.workbench"
     compileSdk = 37
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "dev.agentdock.workbench"
@@ -42,6 +43,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
 
     buildTypes {
@@ -65,9 +67,13 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
+    externalNativeBuild {
+        cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" }
+    }
     sourceSets["main"].assets.srcDir("../termux")
 
     packaging {
+        jniLibs.useLegacyPackaging = true
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
     }
 
@@ -79,6 +85,8 @@ android {
 }
 
 dependencies {
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)

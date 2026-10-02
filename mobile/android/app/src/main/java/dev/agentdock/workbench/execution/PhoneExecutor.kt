@@ -56,7 +56,8 @@ data class PhoneExecutorState(
 
 class PhoneExecutor(private val context: Context, private val credentials: CredentialStore) {
     val termux = TermuxHostBackend(context)
-    private val backends = linkedMapOf<String, AndroidExecutionBackend>(termux.name to termux)
+    val shizuku = dev.agentdock.workbench.shizuku.ShizukuBackend(context)
+    private val backends = linkedMapOf<String, AndroidExecutionBackend>(termux.name to termux, shizuku.name to shizuku)
     private val preferences = context.getSharedPreferences("phone_executor", Context.MODE_PRIVATE)
     private val control = Mutex()
     private val pump = Mutex()

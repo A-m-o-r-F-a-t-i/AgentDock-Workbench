@@ -139,6 +139,16 @@ jobs:
           if android_ns + "usesCleartextTraffic" in application.attrib:
               raise SystemExit("manifest-wide cleartext opt-in is forbidden; use exact NSC loopback domains")
 
+          provider = [p for p in application.findall("provider") if p.attrib.get(android_ns + "name") == "rikka.shizuku.ShizukuProvider"]
+          if provider:
+              if len(provider) != 1 or provider[0].attrib.get(android_ns + "permission") != "android.permission.INTERACT_ACROSS_USERS_FULL":
+                  raise SystemExit("Shizuku Provider must retain system-only access protection")
+              if provider[0].attrib.get(android_ns + "authorities") != "${applicationId}.shizuku":
+                  raise SystemExit("Shizuku authority must follow the actual candidate application ID")
+              executor = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/execution/PhoneExecutor.kt").read_text()
+              if 'preferences.getBoolean("backend_$name", name == "termux_host")' not in executor:
+                  raise SystemExit("Optional Shizuku must not be implicitly enabled")
+
           network = ET.parse("mobile/android/app/src/main/res/xml/network_security_config.xml").getroot()
           base = network.find("base-config")
           if base is None or base.attrib.get("cleartextTrafficPermitted") != "false":
@@ -192,7 +202,7 @@ jobs:
           grep -F 'customPermissionEnabled: Boolean = false' mobile/android/app/src/main/java/dev/agentdock/workbench/model/WorkbenchModels.kt
           grep -F 'desiredNodeState: String = "stopped"' mobile/android/app/src/main/java/dev/agentdock/workbench/model/WorkbenchModels.kt
           if grep -RInE --exclude='Pages.kt' \
-            'BIND_ACCESSIBILITY_SERVICE|SYSTEM_ALERT_WINDOW|android\.permission\.WAKE_LOCK|Shizuku|(^|[^A-Za-z])su[[:space:]]+-c|adb[[:space:]]+shell|MediaPlayer|AudioTrack|setExactAndAllowWhileIdle' \
+            'BIND_ACCESSIBILITY_SERVICE|SYSTEM_ALERT_WINDOW|android\.permission\.WAKE_LOCK|(^|[^A-Za-z])su[[:space:]]+-c|adb[[:space:]]+shell|MediaPlayer|AudioTrack|setExactAndAllowWhileIdle' \
             mobile/android/app/src/main mobile/android/termux; then
             exit 1
           fi

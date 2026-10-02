@@ -27,4 +27,6 @@
 - 归档拒绝遍历、绝对路径、反斜线、链接、特殊文件、重复成员、文件/目录冲突和超限展开。
 - 数据快照包含非跟随清单和树摘要；损坏快照不恢复。
 - SAF 与 Termux 路径分别授权；APK 不申请广域共享存储权限。
-- 无 root、ADB、Shizuku、Accessibility、隐藏 API、静音音频、WakeLock 循环或一分钟精确闹钟保活。
+- 基础 Core、部署和守护不依赖 root、ADB 或 Shizuku。可选 Shizuku 系统执行使用显式授权、受保护 Provider、独立 UserService 与既有 Core 权限；没有无线 ADB 配对实现或隐式提权回退。
+- 不使用 Accessibility、悬浮窗、静音音频、WakeLock 循环或一分钟精确闹钟保活。Shizuku 不用于绕过用户停止节点的意图。
+- Shizuku UserService 中的独立受管进程组具有远端期限，实际身份通过探测报告。Binder 丢失保留未知状态，详情见 shizuku-provider.md。
