@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/requesttrace"
@@ -44,16 +43,43 @@ type Binding = ExecutionScope
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 
+func validIdentifier(value string) bool {
+	if len(value) == 0 || len(value) > 80 {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validConversationIdentifier(value string) bool {
+	if len(value) != len("conv_")+32 || value[:len("conv_")] != "conv_" {
+		return false
+	}
+	for i := len("conv_"); i < len(value); i++ {
+		char := value[i]
+		if char < '0' || char > '9' && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func (b ExecutionScope) Validate() error {
 	if b.RequestID != "" && !requesttrace.ValidID(b.RequestID) {
 		return errors.New("invalid request_id")
 	}
 	for _, id := range []string{b.TaskID, b.ThreadID, b.StepID, b.WorkspaceID, b.CallID, b.ParentCallID, b.RetryOfCallID} {
-		if id != "" && !identifier.MatchString(id) {
+		if id != "" && !validIdentifier(id) {
 			return errors.New("invalid activity binding identifier")
 		}
 	}
-	if b.ConversationID != "" && !conversationIdentifier.MatchString(b.ConversationID) {
+	if b.ConversationID != "" && !validConversationIdentifier(b.ConversationID) {
 		return errors.New("invalid conversation_id")
 	}
 	if b.CallID != "" && (b.ParentCallID == b.CallID || b.RetryOfCallID == b.CallID) {
@@ -154,6 +180,15 @@ func FromContext(ctx context.Context) Binding {
 }
 
 func validKind(kind string) bool {
-	parts := strings.Split(kind, ".")
-	return len(parts) == 2 && identifier.MatchString(parts[0]) && identifier.MatchString(parts[1])
+	dot := -1
+	for i := 0; i < len(kind); i++ {
+		if kind[i] != '.' {
+			continue
+		}
+		if dot >= 0 {
+			return false
+		}
+		dot = i
+	}
+	return dot > 0 && dot < len(kind)-1 && validIdentifier(kind[:dot]) && validIdentifier(kind[dot+1:])
 }
