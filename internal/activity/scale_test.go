@@ -59,6 +59,11 @@ func TestExecutionProjectionScale100k(t *testing.T) {
 	if err = store.saveState(sequenceState{Seq: 100000}); err != nil {
 		t.Fatal(err)
 	}
+	// Fixture construction creates encoder and formatting garbage that is not
+	// present when a process cold-opens an existing journal. Collect it before
+	// timing so the unchanged 2s contract measures projection work rather than
+	// cleanup from setup or an earlier -count iteration.
+	runtime.GC()
 	ctx := context.Background()
 	started := time.Now()
 	stats, byConversation, err := store.CallStatistics(ctx)
