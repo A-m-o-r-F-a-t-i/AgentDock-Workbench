@@ -74,11 +74,9 @@ public partial class MainWindow
         {
             using var client = new ActivityClient(_runtime);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            var overviewTask = client.ExecutionGetAsync("/internal/runtime/execution", timeout.Token);
-            var conversationsTask = client.ExecutionGetAsync("/internal/runtime/conversations?view=all&selection=true&limit=1", timeout.Token);
-            await Task.WhenAll(overviewTask, conversationsTask);
+            var overview = await client.ExecutionGetAsync("/internal/runtime/execution", timeout.Token);
+            ActivitySummaryText.Text = ActivitySummaryFormatter.Format(overview);
             _activitySummaryAt = DateTimeOffset.Now;
-            ActivitySummaryText.Text = ActivitySummaryFormatter.Format(await overviewTask, await conversationsTask);
         }
         catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or System.IO.IOException or System.Text.Json.JsonException or OperationCanceledException or InvalidOperationException)
         {

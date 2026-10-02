@@ -117,8 +117,8 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
         lastInteractionAt = json.date("last_interaction_at") ?? lastToolCallAt
         interactionExpiresAt = json.date("interaction_expires_at")
             ?? lastInteractionAt?.addingTimeInterval(120)
-        recentlyActive = json.optionalFlag("recently_active")
-            ?? Self.isRecentlyActive(lastActivityAt: lastInteractionAt, serverNow: serverNow, inFlight: false)
+        recentlyActive = !terminated && !trashed && !archived && !unattributed && (json.optionalFlag("recently_active")
+            ?? Self.isRecentlyActive(lastActivityAt: lastInteractionAt, serverNow: serverNow, inFlight: false))
         let explicitInsertionEligibility = json.firstField([
             "insertion_eligible",
             "can_insert",
@@ -159,7 +159,7 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
     var navigationID: String { unattributed ? "unattributed" : id }
 
     mutating func advancePresentation(serverNow: Date) {
-        if let expiry = interactionExpiresAt, let interaction = lastInteractionAt {
+        if !terminated, !trashed, !archived, !unattributed, let expiry = interactionExpiresAt, let interaction = lastInteractionAt {
             recentlyActive = interaction <= serverNow && serverNow < expiry
         } else {
             recentlyActive = false
@@ -175,14 +175,12 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
         if terminated { return L10n.text("Terminated") }
         if trashed { return L10n.text("Trash") }
         if archived { return L10n.text("Archived") }
-        if inFlight { return L10n.text("Executing") }
         if recentlyActive { return L10n.text("Recently active") }
         return source.isEmpty ? L10n.text("Historical conversation") : source
     }
 
     var metadataText: String {
         var values = [stateText]
-        if runningCount > 0 { values.append(L10n.format("%@ running", String(describing: runningCount))) }
         if pendingCount > 0 { values.append(L10n.format("%@ pending approval", String(describing: pendingCount))) }
         if let lastActivityAt { values.append(WorkbenchFormatting.relative(lastActivityAt)) }
         return values.joined(separator: " · ")
