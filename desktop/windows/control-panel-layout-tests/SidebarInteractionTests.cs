@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -46,6 +47,13 @@ internal static class SidebarInteractionTests
         root.Measure(new Size(1280, 900)); root.Arrange(new Rect(0, 0, 1280, 900)); root.UpdateLayout();
         list.ScrollIntoView(footer); root.UpdateLayout();
         return Children(root).OfType<Button>().Single(button => button.Name == "ProjectMore" && ReferenceEquals(button.DataContext, footer));
+    }
+    private static Expander Project(ExecutionWindow window, string project)
+    {
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(1280, 900)); root.Arrange(new Rect(0, 0, 1280, 900)); root.UpdateLayout();
+        return Children(root).OfType<Expander>().Single(expander =>
+            expander.DataContext is CollectionViewGroup { Name: WorkspaceGroupKey key } && key.Id == project);
     }
     private static void Click(ExecutionWindow window, string project, bool preview = false)
     {
@@ -94,8 +102,49 @@ internal static class SidebarInteractionTests
         var closed = false;
         try
         {
+            window.ShowInTaskbar = false; window.ShowActivated = false; window.Left = -10000; window.Top = -10000; window.Show();
+            var handle = new WindowInteropHelper(window).Handle;
+            check(handle != IntPtr.Zero, "Sidebar fixture has no native WPF window.");
             Reload(window);
             check(window.Objects.Count(row => !row.IsGroupFooter) == 10, "Initial project pages were not retained.");
+            var projectA = Project(window, "A");
+            var projectB = Project(window, "B");
+            check(projectA.IsExpanded && projectB.IsExpanded, "Initial expanded project state was not rendered.");
+            handler.PromoteB = true;
+            Reload(window); Settled(window);
+            check(window.Objects.First(row => !row.IsGroupFooter).WorkspaceKey.Id == "A",
+                "Passive activity refresh reordered an existing project.");
+            var renderedOrder = CollectionViewSource.GetDefaultView(window.Objects).Groups!
+                .Cast<CollectionViewGroup>().Select(group => ((WorkspaceGroupKey)group.Name).Id).ToArray();
+            check(renderedOrder.SequenceEqual(["A", "B"]),
+                "Rendered project order changed during a passive activity refresh.");
+            check(ReferenceEquals(projectA, Project(window, "A")) && ReferenceEquals(projectB, Project(window, "B")),
+                "A project activity update replaced group containers instead of moving them incrementally.");
+            check(projectA.IsExpanded && projectB.IsExpanded,
+                "A project activity update changed the visible expansion state.");
+            navigation.For("A").Collapse(); Reload(window);
+            var collapsedA = Project(window, "A");
+            check(!collapsedA.IsExpanded, "A deliberate project collapse was not rendered.");
+            handler.PromoteB = false;
+            Reload(window); Settled(window);
+            check(ReferenceEquals(collapsedA, Project(window, "A")) && !collapsedA.IsExpanded,
+                "A collapsed project was recreated or expanded during an activity reorder.");
+            navigation.For("A").Expand(); Reload(window);
+            handler.IncludeC = true;
+            Reload(window); Settled(window);
+            var addedOrder = CollectionViewSource.GetDefaultView(window.Objects).Groups!
+                .Cast<CollectionViewGroup>().Select(group => ((WorkspaceGroupKey)group.Name).Id).ToArray();
+            check(addedOrder.SequenceEqual(["A", "B", "C"]),
+                "A newly discovered project was not appended without disturbing existing projects.");
+            check(ReferenceEquals(projectA, Project(window, "A")) && ReferenceEquals(projectB, Project(window, "B")),
+                "Adding a project replaced existing group containers.");
+            _ = Project(window, "C");
+            handler.IncludeC = false;
+            Reload(window); Settled(window);
+            check(!CollectionViewSource.GetDefaultView(window.Objects).Groups!.Cast<CollectionViewGroup>()
+                    .Any(group => ((WorkspaceGroupKey)group.Name).Id == "C") &&
+                ReferenceEquals(projectA, Project(window, "A")) && ReferenceEquals(projectB, Project(window, "B")),
+                "Removing a project disturbed retained group containers.");
             var before = handler.Requests;
             Click(window, "A", preview: true); Settled(window);
             check(handler.Requests == before + 1 && navigation.For("A").HistoryLimit == 20,
@@ -162,9 +211,6 @@ internal static class SidebarInteractionTests
             // A real HWND is created only in the isolated runner, offscreen and
             // without application startup. Use the actual Button class handlers;
             // never call its click handler directly to claim keyboard coverage.
-            window.ShowInTaskbar=false;window.ShowActivated=false;window.Left=-10000;window.Top=-10000;window.Show();
-            var handle=new WindowInteropHelper(window).Handle;
-            check(handle!=IntPtr.Zero,"Keyboard fixture has no native WPF window");
             foreach(var key in new[]{Key.Return,Key.Space})
             {
                 before=handler.Requests;var limit=navigation.For("B").HistoryLimit;
@@ -208,6 +254,8 @@ internal static class SidebarInteractionTests
         internal int Requests, InFlight, MaximumInFlight, Cancelled, UnexpectedRequests;
         internal string Failure = "";
         internal string DeletedId = "";
+        internal bool PromoteB;
+        internal bool IncludeC;
         private TaskCompletionSource? _next;
         internal TaskCompletionSource DelayNext() => _next = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
@@ -228,7 +276,8 @@ internal static class SidebarInteractionTests
                 if (failure == "http") return Reply("{\"error\":{\"message\":\"isolated transient error\"}}", HttpStatusCode.ServiceUnavailable);
                 if (failure == "json") return Reply("{invalid-json");
                 var modes = body.GetProperty("modes"); var limits = body.GetProperty("limits");
-                var groups = new[] { "A", "B" }.Select(id =>
+                var groupIds = IncludeC ? new[] { "A", "B", "C" } : new[] { "A", "B" };
+                var groups = groupIds.Select(id =>
                 {
                     var mode = modes.TryGetProperty(id, out var value) ? value.GetString() : "auto";
                     var limit = limits.TryGetProperty(id, out value) ? value.GetInt32() : 5;
@@ -236,7 +285,8 @@ internal static class SidebarInteractionTests
                     var count = mode == "collapsed" || empty ? 0 : limit;
                     var malformed = id == "A" && failure == "group";
                     var title = id == "B" && failure == "group" ? "Project B refreshed" : "Project " + id;
-                    return new { workspace_id = id, title, total = 500, recent_count = 5, execution_count = 0, mode, history_limit = limit, history_cursor = "cursor_" + id, has_more = mode != "collapsed"&&!empty, conversations = Enumerable.Range(0, count).Where(index=>id+"-"+index!=DeletedId).Select(index => new { conversation_id = malformed && index == 0 ? "" : id + "-" + index, title = "Conversation " + index, task_ids = Array.Empty<string>(), state = new { workspace_id = id }, statistics = new { } }).ToArray() };
+                    var activity = DateTimeOffset.Parse(id == "C" ? "2026-10-02T14:20:00Z" : id == "B" && PromoteB ? "2026-10-02T14:10:00Z" : id == "A" ? "2026-10-02T14:00:00Z" : "2026-10-02T13:50:00Z");
+                    return new { workspace_id = id, title, total = 500, recent_count = 5, execution_count = 0, mode, history_limit = limit, history_cursor = "cursor_" + id, has_more = mode != "collapsed"&&!empty, last_activity_at = activity, conversations = Enumerable.Range(0, count).Where(index=>id+"-"+index!=DeletedId).Select(index => new { conversation_id = malformed && index == 0 ? "" : id + "-" + index, title = "Conversation " + index, task_ids = Array.Empty<string>(), state = new { workspace_id = id }, statistics = new { } }).ToArray() };
                 }).ToArray();
                 // The service preserves the requested selected conversation even
                 // when its group is collapsed or a search does not show its row.

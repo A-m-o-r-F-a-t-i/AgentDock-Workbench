@@ -3,7 +3,6 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -261,7 +260,8 @@ public partial class ExecutionWindow
             MergeUnacknowledgedSidebarCalls(page.Number("latest_seq"), target, incomingGroups, groupRows, parsed.GroupFailures.Keys.ToHashSet(StringComparer.Ordinal));
         }
         finally { _initializingGroup = false; }
-        var orderedGroups = SidebarOrdering.Stable(freshScope ? [] : previousOrder, incomingGroups, key => key.Id, key => key.LastActivityAt);
+        var orderedGroups = SidebarOrdering.Stable(freshScope ? [] : previousOrder, incomingGroups,
+            key => key.Id, key => key.LastActivityAt, promoteExisting: freshScope);
         var desired = orderedGroups.SelectMany(key => groupRows[key.Id]).ToList();
         _updating = true;
         try
@@ -285,7 +285,9 @@ public partial class ExecutionWindow
                 if (item.Id.Length > 0) _conversationTitles[item.Id] = item.Title;
                 if (selectedKeys.Contains(item.SelectionKey) && !ObjectsList.SelectedItems.Contains(item)) ObjectsList.SelectedItems.Add(item);
             }
-            if (!previousOrder.SequenceEqual(orderedGroups.Select(key => key.Id))) CollectionViewSource.GetDefaultView(Objects).Refresh();
+            // ObservableCollection move/insert/remove notifications already keep
+            // the grouped view ordered. A full refresh destroys every GroupItem,
+            // which makes expanded projects visibly collapse and expand again.
             MoreObjectsButton.Visibility = Visibility.Collapsed;
             SidebarEmpty.Visibility = incomingGroups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }

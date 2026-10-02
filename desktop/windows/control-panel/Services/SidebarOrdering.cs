@@ -7,7 +7,8 @@ internal static class SidebarOrdering
     // Adjacent promotions preserve an existing total order. A threshold comparator
     // would be non-transitive and could oscillate as two projects alternate calls.
     internal static List<T> Stable<T>(IEnumerable<string> previous, IEnumerable<T> incoming,
-        Func<T, string> id, Func<T, DateTimeOffset?> activity, Func<T, bool>? pinned = null)
+        Func<T, string> id, Func<T, DateTimeOffset?> activity, Func<T, bool>? pinned = null,
+        bool promoteExisting = true)
     {
         var remaining = incoming.ToDictionary(id, StringComparer.Ordinal);
         var ordered = new List<T>();
@@ -15,6 +16,7 @@ internal static class SidebarOrdering
             if (remaining.Remove(key, out var item)) ordered.Add(item);
         ordered.AddRange(remaining.Values.OrderByDescending(item => pinned?.Invoke(item) ?? false)
             .ThenByDescending(activity).ThenBy(id, StringComparer.Ordinal));
+        if (!promoteExisting) return ordered;
         for (var i = 1; i < ordered.Count; i++)
         {
             var position = i;
