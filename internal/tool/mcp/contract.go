@@ -55,6 +55,8 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolCall:
 		props["name"] = stringProp("Qualified dynamic MCP tool name in <server>:<tool> form.")
 		toolcontract.ActivityProperties(props)
+		props["interaction_intent"] = map[string]any{"type": "string", "enum": []string{"desktop_gui"}, "description": "Required as desktop_gui for Computer Use tools. Omit for unrelated MCP tools."}
+		props["reason"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 512, "description": "Concrete user-task reason for an explicitly selected Computer Use call. Required with interaction_intent."}
 		// arguments 的结构由上游 MCP tool schema 决定，是这里唯一需要保持开放的动态叶节点。
 		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the schema returned by mcp_tool_inspect.", "additionalProperties": true}
 		required = []string{"name", "arguments"}
