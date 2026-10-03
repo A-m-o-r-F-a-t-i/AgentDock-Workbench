@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -277,5 +278,106 @@ func TestTailscaleOwnershipValidation(t *testing.T) {
 	state.LegacyMCPProxy = "http://127.0.0.1:9000/mcp"
 	if err := state.validate(); err == nil {
 		t.Fatal("accepted inconsistent legacy ownership")
+	}
+}
+
+func TestTailscaleRefreshRewritesOnlyOwnedRoot(t *testing.T) {
+	target := "http://127.0.0.1:8765"
+	original := testServeWithHandlers(true, map[string]*tailscaleHTTPHandler{
+		"/":      {Proxy: target},
+		"/other": {Proxy: "http://127.0.0.1:9000"},
+	})
+	original.TCP["8443"] = &tailscaleTCPHandler{HTTPS: true}
+	fake := newMemoryTailscale(original)
+	change, err := prepareTailscaleRefresh(fake.node, fake.config, ownedTailscaleState(target))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(change.mutations) != 2 || change.mutations[0].after != nil || !change.mutations[1].after.isProxy(target) {
+		t.Fatalf("unexpected refresh plan: %+v", change.mutations)
+	}
+	if err := change.apply(t.Context(), fake.client()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.writeCount != 2 {
+		t.Fatalf("refresh did not perform one remove and one restore: %d", fake.writeCount)
+	}
+	if !sameTailscaleServe(original, fake.config) {
+		t.Fatalf("refresh changed the resulting Serve configuration: %+v", fake.config)
+	}
+	writes := 0
+	for _, command := range fake.commands {
+		joined := " " + strings.Join(command, " ") + " "
+		if strings.Contains(joined, " --set-path=/ ") {
+			writes++
+		}
+		for _, forbidden := range []string{" reset ", " down ", " logout ", " set-raw "} {
+			if strings.Contains(joined, forbidden) {
+				t.Fatalf("unsafe refresh command: %s", joined)
+			}
+		}
+	}
+	if writes != 2 {
+		t.Fatalf("refresh touched paths other than the owned root: %d", writes)
+	}
+}
+
+func TestTailscaleRefreshRollbackRestoresOwnedRoot(t *testing.T) {
+	for _, failure := range []struct {
+		write   int
+		partial bool
+	}{
+		{write: 1}, {write: 1, partial: true}, {write: 2}, {write: 2, partial: true},
+	} {
+		name := fmt.Sprintf("write_%d_partial_%t", failure.write, failure.partial)
+		t.Run(name, func(t *testing.T) {
+			target := "http://127.0.0.1:8765"
+			original := testServeWithHandlers(true, map[string]*tailscaleHTTPHandler{
+				"/":      {Proxy: target},
+				"/other": {Proxy: "http://127.0.0.1:9000"},
+			})
+			fake := newMemoryTailscale(original)
+			fake.failWrite, fake.partialWrite = failure.write, failure.partial
+			change, err := prepareTailscaleRefresh(fake.node, fake.config, ownedTailscaleState(target))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := change.apply(t.Context(), fake.client()); err == nil {
+				t.Fatal("expected refresh failure")
+			}
+			if err := change.rollback(t.Context(), fake.client()); err != nil {
+				t.Fatal(err)
+			}
+			if !sameTailscaleServe(original, fake.config) {
+				t.Fatalf("rollback did not restore original mapping: %+v", fake.config)
+			}
+		})
+	}
+}
+
+func TestTailscaleRefreshRejectsMissingOrForeignOwnership(t *testing.T) {
+	target := "http://127.0.0.1:8765"
+	for _, scenario := range []struct {
+		name   string
+		config *tailscaleServeConfig
+		state  *tailscaleFunnelState
+	}{
+		{name: "disabled", config: testServeWithHandlers(true, map[string]*tailscaleHTTPHandler{"/": {Proxy: target}}), state: func() *tailscaleFunnelState {
+			state := ownedTailscaleState(target)
+			state.Enabled = false
+			return state
+		}()},
+		{name: "foreign_root", config: testServeWithHandlers(true, map[string]*tailscaleHTTPHandler{"/": {Proxy: "http://127.0.0.1:9000"}}), state: ownedTailscaleState(target)},
+		{name: "missing_root", config: testServeWithHandlers(true, map[string]*tailscaleHTTPHandler{"/other": {Proxy: "http://127.0.0.1:9000"}}), state: ownedTailscaleState(target)},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			fake := newMemoryTailscale(scenario.config)
+			if _, err := prepareTailscaleRefresh(fake.node, fake.config, scenario.state); err == nil {
+				t.Fatal("unsafe refresh was accepted")
+			}
+			if fake.writeCount != 0 {
+				t.Fatal("rejected refresh changed configuration")
+			}
+		})
 	}
 }

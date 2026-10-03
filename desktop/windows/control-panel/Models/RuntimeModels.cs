@@ -314,7 +314,7 @@ internal sealed class NexusDeviceIdentity
     public string DeviceToken { get; set; } = "";
 }
 
-public sealed record UrlTestResult(bool Success, int? StatusCode, TimeSpan Elapsed, string Message);
+public sealed record UrlTestResult(bool Success, int? StatusCode, TimeSpan Elapsed, string Message, bool RetryableTransport = false);
 
 public sealed class UpdateCheckResult
 {
