@@ -69,7 +69,7 @@ public sealed partial class RuntimeService
             _tailscaleCache = new(status, DateTimeOffset.UtcNow);
             if (status.LocalReady)
             {
-                _ = _funnelVerification.Ensure(status.PublicUrl + "|" + status.LocalOrigin, ProbeTailscalePublicAsync,
+                _ = _funnelVerification.Ensure(status.PublicUrl + "|" + status.LocalOrigin, ProbeTailscalePublicAsync, RepairTailscalePublicAsync,
                     result => { if (generation == Interlocked.Read(ref _tailscaleGeneration)) _tailscaleCache = new(result, DateTimeOffset.UtcNow); });
             }
             return status;
@@ -97,6 +97,13 @@ public sealed partial class RuntimeService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _tailscaleLifetime.IsCancellationRequested) { throw; }
         catch (Exception error) when (error is IOException or JsonException or InvalidOperationException or System.ComponentModel.Win32Exception or OperationCanceledException) { return FailedProbe(error); }
+    }
+
+    private async Task RepairTailscalePublicAsync(CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _tailscaleLifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromMinutes(6));
+        await RunNativeAgentDockAsync("tunnel", ["repair"], timeout.Token, allowElevation: false).ConfigureAwait(false);
     }
 
     private static NativeTunnelStatus ParseTailscaleStatus(string output)

@@ -15,9 +15,13 @@ func TestRunTunnelCommandRejectsUnknownAction(t *testing.T) {
 }
 
 func TestRunTunnelCommandRequiresRuntimeRoot(t *testing.T) {
-	err := RunTunnelCommand(context.Background(), []string{"start"}, &bytes.Buffer{}, &bytes.Buffer{})
-	if err == nil || !strings.Contains(err.Error(), "--runtime-root") {
-		t.Fatalf("unexpected error: %v", err)
+	for _, action := range []string{"start", "verify", "repair"} {
+		t.Run(action, func(t *testing.T) {
+			err := RunTunnelCommand(context.Background(), []string{action}, &bytes.Buffer{}, &bytes.Buffer{})
+			if err == nil || !strings.Contains(err.Error(), "--runtime-root") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

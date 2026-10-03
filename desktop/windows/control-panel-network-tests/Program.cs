@@ -170,6 +170,20 @@ internal static class Program
         var success = await runtime.TestUrlAsync(origin);
         Check(success.Success && local.Count == 4, "Actual TestUrlAsync wiring bypasses proxy for loopback.");
         Check(local.Requests.All(request => !request.Headers.ContainsKey("Authorization")), "Public check does not borrow runtime bearer.");
+        var beforeRetry = local.Count;
+        var clientCreations = 0;
+        var recovered = await RuntimeService.TestPublicDiscoveryWithClientFactoryAsync(new Uri(origin), () =>
+        {
+            if (Interlocked.Increment(ref clientCreations) == 1) return new HttpClient(new TransportFailureHandler());
+            return new HttpClient(new SocketsHttpHandler
+            {
+                UseProxy = false,
+                AllowAutoRedirect = false,
+                ConnectTimeout = TimeSpan.FromSeconds(6)
+            });
+        }, CancellationToken.None);
+        Check(recovered.Success && clientCreations == 2 && local.Count == beforeRetry + 4,
+            "One pre-response transport failure is retried with a fresh native session only once.");
         var invalid = await runtime.TestUrlAsync(ProxyOrigin);
         Check(!invalid.Success, "Public entrypoint still rejects remote plaintext HTTP.");
         await using var recipient = new HttpFixture(_ => new(200));
@@ -181,7 +195,7 @@ internal static class Program
             ? new(401, "{}", "WWW-Authenticate: Bearer resource_metadata=\"https://wrong.invalid/metadata\"\r\n")
             : Discovery(request, origin);
         var mismatch = await runtime.TestUrlAsync(origin);
-        Check(!mismatch.Success && local.Count == before + 2, "Origin mismatch stops discovery without fallback/retry.");
+        Check(!mismatch.Success && !mismatch.RetryableTransport && local.Count == before + 2, "Origin mismatch stops discovery without fallback/retry.");
         before = local.Count;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         local.Respond = _ => { started.TrySetResult(); return new(200, "{}", DelayMilliseconds: 2000); };
@@ -190,7 +204,7 @@ internal static class Program
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         cancel.Cancel();
         var cancelled = await pending.WaitAsync(TimeSpan.FromSeconds(2));
-        Check(!cancelled.Success && local.Count == before + 1, "Cancellation terminates in-flight discovery without replay.");
+        Check(!cancelled.Success && !cancelled.RetryableTransport && local.Count == before + 1, "Cancellation terminates in-flight discovery without replay.");
         local.Respond = request => Discovery(request, origin);
         Check((await runtime.TestUrlAsync(origin)).Success, "Discovery recovers after cancellation without recreating RuntimeService.");
         Completed.Add("public-address-auth-redirect-cancellation-contract");
@@ -213,6 +227,12 @@ internal static class Program
         })),
         _ => new(404)
     };
+
+    private sealed class TransportFailureHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(new HttpRequestException("synthetic stale transport", inner: null, statusCode: null));
+    }
 
     private static async Task RunEnvironmentChild(string origin, string proxy, string bypass)
     {

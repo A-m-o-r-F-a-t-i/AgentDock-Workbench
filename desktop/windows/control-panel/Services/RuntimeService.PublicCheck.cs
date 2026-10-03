@@ -15,8 +15,32 @@ public sealed partial class RuntimeService
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.UserInfo.Length > 0 ||
             (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
             return new UrlTestResult(false, null, TimeSpan.Zero, UiText.Get("InvalidPublicAddress"));
-        using var client = new HttpClient(RuntimeHttpClients.CreatePublicHandler(uri));
-        return await CheckPublicDiscoveryAsync(client, uri.GetLeftPart(UriPartial.Authority), cancellationToken);
+        return await TestPublicDiscoveryWithClientFactoryAsync(
+            uri,
+            () => new HttpClient(RuntimeHttpClients.CreatePublicHandler(uri)),
+            cancellationToken);
+    }
+
+    // A failed WinHTTP session can remain poisoned after a proxy, adapter, sleep,
+    // or long-lived Funnel transition. Only a pre-response transport failure gets
+    // one fresh native session; HTTP/protocol failures and cancelled requests are
+    // never replayed.
+    internal static async Task<UrlTestResult> TestPublicDiscoveryWithClientFactoryAsync(
+        Uri uri,
+        Func<HttpClient> createClient,
+        CancellationToken cancellationToken)
+    {
+        UrlTestResult? result = null;
+        var origin = uri.GetLeftPart(UriPartial.Authority);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var client = createClient() ?? throw new InvalidOperationException("Public HTTP client factory returned null.");
+            result = await CheckPublicDiscoveryAsync(client, origin, cancellationToken);
+            if (result.Success || !result.RetryableTransport || attempt == 1) return result;
+            try { await Task.Delay(TimeSpan.FromMilliseconds(350), cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return result; }
+        }
+        return result ?? new UrlTestResult(false, null, TimeSpan.Zero, UiText.Get("AccessTimeout"));
     }
 
     // This check is anonymous and never attaches local credentials. OAuth consent
@@ -80,8 +104,10 @@ public sealed partial class RuntimeService
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException or InvalidDataException or JsonException or InvalidOperationException or FormatException)
         {
             var detail = ex is OperationCanceledException ? UiText.Get("AccessTimeout") : ex.Message;
+            var retryableTransport = status is null && !cancellationToken.IsCancellationRequested &&
+                (ex is HttpRequestException { StatusCode: null } or IOException);
             return new UrlTestResult(false, status, clock.Elapsed, UiText.Format("PublicCheckError", stage, origin + path,
-                (status is null ? "" : $"HTTP {status} · ") + detail, DateTimeOffset.Now));
+                (status is null ? "" : $"HTTP {status} · ") + detail, DateTimeOffset.Now), retryableTransport);
         }
     }
 

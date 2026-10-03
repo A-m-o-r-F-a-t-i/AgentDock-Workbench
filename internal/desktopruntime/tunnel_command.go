@@ -116,6 +116,15 @@ func RunTunnelCommand(ctx context.Context, args []string, stdout, stderr io.Writ
 			return err
 		}
 		return json.NewEncoder(stdout).Encode(status)
+	case "repair":
+		root, err := parseRuntimeRoot("agentdock tunnel repair", args[1:], stderr)
+		if err != nil {
+			return err
+		}
+		if err := platformRepairTailscale(ctx, root); err != nil {
+			return err
+		}
+		return json.NewEncoder(stdout).Encode(serviceCommandResult{Action: "repair", Completed: true})
 	case "start", "stop", "restart", "regenerate":
 		action := args[0]
 		runtimeRoot, err := parseRuntimeRoot("agentdock tunnel "+action, args[1:], stderr)
@@ -215,5 +224,5 @@ func parseCommandBoolean(command, value string) (bool, error) {
 }
 
 func tunnelCommandUsageError() error {
-	return errors.New("用法：agentdock tunnel <launch|status|start|stop|restart|regenerate|configure|autostart> --runtime-root <目录>")
+	return errors.New("用法：agentdock tunnel <launch|status|verify|repair|start|stop|restart|regenerate|configure|autostart> --runtime-root <目录>")
 }

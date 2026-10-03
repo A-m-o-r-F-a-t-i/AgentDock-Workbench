@@ -178,6 +178,43 @@ func prepareTailscaleMapping(node tailscaleNode, config *tailscaleServeConfig, t
 	return change, nil
 }
 
+// prepareTailscaleRefresh creates an explicit remove-and-restore transaction for
+// the exact AgentDock-owned public root. Re-applying an identical Funnel command
+// is otherwise a no-op and does not force tailscaled to rebuild stale ingress
+// state after a long-running network failure. Foreign paths remain untouched.
+func prepareTailscaleRefresh(node tailscaleNode, config *tailscaleServeConfig, state *tailscaleFunnelState) (*tailscaleMappingChange, error) {
+	if state == nil || !state.Enabled {
+		return nil, tailscaleProblem("disabled", "Funnel 未启用，拒绝刷新公网映射")
+	}
+	steady, err := prepareTailscaleMapping(node, config, state.LocalOrigin, state, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(steady.mutations) != 0 {
+		return nil, tailscaleProblem("mapping_changed", "AgentDock Funnel 映射已变化，拒绝按旧所有权刷新")
+	}
+	hostPort := node.DNSName + ":" + tailscaleFunnelPort
+	root := config.handler(hostPort, "/")
+	if !config.AllowFunnel[hostPort] || root == nil || !root.isProxy(state.LocalOrigin) {
+		return nil, tailscaleProblem("ownership_conflict", "AgentDock Funnel 根映射不再属于当前运行实例")
+	}
+	withoutRoot := expectedTailscalePath(config, hostPort, "/", nil, true)
+	return &tailscaleMappingChange{
+		node:   node,
+		before: cloneTailscaleServe(config),
+		mutations: []tailscalePathMutation{
+			{
+				path: "/", before: cloneTailscaleHandler(root), beforePublic: true,
+				afterPublic: true,
+			},
+			{
+				path: "/", after: cloneTailscaleHandler(root),
+				beforePublic: withoutRoot.AllowFunnel[hostPort], afterPublic: true,
+			},
+		},
+	}, nil
+}
+
 // Targets included in diagnostics cannot contain credentials or query strings.
 func safeTailscaleTarget(handler *tailscaleHTTPHandler) string {
 	if handler == nil {

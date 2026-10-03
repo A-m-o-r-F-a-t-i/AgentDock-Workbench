@@ -8,4 +8,5 @@
   <ItemGroup><Compile Include="../control-panel/Models/ToolOutputSettings.cs" Link="ToolOutputSettings.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Models/InsertionPresentation.cs" Link="InsertionPresentation.cs"/><Compile Include="../control-panel/Models/InsertionTimeline.cs" Link="InsertionTimeline.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Models/ActivitySummaryFormatter.cs" Link="ActivitySummaryFormatter.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../control-panel/Models/NativeTunnelStatus.cs" Link="NativeTunnelStatus.cs"/><Compile Include="../control-panel/Services/FunnelVerificationService.cs" Link="FunnelVerificationService.cs"/></ItemGroup>
 </Project>
