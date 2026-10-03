@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/envstore"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	"github.com/uvwt/agentdock/internal/plugin"
@@ -75,7 +76,7 @@ func (s *Service) CapabilityItems(ctx context.Context, directory *plugin.Directo
 			continue
 		}
 		items = append(items, CapabilityItem{
-			Name: server.Name, Description: server.Description, Plugin: member.Plugin,
+			Name: server.Name, Description: capabilityrouting.ServerDescription(member.Plugin, server.Name, server.Description), Plugin: member.Plugin,
 			Revision: server.Revision, ServerVersion: server.ServerVersion, ToolCountKnown: server.ToolCountKnown,
 			Enabled: server.Enabled, Status: server.Status,
 			ToolCount: server.ToolCount, LastErrorCode: server.LastErrorCode,
@@ -93,8 +94,9 @@ func (s *Service) CapabilityItem(name string) (CapabilityItem, bool, error) {
 		}
 		return CapabilityItem{}, false, err
 	}
+	pluginName := s.pluginName(server.Name)
 	return CapabilityItem{
-		Name: server.Name, Description: server.Description, Plugin: s.pluginName(server.Name),
+		Name: server.Name, Description: capabilityrouting.ServerDescription(pluginName, server.Name, server.Description), Plugin: pluginName,
 		Revision: server.Revision, ServerVersion: server.ServerVersion, ToolCountKnown: server.ToolCountKnown,
 		Enabled: server.Enabled, Status: server.Status,
 		ToolCount: server.ToolCount, LastErrorCode: server.LastErrorCode,
@@ -136,7 +138,7 @@ func (s *Service) PluginCapabilityItem(ctx context.Context, name string) (Capabi
 	for _, tool := range tools {
 		items = append(items, CapabilityToolItem{
 			Name: tool.Name, QualifiedName: tool.QualifiedName, Title: tool.Title,
-			Description: tool.Description, Server: tool.Server,
+			Description: capabilityrouting.ToolDescription(item.Plugin, tool.QualifiedName, tool.Description), Server: tool.Server,
 		})
 	}
 	if refreshed, ok, refreshErr := s.CapabilityItem(name); refreshErr == nil && ok {
