@@ -132,6 +132,7 @@ scripts:
     class: ci
     owner: release
     public_contract: false
+    oversize_justification: 同一事务入口必须将跨平台同SHA证据、公开安装器白名单、远端Release数字身份、摘要校验、可恢复草稿以及显式同版本预发布替换绑定为一个原子发布边界；拆分会使验证后的本地制品与远端删除、上传、重新发布步骤失去共享身份和失败恢复状态。
     notes: 全平台同SHA报告和摘要校验，上传完整草稿后按显式通道发布；预发布保留正式Latest。
   - path: scripts/test/check-workbench-brand.py
     class: test
