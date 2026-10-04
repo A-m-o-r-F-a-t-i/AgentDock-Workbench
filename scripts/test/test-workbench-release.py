@@ -102,6 +102,8 @@ class EnhancedReleaseGate(ReleaseGate):
         recovery=(ROOT/'.github/workflows/workbench-publish-existing.yml').read_text()
         self.assertIn(">= (1,1,7)",recovery)
         self.assertIn('Native Windows ARM64 install and uninstall',recovery)
+        self.assertIn('replace_published:',recovery)
+        self.assertIn('--replace-published',recovery)
     def setUp(self):
         super().setUp()
         for arch in ['amd64','arm64']:
@@ -169,8 +171,8 @@ class PublicationGate(unittest.TestCase):
         self.commit='a'*40;self.tag='v1.1.7';self.endpoint=f'repos/{release.REPOSITORY}/releases/123'
         (self.dist/'package.zip').write_bytes(b'verified package')
         path=self.dist/'package.zip'
-        self.asset={'name':path.name,'size':path.stat().st_size,'digest':'sha256:'+release.digest(path),'state':'uploaded'}
-        self.record={'id':123,'tag_name':self.tag,'draft':True,'prerelease':False,'name':'AgentDock Workbench 1.1.7','assets':[self.asset],'html_url':'https://github.com/example/release'}
+        self.asset={'id':456,'name':path.name,'size':path.stat().st_size,'digest':'sha256:'+release.digest(path),'state':'uploaded'}
+        self.record={'id':123,'tag_name':self.tag,'target_commitish':self.commit,'draft':True,'prerelease':False,'immutable':False,'name':'AgentDock Workbench 1.1.7','assets':[self.asset],'html_url':'https://github.com/example/release'}
         self.commands=[];self.lookup=[]
         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
         self.latest=self.stable
@@ -183,12 +185,21 @@ class PublicationGate(unittest.TestCase):
             if args[4]==f'repos/{release.REPOSITORY}/releases':
                 self.record['assets']=[];return json.dumps(self.record)
             if args[4].startswith(f'https://uploads.github.com/repos/{release.REPOSITORY}/releases/123/assets?name='):
-                self.record['assets']=[self.asset];return json.dumps(self.asset)
+                self.record['assets']=[asset for asset in self.record['assets'] if asset['name']!=self.asset['name']]+[self.asset]
+                return json.dumps(self.asset)
+        if args[:4]==('gh','api','--method','DELETE'):
+            asset_id=int(args[4].rsplit('/',1)[1])
+            self.record['assets']=[asset for asset in self.record['assets'] if asset.get('id')!=asset_id]
+            return ''
         if args[:4]==('gh','api','--method','PATCH'):
             self.assertEqual(args[4],self.endpoint)
-            self.record['draft']=False
-            self.record['prerelease']='prerelease=true' in args
-            self.record['name']=next(value.split('=',1)[1] for value in args if value.startswith('name='))
+            if 'draft=true' in args:self.record['draft']=True
+            if 'draft=false' in args:self.record['draft']=False
+            if 'prerelease=true' in args:self.record['prerelease']=True
+            if 'prerelease=false' in args:self.record['prerelease']=False
+            for value in args:
+                if value.startswith('target_commitish='):self.record['target_commitish']=value.split('=',1)[1]
+                if value.startswith('name='):self.record['name']=value.split('=',1)[1]
             if 'make_latest=true' in args:self.latest=self.record
             return json.dumps(self.record)
         if args[:2]==('gh','api'):
@@ -198,8 +209,8 @@ class PublicationGate(unittest.TestCase):
             if target==self.endpoint:return json.dumps(self.record)
             if target.endswith('/releases/latest'):return json.dumps(self.latest)
         raise AssertionError('Unexpected command '+repr(args))
-    def publish(self):release.publish(self.dist,'1.1.7',self.commit)
-    def mutations(self):return [args for args in self.commands if args[:4] in [('gh','api','--method','POST'),('gh','api','--method','PATCH')]]
+    def publish(self,prerelease=False,replace_published=False):release.publish(self.dist,'1.1.7',self.commit,prerelease,replace_published)
+    def mutations(self):return [args for args in self.commands if args[:4] in [('gh','api','--method','POST'),('gh','api','--method','PATCH'),('gh','api','--method','DELETE')]]
     def test_existing_complete_draft_uses_id_without_reupload(self):
         self.publish()
         self.assertFalse(self.record['draft'])
@@ -231,6 +242,35 @@ class PublicationGate(unittest.TestCase):
     def test_published_release_is_not_mutated(self):
         self.record['draft']=False
         with self.assertRaisesRegex(RuntimeError,'already published'):self.publish()
+        self.assertEqual(self.mutations(),[])
+    def test_explicit_published_prerelease_replacement_reconciles_assets(self):
+        self.record['draft']=False;self.record['prerelease']=True
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(True,True)
+        mutations=self.mutations()
+        self.assertEqual([args[3] for args in mutations],['PATCH','DELETE','POST','PATCH'])
+        self.assertIn('draft=true',mutations[0]);self.assertIn('draft=false',mutations[-1])
+        self.assertFalse(self.record['draft']);self.assertTrue(self.record['prerelease'])
+        self.assertEqual(self.record['target_commitish'],self.commit)
+        self.assertEqual(self.record['assets'],[self.asset]);self.assertEqual(self.latest['id'],99)
+    def test_explicit_replacement_resumes_from_recoverable_draft(self):
+        self.record['draft']=True;self.record['prerelease']=True
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(True,True)
+        self.assertEqual([args[3] for args in self.mutations()],['DELETE','POST','PATCH'])
+        self.assertFalse(self.record['draft']);self.assertEqual(self.record['assets'],[self.asset])
+    def test_explicit_replacement_rejects_stable_release_before_mutation(self):
+        self.record['draft']=False;self.record['prerelease']=False
+        with self.assertRaisesRegex(RuntimeError,'existing prerelease'):self.publish(True,True)
+        self.assertEqual(self.mutations(),[])
+    def test_explicit_replacement_rejects_unexpected_asset_before_unpublish(self):
+        self.record['draft']=False;self.record['prerelease']=True
+        self.record['assets'].append(dict(self.asset,id=457,name='foreign.zip'))
+        with self.assertRaisesRegex(RuntimeError,'unexpected assets'):self.publish(True,True)
+        self.assertEqual(self.mutations(),[]);self.assertFalse(self.record['draft'])
+    def test_explicit_replacement_requires_existing_release(self):
+        self.lookup=[[]]
+        with self.assertRaisesRegex(RuntimeError,'requires an existing release'):self.publish(True,True)
         self.assertEqual(self.mutations(),[])
     def test_duplicate_drafts_are_not_guessed(self):
         self.lookup=[[self.record,dict(self.record,id=124)]]

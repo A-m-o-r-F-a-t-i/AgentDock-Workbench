@@ -193,20 +193,37 @@ def find_release(tag: str) -> dict | None:
     raise RuntimeError('Release listing exceeded its bounded search; no release was created')
 
 
-def missing_release_assets(record: dict,expected: dict[str,dict]) -> list[str]:
+def release_assets(record: dict,expected: dict[str,dict]) -> dict[str,dict]:
     rows=record.get('assets',[])
-    actual={asset['name']:asset for asset in rows}
-    if len(actual)!=len(rows) or set(actual)-set(expected):
+    if not isinstance(rows,list):
+        raise RuntimeError('Remote release assets are invalid')
+    actual={}
+    for asset in rows:
+        if not isinstance(asset,dict) or not isinstance(asset.get('name'),str) or not asset['name'] or asset['name'] in actual:
+            raise RuntimeError('Remote release contains duplicate or unexpected assets')
+        actual[asset['name']]=asset
+    if set(actual)-set(expected):
         raise RuntimeError('Remote release contains duplicate or unexpected assets')
+    return actual
+
+
+def asset_matches(asset: dict,expected: dict) -> bool:
+    return asset.get('state')=='uploaded' and asset.get('size')==expected['size'] and asset.get('digest')==expected['digest']
+
+
+def missing_release_assets(record: dict,expected: dict[str,dict]) -> list[str]:
+    actual=release_assets(record,expected)
     for name,asset in actual.items():
-        if asset.get('state')!='uploaded' or asset.get('size')!=expected[name]['size'] or asset.get('digest')!=expected[name]['digest']:
+        if not asset_matches(asset,expected[name]):
             raise RuntimeError(f'Remote asset integrity mismatch: {name}; existing bytes were not overwritten')
     return sorted(set(expected)-set(actual))
 
 
-def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
+def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_published: bool=False) -> None:
     if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY:
         raise RuntimeError('Publication is restricted to the user fork')
+    if replace_published and not prerelease:
+        raise RuntimeError('Published replacement is restricted to prereleases')
     tag='v'+version
     title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
     prerelease_field='prerelease='+str(prerelease).lower()
@@ -222,23 +239,6 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
     else:
         subprocess.run(['git','tag',tag,commit],cwd=ROOT,check=True)
         subprocess.run(['git','push','origin',f'refs/tags/{tag}'],cwd=ROOT,check=True)
-    record=find_release(tag)
-    if record is None:
-        # Retain the identity returned by the successful POST. A subsequent
-        # list can temporarily omit the freshly created draft. Never repeat
-        # creation merely because a collection read did not show it yet.
-        record=json.loads(run('gh','api','--method','POST',f'repos/{REPOSITORY}/releases',
-            '-f',f'tag_name={tag}','-f',f'target_commitish={commit}','-F','draft=true',
-            '-F',prerelease_field,'-f',latest_field,'-f',f'name={title}','-F',f'body=@{notes}'))
-    if not isinstance(record,dict) or type(record.get('id')) is not int or record['id']<=0 or record.get('tag_name')!=tag:
-        raise RuntimeError('Created release could not be located; preserve draft and inspect before retrying')
-    if not record.get('draft'):
-        raise RuntimeError('Refusing to replace an already published release')
-    release_id=record['id']
-    endpoint=f'repos/{REPOSITORY}/releases/{release_id}'
-    record=json.loads(run('gh','api',endpoint))
-    if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
-        raise RuntimeError('Release identity or draft state changed before upload')
     public_names=public_installers(version)
     files=[]
     for name in public_names:
@@ -247,7 +247,55 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
             raise RuntimeError(f'Missing public installer: {name}')
         files.append(path)
     expected={path.name:{'size':path.stat().st_size,'digest':'sha256:'+digest(path)} for path in files}
-    missing=missing_release_assets(record,expected)
+    record=find_release(tag)
+    if record is None:
+        if replace_published:
+            raise RuntimeError('Published replacement requires an existing release')
+        # Retain the identity returned by the successful POST. A subsequent
+        # list can temporarily omit the freshly created draft. Never repeat
+        # creation merely because a collection read did not show it yet.
+        record=json.loads(run('gh','api','--method','POST',f'repos/{REPOSITORY}/releases',
+            '-f',f'tag_name={tag}','-f',f'target_commitish={commit}','-F','draft=true',
+            '-F',prerelease_field,'-f',latest_field,'-f',f'name={title}','-F',f'body=@{notes}'))
+    if not isinstance(record,dict) or type(record.get('id')) is not int or record['id']<=0 or record.get('tag_name')!=tag:
+        raise RuntimeError('Created release could not be located; preserve draft and inspect before retrying')
+    release_id=record['id']
+    endpoint=f'repos/{REPOSITORY}/releases/{release_id}'
+    # Reject unknown names before a published release is hidden. This keeps the
+    # explicit replacement path scoped to the installer set assembled above.
+    release_assets(record,expected)
+    if not record.get('draft'):
+        if not replace_published:
+            raise RuntimeError('Refusing to replace an already published release')
+        if record.get('prerelease') is not True:
+            raise RuntimeError('Published replacement requires an existing prerelease')
+        if record.get('immutable') is True:
+            raise RuntimeError('Published prerelease is immutable and cannot be replaced')
+        record=json.loads(run('gh','api','--method','PATCH',endpoint,
+            '-F','draft=true','-F','prerelease=true','-f','make_latest=false','-f',f'target_commitish={commit}'))
+    elif replace_published and record.get('prerelease') is not True:
+        raise RuntimeError('Published replacement requires an existing prerelease')
+    record=json.loads(run('gh','api',endpoint))
+    if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
+        raise RuntimeError('Release identity or draft state changed before upload')
+    if replace_published:
+        actual=release_assets(record,expected)
+        stale=[]
+        for name,asset in actual.items():
+            if not asset_matches(asset,expected[name]):
+                asset_id=asset.get('id')
+                if type(asset_id) is not int or asset_id<=0:
+                    raise RuntimeError(f'Remote stale asset has no stable numeric ID: {name}')
+                stale.append((name,asset_id))
+        for _,asset_id in stale:
+            run('gh','api','--method','DELETE',f'repos/{REPOSITORY}/releases/assets/{asset_id}')
+        record=json.loads(run('gh','api',endpoint))
+        actual=release_assets(record,expected)
+        if any(not asset_matches(asset,expected[name]) for name,asset in actual.items()):
+            raise RuntimeError('Remote stale assets remained after explicit deletion')
+        missing=sorted(set(expected)-set(actual))
+    else:
+        missing=missing_release_assets(record,expected)
     for name in missing:
         # Upload by the retained numeric ID as well. No tag-to-draft lookup is
         # delegated to a second client, and existing bytes are never clobbered.
@@ -261,11 +309,12 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False) -> None:
         raise RuntimeError('Release identity or draft state changed before publication')
     if missing_release_assets(record,expected):raise RuntimeError('Remote draft asset set is incomplete')
     run('gh','api','--method','PATCH',endpoint,'-F','draft=false','-F',prerelease_field,
-        '-f',latest_field,'-f',f'name={title}','-F',f'body=@{notes}')
+        '-f',latest_field,'-f',f'target_commitish={commit}','-f',f'name={title}','-F',f'body=@{notes}')
     published=json.loads(run('gh','api',endpoint if prerelease else f'repos/{REPOSITORY}/releases/latest'))
     if (published.get('id')!=release_id or published['tag_name']!=tag or published['draft'] or
             published['prerelease']!=prerelease or published['name']!=title):
         raise RuntimeError('Published release identity/channel mismatch')
+    if missing_release_assets(published,expected):raise RuntimeError('Published release asset set is incomplete')
     if prerelease and json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id')!=previous_latest:
         raise RuntimeError('Prerelease unexpectedly changed the stable Latest release')
     print(published['html_url'])
@@ -282,11 +331,13 @@ def main() -> None:
     parser.add_argument('--commit',required=True)
     parser.add_argument('--publish',action='store_true')
     parser.add_argument('--prerelease',action='store_true',help='Publish as a prerelease without replacing stable Latest')
+    parser.add_argument('--replace-published',action='store_true',help='Explicitly replace an existing published prerelease after full artifact verification')
     parser.add_argument('--source-root',type=Path,default=ROOT,help='Verified build source checkout; does not change the artifact SHA')
     args=parser.parse_args()
+    if args.replace_published and not args.publish:parser.error('--replace-published requires --publish')
     ROOT=args.source_root.resolve()
     manifest=assemble(args.input.resolve(),args.dist.resolve(),args.version,args.commit,args.prerelease)
     print(f'Verified {len(manifest["assets"])} payloads across the verified target platforms')
-    if args.publish:publish(args.dist.resolve(),args.version,args.commit,args.prerelease)
+    if args.publish:publish(args.dist.resolve(),args.version,args.commit,args.prerelease,args.replace_published)
 
 if __name__=='__main__':main()

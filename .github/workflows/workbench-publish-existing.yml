@@ -21,6 +21,10 @@ on:
         description: 'Recover a prerelease without changing stable Latest'
         type: boolean
         default: false
+      replace_published:
+        description: 'Explicitly replace the already published prerelease for this verified tag'
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -41,6 +45,7 @@ jobs:
       SOURCE_SHA: ${{ inputs.commit }}
       PRODUCT_VERSION: ${{ inputs.version }}
       PRERELEASE: ${{ inputs.prerelease || false }}
+      REPLACE_PUBLISHED: ${{ inputs.replace_published || false }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -118,11 +123,12 @@ jobs:
           run-id: ${{ inputs.run_id }}
           name: workbench-android-${{ inputs.run_id }}
           path: input/android
-      - name: Verify original payloads and finish draft by numeric ID
+      - name: Verify original payloads and publish by numeric ID
         run: |
           set -euo pipefail
           args=()
           if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          if [[ "$REPLACE_PUBLISHED" == true ]]; then args+=(--replace-published); fi
           python3 scripts/release/publish-workbench.py --source-root verified-source --input input --dist dist/release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --publish "${args[@]}"
       - name: Record recovery and source identities
         run: |
