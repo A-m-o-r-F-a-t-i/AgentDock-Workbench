@@ -43,9 +43,11 @@ type InspectRequest struct {
 
 // CallRequest.Arguments 是第三方 MCP 工具 schema 决定的动态叶子，必须保持开放对象。
 type CallRequest struct {
-	activity.Binding `json:"-"`
-	Name             string         `json:"name"`
-	Arguments        map[string]any `json:"arguments"`
+	activity.Binding  `json:"-"`
+	Name              string         `json:"name"`
+	Arguments         map[string]any `json:"arguments"`
+	InteractionIntent string         `json:"interaction_intent,omitempty"`
+	Reason            string         `json:"reason,omitempty"`
 }
 
 func intValue(value *int, fallback int) int {

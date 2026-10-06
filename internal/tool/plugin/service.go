@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	registry "github.com/uvwt/agentdock/internal/plugin"
 )
 
@@ -65,7 +66,8 @@ func (s *Service) CapabilityItems() ([]registry.Definition, error) {
 	}
 	items := make([]registry.Definition, 0, len(definitions))
 	for _, definition := range definitions {
-		if definition.Enabled && definition.Heavy {
+		if definition.Enabled && (definition.Heavy || capabilityrouting.RequiresExplicitPluginLoad(definition.Name)) {
+			definition.Description = capabilityrouting.PluginDescription(definition.Name, definition.Description)
 			items = append(items, definition)
 		}
 	}
@@ -212,6 +214,7 @@ func (s *Service) Load(ctx context.Context, request LoadRequest) (Result, error)
 			unavailable = append(unavailable, map[string]any{"type": "skill", "name": name, "reason": reason})
 			continue
 		}
+		item.Description = capabilityrouting.SkillDescription(definition.Name, item.Name, item.Description)
 		skillItems = append(skillItems, item)
 	}
 	for _, name := range definition.MCPServers {
@@ -233,21 +236,29 @@ func (s *Service) Load(ctx context.Context, request LoadRequest) (Result, error)
 				"code": item.LastErrorCode, "message": item.ToolLoadError,
 			})
 		}
+		item.Description = capabilityrouting.ServerDescription(definition.Name, item.Name, item.Description)
+		for index := range item.Tools {
+			item.Tools[index].Description = capabilityrouting.ToolDescription(definition.Name, item.Tools[index].QualifiedName, item.Tools[index].Description)
+		}
 		mcpServers = append(mcpServers, item)
 	}
 
 	instructions := []string{}
+	if capabilityrouting.RequiresExplicitPluginLoad(definition.Name) {
+		instructions = append(instructions, capabilityrouting.ComputerUseRule)
+	}
 	if len(skillItems) > 0 {
 		instructions = append(instructions, "Read a returned Skill entry point before applying its domain workflow.")
 	}
 	if len(mcpServers) > 0 {
 		instructions = append(instructions, "Select a returned MCP tool description, inspect its qualified_name, then call it. Use mcp_tool_search with the returned server name to refresh or narrow the index.")
 	}
+	loadRequired := definition.Heavy || capabilityrouting.RequiresExplicitPluginLoad(definition.Name)
 	return Result{
 		"plugin": map[string]any{
-			"name": definition.Name, "description": definition.Description,
+			"name": definition.Name, "description": capabilityrouting.PluginDescription(definition.Name, definition.Description),
 			"version": definition.Version, "path": definition.Path, "enabled": definition.Enabled,
-			"heavy": definition.Heavy, "load_required": definition.Heavy,
+			"heavy": definition.Heavy, "load_required": loadRequired,
 		},
 		"skills": skillItems, "mcp_servers": mcpServers,
 		"unavailable_members": unavailable, "instructions": instructions,

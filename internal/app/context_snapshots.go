@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/plugin"
 	"github.com/uvwt/agentdock/internal/snapshot"
@@ -156,7 +157,11 @@ func (r *Runtime) contextSkillIndex(ctx context.Context, directory *plugin.Direc
 			}
 			out := make([]capabilitySkillItem, 0, len(items))
 			for _, item := range items {
-				out = append(out, capabilitySkillItem{Name: item.Name, Description: truncateString(strings.TrimSpace(item.Description), 160), File: item.File, SkillRef: item.SkillRef, SourceType: item.SourceType, SourceID: item.SourceID, PluginName: item.PluginName, ContentDigest: item.ContentDigest})
+				if !includeHeavy && capabilityrouting.RequiresExplicitPluginLoad(item.PluginName) {
+					continue
+				}
+				description := capabilityrouting.SkillDescription(item.PluginName, item.Name, item.Description)
+				out = append(out, capabilitySkillItem{Name: item.Name, Description: truncateString(description, 240), File: item.File, SkillRef: item.SkillRef, SourceType: item.SourceType, SourceID: item.SourceID, PluginName: item.PluginName, ContentDigest: item.ContentDigest})
 			}
 			return skillIndexSnapshot{Items: out, DocumentReads: reads}, nil
 		})

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 )
 
@@ -19,14 +20,17 @@ func (s *Service) List(ctx context.Context, request ListRequest) (Result, error)
 	if err != nil {
 		return nil, dynamicMCPToolError(err)
 	}
-	return catalogResult(catalog, true), nil
+	return s.catalogResult(catalog, true), nil
 }
 
-func catalogResult(catalog mcpclient.Catalog, fresh bool) Result {
+func (s *Service) catalogResult(catalog mcpclient.Catalog, fresh bool) Result {
+	pluginName := s.pluginName(catalog.Server)
 	tools := make([]map[string]any, 0, len(catalog.Tools))
 	for _, name := range catalog.Names() {
 		tool := catalog.Tools[name]
-		tools = append(tools, map[string]any{"name": catalog.Server + ":" + name, "description": mcpclient.OneLineDescription(tool.Description)})
+		qualifiedName := catalog.Server + ":" + name
+		description := capabilityrouting.ToolDescription(pluginName, qualifiedName, tool.Description)
+		tools = append(tools, map[string]any{"name": qualifiedName, "description": mcpclient.OneLineDescription(description)})
 	}
 	return Result{"server": catalog.Server, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "total": len(tools), "tools": tools, "stale": !fresh}
 }
@@ -157,7 +161,9 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 				}
 				continue
 			}
-			entry := map[string]any{"name": server + ":" + name, "server": server, "tool_name": name, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "title": tool.Title, "description": tool.Description, "input_schema": tool.InputSchema}
+			qualifiedName := server + ":" + name
+			description := capabilityrouting.ToolDescription(s.pluginName(server), qualifiedName, tool.Description)
+			entry := map[string]any{"name": qualifiedName, "server": server, "tool_name": name, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "title": tool.Title, "description": description, "input_schema": tool.InputSchema}
 			if tool.OutputSchema != nil {
 				entry["output_schema"] = tool.OutputSchema
 			}

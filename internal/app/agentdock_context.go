@@ -9,6 +9,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/buildinfo"
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/contextguide"
 	pluginregistry "github.com/uvwt/agentdock/internal/plugin"
@@ -83,6 +84,9 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 			"已取得本项目规则时直接继续操作，不另做 workspace_context；仅工作区规则或项目级 Skill 作用域变化时定向刷新。",
 		},
 	}
+	if hasExplicitLoadPlugin(directory) {
+		contextResult.Rules = append(contextResult.Rules, capabilityrouting.ComputerUseRule)
+	}
 	if r.cfg.InstructionsFile == "" && strings.TrimSpace(r.cfg.Instructions) != "" {
 		contextResult.Rules = append(contextResult.Rules, "Additional operator instructions:\n"+r.cfg.Instructions)
 	}
@@ -96,7 +100,7 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		contextResult.InstructionFiles = &instructions
 		contextResult.Rules = append(contextResult.Rules, InsertionInstructions, "托管 MCP 简介可用 mcp_manage inspect → update/reset_override 修改宿主覆盖，携带 expected_revision 与 scope。版本和工具数量以当前发现事实为准；能力更新提示后重读目标工具 schema，不展开无关 Heavy 插件。")
 		contextResult.Rules = append(contextResult.Rules,
-			"plugins 仅列出 Heavy 插件摘要。命中后调用 plugin_load(name) 展开成员；普通插件的已启用 Skill/MCP 直接显示在顶层 skills/dynamic_mcp。",
+			"plugins 列出 Heavy 与显式加载插件摘要。命中后调用 plugin_load(name) 展开成员；其余普通插件的已启用 Skill/MCP 直接显示在顶层 skills/dynamic_mcp。",
 			"instruction_files.files 已自动载入规则正文；只应用 status=loaded 的条目，按全局、项目根目录、子目录顺序处理。项目规则不得削弱全局安全要求。操作其他工作区或规则文件已改变时，传入对应 workdir 定向刷新；成功后续调用继承本对话工作区，已运行会话与设备全局默认目录不变。",
 		)
 	}
@@ -360,7 +364,7 @@ func (r *Runtime) dynamicMCPCapabilityIndexContext(ctx context.Context, includeP
 		}
 		if !includePluginMembers {
 			membership, owned := directory.MCPMembership(server.Name)
-			if owned && membership.Heavy {
+			if owned && (membership.Heavy || capabilityrouting.RequiresExplicitPluginLoad(membership.Plugin)) {
 				continue
 			}
 		}
@@ -375,7 +379,7 @@ func (r *Runtime) dynamicMCPCapabilityIndexContext(ctx context.Context, includeP
 		items = append(items, capabilityDynamicMCPItem{
 			Name:     server.Name,
 			Revision: revision, ServerVersion: version, ToolCountKnown: known,
-			Description:   truncateString(strings.TrimSpace(server.Description), 160),
+			Description:   truncateString(capabilityrouting.ServerDescription(server.Plugin, server.Name, server.Description), 240),
 			SourceType:    capabilitySourceType(server.Plugin),
 			PluginName:    server.Plugin,
 			Status:        server.Status,
@@ -411,15 +415,27 @@ func pluginCapabilityIndexFromDirectory(directory *pluginregistry.Directory) []c
 	definitions := directory.Definitions()
 	items := make([]capabilityPluginItem, 0, len(definitions))
 	for _, definition := range definitions {
-		if !definition.Enabled || !definition.Heavy {
+		if !definition.Enabled || (!definition.Heavy && !capabilityrouting.RequiresExplicitPluginLoad(definition.Name)) {
 			continue
 		}
 		items = append(items, capabilityPluginItem{
-			Name: definition.Name, Description: truncateString(strings.TrimSpace(definition.Description), 240),
+			Name: definition.Name, Description: truncateString(capabilityrouting.PluginDescription(definition.Name, definition.Description), 320),
 			SkillCount: len(definition.Skills), MCPServerCount: len(definition.MCPServers),
 		})
 	}
 	return items
+}
+
+func hasExplicitLoadPlugin(directory *pluginregistry.Directory) bool {
+	if directory == nil {
+		return false
+	}
+	for _, definition := range directory.Definitions() {
+		if definition.Enabled && capabilityrouting.RequiresExplicitPluginLoad(definition.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runtime) templateCapabilityIndex(ctx context.Context) ([]capabilityTemplateItem, error) {

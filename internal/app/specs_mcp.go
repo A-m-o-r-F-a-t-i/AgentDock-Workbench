@@ -20,7 +20,7 @@ func dynamicMCPToolSpecs() []ToolSpec {
 		{Name: "mcp_tool_inspect", Contract: mcpToolContract, Title: "Inspect a dynamic MCP tool", Description: "Read full schemas in one request using names: [server:tool, server:*, other:*]. Services share one cached catalog; skip when valid schemas are already known.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_inspect", func(ctx context.Context, r *Runtime, request toolmcp.InspectRequest) (Result, error) {
 			return r.dynamicMCP.Inspect(ctx, request)
 		})},
-		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Execute a dynamic MCP tool identified as server:tool, validating against its current cached schema. Prior inspect is not mandatory. Every response includes the service complete two-column catalog, followed by any trusted user insertion.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
+		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Execute a dynamic MCP tool identified as server:tool, validating against its current cached schema. Computer Use tools additionally require interaction_intent=desktop_gui and a concrete user-task reason. Prior inspect is not mandatory. Every response includes the service complete two-column catalog, followed by any trusted user insertion.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
 			return r.dynamicMCP.Call(ctx, request)
 		})},
 	}

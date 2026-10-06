@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
@@ -132,17 +133,17 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 				return nil, dynamicMCPToolError(err)
 			}
 			for _, item := range index {
-				_, _, owned, lookupErr := s.pluginMembership(item.Name)
+				pluginName, _, owned, lookupErr := s.pluginMembership(item.Name)
 				if lookupErr != nil {
 					return nil, toolErrorCause("PLUGIN_STATE_INVALID", "read MCP plugin ownership", "runtime", map[string]any{"server": item.Name}, lookupErr)
 				}
 				hidden := owned
 				if owned && s.pluginHeavy != nil {
-					var err error
-					hidden, err = s.pluginHeavy(item.Name)
+					heavy, err := s.pluginHeavy(item.Name)
 					if err != nil {
 						return nil, err
 					}
+					hidden = heavy || capabilityrouting.RequiresExplicitMCPSelection(pluginName, item.Name)
 				}
 				pluginOwned[item.Name] = hidden
 			}
@@ -154,6 +155,13 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	found, err := s.mcpClients.SearchCatalogsFiltered(ctx, query, server, limit, allow)
 	if err != nil {
 		return nil, dynamicMCPToolError(err)
+	}
+	for index := range found.Tools {
+		pluginName := found.Tools[index].PluginName
+		if pluginName == "" {
+			pluginName = s.pluginName(found.Tools[index].Server)
+		}
+		found.Tools[index].Description = capabilityrouting.ToolDescription(pluginName, found.Tools[index].QualifiedName, found.Tools[index].Description)
 	}
 	result := Result{
 		"query": query, "server": server, "tools": found.Tools, "count": len(found.Tools),
@@ -175,12 +183,27 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if err := s.ensureAvailable(serverName); err != nil {
 		return nil, err
 	}
+	pluginName := s.pluginName(serverName)
+	if capabilityrouting.RequiresDesktopGUIIntent(pluginName, qualifiedName) && !capabilityrouting.ValidDesktopGUIIntent(request.InteractionIntent, request.Reason) {
+		return nil, toolErrorDetails(
+			"MCP_EXPLICIT_INTENT_REQUIRED",
+			"Computer Use calls require an explicit desktop GUI intent and a concrete user-task reason",
+			"validation",
+			map[string]any{
+				"tool": qualifiedName, "plugin": pluginName,
+				"required": map[string]any{"interaction_intent": capabilityrouting.DesktopGUIIntent, "reason": "specific user-task reason"},
+			},
+		)
+	}
 	arguments := request.Arguments
 	if arguments == nil {
 		arguments = map[string]any{}
 	}
 	result, err := s.mcpClients.Call(ctx, qualifiedName, arguments)
 	catalog, catalogErr := s.mcpClients.CachedSummary(serverName)
+	if catalogErr == nil {
+		s.decorateCatalogSummary(pluginName, serverName, catalog)
+	}
 	if catalogErr != nil {
 		catalog = map[string]any{"server": serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
@@ -192,6 +215,21 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 		return response, dynamicMCPToolError(err)
 	}
 	return response, nil
+}
+
+func (s *Service) decorateCatalogSummary(pluginName, serverName string, catalog map[string]any) {
+	if catalog == nil || !capabilityrouting.IsComputerUseServer(pluginName, serverName) {
+		return
+	}
+	tools, ok := catalog["tools"].([]map[string]any)
+	if !ok {
+		return
+	}
+	for _, item := range tools {
+		name, _ := item["name"].(string)
+		description, _ := item["description"].(string)
+		item["description"] = capabilityrouting.ToolDescription(pluginName, name, description)
+	}
 }
 
 func dynamicMCPToolError(err error) error {
