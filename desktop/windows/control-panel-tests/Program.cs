@@ -33,6 +33,11 @@ Check(Sort(new[] { new Row("A", now), new Row("B", now.AddSeconds(60)) })[0].Id 
 Check(Sort(new[] { new Row("A", now), new Row("B", now.AddMilliseconds(59999)) })[0].Id == "A", "threshold not respected");
 Check(Sort(new[] { new Row("A", now), new Row("B", now.AddDays(-1), true) })[0].Id == "B", "explicit pin ignored");
 Check(Sort(new[] { new Row("B", now) }).Count == 1, "removed row retained");
+var retained = SidebarOrdering.Stable(previous,
+    new[] { new Row("B", now.AddHours(1)), new Row("A", now), new Row("C", now.AddHours(2)) },
+    row => row.Id, row => row.At, promoteExisting: false);
+Check(retained.Select(row => row.Id).SequenceEqual(new[] { "A", "B", "C" }),
+    "passive refresh reordered existing projects or misplaced a new project");
 foreach (var legacy in new long[] { 520989, 355618, 354854, 353098, 96203, 71028 })
 {
     using var json = System.Text.Json.JsonDocument.Parse($$"""{"call_id":"legacy-{{legacy}}","tool_name":"agentdock_context","elapsed_ms":{{legacy}}} """);
