@@ -53,7 +53,7 @@ Windows 比较基线为 `b367eaab95202873fb213b8713440bf7822878c4`。Windows 路
 | feature_id | 用户场景 | Windows 基线 | macOS 实现 | 状态与证据 |
 |---|---|---|---|---|
 | MAC-040 | Skill 列表、详情、启停、同名不同来源 | 控制面板 Skill 管理 | 管理器调用 skills?summary=true 与 skill_ref | 已实现现有 Runtime 范围；独立 Skill 安装/更新未由旧 Runtime 公开，不能伪造成功 |
-| MAC-041 | 插件校验、本地安装/更新、启停、成员和按需加载 | 控制面板 Plugin 管理 | plugins GET/POST、原生路径选择器与确认 | 已实现旧 Runtime 动作；更换既有更新源所需 confirmed_source_change 未被旧 HTTP DTO 公开，待 WB01 契约增量 |
+| MAC-041 | 插件校验、本地安装/更新、启停、成员和按需加载 | 控制面板 Plugin 管理 | plugins GET/POST、原生路径选择器与确认 | 客户端已有审核及来源变更确认；共享 HTTP DTO 已透传 confirmed/confirmed_source_change，未确认更新仍拒绝；请求及存储回归覆盖，macOS 原生安装/更新验收另计 |
 | MAC-042 | MCP 列表、详情、添加 HTTP 服务、刷新、启停与移除 | 控制面板 MCP 管理 | mcp GET/POST | 已实现；HTTPS URL 不允许嵌入凭据；本端不改 Core 鉴权 |
 | MAC-043 | Core 服务、Tunnel/连接、更新、配置和日志 | 托盘与设置 | 保留 ServiceController、SetupWindow、AdvancedSettings、原更新事务 | 既有实现不重做；原 macOS 回归、真实包结构和签名测试 |
 | MAC-044 | 浅色、深色、系统主题及中英文 | WPF 主题与文案 | 动态 AppKit 颜色、既有 L10n 中英资源 | 已实现；同一真实原生窗口深浅色、窄窗口、管理页与权限页截图，翻译/格式门禁 |
