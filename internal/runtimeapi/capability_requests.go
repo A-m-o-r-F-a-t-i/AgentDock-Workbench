@@ -39,11 +39,13 @@ func decodeRuntimeSkillRequest(body []byte) (map[string]any, error) {
 }
 
 type runtimePluginManageRequest struct {
-	Action     string `json:"action"`
-	Name       string `json:"name"`
-	Source     string `json:"source"`
-	MemberType string `json:"member_type"`
-	Member     string `json:"member"`
+	Action                string `json:"action"`
+	Name                  string `json:"name"`
+	Source                string `json:"source"`
+	MemberType            string `json:"member_type"`
+	Member                string `json:"member"`
+	Confirmed             *bool  `json:"confirmed,omitempty"`
+	ConfirmedSourceChange *bool  `json:"confirmed_source_change,omitempty"`
 }
 
 var runtimePluginManageActions = map[string]bool{
@@ -99,6 +101,14 @@ func decodeRuntimePluginRequest(body []byte) (map[string]any, error) {
 			return nil, runtimeCapabilityRequestError("PLUGIN_NAME_REQUIRED", "plugin name is required")
 		}
 		args["name"] = request.Name
+	}
+	// Preserve explicit client consent; validation and package review never imply
+	// permission to change an installed source. Nil also keeps legacy requests unchanged.
+	if request.Confirmed != nil {
+		args["confirmed"] = *request.Confirmed
+	}
+	if request.ConfirmedSourceChange != nil {
+		args["confirmed_source_change"] = *request.ConfirmedSourceChange
 	}
 	return args, nil
 }

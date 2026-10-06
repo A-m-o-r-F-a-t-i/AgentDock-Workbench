@@ -64,6 +64,14 @@ GUI 的 Heavy 开关覆盖包内默认值，不修改分发清单。`plugin_mana
 
 未知清单顶层字段报告并忽略；错误的必填元数据拒绝该插件。非法单个 Skill/MCP 只跳过相应成员，其他有效成员继续可用。诊断显示在插件卡片内。`plugin validate` 命令在出现诊断时返回非零，适合发布前严格检查。
 
+## 插件更新的确认字段
+
+`plugin_manage` 与 `POST /internal/runtime/plugins` 接受可选布尔字段 `confirmed`、`confirmed_source_change`。HTTP 与 Nexus 共用的请求解析保留显式 `true`/`false`，字段省略或 `null` 不授予确认；未知字段、错误类型和调用身份字段继续拒绝。
+
+`confirmed` 表达客户端完成包审查后的确认，不代替来源变更确认。客户端遇到 `PLUGIN_SOURCE_CHANGE_CONFIRMATION_REQUIRED` 时，只有对同一目标和已审查候选取得明确来源变更同意，才重新提交 `confirmed_source_change: true`。校验包不会改变已安装来源，取消、普通网络故障或其他错误不自动重放更新；Core 保留来源绑定、权限与回滚检查。
+
+现有 macOS 更新流程已发送这两个字段，此接口修复允许它们到达原生插件服务。Windows“功能与插件”页仍只管理已安装能力，不恢复已移除的安装/更新界面。原生 MCP 已有字段但宿主仍显示旧工具签名时，需要刷新宿主工具发现；修改 Core 无法强制替换外部客户端缓存。
+
 ## 安装和迁移
 
 Windows 安装程序和控制面板统一使用 AgentDock 名称，安装文件为 `AgentDockSetup-amd64.exe` 或 `AgentDockSetup-arm64.exe`。安装向导显示“选择安装位置”，支持手动输入和浏览目录；升级时预填原安装位置。安装与卸载均使用所选目录，不改变独立的 `.agentdock` 用户数据目录。
