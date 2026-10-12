@@ -204,6 +204,12 @@ foreach (var titleCase in new[] {
     ("read_file", "read_file · read_file · 读取配置", "", "read_file · 读取配置"),
     ("exec_command", "检查 Debian 最小状态\r\n", "", "exec_command · 检查 Debian 最小状态"),
     ("exec_command", "Check server", "", "exec_command · 执行命令"),
+    ("mcp_tool_search", "Search dynamic MCP tools", "", "mcp_tool_search · 搜索工具"),
+    ("mcp_tool_search", "定位内置工具 · exec_command", "", "mcp_tool_search · 定位内置工具 · exec_command"),
+    ("mcp_tool_inspect", "Inspect dynamic MCP tools", "", "mcp_tool_inspect · 查看扩展工具说明"),
+    ("mcp_tool_list", "List MCP tools", "", "mcp_tool_list · 列出扩展工具"),
+    ("mcp_search", "Search tools", "", "mcp_search · 搜索工具"),
+    ("mcp_inspect", "Inspect tools", "", "mcp_inspect · 查看扩展工具说明"),
     ("unknown", "", "", "unknown · 执行工具") })
     Check(ExecutionTitleFormatter.Format(titleCase.Item1, titleCase.Item2, titleCase.Item3) == titleCase.Item4, "Chinese action " + titleCase.Item1);
 var childStats = new ExecutionCallRow(Json("{\"parent_call_id\":\"root\",\"file_edit\":{\"insertions\":2,\"deletions\":1}}"));
