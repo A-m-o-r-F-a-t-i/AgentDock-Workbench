@@ -4,8 +4,8 @@ import android.content.res.Configuration
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -25,7 +25,14 @@ class SystemBarThemeTest {
     @Suppress("DEPRECATION")
     @Test fun systemBarsFollowLiveAppThemeWithoutCoreOrTermux() {
         val selection = mutableStateOf("dark")
-        compose.setContent { WorkbenchTheme(selection.value) { Text("Native theme regression") } }
+        var appliedSurface = 0
+        compose.setContent {
+            WorkbenchTheme(selection.value) {
+                val surface = MaterialTheme.colorScheme.surface.toArgb()
+                SideEffect { appliedSurface = surface }
+                Text("Native theme regression")
+            }
+        }
         for (theme in listOf("dark", "light", "system", "dark")) {
             compose.runOnIdle { selection.value = theme }
             compose.waitForIdle()
@@ -38,9 +45,10 @@ class SystemBarThemeTest {
                 assertEquals(!dark, controller.isAppearanceLightStatusBars)
                 assertEquals(!dark, controller.isAppearanceLightNavigationBars)
                 if (Build.VERSION.SDK_INT < 35) {
-                    val surface = (if (dark) darkColorScheme() else lightColorScheme()).surface.toArgb()
-                    assertEquals(surface, window.statusBarColor)
-                    assertEquals(surface, window.navigationBarColor)
+                    // Follow the actual application palette, not Material3's
+                    // unrelated default palette. Both system bars must update.
+                    assertEquals(appliedSurface, window.statusBarColor)
+                    assertEquals(appliedSurface, window.navigationBarColor)
                 }
             }
         }
