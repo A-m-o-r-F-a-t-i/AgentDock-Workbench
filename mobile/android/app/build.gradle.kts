@@ -21,6 +21,7 @@ val candidateRunAttempt = providers.gradleProperty("agentdockCandidateRunAttempt
 android {
     namespace = "dev.agentdock.workbench"
     compileSdk = 37
+    testBuildType = providers.gradleProperty("agentdockTestBuildType").orElse("debug").get()
     ndkVersion = "27.2.12479018"
 
     defaultConfig {

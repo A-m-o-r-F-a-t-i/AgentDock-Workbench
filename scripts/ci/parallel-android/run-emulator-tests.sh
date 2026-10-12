@@ -87,3 +87,48 @@ with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
     output.write('\n## Android test evidence\n\n```text\n' + message[-24000:] + '\n```\n')
 raise SystemExit(0 if valid else 1)
 PY
+
+# Debug navigation does not exercise R8. Run the minified release startup tests
+# inside this workflow's disposable emulator and retain independent evidence.
+release_evidence="$evidence/release-startup"
+mkdir -p "$release_evidence"
+set +e
+timeout --signal=TERM --kill-after=20s 10m gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace connectedReleaseAndroidTest \
+  -PagentdockTestBuildType=release \
+  -Pandroid.testInstrumentationRunnerArguments.class=dev.agentdock.workbench.ReleaseStartupTest \
+  -PagentdockAndroidVersionCode="$version_code" \
+  -PagentdockCandidateSha="$SOURCE_SHA" \
+  -PagentdockCandidateRunId="$GITHUB_RUN_ID" \
+  -PagentdockCandidateRunAttempt="$GITHUB_RUN_ATTEMPT" 2>&1 | tee "$release_evidence/connected-release.log"
+release_rc=${PIPESTATUS[0]}
+set -e
+timeout 20s adb logcat -d -v threadtime >"$release_evidence/logcat.txt" 2>&1 || true
+python3 - "$repo_root" "$evidence" "$release_rc" <<'PY_RELEASE'
+import json, pathlib, shutil, sys, xml.etree.ElementTree as ET
+repo, evidence = map(pathlib.Path, sys.argv[1:3])
+rc = int(sys.argv[3])
+target = evidence / 'release-startup'
+cases, errors = {}, []
+source = repo / 'mobile/android/app/build/outputs/androidTest-results'
+for report in source.rglob('TEST-*.xml'):
+    if 'release' not in {part.lower() for part in report.parts}:
+        continue
+    destination = target / report.relative_to(source)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(report, destination)
+    try:
+        for case in ET.parse(report).iter('testcase'):
+            if case.get('classname') == 'dev.agentdock.workbench.ReleaseStartupTest':
+                cases[case.get('name')] = all(case.find(tag) is None for tag in ('failure', 'error', 'skipped'))
+    except (ET.ParseError, OSError) as error:
+        errors.append(str(error))
+required = {'generatedWorkDatabaseRetainsItsReflectiveConstructor', 'activityAndWorkManagerStartInThePackagedApplication'}
+valid = rc == 0 and set(cases) == required and all(cases.values()) and not errors
+result = json.loads((evidence / 'result.json').read_text())
+result['release_startup'] = {'variant': 'release', 'minified': True, 'exit_code': rc, 'tests': cases, 'report_errors': errors, 'passed': valid}
+if not valid:
+    result['evidence_gate'] = 'failed'
+(evidence / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+print(f'Release startup: exit={rc}, cases={cases}, valid={valid}, errors={errors}')
+raise SystemExit(0 if valid else 1)
+PY_RELEASE
