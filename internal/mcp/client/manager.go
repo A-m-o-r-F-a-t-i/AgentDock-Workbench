@@ -896,6 +896,11 @@ func toolMatchScore(query string, tool Tool) int {
 	name := strings.ToLower(tool.Name)
 	title := strings.ToLower(tool.Title)
 	description := strings.ToLower(tool.Description)
+	for _, token := range strings.Fields(query) {
+		if strings.Contains(token, "_") && !strings.Contains(name, token) && !strings.Contains(title, token) {
+			return 0
+		}
+	}
 	score := 0
 	if name == query {
 		score += 100

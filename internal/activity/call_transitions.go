@@ -49,7 +49,7 @@ func (p *callProjection) applyCallBinding(call *ExecutionCall, event Event, id s
 	if call.Label == "" {
 		call.Label = event.Label
 	}
-	if call.Title == "" || event.Kind == "call.bound" {
+	if call.Title == "" || event.Kind == "call.bound" || (event.Kind == "call.completed" && event.Title != "") {
 		call.Title = event.Title
 	}
 	if call.ToolName == "" {

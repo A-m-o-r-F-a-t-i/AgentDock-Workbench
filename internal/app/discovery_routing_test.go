@@ -48,23 +48,62 @@ func addAuditUnavailableServer(t *testing.T, rt *Runtime) {
 func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 	rt := newAuditDiscoveryRuntime(t)
 	addAuditUnavailableServer(t, rt)
-	for _, name := range []string{"task_manage", "exec_command", "mcp_tool_call", "session_observe"} {
-		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": name})
+	for _, test := range []struct {
+		query string
+		want  string
+		alias string
+	}{
+		{query: "task_manage", want: "task_manage"},
+		{query: "exec_command", want: "exec_command"},
+		{query: "mcp_tool_call", want: "mcp_tool_call"},
+		{query: "session_observe", want: "session_observe"},
+		{query: "exec_command exact", want: "exec_command"},
+		{query: "host task_manage", want: "task_manage"},
+		{query: "write_file", want: "file_edit", alias: "write_file"},
+	} {
+		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": test.query})
 		if err != nil {
 			t.Fatalf("unscoped built-in search was poisoned by unrelated credentials: %v", err)
 		}
 		var view struct {
-			Builtin []ToolDefinition `json:"builtin_tools"`
-			Tools   []any            `json:"tools"`
+			RouteKind         string `json:"route_kind"`
+			Resolved          bool   `json:"resolved"`
+			Terminal          bool   `json:"terminal"`
+			Count             int    `json:"count"`
+			BuiltinMatchCount int    `json:"builtin_match_count"`
+			DynamicMatchCount int    `json:"dynamic_match_count"`
+			MatchedTool       string `json:"matched_tool"`
+			MatchedAlias      string `json:"matched_alias"`
+			RouteSummary      string `json:"route_summary"`
+			Builtin           []struct {
+				Name        string `json:"name"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+				InvokeVia   string `json:"invoke_via"`
+			} `json:"builtin_tools"`
+			Tools    []any `json:"tools"`
+			Catalogs []any `json:"catalogs"`
 		}
 		if err := remarshal(result, &view); err != nil {
 			t.Fatal(err)
 		}
-		definition, ok := rt.ToolDefinition(name)
-		actual, _ := json.Marshal(view.Builtin)
-		want, _ := json.Marshal([]ToolDefinition{definition})
-		if !ok || string(actual) != string(want) || len(view.Tools) != 0 {
+		if view.RouteKind != "host_builtin" || !view.Resolved || !view.Terminal || view.Count != 1 ||
+			view.BuiltinMatchCount != 1 || view.DynamicMatchCount != 0 || view.MatchedTool != test.want ||
+			view.MatchedAlias != test.alias || view.RouteSummary != "定位内置工具 · "+test.want ||
+			len(view.Builtin) != 1 || view.Builtin[0].Name != test.want || view.Builtin[0].InvokeVia != "host" ||
+			len(view.Tools) != 0 || len(view.Catalogs) != 0 {
 			t.Fatalf("wrong canonical built-in route: %#v", result)
+		}
+		data, _ := json.Marshal(result)
+		if len(data) >= 2048 || strings.Contains(string(data), "InputSchema") || strings.Contains(string(data), "OutputSchema") {
+			t.Fatalf("built-in route leaked full host schema (%d bytes): %s", len(data), data)
+		}
+		call, err := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if call.DisplayTitle != "定位内置工具 · "+test.want || call.OutputSummary != call.DisplayTitle || strings.Contains(call.OutputSummary, "count=0") {
+			t.Fatalf("ambiguous built-in activity: %+v", call)
 		}
 		assertToolResultMatchestestOutputSchema(t, "mcp_tool_search", result)
 	}
@@ -74,6 +113,57 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 	}
 	_, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": "exec_command", "server": "unrelated-artifact-fetch"})
 	assertToolErrorCode(t, err, "MCP_AUTH_REQUIRED")
+}
+
+func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T) {
+	rt := newAuditDiscoveryRuntime(t)
+	result, err := rt.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var view struct {
+		RouteKind         string `json:"route_kind"`
+		Resolved          bool   `json:"resolved"`
+		Terminal          bool   `json:"terminal"`
+		BuiltinMatchCount int    `json:"builtin_match_count"`
+		DynamicMatchCount int    `json:"dynamic_match_count"`
+		RouteSummary      string `json:"route_summary"`
+		Builtin           []struct {
+			Name      string `json:"name"`
+			InvokeVia string `json:"invoke_via"`
+		} `json:"builtin_tools"`
+		Errors []struct {
+			Selector  string `json:"selector"`
+			Code      string `json:"code"`
+			Status    string `json:"status"`
+			RouteKind string `json:"route_kind"`
+			ToolName  string `json:"tool_name"`
+		} `json:"errors"`
+	}
+	if err := remarshal(result, &view); err != nil {
+		t.Fatal(err)
+	}
+	if view.RouteKind != "host_builtin" || !view.Resolved || !view.Terminal || view.BuiltinMatchCount != 2 ||
+		view.DynamicMatchCount != 0 || view.RouteSummary != "识别内置工具 · exec_command, task_manage" || len(view.Builtin) != 2 || len(view.Errors) != 2 {
+		t.Fatalf("wrong host inspect route: %#v", result)
+	}
+	for index, name := range []string{"exec_command", "task_manage"} {
+		if view.Builtin[index].Name != name || view.Builtin[index].InvokeVia != "host" || view.Errors[index].Selector != name ||
+			view.Errors[index].Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || view.Errors[index].Status != "host_builtin" ||
+			view.Errors[index].RouteKind != "host_builtin" || view.Errors[index].ToolName != name {
+			t.Fatalf("wrong host inspect member: %#v", result)
+		}
+	}
+	call, err := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if call.DisplayTitle != view.RouteSummary || call.OutputSummary != view.RouteSummary || strings.Contains(call.OutputSummary, "count=0") {
+		t.Fatalf("ambiguous inspect activity: %+v", call)
+	}
+	assertToolResultMatchestestOutputSchema(t, "mcp_tool_inspect", result)
+	_, err = rt.Call(t.Context(), "mcp_tool_inspect", map[string]any{"name": "exec_command"})
+	assertToolErrorCode(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
 }
 
 func TestAuditBroadSearchReportsColdCatalogWithoutConnecting(t *testing.T) {

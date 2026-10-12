@@ -111,17 +111,24 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 }
 
 func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, error) {
-	query := request.Query
+	query := strings.TrimSpace(request.Query)
 	server := strings.TrimSpace(request.Server)
 	limit := boundedInt(intValue(request.Limit, 10), 10, 1, 100)
-	if server == "" && s.builtinLookup != nil {
-		if definition, available := s.builtinLookup(strings.TrimSpace(query)); available {
-			return Result{
-				"query": query, "server": "", "count": 0,
-				"tools": []any{}, "catalogs": []any{}, "builtin_tools": []any{definition},
+	if server == "" {
+		if match, available := s.resolveBuiltinRoute(query); available {
+			result := Result{
+				"query": query, "server": "", "count": 1,
+				"route_kind": routeKindHostBuiltin, "resolved": true, "terminal": true,
+				"builtin_match_count": 1, "dynamic_match_count": 0,
+				"matched_tool": match.Tool.Name, "route_summary": "定位内置工具 · " + match.Tool.Name,
+				"tools": []any{}, "catalogs": []any{}, "builtin_tools": []BuiltinToolSummary{match.Tool},
 				"complete": true, "truncated": false, "cache_only": true,
-				"next_action": "Invoke the returned built-in tool through the host. Do not search for it in a dynamic MCP server or wrap it in mcp_tool_call.",
-			}, nil
+				"next_action": "Load or invoke the named AgentDock built-in through the host tool namespace. Do not search for it in a dynamic MCP server or wrap it in mcp_tool_call.",
+			}
+			if match.Alias != "" {
+				result["matched_alias"] = match.Alias
+			}
+			return result, nil
 		}
 	}
 	var allow func(string) bool
@@ -166,7 +173,8 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	result := Result{
 		"query": query, "server": server, "tools": found.Tools, "count": len(found.Tools),
 		"catalogs": found.Catalogs, "complete": found.Complete, "truncated": found.Truncated,
-		"cache_only": found.CacheOnly,
+		"cache_only": found.CacheOnly, "route_kind": routeKindDynamicMCP,
+		"builtin_match_count": 0, "dynamic_match_count": len(found.Tools),
 	}
 	if !found.Complete {
 		result["next_action"] = "Select a server from catalogs and use mcp_tool_list; an undiscovered or stale catalog is not evidence that a capability is absent."
