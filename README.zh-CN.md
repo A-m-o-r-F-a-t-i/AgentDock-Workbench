@@ -112,6 +112,16 @@ AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本�
 
 　　所有非本机连接都应保持认证开启。不要公开 Token、OAuth 凭据、私有 Origin、审批请求正文，或包含敏感信息的执行日志。
 
+### MCP Server 目录短描述
+
+　　在 AI 客户端的 AgentDock MCP Server 配置中，将下面两段文字粘贴到 `description` 字段，作为 MCP Server 目录短描述。该字段说明设备侧委派边界，以及上下文初始化与复用规则。
+
+```text
+AgentDock 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；AgentDock 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
+
+首次进入某个设备或上下文失效时调用 agentdock_context；context_diagnostics.complete=true 后复用当前上下文并直接调用已解析工具。不得无新证据地重复初始化、搜索、inspect、加载或执行相同请求。
+```
+
 ## 项目文档
 
 | 主题 | 文档 |
