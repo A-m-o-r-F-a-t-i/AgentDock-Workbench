@@ -39,7 +39,7 @@ func (r *Runtime) ObserveInternal(ctx context.Context, name, title string, run f
 	}
 	result, err = run(activity.WithBinding(ctx, binding))
 	status := "succeeded"
-	summary := title
+	summary := executionResultTitle(name, title, result)
 	if err != nil {
 		status = "failed"
 		summary = r.executionRedactor(nil).Text(err.Error(), 2048)
@@ -50,10 +50,10 @@ func (r *Runtime) ObserveInternal(ctx context.Context, name, title string, run f
 		status = "unknown"
 		summary = "内部请求已发出但未取得完整结果，请核对实际副作用后再执行。"
 	}
-	if count, ok := result["count"]; ok {
+	if count, ok := result["count"]; ok && !suppressResultCounts(name, result) {
 		summary += " · " + summaryValue(count)
 	}
-	_ = r.appendExecution(activity.Event{Binding: binding, Kind: "call.completed", ToolName: name, Title: title, Status: status, ElapsedMS: time.Since(start).Milliseconds(), Summary: summary})
+	_ = r.appendExecution(activity.Event{Binding: binding, Kind: "call.completed", ToolName: name, Title: executionResultTitle(name, title, result), Status: status, ElapsedMS: time.Since(start).Milliseconds(), Summary: summary})
 	return result, err
 }
 func summaryValue(value any) string {

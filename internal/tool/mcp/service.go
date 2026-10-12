@@ -16,10 +16,17 @@ type Service struct {
 	envs             *envstore.Store
 	pluginMembership PluginMembershipLookup
 	pluginHeavy      func(string) (bool, error)
-	builtinLookup    func(string) (any, bool)
+	builtinLookup    func(string) (BuiltinToolSummary, bool)
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
+
+type BuiltinToolSummary struct {
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	InvokeVia   string `json:"invoke_via"`
+}
 
 func New(manager *mcpclient.Manager, envs *envstore.Store) *Service {
 	return &Service{mcpClients: manager, envs: envs}
@@ -31,7 +38,7 @@ func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {
 
 // SetBuiltinToolLookup binds the host's canonical available tools after runtime
 // construction. The discovery path never invokes the returned tool.
-func (s *Service) SetBuiltinToolLookup(lookup func(string) (any, bool)) {
+func (s *Service) SetBuiltinToolLookup(lookup func(string) (BuiltinToolSummary, bool)) {
 	s.builtinLookup = lookup
 }
 

@@ -658,7 +658,8 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	return r.finishPrepared(p, result, err, status)
 }
 func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
-	summary := r.describeExecution(p.spec.Name, p.args, p.state)
+	title := executionResultTitle(p.spec.Name, r.describeExecution(p.spec.Name, p.args, p.state), result)
+	summary := title
 	if err != nil {
 		summary = r.executionRedactor(p.args).Text(err.Error(), 4096)
 	} else {
@@ -666,6 +667,9 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 			summary = r.executionRedactor(p.args).Text(stringArg(p.args, "summary"), 4096)
 		}
 		for _, key := range []string{"count", "matches", "total_matches", "files_changed", "insertions", "deletions"} {
+			if key == "count" && suppressResultCounts(p.spec.Name, result) {
+				continue
+			}
 			if value, ok := result[key]; ok {
 				switch v := value.(type) {
 				case int, int64, float64:
@@ -674,7 +678,7 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 			}
 		}
 	}
-	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: r.describeExecution(p.spec.Name, p.args, p.state), ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
+	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: title, ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
 	event.OperationElapsedMS = &event.ElapsedMS
 	event.ExecutionElapsedMS, event.WaitElapsedMS = p.state.executionMS, p.state.waitMS
 	if p.spec.Name == "file_edit" {

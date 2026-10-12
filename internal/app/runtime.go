@@ -232,9 +232,15 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 	runtime.files = toolfile.New(ws, skills.ResolveResource, runtime.command.CommandEnv)
 	mcpClients.SetCallObserver(runtime.observeRemoteTool)
 	runtime.dynamicMCP = toolmcp.New(mcpClients, envs)
-	runtime.dynamicMCP.SetBuiltinToolLookup(func(name string) (any, bool) {
+	runtime.dynamicMCP.SetBuiltinToolLookup(func(name string) (toolmcp.BuiltinToolSummary, bool) {
 		definition, available := runtime.ToolDefinition(name)
-		return definition, available
+		if !available {
+			return toolmcp.BuiltinToolSummary{}, false
+		}
+		return toolmcp.BuiltinToolSummary{
+			Name: definition.Name, Title: definition.Title,
+			Description: truncateString(definition.Description, 240), InvokeVia: "host",
+		}, true
 	})
 	runtime.plugins = toolplugin.New(
 		pluginStore,

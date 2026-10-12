@@ -115,3 +115,21 @@ func TestAuditDiscoveryPreservesRegistryAndCancellationErrors(t *testing.T) {
 		t.Fatalf("registry failure was converted to an empty catalog: %v", err)
 	}
 }
+
+func TestToolMatchScoreRequiresIdentifierCoverage(t *testing.T) {
+	searchCode := Tool{
+		Name:        "search_code",
+		Title:       "Search code",
+		Description: "Fast code search for exact symbols and patterns.",
+	}
+	if score := toolMatchScore("exec_command exact", searchCode); score != 0 {
+		t.Fatalf("unmatched identifier leaked through a generic description token: %d", score)
+	}
+	if score := toolMatchScore("search_code exact", searchCode); score <= 0 {
+		t.Fatalf("matching identifier was rejected: %d", score)
+	}
+	launch := Tool{Name: "launch_app", Title: "Launch app", Description: "Launch a Windows desktop app"}
+	if score := toolMatchScore("launch Windows app", launch); score <= 0 {
+		t.Fatalf("natural-language capability search was rejected: %d", score)
+	}
+}
