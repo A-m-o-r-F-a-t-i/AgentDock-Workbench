@@ -324,6 +324,7 @@ public partial class ExecutionWindow
                     await GuardAsync(() => LoadConversationTasksAsync(_generation));
             }
         }
+        UpdateConversationStartTime();
         _activityClock.Refresh(); UpdateStopButton();
         if (parsed.IsPartial) RecordSidebarFailures(scope, parsed.GroupFailures.Values);
         else ClearSidebarFailure(scope);
