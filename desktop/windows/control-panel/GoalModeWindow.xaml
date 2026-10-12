@@ -1,0 +1,43 @@
+<Window x:Class="AgentDock.ControlPanel.GoalModeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="目标模式 · 绑定浏览器对话" Width="740" Height="610" MinWidth="640" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource AppBackground}" Foreground="{DynamicResource PrimaryText}"
+        FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14" Loaded="Window_Loaded" Closed="Window_Closed">
+  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="Themes/Tokens.xaml"/>
+  </ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+  <Grid Margin="22">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock x:Name="ConversationText" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+      <TextBlock x:Name="TaskText" Margin="0,6,0,10" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap"/>
+      <TextBlock Text="任务尚可执行且连续 5 分钟没有进展时，通过页面脚本发送：当前任务尚未完成，请继续任务。生成中、待审批、有草稿或后台命令仍运行时不发送。" TextWrapping="Wrap"/>
+    </StackPanel>
+    <Grid Grid.Row="1" Margin="0,16,0,8">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <ComboBox x:Name="EndpointBox" IsEditable="True" ToolTip="仅支持正在运行的浏览器本机调试端点" AutomationProperties.Name="浏览器本机调试端点"/>
+      <Button x:Name="DiscoverButton" Grid.Column="1" Content="发现 Roxy" Click="Discover_Click" Margin="8,0,0,0"/>
+      <Button x:Name="ReadTabsButton" Grid.Column="2" Content="读取标签页" Click="ReadTabs_Click" Margin="8,0,0,0"/>
+    </Grid>
+    <TextBlock Grid.Row="2" Text="手动选择与上方 AgentDock 对话对应的 ChatGPT 标签页：" Margin="0,0,0,6"/>
+    <ListBox x:Name="TabsList" Grid.Row="3" SelectionMode="Single" SelectionChanged="Tab_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="8,6">
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Text="{Binding Url}" FontSize="12" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap"/>
+      </StackPanel></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+    <StackPanel Grid.Row="4" Margin="0,12,0,8">
+      <CheckBox x:Name="ConfirmBinding" Content="我已确认所选标签页对应上方 AgentDock 对话" Margin="0,0,0,8"/>
+      <CheckBox x:Name="RecoverClosed" Content="关闭标签页后，允许在同一浏览器会话中用隐藏页面接续" IsChecked="True"/>
+      <TextBlock Text="无需保持标签页打开或前台显示。Roxy 与 AgentDock 托盘进程须保持运行；任一进程重启后需重新绑定。发送后等待真实任务进展，未确认的发送不会自动重试。" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryText}" Margin="0,8,0,0"/>
+      <TextBlock x:Name="StatusText" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    </StackPanel>
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="RemoveButton" Content="解除绑定" Click="Remove_Click" Margin="0,0,8,0"/>
+      <Button x:Name="StopButton" Content="停止目标模式" Click="Stop_Click" Margin="0,0,8,0"/>
+      <Button x:Name="EnableButton" Content="绑定并开启" Click="Enable_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>
