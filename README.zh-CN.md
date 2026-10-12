@@ -10,7 +10,7 @@
 
 AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远程服务器和移动节点，并在 AgentDock 运行时之上提供以对话为中心的任务管理、工具调用追踪、审批、权限、中途插入、插件管理和多设备协同能力。
 
-[下载发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [正式版 v1.1.7](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.7) · [预发布版 v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [提交问题](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
+[下载发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [正式版 v1.1.9](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.9) · [v1.1.8 预发布归档](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [提交问题](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
@@ -71,12 +71,12 @@ AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本�
 | 平台 | 使用形态 | 当前状态 |
 | --- | --- | --- |
 | Windows | 原生 WPF Workbench、图形安装程序、任务与活动中心、权限管理、中途插入、更新和恢复。 | 当前正式版的主要桌面体验。 |
-| macOS | 原生 Swift/AppKit Workbench，与其他客户端共用 Core 管理契约。 | 在 v1.1.8 预发布版中扩展。 |
-| Android | Kotlin/Jetpack Compose Workbench，连接外部 Termux/PRoot Core，并提供部署与保活管理。 | 在 v1.1.8 预发布版中加入。 |
+| macOS | 原生 Swift/AppKit Workbench，与其他客户端共用 Core 管理契约。 | 已纳入跨平台正式发行。 |
+| Android | Kotlin/Jetpack Compose Workbench，连接外部 Termux/PRoot Core，并提供部署与保活管理。 | 已纳入跨平台正式发行。 |
 | Linux | 无界面 Core 与管理 CLI，适合本机、服务器和脚本化操作。 | 通过发行包或源码构建使用。 |
 | 容器 / VPS | 通过 MCP、CLI、认证和远程连接运行无界面 Core。 | 具体能力取决于所选发行资产与部署环境。 |
 
-　　不同版本与 CPU 架构提供的安装资产可能不同，安装前应核对 Release 的文件列表和说明。当前 Latest 正式版为 v1.1.7，v1.1.8 仍是用于跨平台验证的预发布版本。
+　　不同版本与 CPU 架构提供的安装资产可能不同，安装前应核对 Release 的文件列表和说明。当前 Latest 正式版为 v1.1.9，v1.1.8 保留为此前的预发布归档。
 
 ## 典型使用场景
 
@@ -89,7 +89,7 @@ AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本�
 
 ## 快速开始
 
-1. 打开 [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)，选择正式版或当前预发布版。
+1. 打开 [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)，选择最新正式版。
 2. 下载与操作系统和 CPU 架构对应的安装包。
 3. 启动 AgentDock Core；平台提供原生界面时，同时启动 Workbench。
 4. 获取 MCP 地址与 Bearer Token，或完成 OAuth 连接。
@@ -125,8 +125,8 @@ AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本�
 | Skill 与自包含插件 | [Agent 插件](./docs/agent-plugins.md) |
 | Tailscale Funnel 连接 | [Tailscale Funnel](./docs/tailscale-funnel.md) |
 | 与上游差异及迁移 | [版本差异与迁移](./docs/official-version-differences-and-migration.md) |
-| 当前正式版 | [v1.1.7 版本说明](./docs/releases/v1.1.7.md) |
-| 当前预发布版 | [v1.1.8 版本说明](./docs/releases/v1.1.8.md) |
+| 当前正式版 | [v1.1.9 版本说明](./docs/releases/v1.1.9.md) |
+| 此前预发布版 | [v1.1.8 版本说明](./docs/releases/v1.1.8.md) |
 
 ## 仓库结构
 

@@ -10,7 +10,7 @@ English | [简体中文](./README.zh-CN.md)
 
 AgentDock Workbench connects ChatGPT, Claude, Codex, and other MCP clients to local computers, remote servers, and mobile nodes. It combines the AgentDock runtime with a conversation-centered control plane for tasks, tool calls, approvals, permissions, mid-task instructions, plugins, and multi-device operations.
 
-[Download releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Stable v1.1.7](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.7) · [Preview v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [Report an issue](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
+[Download releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Stable v1.1.9](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.9) · [v1.1.8 pre-release archive](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [Report an issue](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
@@ -71,12 +71,12 @@ A conversation is resolved from trusted host metadata. Tasks and calls inherit t
 | Platform | Experience | Release status |
 | --- | --- | --- |
 | Windows | Native WPF Workbench, graphical installer, task and activity center, permission management, insertion, updates, and recovery. | Main stable desktop experience. |
-| macOS | Native Swift/AppKit Workbench using the shared Core management contract. | Expanded in the v1.1.8 preview. |
-| Android | Kotlin/Jetpack Compose Workbench connected to an external Termux/PRoot Core, with deployment and keep-alive controls. | Introduced in the v1.1.8 preview. |
+| macOS | Native Swift/AppKit Workbench using the shared Core management contract. | Included in the stable cross-platform release. |
+| Android | Kotlin/Jetpack Compose Workbench connected to an external Termux/PRoot Core, with deployment and keep-alive controls. | Included in the stable cross-platform release. |
 | Linux | Headless Core and management CLI for local, server, and scripted operation. | Available through release packages and source builds. |
 | Containers / VPS | Headless runtime with MCP, CLI, authentication, and remote access options. | Deployment depends on the selected release asset and environment. |
 
-Release assets vary by version and CPU architecture. Check the asset list and release notes before installing. The latest stable release remains v1.1.7; v1.1.8 is currently a pre-release for cross-platform validation.
+Release assets vary by version and CPU architecture. Check the asset list and release notes before installing. The latest stable release is v1.1.9; v1.1.8 remains available as the preceding pre-release archive.
 
 ## Typical workflows
 
@@ -89,7 +89,7 @@ Release assets vary by version and CPU architecture. Check the asset list and re
 
 ## Quick start
 
-1. Open [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) and choose the stable release or the current preview.
+1. Open [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) and choose the latest stable release.
 2. Download the package matching your operating system and CPU architecture.
 3. Start AgentDock Core and, where available, the native Workbench client.
 4. Obtain the MCP endpoint and Bearer Token or complete the OAuth connection flow.
@@ -125,8 +125,8 @@ Keep authentication enabled for every non-local connection. Do not publish token
 | Skills and self-contained plugins | [Agent plugins](./docs/agent-plugins.md) |
 | Tailscale Funnel access | [Tailscale Funnel](./docs/tailscale-funnel.md) |
 | Differences from upstream and migration | [Version differences and migration](./docs/official-version-differences-and-migration.md) |
-| Stable release details | [v1.1.7 release notes](./docs/releases/v1.1.7.md) |
-| Preview release details | [v1.1.8 release notes](./docs/releases/v1.1.8.md) |
+| Stable release details | [v1.1.9 release notes](./docs/releases/v1.1.9.md) |
+| Previous pre-release details | [v1.1.8 release notes](./docs/releases/v1.1.8.md) |
 
 ## Repository layout
 
