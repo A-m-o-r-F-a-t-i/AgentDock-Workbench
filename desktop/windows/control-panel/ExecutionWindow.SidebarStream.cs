@@ -64,6 +64,7 @@ public partial class ExecutionWindow
     private void ObserveSidebarRoot(JsonElement call)
     {
         if (!IsSidebarRoot(call)) return;
+        _activityClock.ObserveServerTime(call.Date("last_activity_at") ?? call.Date("last_interaction_at") ?? call.Date("request_received_at"));
         ResetSidebarRecoveryBudget();
         var id = call.Text("conversation_id");
         if (_sidebarUnacknowledged.TryGetValue(id, out var previous) && previous.Number("updated_seq") >= call.Number("updated_seq")) return;
@@ -139,7 +140,8 @@ public partial class ExecutionWindow
             _sidebarGroups[workspace] = key = new(workspace, name);
             key.Apply(JsonSerializer.SerializeToElement(new { title = name, workspace_id = workspace, total = 1, recent_count = recent ? 1 : 0, execution_count = inFlight ? 1 : 0, mode = state.ProtocolMode, last_activity_at = call.Date("last_activity_at") ?? requested }));
         }
-        key.IsExpanded = state.Expanded(recent || inFlight ? 1 : 0);
+        // The incoming conversation does not represent the whole project.
+        // Expansion is committed once, from all retained rows, after insertion.
         var snapshot = JsonSerializer.SerializeToElement(new
         {
             conversation_id = id, title, source = call.Text("source"), created_at = requested,
