@@ -1,6 +1,7 @@
 package dev.agentdock.workbench
 
 import android.app.Application
+import androidx.work.Configuration
 import dev.agentdock.workbench.data.CredentialStore
 import dev.agentdock.workbench.data.SafProjectStore
 import dev.agentdock.workbench.data.RemoteOAuthPairingManager
@@ -12,7 +13,12 @@ import dev.agentdock.workbench.termux.TermuxCommandDispatcher
 import dev.agentdock.workbench.lifecycle.GuardianController
 import dev.agentdock.workbench.lifecycle.AndroidGuardianEffects
 
-class WorkbenchApplication : Application() {
+class WorkbenchApplication : Application(), Configuration.Provider {
+    // WorkManager.getInstance(context) initializes only when a scheduler needs
+    // it; provider acquisition alone must not open the guardian's database.
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
+
     lateinit var graph: AppGraph
         private set
 
