@@ -216,6 +216,7 @@ var childStats = new ExecutionCallRow(Json("{\"parent_call_id\":\"root\",\"file_
 Check(!childStats.HasEditStatistics && childStats.AddedLinesText == "", "child span does not duplicate root totals");
 await PrivilegeTransitionTests.Run(Check);
 await FunnelVerificationServiceTests.Run(Check);
+ConversationStartTimeTests.Run(Check);
 FileExplorerRevealTests.Run(Check);
 ActivitySummaryTests.Run(Check);
 OutputPolicyTests.Run(Check);

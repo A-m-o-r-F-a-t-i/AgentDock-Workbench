@@ -70,6 +70,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
             Text("准备运行环境，安装或更新节点。")
             Text("首次使用需要安装 Termux，并完成下面的环境准备。")
         }
+        item { TermuxRecoveryPanel(state, model) }
         item {
             DeploymentSection("准备运行环境") {
                 DeploymentRow {

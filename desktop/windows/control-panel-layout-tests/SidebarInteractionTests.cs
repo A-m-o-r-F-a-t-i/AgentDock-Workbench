@@ -110,6 +110,7 @@ internal static class SidebarInteractionTests
             var projectA = Project(window, "A");
             var projectB = Project(window, "B");
             check(projectA.IsExpanded && projectB.IsExpanded, "Initial expanded project state was not rendered.");
+            LiveExpansion(window, handler, navigation, check);
             handler.PromoteB = true;
             Reload(window); Settled(window);
             check(window.Objects.First(row => !row.IsGroupFooter).WorkspaceKey.Id == "A",
@@ -249,6 +250,70 @@ internal static class SidebarInteractionTests
         }
     }
 
+    private static void LiveExpansion(ExecutionWindow window, FixtureTransport handler, SidebarNavigationState original, Action<bool, string> check)
+    {
+        var views = Field<Dictionary<string, SidebarNavigationState>>(window, "_sidebarViews");
+        var scope = views.Single(pair => ReferenceEquals(pair.Value, original)).Key;
+        var automatic = new SidebarNavigationState();
+        var clock = Field<ConversationActivityClock>(window, "_activityClock");
+        var observe = typeof(ExecutionWindow).GetMethod("ObserveSidebarRoot", Private)!;
+        void StopRefresh() { Field<DispatcherTimer>(window, "_sidebarRefresh").Stop(); Set(window, "_sidebarDirty", false); }
+        JsonElement Root(string id, DateTimeOffset request, DateTimeOffset activity, long sequence) => JsonSerializer.SerializeToElement(new
+        {
+            call_id = "live-" + sequence, conversation_id = id, workspace_id = "A", tool_name = "exec_command", status = "succeeded",
+            request_received_at = request, last_interaction_at = request, last_activity_at = activity, updated_seq = sequence, created_at = request
+        });
+        handler.LiveNow = DateTimeOffset.UtcNow;
+        handler.LiveRequest = handler.LiveNow.Value.AddSeconds(-10);
+        views[scope] = automatic;
+        Expander? project = null;
+        var collapsed = 0;
+        RoutedEventHandler onCollapse = (_, _) => collapsed++;
+        try
+        {
+            Reload(window);
+            project = Project(window, "A");
+            check(project.IsExpanded && automatic.For("A").Mode == ProjectNavigationMode.Auto, "Live fixture did not start in automatic mode.");
+            project.Collapsed += onCollapse;
+            for (var index = 0; index < 25; index++)
+            {
+                // A received server event is newer than the last HTTP clock anchor.
+                var received = clock.ServerNow!.Value.AddSeconds(1);
+                observe.Invoke(window, [Root("A-0", received, received, 1_000_000 + index)]);
+                StopRefresh();
+                check(project.IsExpanded && collapsed == 0 && ReferenceEquals(project, Project(window, "A")),
+                    "A new completed call folded the automatic sidebar before the next snapshot.");
+                check(automatic.For("A").Mode == ProjectNavigationMode.Auto, "A programmatic refresh changed the user's navigation intent.");
+            }
+            var current = clock.ServerNow!.Value;
+            // A late completion from an inactive conversation must not collapse
+            // a project that has another freshly active conversation.
+            observe.Invoke(window, [Root("A-old", current.AddMinutes(-3), current, 1_000_100)]);
+            StopRefresh();
+            check(project.IsExpanded && collapsed == 0 && automatic.For("A").Mode == ProjectNavigationMode.Auto,
+                "One inactive incoming row temporarily overwrote aggregate project expansion.");
+            // The HTTP projection has not acknowledged the live sequence yet.
+            handler.LiveNow = current.AddSeconds(1); handler.LiveRequest = current.AddMinutes(-3); handler.LiveRecentCount = 0;
+            Reload(window); StopRefresh();
+            check(project.IsExpanded && collapsed == 0 && ReferenceEquals(project, Project(window, "A")),
+                "A stale snapshot collapsed the project before its live-call overlay was applied.");
+            project.Collapsed -= onCollapse;
+            automatic.For("A").Collapse(); Reload(window);
+            var next = clock.ServerNow!.Value.AddSeconds(1);
+            observe.Invoke(window, [Root("A-0", next, next, 1_000_200)]); StopRefresh();
+            check(!project.IsExpanded && automatic.For("A").Mode == ProjectNavigationMode.Collapsed,
+                "Live activity overrode an explicit user collapse.");
+        }
+        finally
+        {
+            if (project is not null) project.Collapsed -= onCollapse;
+            StopRefresh(); Field<Dictionary<string, JsonElement>>(window, "_sidebarUnacknowledged").Clear();
+            handler.LiveNow = null; handler.LiveRequest = null; handler.LiveRecentCount = null;
+            views[scope] = original;
+            Reload(window); StopRefresh();
+        }
+    }
+
     private sealed class FixtureTransport : HttpMessageHandler
     {
         internal int Requests, InFlight, MaximumInFlight, Cancelled, UnexpectedRequests;
@@ -256,6 +321,8 @@ internal static class SidebarInteractionTests
         internal string DeletedId = "";
         internal bool PromoteB;
         internal bool IncludeC;
+        internal DateTimeOffset? LiveNow, LiveRequest;
+        internal int? LiveRecentCount;
         private TaskCompletionSource? _next;
         internal TaskCompletionSource DelayNext() => _next = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
@@ -286,14 +353,14 @@ internal static class SidebarInteractionTests
                     var malformed = id == "A" && failure == "group";
                     var title = id == "B" && failure == "group" ? "Project B refreshed" : "Project " + id;
                     var activity = DateTimeOffset.Parse(id == "C" ? "2026-10-02T14:20:00Z" : id == "B" && PromoteB ? "2026-10-02T14:10:00Z" : id == "A" ? "2026-10-02T14:00:00Z" : "2026-10-02T13:50:00Z");
-                    return new { workspace_id = id, title, total = 500, recent_count = 5, execution_count = 0, mode, history_limit = limit, history_cursor = "cursor_" + id, has_more = mode != "collapsed"&&!empty, last_activity_at = activity, conversations = Enumerable.Range(0, count).Where(index=>id+"-"+index!=DeletedId).Select(index => new { conversation_id = malformed && index == 0 ? "" : id + "-" + index, title = "Conversation " + index, task_ids = Array.Empty<string>(), state = new { workspace_id = id }, statistics = new { } }).ToArray() };
+                    return new { workspace_id = id, title, total = 500, recent_count = LiveRecentCount ?? 5, execution_count = 0, mode, history_limit = limit, history_cursor = "cursor_" + id, has_more = mode != "collapsed"&&!empty, last_activity_at = activity, conversations = Enumerable.Range(0, count).Where(index=>id+"-"+index!=DeletedId).Select(index => new { conversation_id = malformed && index == 0 ? "" : id + "-" + index, title = "Conversation " + index, task_ids = Array.Empty<string>(), state = new { workspace_id = id }, last_interaction_at = LiveRequest, interaction_expires_at = LiveRequest?.AddMinutes(2), statistics = new { last_tool_call_at = LiveRequest } }).ToArray() };
                 }).ToArray();
                 // The service preserves the requested selected conversation even
                 // when its group is collapsed or a search does not show its row.
                 var selectedId = body.GetProperty("selected_id").GetString() ?? "A-0";
                 var selectedProject = selectedId.Split('-')[0];
                 var selected = new { conversation_id = selectedId, title = "Selected conversation", task_ids = Array.Empty<string>(), state = new { workspace_id = selectedProject }, statistics = new { } };
-                return Reply(JsonSerializer.Serialize(new { latest_seq = Requests, groups, selected, server_now = DateTimeOffset.UtcNow }));
+                return Reply(JsonSerializer.Serialize(new { latest_seq = Requests, groups, selected, server_now = LiveNow ?? DateTimeOffset.UtcNow }));
             }
             catch (OperationCanceledException) { Cancelled++; throw; }
             finally { InFlight--; }

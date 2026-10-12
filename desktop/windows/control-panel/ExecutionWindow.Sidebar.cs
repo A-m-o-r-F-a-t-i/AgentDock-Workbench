@@ -246,7 +246,8 @@ public partial class ExecutionWindow
                 if (!_sidebarGroups.TryGetValue(id, out var key)) _sidebarGroups[id] = key = new(id, group.Text("title"));
                 key.Apply(group); incomingGroups.Add(key);
                 var state = target.For(id);
-                key.IsExpanded = group.Text("mode") == "history" || state.Expanded(key.VisibleActivityCount);
+                // Keep expansion unchanged until the snapshot and live-call
+                // overlay have both been applied to the retained project rows.
                 var rows = parsed.Groups[id];
                 foreach (var incoming in rows)
                 {
@@ -323,6 +324,7 @@ public partial class ExecutionWindow
                     await GuardAsync(() => LoadConversationTasksAsync(_generation));
             }
         }
+        UpdateConversationStartTime();
         _activityClock.Refresh(); UpdateStopButton();
         if (parsed.IsPartial) RecordSidebarFailures(scope, parsed.GroupFailures.Values);
         else ClearSidebarFailure(scope);
@@ -420,8 +422,8 @@ public partial class ExecutionWindow
             foreach (var group in _sidebarGroups.Values)
             {
                 var state = navigation.For(group.Id);
-                if (group.Mode == "history" && state.Mode != ProjectNavigationMode.Collapsed) continue;
-                group.IsExpanded = state.Expanded(active.GetValueOrDefault(group.Id));
+                group.IsExpanded = (group.Mode == "history" && state.Mode != ProjectNavigationMode.Collapsed) ||
+                    state.Expanded(active.GetValueOrDefault(group.Id));
             }
         }
         finally { _initializingGroup = false; }

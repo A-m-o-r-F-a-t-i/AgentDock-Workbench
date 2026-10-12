@@ -166,6 +166,7 @@ public partial class ExecutionWindow : Window
         ConversationProgressCard.Visibility = Visibility.Collapsed;
         FilterTaskButton.Content = "筛选此任务"; Warn("");
         ObjectTitle.Text = item?.Title ?? "选择对话"; ObjectTitle.ToolTip = item?.Title;
+        UpdateConversationStartTime();
         EmptyPanel.Visibility = Visibility.Visible; EmptyText.Text = item is null ? "暂无对话记录" : "正在读取执行记录";
         UpdateStopButton();
         if (item is null) return;
@@ -178,6 +179,7 @@ public partial class ExecutionWindow : Window
             var value = await _client.ExecutionGetAsync("/internal/runtime/conversations/" + Escape(item.Id), SelectionToken);
             if (generation != _generation) return;
             _conversationSnapshot = value.Field("conversation");
+            UpdateConversationStartTime();
             if (_conversationSnapshot.HasDate("terminated_at")) Warn("此对话已终止，后续执行已被拦截。历史记录仍可查看和管理。");
             await GuardAsync(() => LoadConversationTasksAsync(generation));
         }
