@@ -61,8 +61,8 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
     val observedAuthorized = connectionData?.optString("state") == "authorized"
 
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Core、配对与公网状态", style = MaterialTheme.typography.headlineSmall)
-        Text("连接 Origin、客户端凭据、Core 授权观察和公网可达性是四个独立状态；页面不会从其中一项推断其余项。")
+        Text("连接管理", style = MaterialTheme.typography.headlineSmall)
+        Text("连接本机或远程节点，管理授权。")
 
         PhoneExecutionPanel(state)
 
@@ -70,15 +70,15 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
             OutlinedTextField(
                 value = endpoint,
                 onValueChange = { endpoint = it.take(4096) },
-                label = { Text("Core Origin") },
-                supportingText = { Text("默认 loopback 可用 HTTP；远程 Origin 必须显式启用并使用 HTTPS。") },
+                label = { Text("节点地址") },
+                supportingText = { Text("本机地址可使用 HTTP，远程地址需要 HTTPS。") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
-                    Text("启用远程 Core")
-                    Text("关闭时只接受 localhost、127.0.0.0/8 或 IPv6 loopback。", style = MaterialTheme.typography.bodySmall)
+                    Text("连接远程节点")
+                    Text("关闭后仅连接此设备上的节点。", style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(remoteEnabled, { remoteEnabled = it })
             }
@@ -86,7 +86,7 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
                 value = bearer,
                 onValueChange = { bearer = it.take(8192) },
                 label = { Text("手工 Bearer（留空不更改）") },
-                supportingText = { Text("一次性输入，不进入 SavedState、DataStore、日志或截图 Fixture。") },
+                supportingText = { Text("输入内容会加密保存，不显示在日志中。") },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -97,10 +97,10 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
                     bearer = ""
                 }, enabled = !state.actionBusy && endpoint.isNotBlank() && !state.fixture) { Text("保存并连接") }
                 OutlinedButton(onClick = model::clearBearer, enabled = !state.actionBusy && !state.fixture) { Text("删除本机授权") }
-                TextButton(onClick = ::reload) { Text("刷新证据") }
+                TextButton(onClick = ::reload) { Text("刷新状态") }
             }
-            Text("凭据可发送：${state.credentialAvailable}；Core 当前观察为已授权：$observedAuthorized")
-            Text("保存的凭据始终与 scheme、host、port 共同加密绑定，切换 Origin 不会携带旧凭据。")
+            Text("本机凭据：${if (state.credentialAvailable) "已保存" else "未配置"} · 节点授权：${if (observedAuthorized) "已确认" else "待确认"}")
+            TechnicalDetails("授权说明") { Text("凭据与节点地址加密绑定，切换地址不会携带旧凭据。") }
         }
 
         ResourceSection("自动配对") {
@@ -108,22 +108,23 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
                 Button(
                     onClick = model::pairLocalCore,
                     enabled = !state.actionBusy && loopback && !state.fixture && state.settings.endpoint.trimEnd('/') == endpoint.trimEnd('/')
-                ) { Text("通过 Termux 安全配对本机 Core") }
+                ) { Text("配对本机节点") }
                 Button(
                     onClick = model::pairRemoteOAuth,
                     enabled = !state.actionBusy && pkceSupported && !state.fixture && state.settings.endpoint.trimEnd('/') == endpoint.trimEnd('/')
-                ) { Text("通过浏览器 OAuth/PKCE 配对") }
+                ) { Text("浏览器授权") }
             }
-            Text("本机配对：Android 生成一次性 Keystore RSA 密钥，Termux 只返回 OAEP 密文；Bearer 明文不进入 Intent、参数、日志或持久操作记录。")
-            Text("远程配对：动态注册公共客户端，使用 PKCE S256、随机 state 和 127.0.0.1 临时回调；只保存短期访问令牌，不持久保存刷新令牌或客户端秘密。")
+            TechnicalDetails("配对说明") {
+                Text("本机通过 Termux 交换加密凭据。远程授权使用 OAuth 与 PKCE，只保存短期访问令牌。")
+            }
             if (state.oauthConfigured) {
                 Text("OAuth 已配置：${state.oauthValid}；到期：${expiry ?: state.oauthExpiresAtEpochMs}；issuer：${state.oauthIssuer}")
                 if (!state.oauthValid) Text("OAuth 访问令牌已过期或接近过期，不再发送；请重新配对。")
             }
-            if (endpoint.trimEnd('/') != state.settings.endpoint.trimEnd('/')) Text("请先保存当前 Origin，再发起配对，避免把授权绑定到未提交地址。")
+            if (endpoint.trimEnd('/') != state.settings.endpoint.trimEnd('/')) Text("请先保存节点地址，再开始配对。")
         }
 
-        ResourceSection("Core 运行与授权观察") {
+        ResourceSection("节点状态") {
             ResourceFeedback(status, ::reload)
             status?.data?.let { ResourceObject(it, listOf("ok", "source", "service", "version", "auth_enabled", "oauth_enabled", "nexus_enabled", "browser_enabled", "memory_enabled", "tool_count", "agentdock_home", "default_dir")) }
             ResourceFeedback(connection, ::reload)
@@ -138,7 +139,7 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
             }
         }
 
-        ResourceSection("OAuth 与能力探测") {
+        ResourceSection("连接诊断") {
             ResourceFeedback(oauth, ::reload)
             oauthData?.let { ResourceObject(it, listOf("issuer", "authorization_endpoint", "token_endpoint", "registration_endpoint", "grant_types_supported", "response_types_supported", "code_challenge_methods_supported", "token_endpoint_auth_methods_supported", "resource_indicators_supported")) }
             ResourceFeedback(oauthResource, ::reload)
@@ -147,16 +148,15 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
             capabilities?.data?.let { value ->
                 ResourceObject(value, listOf("source", "summary", "tool_count", "skill_count", "plugin_count", "mcp_count", "revision"))
             }
-            Text("OAuth 元数据不可用时，按钮保持禁用并展示真实读取错误，不回退为不安全的令牌猜测。")
+            Text("授权服务不可用时，请先处理上方连接错误。")
         }
 
-        ResourceSection("公网可达性与 Tunnel 边界") {
+        ResourceSection("公网访问") {
             val publicState = connectionData?.optString("public_reachability").orEmpty().ifBlank { "未读取" }
             val publicReason = connectionData?.optString("public_reachability_reason").orEmpty()
-            Text("Core 报告的公网可达性：$publicState")
+            Text("公网状态：$publicState")
             if (publicReason.isNotBlank()) Text(publicReason)
-            Text("当前 Local Control API 没有 Tunnel 创建、修改或撤销写路由。Android 仅展示 Core 观察状态；Tailscale/Cloudflare 等平台连接继续由受控 CLI/平台流程管理。")
-            Text("因此，本页不会用一个无效的“公网访问”开关伪装已创建 Tunnel，也不会把 OAuth 授权等同于公网可达。")
+            Text("此处只查看公网状态。请在 Tailscale 或 Cloudflare 等隧道服务中管理公网连接。")
         }
 
         ResourceSection("最近配对操作") {
@@ -171,8 +171,8 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
 private fun PairingOperationCard(operation: BridgeOperation) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${operation.operation} · ${operation.phase}", style = MaterialTheme.typography.titleSmall)
-            Text(operation.operationId)
+            Text("${userOperation(operation.operation)} · ${userStatus(operation.phase)}", style = MaterialTheme.typography.titleSmall)
+            TechnicalDetails("操作标识") { Text(operation.operationId) }
             if (operation.message.isNotBlank()) Text(operation.message)
             Text("创建：${DateFormat.getDateTimeInstance().format(Date(operation.createdAtEpochMs))}")
         }

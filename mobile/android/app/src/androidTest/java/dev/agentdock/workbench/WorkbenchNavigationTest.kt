@@ -51,6 +51,33 @@ class WorkbenchNavigationTest {
         WorkbenchScreen.entries.forEach(::navigate)
     }
 
+    @Test fun navigationHasReadableHierarchyAndNoInternalHomepageHeading() {
+        compose.onNodeWithText("Android 完整 Workbench").assertDoesNotExist()
+        compose.onNodeWithText("设备概览").assertIsDisplayed()
+        assertContentBelowAppBar(WorkbenchScreen.Home)
+        compose.onNodeWithTag("open-navigation").performClick()
+        val heading = compose.onNodeWithTag("drawer-title").fetchSemanticsNode().boundsInRoot
+        val home = compose.onNodeWithTag("nav-home").fetchSemanticsNode().boundsInRoot
+        val workspace = compose.onNodeWithTag("nav-workspaces").fetchSemanticsNode().boundsInRoot
+        assertTrue("Drawer heading overlaps first destination", home.top >= heading.bottom)
+        assertTrue("Drawer destinations overlap", workspace.top >= home.bottom)
+        val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
+        assertTrue("Drawer destinations have an excessive gap", workspace.top - home.bottom <= 16f * density)
+        compose.onNodeWithTag("nav-home").performClick()
+    }
+
+    private fun assertContentBelowAppBar(screen: WorkbenchScreen) {
+        val bar = compose.onNodeWithTag("workbench-appbar").fetchSemanticsNode().boundsInRoot
+        val page = compose.onNodeWithTag("screen-${screen.route}").fetchSemanticsNode().boundsInRoot
+        assertTrue("Page overlaps top app bar: ${screen.route}", page.top >= bar.bottom - 1f)
+        val rails = compose.onAllNodesWithTag("workbench-rail").fetchSemanticsNodes()
+        if (rails.isNotEmpty()) {
+            val rail = rails.single().boundsInRoot
+            assertTrue("Wide navigation rail overlaps top app bar", rail.top >= bar.bottom - 1f)
+            assertTrue("Wide page overlaps navigation rail", page.left >= rail.right - 1f)
+        }
+    }
+
     @Test fun captureKeyPages() {
         // Instrumentation executes with the target UID, not the test APK's UID.
         // Shell-owned CI evidence survives orchestrator app-data clearing.
@@ -215,6 +242,7 @@ class WorkbenchNavigationTest {
         require(Regex("[a-z-]+").matches(name))
         compose.waitForIdle()
         compose.onNodeWithTag("screen-${screen.route}").assertIsDisplayed()
+        assertContentBelowAppBar(screen)
         val path = "$directory/$name.png"
         shell("rm -f $path")
         shell("screencap -p $path")
