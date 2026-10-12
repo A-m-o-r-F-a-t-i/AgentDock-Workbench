@@ -112,6 +112,16 @@ A typical local MCP configuration is:
 
 Keep authentication enabled for every non-local connection. Do not publish tokens, OAuth credentials, private origins, approval payloads, or execution logs containing secrets.
 
+### MCP Server catalog description
+
+Paste the following text into the AgentDock MCP Server's `description` field in your AI client's server catalog. It describes the device-side delegation boundary and when to initialize or reuse context. This is the server catalog description, not a tool description or an authentication setting.
+
+```text
+AgentDock 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；AgentDock 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
+
+首次进入某个设备或上下文失效时调用 agentdock_context；context_diagnostics.complete=true 后复用当前上下文并直接调用已解析工具。不得无新证据地重复初始化、搜索、inspect、加载或执行相同请求。
+```
+
 ## Project documentation
 
 | Topic | Document |
