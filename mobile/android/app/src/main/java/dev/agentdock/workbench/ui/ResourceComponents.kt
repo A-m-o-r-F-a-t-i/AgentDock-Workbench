@@ -29,8 +29,8 @@ fun rememberCommandPrompt(model: WorkbenchViewModel): CommandPrompt {
             title = { Text(command.title) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(command.consequence)
-                Text("目标：${command.path}")
-                Text("确认后只发送一次。取消等待不能保证撤销已提交的服务器写入。")
+                TechnicalDetails("请求详情") { Text("目标：${command.path}") }
+                Text("提交后，关闭窗口不会撤销操作。")
             } },
             confirmButton = { TextButton(onClick = {
                 val callback = prompt.after
@@ -79,25 +79,35 @@ fun ResourceActions(content: @Composable RowScope.() -> Unit) {
 
 @Composable
 fun ResourceObject(value: JSONObject, keys: List<String> = listOf("title", "name", "summary", "status", "workspace_id", "call_id", "parent_call_id", "tool_name", "display_command", "error_code", "error_summary", "created_at", "updated_at", "completed_at")) {
-    keys.forEach { key ->
+    val labels = mapOf("title" to "标题", "name" to "名称", "goal" to "目标", "summary" to "摘要", "message" to "说明",
+        "status" to "状态", "tool_name" to "工具", "display_command" to "命令", "error_code" to "错误码", "error_summary" to "错误",
+        "created_at" to "创建时间", "updated_at" to "更新时间", "completed_at" to "完成时间", "succeeded" to "成功", "failed" to "失败", "skipped" to "跳过")
+    val entries = keys.mapNotNull { key ->
         val raw = value.opt(key)
-        if (raw != null && raw != JSONObject.NULL && raw !is JSONObject && raw !is org.json.JSONArray && raw.toString().isNotBlank()) {
-            Text("$key：${raw.toString().take(4096)}")
-        }
+        if (raw == null || raw == JSONObject.NULL || raw is JSONObject || raw is org.json.JSONArray || raw.toString().isBlank()) null
+        else key to raw.toString().take(4096)
     }
+    entries.filter { it.first in labels }.forEach { (key, text) ->
+        Text("${labels[key]}：${if (key == "status") userStatus(text) else text}")
+    }
+    val technical = entries.filterNot { it.first in labels }
+    if (technical.isNotEmpty()) TechnicalDetails { technical.forEach { (key, text) -> Text("$key：$text", style = MaterialTheme.typography.bodySmall) } }
+
 }
 
 @Composable
 fun ResourceReceipt(value: JSONObject?) {
     if (value == null) return
-    ResourceSection("最近管理回执") {
+    ResourceSection("最近操作结果") {
         ResourceObject(value, listOf("status", "message", "ok", "succeeded", "skipped", "failed", "has_remaining_activity", "revision"))
         value.optJSONArray("warnings")?.let { warnings ->
             for (index in 0 until minOf(warnings.length(), 100)) Text(warnings.optString(index).take(2048))
         }
         value.optJSONArray("items")?.let { items ->
-            for (index in 0 until minOf(items.length(), 200)) items.optJSONObject(index)?.let {
-                Text("${it.optString("id")} · ${it.optString("status")} · ${it.optString("message").take(2048)}")
+            TechnicalDetails("逐项结果（${items.length()}）") {
+                for (index in 0 until minOf(items.length(), 200)) items.optJSONObject(index)?.let {
+                    Text("${it.optString("id")} · ${userStatus(it.optString("status"))} · ${it.optString("message").take(2048)}")
+                }
             }
         }
     }
