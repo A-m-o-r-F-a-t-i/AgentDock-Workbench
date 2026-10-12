@@ -12,8 +12,12 @@ HOST_EXECUTOR="$SELF_DIR/agentdock_host_executor.py"
 [ -f "$MODULE" ] || { printf 'Missing companion module\n' >&2; exit 1; }
 [ -f "$BRIDGE" ] || { printf 'Missing companion file: %s\n' "$BRIDGE" >&2; exit 1; }
 
-pkg update -y
-pkg install -y proot-distro curl jq coreutils util-linux procps openssl-tool tar python
+# -y alone does not answer dpkg conffile prompts. Keep the user's existing
+# configuration and finish interrupted package configuration before installing.
+export DEBIAN_FRONTEND=noninteractive
+timeout --signal=TERM --kill-after=15s 180s dpkg --force-confold --configure -a
+timeout --signal=TERM --kill-after=15s 900s apt-get update
+timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install proot-distro curl jq coreutils util-linux procps openssl-tool tar python
 mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
 install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
@@ -35,7 +39,14 @@ fi
 if ! printf '%s\n' "$installed_containers" | grep -Fxq 'debian'; then
   proot-distro install debian
 fi
-proot-distro login debian -- /bin/sh -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl tar jq procps openssl && apt-get clean'
+proot-distro login debian -- /bin/sh -lc '
+  set -eu
+  export DEBIAN_FRONTEND=noninteractive
+  timeout --signal=TERM --kill-after=15s 180s dpkg --force-confold --configure -a
+  timeout --signal=TERM --kill-after=15s 900s apt-get update
+  timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install ca-certificates curl tar jq procps openssl
+  apt-get clean
+'
 printf '%s\n' 'Termux bridge and Debian PRoot are ready.'
 printf '%s\n' 'Return to AgentDock Workbench, grant RUN_COMMAND, then run Probe/Bootstrap.'
 printf '%s\n' 'Core installation remains blocked until a trusted signed ARM64 release manifest/key is available.'

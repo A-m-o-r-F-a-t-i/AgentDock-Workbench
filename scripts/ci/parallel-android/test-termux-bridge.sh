@@ -127,5 +127,6 @@ for name, entries, success in cases:
 print("9 archive cases passed")
 PYTEST
 
+bash "$root/mobile/android/termux/tests/bootstrap-test.sh"
 python3 "$root/scripts/ci/parallel-android/test_deployment.py"
 echo 'termux bridge contract and deployment tests passed'
