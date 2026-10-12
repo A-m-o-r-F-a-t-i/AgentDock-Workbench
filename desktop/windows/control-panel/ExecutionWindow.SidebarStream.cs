@@ -142,7 +142,7 @@ public partial class ExecutionWindow
         key.IsExpanded = state.Expanded(recent || inFlight ? 1 : 0);
         var snapshot = JsonSerializer.SerializeToElement(new
         {
-            conversation_id = id, title, source = call.Text("source"), created_at = requested,
+            conversation_id = id, title, source = call.Text("source"), created_at = (DateTimeOffset?)null,
             in_flight = inFlight, recently_active = recent, last_interaction_at = interaction, interaction_expires_at = expires,
             state = new { workspace_id = workspace }, task_ids = Array.Empty<string>(),
             statistics = new { last_tool_call_at = requested, last_interaction_at = interaction, last_activity_at = call.Date("last_activity_at") ?? requested }
