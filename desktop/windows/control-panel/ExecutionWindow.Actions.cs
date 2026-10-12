@@ -188,6 +188,31 @@ public partial class ExecutionWindow
     {
         if (ids.Length == 0 && CallsList.SelectedItem is ExecutionCallRow { IsInsertion:true } message) { ShowInsertionMenu(anchor,message); return; }
         var fixedIds = ids.ToArray(); var menu = Menu(anchor);
+        if (fixedIds.Length == 1 && Calls.FirstOrDefault(row => row.Id == fixedIds[0]) is { Tool: "file_edit" } fileRow)
+        {
+            var locations = fileRow.FileLocations;
+            if (locations.Length <= 1)
+            {
+                ActionMenu(menu, "在文件资源管理器中显示", () => ShowEditedFileAsync(locations[0]), locations.Length == 1);
+                if (locations.Length == 0 && menu.Items[menu.Items.Count - 1] is MenuItem unavailable)
+                {
+                    unavailable.ToolTip = "此记录没有可解析的本机 Windows 文件路径。旧记录或其他设备的路径不会使用当前工作区推测。";
+                    ToolTipService.SetShowOnDisabled(unavailable, true);
+                }
+            }
+            else
+            {
+                var files = new MenuItem { Header = "在文件资源管理器中显示" };
+                foreach (var path in locations)
+                {
+                    var item = new MenuItem { Header = path, ToolTip = path };
+                    item.Click += async (_, _) => await GuardAsync(() => ShowEditedFileAsync(path));
+                    files.Items.Add(item);
+                }
+                menu.Items.Add(files);
+            }
+            Divider(menu);
+        }
         ActionMenu(menu, "导出当前筛选", () => ExportScopeAsync(CallScopeQuery(), "执行记录"));
         ActionMenu(menu, "导出所选记录", () => ExportCallIdsAsync(fixedIds), fixedIds.Length > 0);
         ActionMenu(menu, "归档所选", () => BatchAsync("call", fixedIds, "archive"), fixedIds.Length > 0);
@@ -199,6 +224,12 @@ public partial class ExecutionWindow
         if (_callView == "isolated") ActionMenu(menu, "取消隔离所选", () => BatchAsync("call", fixedIds, "unisolate"), fixedIds.Length > 0);
         if (_callView == "archived") ActionMenu(menu, "取消归档所选", () => BatchAsync("call", fixedIds, "unarchive"), fixedIds.Length > 0);
         OpenMenu(menu);
+    }
+    private async Task ShowEditedFileAsync(string path)
+    {
+        var shown = await FileExplorerReveal.ShowAsync(path, _lifetime.Token);
+        if (!_closed && !string.Equals(shown, path, StringComparison.OrdinalIgnoreCase))
+            Warn("原文件已不存在，已定位到仍可访问的上级目录：" + shown);
     }
     private void CopyCommand_Click(object sender, RoutedEventArgs e) { if (_detailCall is { } row) CopyText(row.RequestText); }
     private void CopyOutput_Click(object sender, RoutedEventArgs e) { if (_detailCall is { } row) CopyText(row.Output); }
