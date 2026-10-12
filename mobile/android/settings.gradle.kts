@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "AgentDockWorkbenchAndroid"
-include(":app")
+include(":app", ":release-check")
