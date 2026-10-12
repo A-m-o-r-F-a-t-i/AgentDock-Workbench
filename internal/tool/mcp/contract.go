@@ -42,7 +42,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["expected_revision"] = stringProp("Current server.revision from inspect; required for compare-and-swap update/reset_override.")
 		required = []string{"action"}
 	case ToolSearch:
-		props["query"] = stringProp("Capability or tool query.")
+		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
 		props["limit"] = boundedIntProp("Maximum matching tools. Defaults to 10 and is capped at 100.", 1, 100)
 		required = []string{"query"}
@@ -110,6 +110,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["matched_alias"] = stringProp("Recognized compatibility alias when one was used.")
 		props["route_summary"] = stringProp("Compact activity title for the resolved route.")
 		props["builtin_tools"] = arrayProp("Compact AgentDock host built-in route summaries without input or output schemas.")
+		props["execution_performed"] = boolProp("False for a host handoff: discovery did not execute the tool.")
 		props["next_action"] = stringProp("Next discovery action; never authorizes or automatically executes a business operation.")
 	case ToolList:
 		props = catalogSchemaProperties()
@@ -127,6 +128,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["dynamic_match_count"] = intProp("Successfully returned dynamic MCP schemas.")
 		props["route_summary"] = stringProp("Compact activity title for a terminal host route.")
 		props["builtin_tools"] = arrayProp("Compact AgentDock host built-in route summaries without schemas.")
+		props["execution_performed"] = boolProp("False for a host handoff: no business action ran.")
+		props["next_action"] = stringProp("Caller-side host handoff after completed inspection.")
 		props["metadata"] = objectProp("Additional standard upstream tool fields, retained without interpreting business data.")
 		props["name"] = stringProp("Qualified MCP tool name.")
 		props["server"] = stringProp("Dynamic MCP server name.")

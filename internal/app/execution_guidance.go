@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 // Guidance is generated from the server's validated binding and observed result. It
@@ -44,7 +45,9 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	}
 	sessionID := stringArg(result, "session_id")
 	running := stringArg(result, "status") == "running"
-	if running && sessionID != "" {
+	if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
+		guidance["next_required"] = steps
+	} else if running && sessionID != "" {
 		guidance["next_required"] = []map[string]any{{"action": "observe", "tool": "session_observe", "arguments": map[string]any{"action": "status", "session_id": sessionID}, "text": "Continue observing this session. Do not start the same long command again."}}
 	} else if failed || resultReportsFailure(result) || result["command_ok"] == false {
 		guidance["next_required"] = []map[string]any{{"action": "inspect", "text": "Inspect the actual error, exit code and partial effects before retrying. Reuse the same task and thread; a tool response alone does not imply command success."}}
@@ -61,4 +64,32 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 		guidance["rules_revision"] = state.target.RulesRevision
 	}
 	return guidance
+}
+
+// Only trusted top-level discovery results can issue a host handoff. Upstream
+// MCP content and command output never supply tool names or execution arguments.
+func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]any {
+	if !isHostBuiltinRoute(name, result) || result["resolved"] != true || result["terminal"] != true {
+		return nil
+	}
+	summaries, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary)
+	if !ok {
+		return nil
+	}
+	steps := []map[string]any{}
+	seen := map[string]bool{}
+	for _, summary := range summaries {
+		if seen[summary.Name] {
+			continue
+		}
+		if _, available := r.ToolDefinition(summary.Name); !available {
+			continue
+		}
+		seen[summary.Name] = true
+		steps = append(steps, map[string]any{
+			"action": "use_host_tool", "tool": summary.Name, "invoke_via": "host",
+			"text": "Use the known host schema; if absent load it once in the caller's AgentDock catalog. No command ran. Reuse context; stop MCP search/inspect.",
+		})
+	}
+	return steps
 }

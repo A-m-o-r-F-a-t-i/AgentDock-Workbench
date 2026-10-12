@@ -144,13 +144,11 @@ func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T)
 		t.Fatal(err)
 	}
 	if view.RouteKind != "host_builtin" || !view.Resolved || !view.Terminal || view.BuiltinMatchCount != 2 ||
-		view.DynamicMatchCount != 0 || view.RouteSummary != "识别内置工具 · exec_command, task_manage" || len(view.Builtin) != 2 || len(view.Errors) != 2 {
+		view.DynamicMatchCount != 0 || view.RouteSummary != "识别内置工具 · exec_command, task_manage" || len(view.Builtin) != 2 || len(view.Errors) != 0 {
 		t.Fatalf("wrong host inspect route: %#v", result)
 	}
 	for index, name := range []string{"exec_command", "task_manage"} {
-		if view.Builtin[index].Name != name || view.Builtin[index].InvokeVia != "host" || view.Errors[index].Selector != name ||
-			view.Errors[index].Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || view.Errors[index].Status != "host_builtin" ||
-			view.Errors[index].RouteKind != "host_builtin" || view.Errors[index].ToolName != name {
+		if view.Builtin[index].Name != name || view.Builtin[index].InvokeVia != "host" {
 			t.Fatalf("wrong host inspect member: %#v", result)
 		}
 	}
@@ -162,8 +160,11 @@ func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T)
 		t.Fatalf("ambiguous inspect activity: %+v", call)
 	}
 	assertToolResultMatchestestOutputSchema(t, "mcp_tool_inspect", result)
-	_, err = rt.Call(t.Context(), "mcp_tool_inspect", map[string]any{"name": "exec_command"})
-	assertToolErrorCode(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
+	single, err := rt.Call(t.Context(), "mcp_tool_inspect", map[string]any{"name": "exec_command"})
+	if err != nil || single["route_kind"] != "host_builtin" || single["terminal"] != true || single["execution_performed"] != false {
+		t.Fatalf("single host selector must hand off successfully: %#v %v", single, err)
+	}
+	assertToolResultMatchestestOutputSchema(t, "mcp_tool_inspect", single)
 }
 
 func TestAuditBroadSearchReportsColdCatalogWithoutConnecting(t *testing.T) {

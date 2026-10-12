@@ -123,7 +123,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 				"matched_tool": match.Tool.Name, "route_summary": "定位内置工具 · " + match.Tool.Name,
 				"tools": []any{}, "catalogs": []any{}, "builtin_tools": []BuiltinToolSummary{match.Tool},
 				"complete": true, "truncated": false, "cache_only": true,
-				"next_action": "Load or invoke the named AgentDock built-in through the host tool namespace. Do not search for it in a dynamic MCP server or wrap it in mcp_tool_call.",
+				"next_action": hostBuiltinNextAction, "execution_performed": false,
 			}
 			if match.Alias != "" {
 				result["matched_alias"] = match.Alias

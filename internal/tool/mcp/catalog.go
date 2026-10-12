@@ -59,7 +59,6 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		seen[selector] = true
 		if match, available := s.resolveBuiltinRoute(selector); available {
 			builtins = append(builtins, match.Tool)
-			invalid = append(invalid, hostBuiltinProblem(selector, match))
 			continue
 		}
 		server, tool, ok := strings.Cut(selector, ":")
@@ -184,21 +183,16 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	}
 	sort.Slice(problems, func(i, j int) bool { return problems[i]["selector"].(string) < problems[j]["selector"].(string) })
 	builtins = sortedBuiltinTools(builtins)
+	// Both single and batch selectors have completed discovery. Treating an
+	// available host tool as a validation error sends callers back into inspect.
+	if len(builtins) > 0 && len(tools) == 0 && len(problems) == 0 {
+		return hostBuiltinInspectionResult(builtins), nil
+	}
 	if legacy {
 		if singleError != nil {
 			return nil, singleError
 		}
-		if len(builtins) == 1 && len(problems) == 1 && problems[0]["code"] == "HOST_BUILTIN_NOT_DYNAMIC_MCP" {
-			return nil, toolErrorDetails(
-				"HOST_BUILTIN_NOT_DYNAMIC_MCP",
-				problems[0]["message"].(string),
-				"validation",
-				map[string]any{
-					"selector": problems[0]["selector"], "route_kind": routeKindHostBuiltin,
-					"tool_name": builtins[0].Name, "builtin_tool": builtins[0], "terminal": true,
-				},
-			)
-		}
+
 		if len(tools) == 1 && len(problems) == 0 {
 			return Result(tools[0]), nil
 		}
@@ -206,7 +200,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	}
 	result := Result{
 		"tools": tools, "count": len(tools), "total": len(tools),
-		"complete": len(problems) == len(builtins), "errors": problems, "catalogs": catalogs,
+		"complete": len(problems) == 0, "errors": problems, "catalogs": catalogs,
 		"builtin_match_count": len(builtins), "dynamic_match_count": len(tools),
 	}
 	if len(builtins) == 0 {
@@ -214,13 +208,6 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		return result, nil
 	}
 	result["builtin_tools"] = builtins
-	if len(tools) == 0 && len(problems) == len(builtins) {
-		result["route_kind"] = routeKindHostBuiltin
-		result["resolved"] = true
-		result["terminal"] = true
-		result["route_summary"] = "识别内置工具 · " + strings.Join(builtinToolNames(builtins), ", ")
-	} else {
-		result["route_kind"] = "mixed"
-	}
+	result["route_kind"] = "mixed"
 	return result, nil
 }
