@@ -44,6 +44,8 @@ fi
 if ! printf '%s\n' "$installed_containers" | grep -Fxq 'debian'; then
   proot-distro install debian
 fi
+# Variables below must expand inside Debian, not in the Termux host shell.
+# shellcheck disable=SC2016
 proot-distro login debian -- /bin/sh -lc '
   set -eu
   export DEBIAN_FRONTEND=noninteractive
