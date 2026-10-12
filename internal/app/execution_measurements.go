@@ -121,6 +121,11 @@ func (r *Runtime) fileEditDetails(args map[string]any, result Result, state exec
 		details.AffectedCount = &count
 		details.AffectedFiles = []activity.AffectedFile{{Path: details.Path, Operation: details.Action, MoveTo: details.NewPath}}
 	}
+	// Statistics paths are relative to the selected root, not the command workdir.
+	// Freeze that base with the record so a later workspace switch cannot retarget it.
+	if state.selected != nil && state.selected.Runtime != "wsl" {
+		details.PathBase = r.executionRedactor(args).Text(state.selected.Root, 512)
+	}
 	relative := func(value string) string {
 		if state.selected != nil && value != "" && state.selected.Runtime != "wsl" {
 			if rel, err := filepath.Rel(state.selected.Root, value); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
