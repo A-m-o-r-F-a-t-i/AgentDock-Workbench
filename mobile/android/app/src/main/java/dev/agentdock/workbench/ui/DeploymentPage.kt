@@ -70,6 +70,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
             Text("APK ${BuildConfig.PRODUCT_VERSION}；部署、恢复与进程结果由外部 Termux 回执确认。")
             Text("核心程序与 Linux 环境不打包进 APK。候选构建不自动接管手机上已有节点。")
         }
+        item { TermuxRecoveryPanel(state, model) }
         item {
             DeploymentSection("外部环境准备") {
                 DeploymentRow {
