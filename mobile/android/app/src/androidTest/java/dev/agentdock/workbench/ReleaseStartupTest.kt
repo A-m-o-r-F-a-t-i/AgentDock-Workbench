@@ -9,7 +9,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Run against the minified release target as well as the regular debug target. */
+/** Debug integration test; the release-check module separately tests the unchanged minified APK. */
 @RunWith(AndroidJUnit4::class)
 class ReleaseStartupTest {
     @Test

@@ -93,9 +93,7 @@ PY
 release_evidence="$evidence/release-startup"
 mkdir -p "$release_evidence"
 set +e
-timeout --signal=TERM --kill-after=20s 10m gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace connectedReleaseAndroidTest \
-  -PagentdockTestBuildType=release \
-  -Pandroid.testInstrumentationRunnerArguments.class=dev.agentdock.workbench.ReleaseStartupTest \
+timeout --signal=TERM --kill-after=20s 10m gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace :release-check:connectedReleaseAndroidTest \
   -PagentdockAndroidVersionCode="$version_code" \
   -PagentdockCandidateSha="$SOURCE_SHA" \
   -PagentdockCandidateRunId="$GITHUB_RUN_ID" \
@@ -109,7 +107,7 @@ repo, evidence = map(pathlib.Path, sys.argv[1:3])
 rc = int(sys.argv[3])
 target = evidence / 'release-startup'
 cases, errors = {}, []
-source = repo / 'mobile/android/app/build/outputs/androidTest-results'
+source = repo / 'mobile/android/release-check/build/outputs/androidTest-results'
 for report in source.rglob('TEST-*.xml'):
     if 'release' not in {part.lower() for part in report.parts}:
         continue
@@ -118,11 +116,11 @@ for report in source.rglob('TEST-*.xml'):
     shutil.copy2(report, destination)
     try:
         for case in ET.parse(report).iter('testcase'):
-            if case.get('classname') == 'dev.agentdock.workbench.ReleaseStartupTest':
+            if case.get('classname') == 'dev.agentdock.releasecheck.ReleaseStartupTest':
                 cases[case.get('name')] = all(case.find(tag) is None for tag in ('failure', 'error', 'skipped'))
     except (ET.ParseError, OSError) as error:
         errors.append(str(error))
-required = {'generatedWorkDatabaseRetainsItsReflectiveConstructor', 'activityAndWorkManagerStartInThePackagedApplication'}
+required = {'generatedWorkDatabaseRetainsItsReflectiveConstructor', 'packagedReleaseSurvivesTenColdStarts'}
 valid = rc == 0 and set(cases) == required and all(cases.values()) and not errors
 result = json.loads((evidence / 'result.json').read_text())
 result['release_startup'] = {'variant': 'release', 'minified': True, 'exit_code': rc, 'tests': cases, 'report_errors': errors, 'passed': valid}
