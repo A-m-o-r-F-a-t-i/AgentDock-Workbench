@@ -253,6 +253,19 @@ class PublicationGate(unittest.TestCase):
         self.assertFalse(self.record['draft']);self.assertTrue(self.record['prerelease'])
         self.assertEqual(self.record['target_commitish'],self.commit)
         self.assertEqual(self.record['assets'],[self.asset]);self.assertEqual(self.latest['id'],99)
+    def test_explicit_published_prerelease_promotion_reconciles_assets_and_becomes_latest(self):
+        self.record['draft']=False;self.record['prerelease']=True
+        self.record['name']='AgentDock Workbench 1.1.7 Pre-release'
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(False,True)
+        mutations=self.mutations()
+        self.assertEqual([args[3] for args in mutations],['PATCH','DELETE','POST','PATCH'])
+        self.assertIn('draft=true',mutations[0]);self.assertIn('prerelease=true',mutations[0]);self.assertIn('make_latest=false',mutations[0])
+        self.assertIn('draft=false',mutations[-1]);self.assertIn('prerelease=false',mutations[-1]);self.assertIn('make_latest=true',mutations[-1])
+        self.assertFalse(self.record['draft']);self.assertFalse(self.record['prerelease'])
+        self.assertEqual(self.record['name'],'AgentDock Workbench 1.1.7')
+        self.assertEqual(self.record['target_commitish'],self.commit)
+        self.assertEqual(self.record['assets'],[self.asset]);self.assertEqual(self.latest['id'],123)
     def test_explicit_replacement_resumes_from_recoverable_draft(self):
         self.record['draft']=True;self.record['prerelease']=True
         self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
@@ -261,7 +274,7 @@ class PublicationGate(unittest.TestCase):
         self.assertFalse(self.record['draft']);self.assertEqual(self.record['assets'],[self.asset])
     def test_explicit_replacement_rejects_stable_release_before_mutation(self):
         self.record['draft']=False;self.record['prerelease']=False
-        with self.assertRaisesRegex(RuntimeError,'existing prerelease'):self.publish(True,True)
+        with self.assertRaisesRegex(RuntimeError,'existing prerelease'):self.publish(False,True)
         self.assertEqual(self.mutations(),[])
     def test_explicit_replacement_rejects_unexpected_asset_before_unpublish(self):
         self.record['draft']=False;self.record['prerelease']=True
