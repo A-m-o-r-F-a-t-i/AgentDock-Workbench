@@ -257,7 +257,7 @@ internal static class SidebarInteractionTests
         var automatic = new SidebarNavigationState();
         var clock = Field<ConversationActivityClock>(window, "_activityClock");
         var observe = typeof(ExecutionWindow).GetMethod("ObserveSidebarRoot", Private)!;
-        void StopRefresh() { Field<DispatcherTimer>(window, "_sidebarRefreshTimer").Stop(); Set(window, "_sidebarDirty", false); }
+        void StopRefresh() { Field<DispatcherTimer>(window, "_sidebarRefresh").Stop(); Set(window, "_sidebarDirty", false); }
         JsonElement Root(string id, DateTimeOffset request, DateTimeOffset activity, long sequence) => JsonSerializer.SerializeToElement(new
         {
             call_id = "live-" + sequence, conversation_id = id, workspace_id = "A", tool_name = "exec_command", status = "succeeded",
