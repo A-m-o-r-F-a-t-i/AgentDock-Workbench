@@ -3,6 +3,7 @@ package dev.agentdock.workbench.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -82,15 +83,18 @@ fun WorkbenchPage(
 private fun HomePage(state: WorkbenchUiState, viewModel: WorkbenchViewModel, modifier: Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            PageHeader("Android 完整 Workbench", "原生 Compose 控制面；Core 与 Termux 仍是独立、可验证的外部组件。")
+            PageHeader("设备概览", "查看连接状态，继续处理任务。")
         }
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Core ${state.snapshot.coreHealth.name}", style = MaterialTheme.typography.titleLarge)
-                    Text(state.snapshot.connectionMessage)
-                    Text("版本 ${state.snapshot.coreVersion.ifBlank { "未知" }} · ${state.liveStatus}")
-                    Text("期望节点状态：${state.settings.desiredNodeState}")
+                    Text(userStatus(state.snapshot.coreHealth.name), style = MaterialTheme.typography.headlineSmall)
+                    Text("节点版本 ${state.snapshot.coreVersion.ifBlank { "待连接" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TechnicalDetails("连接详情") {
+                        Text(state.snapshot.connectionMessage)
+                        Text(state.liveStatus)
+                        Text("期望状态：${userStatus(state.settings.desiredNodeState)}")
+                    }
                 }
             }
         }
@@ -112,20 +116,14 @@ private fun HomePage(state: WorkbenchUiState, viewModel: WorkbenchViewModel, mod
                 )
             )
         }
-        item {
-            InfoCard(
-                "边界说明",
-                "关闭本页面不会停止 Core。暂停守护只暂停健康检查；“停止 Core”会先写入 desired=stopped，再交给 Termux 执行。"
-            )
-        }
-        if (state.fixture) item { InfoCard("测试数据", "当前是显式 CI fixture，不代表真实设备或 Core 成功状态。") }
+        if (state.fixture) item { InfoCard("测试数据", "此页面使用模拟数据，未连接真实节点。") }
     }
 }
 
 @Composable
 private fun ActivityPage(state: WorkbenchUiState, viewModel: WorkbenchViewModel, modifier: Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { PageHeader("活动与调用", state.liveStatus) }
+        item { PageHeader("活动记录", "查看最近执行的操作与结果。") }
         item { SectionTitle("活动流") }
         if (state.snapshot.activity.isEmpty()) item { EmptyCard("暂无活动事件或活动端点不可用") }
         lazyItems(state.snapshot.activity.take(50), key = { "event-${it.id}" }) { WorkbenchItemCard(it) {} }
@@ -143,7 +141,10 @@ private fun InsertAndStopPage(state: WorkbenchUiState, viewModel: WorkbenchViewM
     val selected = state.snapshot.conversations.firstOrNull { it.id == state.selectedConversationId }
     val bytes = text.toByteArray(StandardCharsets.UTF_8).size
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { PageHeader("插入与停止", "插入有效窗 5 分钟；入口和停止资格使用最近 3 分钟；回执等待 30 秒。") }
+        item {
+            PageHeader("补充与停止", "向选定对话补充要求，或停止当前执行。")
+            TechnicalDetails("时效说明") { Text("补充要求有效期为 5 分钟；可操作入口保留 3 分钟，回执最多等待 30 秒。") }
+        }
         if (selected == null) {
             item { EmptyCard("请先选择对话") }
             lazyItems(state.snapshot.conversations, key = { "choose-${it.id}" }) { WorkbenchItemCard(it) { viewModel.selectConversation(it) } }
@@ -192,7 +193,7 @@ private fun InsertAndStopPage(state: WorkbenchUiState, viewModel: WorkbenchViewM
 @Composable
 private fun LogsDiagnosticsPage(state: WorkbenchUiState, viewModel: WorkbenchViewModel, modifier: Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { PageHeader("日志与诊断", "敏感值不展示；Termux 诊断包保留在其私有目录，需用户明确导出。") }
+        item { PageHeader("日志与诊断", "查看错误记录，生成诊断包。") }
         item { InfoCard("实时流", state.liveStatus) }
         item {
             HorizontalActions(
@@ -232,7 +233,7 @@ private fun SelectedCard(item: WorkbenchItem, content: @Composable (() -> Unit)?
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleMedium)
-            Text(item.id, style = MaterialTheme.typography.bodySmall)
+            TechnicalDetails("记录标识") { Text(item.id, style = MaterialTheme.typography.bodySmall) }
             if (item.subtitle.isNotBlank()) Text(item.subtitle)
             if (item.status.isNotBlank()) Text("状态：${item.status}")
             content?.invoke()
@@ -244,8 +245,8 @@ private fun SelectedCard(item: WorkbenchItem, content: @Composable (() -> Unit)?
 private fun OperationCard(operation: BridgeOperation) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${operation.operation} · ${operation.phase}", fontWeight = FontWeight.SemiBold)
-            Text(operation.operationId, style = MaterialTheme.typography.bodySmall)
+            Text("${userOperation(operation.operation)} · ${userStatus(operation.phase)}", fontWeight = FontWeight.SemiBold)
+            TechnicalDetails("操作标识") { Text(operation.operationId, style = MaterialTheme.typography.bodySmall) }
             if (operation.message.isNotBlank()) Text(operation.message)
             if (operation.stdoutTruncated || operation.stderrTruncated) Text("Termux 输出已截断")
         }
@@ -255,9 +256,8 @@ private fun OperationCard(operation: BridgeOperation) {
 @Composable
 private fun PageHeader(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium)
-        HorizontalDivider(Modifier.padding(top = 4.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -283,9 +283,9 @@ private fun InfoCard(title: String, body: String) {
 
 @Composable
 private fun MetricRow(vararg values: Pair<String, Int>) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         values.forEach { (label, value) ->
-            ElevatedCard(Modifier.width(112.dp)) {
+            ElevatedCard(Modifier.weight(1f)) {
                 Column(Modifier.padding(12.dp)) {
                     Text(value.toString(), style = MaterialTheme.typography.headlineMedium)
                     Text(label)
@@ -297,7 +297,7 @@ private fun MetricRow(vararg values: Pair<String, Int>) {
 
 @Composable
 private fun HorizontalActions(actions: List<Pair<String, () -> Unit>>, enabled: Boolean = true) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         actions.forEach { (label, action) -> OutlinedButton(onClick = action, enabled = enabled) { Text(label) } }
     }
 }

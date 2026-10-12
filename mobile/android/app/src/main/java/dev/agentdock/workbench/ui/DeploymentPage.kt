@@ -67,17 +67,17 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("安装与更新", style = MaterialTheme.typography.headlineSmall)
-            Text("APK ${BuildConfig.PRODUCT_VERSION}；部署、恢复与进程结果由外部 Termux 回执确认。")
-            Text("核心程序与 Linux 环境不打包进 APK。候选构建不自动接管手机上已有节点。")
+            Text("准备运行环境，安装或更新节点。")
+            Text("首次使用需要安装 Termux，并完成下面的环境准备。")
         }
         item { TermuxRecoveryPanel(state, model) }
         item {
-            DeploymentSection("外部环境准备") {
+            DeploymentSection("准备运行环境") {
                 DeploymentRow {
-                    OutlinedButton(onClick = { export.launch("AgentDock-Workbench-Termux-bridge.zip") }, enabled = enabled) { Text("导出完整桥包") }
+                    OutlinedButton(onClick = { export.launch("AgentDock-Workbench-Termux-bridge.zip") }, enabled = enabled) { Text("导出安装脚本") }
                     OutlinedButton(onClick = { permission.launch(TermuxContract.PERMISSION_RUN_COMMAND) }) { Text("授予 RUN_COMMAND") }
                 }
-                Text("在官方 Termux 中解压完整桥包，执行其中的 bootstrap。保留 wrapper、Python 部署模块和 bootstrap 三个文件，按引导启用外部调用。")
+                Text("在 Termux 中解压导出包，保留所有文件并执行 bootstrap 脚本。完成后点击检测。")
                 DeploymentRow {
                     TextButton(onClick = {
                         val launch = context.packageManager.getLaunchIntentForPackage(TermuxContract.PACKAGE)
@@ -90,7 +90,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                     }) { Text("系统应用设置") }
                 }
                 DeploymentRow {
-                    OutlinedButton(onClick = { model.runTermux("probe") }, enabled = enabled, modifier = Modifier.testTag("termux-probe")) { Text("只读探测") }
+                    OutlinedButton(onClick = { model.runTermux("probe") }, enabled = enabled, modifier = Modifier.testTag("termux-probe")) { Text("检测环境") }
                     OutlinedButton(onClick = { model.runTermux("status") }, enabled = enabled) { Text("查询节点") }
                     OutlinedButton(onClick = { offer("初始化受管节点", "只准备新的私有受管目录和身份。不会下载安装 Core，也不会替换已有有效身份。", "bootstrap") }, enabled = enabled) { Text("初始化目录") }
                 }
@@ -107,10 +107,12 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
             DeploymentSection("节点配置") {
                 DeploymentInput("节点名称", nodeName) { nodeName = it.take(80) }
                 DeploymentInput("本机端口（1024–65535）", port) { port = it.take(5) }
-                DeploymentInput("PRoot 发行版", distro) { distro = it.take(32) }
-                DeploymentInput("恢复初始退避（秒）", baseDelay) { baseDelay = it.take(4) }
-                DeploymentInput("恢复退避上限（秒）", maxDelay) { maxDelay = it.take(4) }
-                DeploymentInput("连续恢复失败上限", failures) { failures = it.take(2) }
+                TechnicalDetails("高级配置") {
+                    DeploymentInput("PRoot 发行版", distro) { distro = it.take(32) }
+                    DeploymentInput("首次恢复等待（秒）", baseDelay) { baseDelay = it.take(4) }
+                    DeploymentInput("最长恢复等待（秒）", maxDelay) { maxDelay = it.take(4) }
+                    DeploymentInput("连续恢复失败上限", failures) { failures = it.take(2) }
+                }
                 Button(onClick = {
                     val number = port.toIntOrNull(); val base = baseDelay.toIntOrNull(); val maximum = maxDelay.toIntOrNull(); val count = failures.toIntOrNull()
                     if (number !in 1024..65535 || base !in 15..300 || maximum == null || base == null || maximum !in base..3600 || count !in 1..10 ||
@@ -126,12 +128,12 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                     OutlinedButton(onClick = { offer("启动 Core", "启动当前受管版本并验证身份、版本及管理接口。未知进程或端口冲突将保留待处理状态。", "start") }, enabled = enabled) { Text("启动") }
                     OutlinedButton(onClick = { offer("停止 Core", "先持久保存停止意图，再停止已验证的受管进程。守护启用和暂停开关保持不变。", "stop") }, enabled = enabled) { Text("停止") }
                     OutlinedButton(onClick = { offer("重启 Core", "只重启当前受管版本，不下载安装。未决部署事务会阻止该操作。", "restart") }, enabled = enabled) { Text("重启") }
-                    OutlinedButton(onClick = { offer("恢复并重置熔断", "明确重置连续失败计数。只有节点运行意图为 running 时才启动当前版本。", "repair", JSONObject().put("confirm_reset", true)) }, enabled = enabled) { Text("恢复与解除熔断") }
+                    OutlinedButton(onClick = { offer("恢复并重置熔断", "明确重置连续失败计数。只有节点运行意图为 running 时才启动当前版本。", "repair", JSONObject().put("confirm_reset", true)) }, enabled = enabled) { Text("恢复运行") }
                 }
             }
         }
         item {
-            DeploymentSection("签名清单部署") {
+            DeploymentSection("安装与升级") {
                 Text("发布公钥必须通过可信渠道放入 Termux 私有信任目录。缺少公钥、签名清单或 APK/Core 版本不一致时，部署保持受阻。")
                 DeploymentInput("HTTPS 发布清单", manifest) { manifest = it.take(4096) }
                 DeploymentInput("HTTPS 分离签名", signature) { signature = it.take(4096) }
@@ -159,13 +161,13 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         }
         item {
             DeploymentSection("原操作恢复") {
-                DeploymentInput("原 operation ID", targetOperation) { targetOperation = it.take(96) }
+                DeploymentInput("原操作编号", targetOperation) { targetOperation = it.take(96) }
                 DeploymentRow {
-                    OutlinedButton(onClick = { model.runTermux("operation_query", JSONObject().put("target_operation_id", targetOperation)) }, enabled = enabled && targetOperation.isNotBlank()) { Text("查询，不重放") }
+                    OutlinedButton(onClick = { model.runTermux("operation_query", JSONObject().put("target_operation_id", targetOperation)) }, enabled = enabled && targetOperation.isNotBlank()) { Text("查询原操作") }
                     OutlinedButton(onClick = { offer("继续原部署事务", "沿原操作记录恢复，不创建第二次安装。不会重放缺失回执的普通运行命令。", "resume", JSONObject().put("target_operation_id", targetOperation).put("confirm_start", startAfter)) }, enabled = enabled && targetOperation.isNotBlank()) { Text("继续部署") }
                     OutlinedButton(onClick = { offer("取消未完成部署", "切换前终止暂存事务；已进入维护阶段则恢复原版本和一致性数据。已提交的成功部署不会被此按钮撤销。", "cancel_operation", JSONObject().put("target_operation_id", targetOperation).put("confirm_cancel", true)) }, enabled = enabled && targetOperation.isNotBlank()) { Text("取消并恢复") }
                 }
-                Text("回执缺失时先查询原 operation ID。记录不存在或运行命令终态不明确时，保留未判定状态并核对节点。")
+                Text("未收到结果时先查询原操作，不要重复安装或写入。")
             }
         }
         item {

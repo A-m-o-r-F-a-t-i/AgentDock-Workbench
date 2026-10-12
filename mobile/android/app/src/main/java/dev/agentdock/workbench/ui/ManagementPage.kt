@@ -46,7 +46,6 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text(if (tasks) "任务中心" else "对话", style = MaterialTheme.typography.headlineSmall)
-            Text("每页最多 ${ManagementContract.PAGE_SIZE} 项；分页与筛选由 Core 执行。")
             OutlinedTextField(query.search, { query = query.copy(search = it.take(512)) }, label = { Text("搜索") }, modifier = Modifier.fillMaxWidth().testTag("$kind-search"))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("active" to "当前", "archived" to "已归档", "trash" to "回收站", "all" to "全部").forEach { (value, label) ->
@@ -63,7 +62,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
                 Button(onClick = { model.updateQuery(kind, query.copy(offset = 0)) }, enabled = !state.loading) { Text("应用筛选") }
                 TextButton(onClick = { query = query.copy(workspaceId = "", offset = 0); model.updateQuery(kind, query) }) { Text("全部工作区") }
             }
-            if (current.workspaceId.isNotEmpty()) Text("工作区：${current.workspaceId}")
+            if (current.workspaceId.isNotEmpty()) TechnicalDetails("工作区标识") { Text(current.workspaceId) }
         }
         if (tasks) item { TaskCreationPanel(model, current.workspaceId) }
         if (data.isEmpty()) item { Text(if (state.loading) "正在读取 Core…" else "当前筛选下没有记录", Modifier.testTag("$kind-empty")) }
@@ -91,7 +90,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { model.updateQuery(kind, current.copy(offset = (current.offset - ManagementContract.PAGE_SIZE).coerceAtLeast(0))) }, enabled = current.offset > 0 && !state.loading) { Text("上一页") }
-                Text("偏移 ${current.offset} · 总计 ${page.total?.toString() ?: "未知"}", Modifier.padding(top = 12.dp))
+                Text("第 ${current.offset / ManagementContract.PAGE_SIZE + 1} 页 · 共 ${page.total?.toString() ?: "—"} 条", Modifier.padding(top = 12.dp))
                 TextButton(onClick = { page.nextOffset?.let { model.updateQuery(kind, current.copy(offset = it)) } }, enabled = page.hasMore && !state.loading) { Text("下一页") }
             }
         }
@@ -145,8 +144,5 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
 
 @Composable
 fun DetailFields(value: JSONObject) {
-    for (key in listOf("title", "goal", "summary", "status", "current_step_id", "parent_call_id", "tool_name", "display_command", "error_code", "error_summary", "created_at", "updated_at", "completed_at")) {
-        val text = ManagementContract.text(value, key)
-        if (text.isNotBlank()) Text("$key：${text.take(4096)}")
-    }
+    ResourceObject(value, listOf("title", "goal", "summary", "status", "current_step_id", "parent_call_id", "tool_name", "display_command", "error_code", "error_summary", "created_at", "updated_at", "completed_at"))
 }
