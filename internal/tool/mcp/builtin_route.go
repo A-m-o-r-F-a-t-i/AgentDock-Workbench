@@ -87,15 +87,17 @@ func builtinRouteTokens(query string) []string {
 	})
 }
 
-func hostBuiltinProblem(selector string, match builtinRouteMatch) map[string]any {
-	return map[string]any{
-		"selector":   selector,
-		"code":       "HOST_BUILTIN_NOT_DYNAMIC_MCP",
-		"status":     "host_builtin",
-		"message":    "AgentDock built-in tools must be loaded or invoked through the host tool namespace, not mcp_tool_inspect",
-		"route_kind": routeKindHostBuiltin,
-		"tool_name":  match.Tool.Name,
-		"invoke_via": "host",
+const hostBuiltinNextAction = "Discovery is complete. Use the caller's AgentDock namespace; do not search again."
+
+func hostBuiltinInspectionResult(builtins []BuiltinToolSummary) Result {
+	return Result{
+		"tools": []map[string]any{}, "count": 0, "total": 0,
+		"complete": true, "errors": []map[string]any{}, "catalogs": []map[string]any{},
+		"builtin_match_count": len(builtins), "dynamic_match_count": 0,
+		"builtin_tools": builtins, "route_kind": routeKindHostBuiltin,
+		"resolved": true, "terminal": true, "execution_performed": false,
+		"route_summary": "识别内置工具 · " + strings.Join(builtinToolNames(builtins), ", "),
+		"next_action":   hostBuiltinNextAction,
 	}
 }
 
