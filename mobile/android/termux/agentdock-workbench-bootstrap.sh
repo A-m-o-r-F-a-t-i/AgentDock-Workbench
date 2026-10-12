@@ -18,6 +18,11 @@ export DEBIAN_FRONTEND=noninteractive
 timeout --signal=TERM --kill-after=15s 180s dpkg --force-confold --configure -a
 timeout --signal=TERM --kill-after=15s 900s apt-get update
 timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install proot-distro curl jq coreutils util-linux procps openssl-tool tar python
+audit="$(dpkg --audit)"
+[ -z "$audit" ] || { printf 'Package configuration remains incomplete:\n%s\n' "$audit" >&2; exit 1; }
+for package in proot-distro curl jq coreutils util-linux procps openssl-tool tar python; do
+  [ "$(dpkg-query -W -f='${Status}' "$package")" = 'install ok installed' ] || { printf 'Package is not configured: %s\n' "$package" >&2; exit 1; }
+done
 mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
 install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
@@ -45,6 +50,11 @@ proot-distro login debian -- /bin/sh -lc '
   timeout --signal=TERM --kill-after=15s 180s dpkg --force-confold --configure -a
   timeout --signal=TERM --kill-after=15s 900s apt-get update
   timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install ca-certificates curl tar jq procps openssl
+  audit="$(dpkg --audit)"
+  [ -z "$audit" ] || { printf "Debian package configuration remains incomplete:\n%s\n" "$audit" >&2; exit 1; }
+  for package in ca-certificates curl tar jq procps openssl; do
+    [ "$(dpkg-query -W -f="\${Status}" "$package")" = "install ok installed" ] || { printf "Debian package is not configured: %s\n" "$package" >&2; exit 1; }
+  done
   apt-get clean
 '
 printf '%s\n' 'Termux bridge and Debian PRoot are ready.'

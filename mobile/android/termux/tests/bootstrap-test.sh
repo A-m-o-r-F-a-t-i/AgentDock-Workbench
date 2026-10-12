@@ -13,6 +13,10 @@ cat >"$tmp/bin/dpkg" <<'MOCK'
 set -eu
 scope="${BOOTSTRAP_SCOPE:-host}"
 printf '%s dpkg %s\n' "$scope" "$*" >>"$BOOTSTRAP_LOG"
+if [[ "$*" == '--audit' ]]; then
+  [[ "$BOOTSTRAP_CASE" != audit-dirty ]] || printf 'package remains unpacked\n'
+  exit 0
+fi
 [[ "$DEBIAN_FRONTEND" == noninteractive && "$*" == '--force-confold --configure -a' ]] || exit 90
 [[ "$BOOTSTRAP_CASE" != config-failure ]] || exit 23
 [[ "$BOOTSTRAP_CASE" != guest-failure || "$scope" != guest ]] || exit 24
@@ -29,6 +33,11 @@ if [[ " $* " == *' install '* ]]; then
   [[ -f "$CASE_DIR/$scope.configured" ]] || exit 93
   [[ "$BOOTSTRAP_CASE" != install-failure ]] || exit 25
 fi
+MOCK
+cat >"$tmp/bin/dpkg-query" <<'MOCK'
+#!/usr/bin/env bash
+set -eu
+if [[ "$BOOTSTRAP_CASE" == package-unconfigured ]]; then printf 'install ok unpacked\n'; else printf 'install ok installed\n'; fi
 MOCK
 cat >"$tmp/bin/proot-distro" <<'MOCK'
 #!/usr/bin/env bash
@@ -48,7 +57,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/termux-reload-settings"
 printf '#!/usr/bin/env bash\nexit 95\n' >"$tmp/bin/pkg"
 chmod 700 "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
-for scenario in fresh installed dirty-config config-failure install-failure list-failure guest-failure; do
+for scenario in fresh installed dirty-config config-failure install-failure list-failure guest-failure audit-dirty package-unconfigured; do
   export BOOTSTRAP_CASE="$scenario" CASE_DIR="$tmp/$scenario" BOOTSTRAP_SCOPE=host
   export HOME="$CASE_DIR/home" BOOTSTRAP_LOG="$CASE_DIR/commands.log"
   mkdir -p "$HOME/.termux"
@@ -73,16 +82,16 @@ for scenario in fresh installed dirty-config config-failure install-failure list
         [[ "$(grep -c '^proot install debian$' "$BOOTSTRAP_LOG")" == 1 ]]
         [[ "$(grep -c '^allow-external-apps=' "$HOME/.termux/termux.properties")" == 1 ]]
       else
-        ! grep -q '^proot install' "$BOOTSTRAP_LOG"
+        if grep -q '^proot install' "$BOOTSTRAP_LOG"; then exit 1; fi
       fi
       ;;
     *)
       [[ "$rc" != 0 && "$rc" != 124 ]] || { cat "$CASE_DIR/output"; exit 1; }
-      ! grep -Fq 'Termux bridge and Debian PRoot are ready.' "$CASE_DIR/output"
-      if [[ "$scenario" == config-failure ]]; then ! grep -q ' apt ' "$BOOTSTRAP_LOG"; fi
-      if [[ "$scenario" == list-failure ]]; then ! grep -q '^proot install' "$BOOTSTRAP_LOG"; fi
+      if grep -Fq 'Termux bridge and Debian PRoot are ready.' "$CASE_DIR/output"; then exit 1; fi
+      if [[ "$scenario" == config-failure ]]; then if grep -q ' apt ' "$BOOTSTRAP_LOG"; then exit 1; fi; fi
+      if [[ "$scenario" == list-failure ]]; then if grep -q '^proot install' "$BOOTSTRAP_LOG"; then exit 1; fi; fi
       ;;
   esac
   printf 'bootstrap fixture passed: %s\n' "$scenario"
 done
-printf '7 bootstrap scenarios and repeat-install preservation passed; no real package manager invoked.\n'
+printf '9 bootstrap scenarios and repeat-install preservation passed; no real package manager invoked.\n'
