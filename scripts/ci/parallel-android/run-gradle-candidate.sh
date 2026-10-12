@@ -2,7 +2,7 @@
 set -euo pipefail
 export SOURCE_SHA="${SOURCE_SHA:-${GITHUB_SHA:?GITHUB_SHA is required}}"
 
-version_code=$((101080000 + GITHUB_RUN_NUMBER))
+version_code=$((101090000 + GITHUB_RUN_NUMBER))
 mkdir -p evidence/build
 set +e
 gradle -p mobile/android --no-daemon --stacktrace --warning-mode all \

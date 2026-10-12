@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 api="${ANDROID_API_LEVEL:?ANDROID_API_LEVEL is required}"
 evidence="$repo_root/evidence/emulator-api-$api"
 mkdir -p "$evidence/screenshots" "$evidence/reports"
-version_code=$((101080000 + GITHUB_RUN_NUMBER))
+version_code=$((101090000 + GITHUB_RUN_NUMBER))
 
 set +e
 timeout --signal=TERM --kill-after=20s 15m gradle -p "$repo_root/mobile/android" --no-daemon --stacktrace connectedDebugAndroidTest \
