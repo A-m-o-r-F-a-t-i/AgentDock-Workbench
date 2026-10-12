@@ -25,10 +25,18 @@ internal sealed class ConversationActivityClock : IDisposable
 
     internal void Synchronize(DateTimeOffset? serverNow)
     {
-        if (serverNow is null) return;
-        _serverAnchor = serverNow;
-        _anchorTimestamp = Stopwatch.GetTimestamp();
+        ObserveServerTime(serverNow);
         Refresh();
+    }
+
+    // A received server event gives a lower bound for server time. HTTP
+    // snapshots can lag that event; never move the clock behind known activity.
+    // Refresh is deferred until the caller has committed the corresponding rows.
+    internal void ObserveServerTime(DateTimeOffset? serverTime)
+    {
+        if (serverTime is null || _disposed || ServerNow is { } current && current >= serverTime.Value) return;
+        _serverAnchor = serverTime;
+        _anchorTimestamp = Stopwatch.GetTimestamp();
     }
 
     internal static bool IsRecent(DateTimeOffset? last, DateTimeOffset now, bool terminated) =>
