@@ -222,8 +222,6 @@ def missing_release_assets(record: dict,expected: dict[str,dict]) -> list[str]:
 def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_published: bool=False) -> None:
     if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY:
         raise RuntimeError('Publication is restricted to the user fork')
-    if replace_published and not prerelease:
-        raise RuntimeError('Published replacement is restricted to prereleases')
     tag='v'+version
     title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
     prerelease_field='prerelease='+str(prerelease).lower()
@@ -331,7 +329,7 @@ def main() -> None:
     parser.add_argument('--commit',required=True)
     parser.add_argument('--publish',action='store_true')
     parser.add_argument('--prerelease',action='store_true',help='Publish as a prerelease without replacing stable Latest')
-    parser.add_argument('--replace-published',action='store_true',help='Explicitly replace an existing published prerelease after full artifact verification')
+    parser.add_argument('--replace-published',action='store_true',help='Explicitly replace or promote an existing published prerelease after full artifact verification')
     parser.add_argument('--source-root',type=Path,default=ROOT,help='Verified build source checkout; does not change the artifact SHA')
     args=parser.parse_args()
     if args.replace_published and not args.publish:parser.error('--replace-published requires --publish')

@@ -22,7 +22,7 @@ on:
         type: boolean
         default: false
       replace_published:
-        description: 'Explicitly replace the already published prerelease for this verified tag'
+        description: 'Explicitly replace or promote the already published prerelease for this verified tag'
         type: boolean
         default: false
 
