@@ -10,4 +10,5 @@
   <ItemGroup><Compile Include="../control-panel/Models/ActivitySummaryFormatter.cs" Link="ActivitySummaryFormatter.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Models/NativeTunnelStatus.cs" Link="NativeTunnelStatus.cs"/><Compile Include="../control-panel/Services/FunnelVerificationService.cs" Link="FunnelVerificationService.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Models/ConversationStartTime.cs" Link="ConversationStartTime.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../control-panel/Services/FileExplorerReveal.cs" Link="FileExplorerReveal.cs"/></ItemGroup>
 </Project>

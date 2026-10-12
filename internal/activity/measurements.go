@@ -35,6 +35,7 @@ type FileEditDetails struct {
 	Action             string         `json:"action"`
 	Path               string         `json:"path,omitempty"`
 	NewPath            string         `json:"new_path,omitempty"`
+	PathBase           string         `json:"path_base,omitempty"`
 	DryRun             bool           `json:"dry_run"`
 	Recursive          bool           `json:"recursive,omitempty"`
 	Executed           bool           `json:"executed"`

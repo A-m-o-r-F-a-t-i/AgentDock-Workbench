@@ -217,6 +217,7 @@ Check(!childStats.HasEditStatistics && childStats.AddedLinesText == "", "child s
 await PrivilegeTransitionTests.Run(Check);
 await FunnelVerificationServiceTests.Run(Check);
 ConversationStartTimeTests.Run(Check);
+FileExplorerRevealTests.Run(Check);
 ActivitySummaryTests.Run(Check);
 OutputPolicyTests.Run(Check);
 InsertionTimelineTests.Run(Check);

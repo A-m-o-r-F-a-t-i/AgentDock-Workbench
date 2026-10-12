@@ -181,6 +181,7 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     public string TaskId => _value.Text("task_id");
     public string Command => _value.Text("display_command");
     public string Workdir => _value.Text("workdir");
+    public string[] FileLocations => FileExplorerReveal.Locations(_value);
     public string Parameters => _value.Text("parameter_summary");
     public bool ReadOnlyLegacy => _value.Flag("read_only_legacy");
     public string Summary => _value.Text("summary");
