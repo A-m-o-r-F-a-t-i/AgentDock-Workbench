@@ -134,6 +134,52 @@ func TestLastWaiterCancelStopsBuilderAndAllowsNoOverlappingReplacement(t *testin
 		t.Fatal(err)
 	}
 }
+func TestFreshCallerWaitsForAbandonedBuildThenStartsReplacement(t *testing.T) {
+	c := New[int](2, time.Second, time.Minute)
+	defer c.Close()
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	firstStarted := make(chan struct{})
+	firstCanceled := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var builds atomic.Int32
+	build := func(ctx context.Context) (int, error) {
+		if builds.Add(1) == 1 {
+			close(firstStarted)
+			<-ctx.Done()
+			close(firstCanceled)
+			<-releaseFirst
+			return 0, ctx.Err()
+		}
+		return 42, nil
+	}
+	firstDone := make(chan error, 1)
+	go func() { _, _, err := c.Get(firstCtx, "same", build); firstDone <- err }()
+	<-firstStarted
+	cancelFirst()
+	if err := <-firstDone; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	<-firstCanceled
+	secondDone := make(chan error, 1)
+	go func() {
+		value, _, err := c.Get(t.Context(), "same", build)
+		if err == nil && value != 42 {
+			err = errors.New("replacement returned incomplete value")
+		}
+		secondDone <- err
+	}()
+	time.Sleep(10 * time.Millisecond)
+	if builds.Load() != 1 || c.Stats().InFlight != 1 {
+		t.Fatalf("replacement overlapped abandoned build: %#v", c.Stats())
+	}
+	close(releaseFirst)
+	if err := <-secondDone; err != nil {
+		t.Fatal(err)
+	}
+	if builds.Load() != 2 {
+		t.Fatalf("replacement was not started: builds=%d", builds.Load())
+	}
+}
 func TestBuilderBudgetInvalidationAndCapacity(t *testing.T) {
 	c := New[int](2, 25*time.Millisecond, time.Minute)
 	defer c.Close()

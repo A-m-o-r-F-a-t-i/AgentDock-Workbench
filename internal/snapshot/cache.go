@@ -42,6 +42,7 @@ type flight[T any] struct {
 	value      T
 	err        error
 	finished   bool
+	abandoned  bool
 }
 type flightKey struct {
 	key        string
@@ -100,6 +101,16 @@ func (c *Cache[T]) Get(ctx context.Context, key string, build func(context.Conte
 		// their build. All generations still share the global flight budget.
 		current := flightKey{key: key, generation: c.generation}
 		f, exists := c.flights[current]
+		if exists && f.abandoned {
+			done := f.done
+			c.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return zero, Info{}, ctx.Err()
+			case <-done:
+				continue
+			}
+		}
 		if !exists && len(c.flights) >= c.maxFlights {
 			changed := c.changed
 			c.mu.Unlock()
@@ -139,6 +150,7 @@ func (c *Cache[T]) leave(f *flight[T]) {
 	defer c.mu.Unlock()
 	f.waiters--
 	if f.waiters == 0 && !f.finished {
+		f.abandoned = true
 		f.cancel()
 	}
 }
