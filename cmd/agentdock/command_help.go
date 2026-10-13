@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const agentdockCommandGroups = "status workspace task conversation call activity insertion approval permission skill plugin config service doctor logs completion version update"
+const agentdockCommandGroups = "status workspace task conversation call activity insertion approval permission skill plugin config external-agent service doctor logs completion version update"
 
 func runHelpCommand(args []string, output io.Writer) error {
 	if len(args) > 1 {
@@ -37,7 +37,7 @@ func runHelpCommand(args []string, output io.Writer) error {
   insertion  approval  permission  skill  plugin  doctor
 
 本机管理：
-  config  service  logs  completion  version  update
+  config  external-agent  service  logs  completion  version  update
 
 通用在线选项：
   --endpoint URL       Core 地址

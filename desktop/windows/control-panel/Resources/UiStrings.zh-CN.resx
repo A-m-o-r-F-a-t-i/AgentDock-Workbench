@@ -951,12 +951,15 @@
   <data name="ExternalAgentSetupPrompt" xml:space="preserve"><value>Agent 接入提示词</value></data>
   <data name="CopyEndpoint" xml:space="preserve"><value>复制地址</value></data>
   <data name="CopyConfiguration" xml:space="preserve"><value>复制配置</value></data>
-  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>生成的配置不包含凭据，优先使用 OAuth。缺少 OAuth 的客户端应通过环境变量或密钥管理器使用现有 Bearer 凭据。AgentDock 的权限、审批、工作区边界和活动记录继续生效。</value></data>
+  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>生成的配置不包含实际凭据。OAuth 使用客户端发现流程；Bearer 配置引用 AGENTDOCK_MCP_BEARER 环境变量。AgentDock 的权限、审批、工作区边界和活动记录继续生效。</value></data>
   <data name="ExternalAgentInvalidEndpoint" xml:space="preserve"><value>需要有效的 AgentDock HTTP(S) MCP 地址，并以 /mcp 结尾。</value></data>
   <data name="ExternalAgentEndpointUnavailable" xml:space="preserve"><value>AgentDock MCP 地址不可用，请启动 Core 或刷新运行状态。</value></data>
-  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>已就绪 · 使用 OAuth 发现，并继续执行 AgentDock 现有权限控制。</value></data>
+  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>已就绪 · 生成的配置与当前 AgentDock 认证及权限控制一致。</value></data>
   <data name="ExternalAgentEndpointCopied" xml:space="preserve"><value>MCP 地址已复制。</value></data>
   <data name="ExternalAgentConfigurationCopied" xml:space="preserve"><value>Agent 配置已复制。</value></data>
   <data name="ExternalAgentCopyFailed" xml:space="preserve"><value>复制失败：{0}</value></data>
-  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>通过 {0} 的 Streamable HTTP MCP 服务连接 AgentDock Workbench，并将服务注册为 &quot;agentdock&quot;，优先使用 OAuth 发现。连接后先调用一次 agentdock_context；context_diagnostics.complete=true 时复用已返回的上下文。遵守 AgentDock 的工作区、审批和权限边界，不要把访问凭据写入提示词、日志、聊天记录或项目文件。</value></data>
+  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>通过 {0} 的 Streamable HTTP MCP 服务连接 AgentDock Workbench，并将服务注册为 &quot;agentdock&quot;。{1} 连接后先调用一次 agentdock_context；context_diagnostics.complete=true 时复用已返回的上下文。遵守 AgentDock 的工作区、审批和权限边界，不要把访问凭据写入提示词、日志、聊天记录或项目文件。</value></data>
+  <data name="ExternalAgentAuthPromptOAuth" xml:space="preserve"><value>使用服务端 OAuth 发现流程，并在客户端要求时完成交互式授权。</value></data>
+  <data name="ExternalAgentAuthPromptBearer" xml:space="preserve"><value>从密钥存储或 AGENTDOCK_MCP_BEARER 环境变量读取现有 AgentDock Bearer 凭据，不要把凭据写入提示词或源码。</value></data>
+  <data name="ExternalAgentAuthPromptNone" xml:space="preserve"><value>此回环地址不要求认证。</value></data>
 </root>

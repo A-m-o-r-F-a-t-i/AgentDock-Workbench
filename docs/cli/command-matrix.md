@@ -14,7 +14,8 @@
 |---|---|---|
 | `agentdock --help`、`help [command]` | 已实现 | 根级帮助和文档入口 |
 | `completion bash|zsh|fish` | 已实现 | 静态根命令补全 |
-| `status` | 已实现 | `GET /internal/runtime/status` |
+| `status` | 已实现 | `GET /internal/runtime/status`；包含跨平台 `external_agent_access` 描述 |
+| `external-agent` | 已实现 | 从当前 Core 配置生成 Codex、Claude Code、通用 MCP 或 Agent 提示词；支持 local/public/显式端点与 OAuth/Bearer/none |
 | `--endpoint`、`--token-file`、`--auth-mode`、`--profile` | 已实现 | token 不接受命令行明文值 |
 | `--workspace`、`--project`、`--task`、`--thread`、`--conversation`、`--call` | 已实现 | 默认选择器，可被具体命令位置参数覆盖 |
 | `--format human|json|jsonl`、`--json`、`--jsonl` | 已实现 | JSON/JSONL 错误同样结构化 |
@@ -149,6 +150,21 @@
 | `plugin validate`、`migrate --home`、`list --home` | 兼容保留 | 原离线命令原样保留 |
 | `plugin test` | 未提供 | 显式返回退出码 8；不会用读取详情冒充测试通过 |
 | `plugin reload` | 未提供 | Core 没有公共重载契约 |
+
+## External Agent
+
+| 命令 | 状态 | 真实后端/限制 |
+|---|---|---|
+| `external-agent --client codex` | 已实现 | 根据当前 Core 地址与认证模式生成 Codex MCP 命令及 `config.toml` 片段 |
+| `external-agent --client claude-code` | 已实现 | 生成 Claude Code Streamable HTTP MCP 配置和 OAuth 操作说明 |
+| `external-agent --client generic-mcp` | 已实现 | 生成标准 `mcpServers` JSON；Bearer 模式仅输出环境变量引用 |
+| `external-agent --client agent-prompt` | 已实现 | 生成要求先调用 `agentdock_context` 的接入提示词 |
+| `--source local|public` | 已实现 | `local` 从监听地址派生；`public` 从当前公网 OAuth Origin 派生 |
+| `--endpoint URL` | 已实现 | 覆盖端点来源；仅接受 HTTP(S)、无用户信息/查询/片段且路径以 `/mcp` 结尾的 URL |
+| `--auth auto|oauth|bearer|none` | 已实现 | `auto` 读取当前进程继承的 Core 环境配置；生成结果不包含真实凭据 |
+| `--format text|json` | 已实现 | JSON 契约包含 `schema_version` 和 `credentials_included=false` |
+
+Windows 与 macOS 同时提供桌面入口；Linux 使用同一 CLI。Android Workbench 部署的 Linux ARM64 Core 编译相同共享包并在运行状态中发布同一契约，本次不增加 Android 页面。详细说明见 [external-agent-access.md](external-agent-access.md)。
 
 ## Config、Service、Doctor 与 Logs
 

@@ -95,6 +95,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if len(args) > 0 && args[0] == "config" {
 		return desktopruntime.RunConfigCommand(ctx, args[1:], stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "external-agent" {
+		return runExternalAgentCommand(args[1:], stdout, stderr)
+	}
 	if len(args) > 0 && args[0] == "skill" {
 		if isControlSkillCommand(args[1:]) {
 			return renderControlCommandError(args[1:], stdout, runControlCommand(ctx, "skill", args[1:], stdout, stderr))
