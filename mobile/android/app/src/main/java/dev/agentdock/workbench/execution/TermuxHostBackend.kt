@@ -12,6 +12,9 @@ import dev.agentdock.workbench.WorkbenchApplication
 import dev.agentdock.workbench.termux.TermuxCallbackDecision
 import dev.agentdock.workbench.termux.TermuxCallbackProtocol
 import dev.agentdock.workbench.termux.TermuxContract
+import dev.agentdock.workbench.termux.TermuxLaunchFailure
+import dev.agentdock.workbench.termux.TermuxRecoveryPolicy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,25 +37,44 @@ class TermuxHostBackend(private val context: Context) : AndroidExecutionBackend 
     private val pending = ConcurrentHashMap<String, CompletableDeferred<JSONObject>>()
     @Volatile private var verifiedAt = 0L
     @Volatile private var uid: Int? = null
+    @Volatile private var failureCode = ""
+    @Volatile private var failureDetail = ""
 
     override fun capability(): JSONObject {
         val installed = runCatching { context.packageManager.getPackageInfo(TermuxContract.PACKAGE, 0) }.isSuccess
         val permission = ContextCompat.checkSelfPermission(context, TermuxContract.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_GRANTED
-        val verified = installed && permission && android.os.SystemClock.elapsedRealtime() - verifiedAt < 60_000 && verifiedAt > 0
+        val verified = installed && permission && failureCode.isBlank() &&
+            android.os.SystemClock.elapsedRealtime() - verifiedAt < 60_000 && verifiedAt > 0
         return JSONObject().put("ready", verified).put("state", when {
             !installed -> "not_installed"
             !permission -> "permission_required"
+            failureCode.isNotBlank() -> failureCode
             !verified -> "verification_required"
             else -> "verified"
-        }).also { value -> uid?.let { value.put("uid", it) } }
+        }).also { value ->
+            uid?.let { value.put("uid", it) }
+            failureDetail.takeIf { it.isNotBlank() }?.let { value.put("detail", it.take(240)) }
+        }
     }
 
     override suspend fun verify(nodeId: String): JSONObject {
-        val result = invoke(nodeId, JSONObject().put("action", "probe"))
-        if (result.optInt("protocol") != 1 || !result.optBoolean("ready")) throw IOException("TERMUX_HOST_PROBE_FAILED")
-        uid = result.getInt("uid")
-        verifiedAt = android.os.SystemClock.elapsedRealtime()
-        return capability()
+        verifiedAt = 0L
+        failureCode = ""
+        failureDetail = ""
+        try {
+            val result = invoke(nodeId, JSONObject().put("action", "probe"))
+            if (result.optInt("protocol") != 1 || !result.optBoolean("ready")) throw IOException("TERMUX_HOST_PROBE_FAILED")
+            uid = result.getInt("uid")
+            verifiedAt = android.os.SystemClock.elapsedRealtime()
+            return capability()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            val failure = error as? TermuxLaunchFailure
+            failureCode = failure?.code.orEmpty()
+            failureDetail = failure?.message.orEmpty()
+            throw error
+        }
     }
 
     override suspend fun handle(nodeId: String, instruction: JSONObject): JSONObject {
@@ -62,11 +84,16 @@ class TermuxHostBackend(private val context: Context) : AndroidExecutionBackend 
         }
         val result = invoke(nodeId, request)
         verifiedAt = android.os.SystemClock.elapsedRealtime()
+        failureCode = ""
+        failureDetail = ""
         return result
     }
 
     private suspend fun invoke(nodeId: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
-        if (ContextCompat.checkSelfPermission(context, TermuxContract.PERMISSION_RUN_COMMAND) != PackageManager.PERMISSION_GRANTED) throw IOException("TERMUX_PERMISSION_REQUIRED")
+        val permissionGranted = ContextCompat.checkSelfPermission(
+            context, TermuxContract.PERMISSION_RUN_COMMAND
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!permissionGranted) throw TermuxRecoveryPolicy.launchRejected(permissionGranted = false)
         require(pending.size < 16) { "TERMUX_CALLBACK_CAPACITY" }
         val nonce = UUID.randomUUID().toString().replace("-", "")
         val wait = CompletableDeferred<JSONObject>()
@@ -87,8 +114,10 @@ class TermuxHostBackend(private val context: Context) : AndroidExecutionBackend 
                 putExtra(TermuxContract.EXTRA_BACKGROUND, true)
                 putExtra(TermuxContract.EXTRA_PENDING_INTENT, callback)
             }
-            context.startService(intent)
-            withTimeoutOrNull(10_000) { wait.await() } ?: throw IOException("TERMUX_HOST_CALLBACK_TIMEOUT")
+            TermuxRecoveryPolicy.launch(permissionGranted) { context.startService(intent) != null }
+            val result = withTimeoutOrNull(10_000) { wait.await() }
+            result ?: if (body.optString("action") == "probe") throw TermuxRecoveryPolicy.hostProbeTimeout()
+                else throw IOException("TERMUX_HOST_CALLBACK_TIMEOUT")
         } finally {
             pending.remove(nonce)
             callback.cancel()

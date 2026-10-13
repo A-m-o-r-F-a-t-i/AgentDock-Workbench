@@ -105,18 +105,9 @@ class TermuxCommandDispatcher(
                 .putExtra(TermuxContract.EXTRA_WORKDIR, TermuxContract.WORKDIR)
                 .putExtra(TermuxContract.EXTRA_BACKGROUND, true)
                 .putExtra(TermuxContract.EXTRA_PENDING_INTENT, callback)
-            try {
-                if (context.startService(intent) == null)
-                    throw TermuxRecoveryPolicy.launchRejected(permissionGranted = true)
-            } catch (error: SecurityException) {
-                throw TermuxRecoveryPolicy.launchRejected(
-                    ContextCompat.checkSelfPermission(context, TermuxContract.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_GRANTED,
-                    cause = error
-                )
-            } catch (error: IllegalStateException) {
-                if (error is TermuxLaunchFailure) throw error
-                throw TermuxRecoveryPolicy.launchRejected(permissionGranted = true, background = true, cause = error)
-            }
+            TermuxRecoveryPolicy.launch(
+                ContextCompat.checkSelfPermission(context, TermuxContract.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_GRANTED
+            ) { context.startService(intent) != null }
             dispatched = true
             operations.finish(pending, "running", "已发出 Termux 请求，等待结构化回执确认", null, false, false)
             return operations.get(operationId) ?: pending

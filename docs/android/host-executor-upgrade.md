@@ -19,6 +19,7 @@ Default execution is unchanged. Select `backend=termux_host` explicitly with an 
 - Owned supervisors control stream draining, PTY, cancellation and independent deadlines. Blocked stdin cannot disable deadline handling.
 - Provider credentials are not passed through RUN_COMMAND or child environments.
 - Missing providers never imply successful cancellation or exit zero.
+- RUN_COMMAND uses one shared launch classifier. Immediate permission and background-start rejections keep distinct codes; a read-only host probe timeout offers “打开 Termux” recovery, while command callback loss remains unknown and is never replayed.
 
 ## Validation and limits
 

@@ -19,6 +19,35 @@ object TermuxRecoveryPolicy {
         else -> TermuxLaunchFailure("launch_not_accepted", "系统未接受 Termux 启动请求。请先打开 Termux，返回后重新检测。", cause)
     }
 
+    fun launch(permissionGranted: Boolean, request: () -> Boolean) {
+        try {
+            if (!request()) throw launchRejected(permissionGranted)
+        } catch (error: SecurityException) {
+            throw launchRejected(permissionGranted, cause = error)
+        } catch (error: IllegalStateException) {
+            if (error is TermuxLaunchFailure) throw error
+            throw launchRejected(permissionGranted, background = true, cause = error)
+        }
+    }
+
+    fun hostProbeTimeout(): TermuxLaunchFailure = TermuxLaunchFailure(
+        "background_launch_blocked",
+        "Termux 未返回宿主验证回执，系统可能限制了冷态后台启动。请先打开 Termux，返回后重新验证。"
+    )
+
+    fun advise(error: Throwable): TermuxRecoveryAdvice? {
+        val failure = error as? TermuxLaunchFailure ?: return null
+        return when (failure.code) {
+            "permission_missing" -> TermuxRecoveryAdvice(
+                failure.code, "需要调用权限", failure.message ?: "请先授予 Termux RUN_COMMAND 权限。", false
+            )
+            "launch_not_accepted", "background_launch_blocked" -> TermuxRecoveryAdvice(
+                failure.code, "需要先打开 Termux", failure.message ?: "请打开 Termux 后重新验证。", true
+            )
+            else -> TermuxRecoveryAdvice(failure.code, "Termux 启动未完成", failure.message.orEmpty(), true)
+        }
+    }
+
     fun advise(availability: ActionOutcome, latest: BridgeOperation?, nowEpochMs: Long): TermuxRecoveryAdvice {
         if (!availability.accepted) return when (availability.status) {
             "termux_missing" -> TermuxRecoveryAdvice("termux_missing", "尚未安装 Termux", "安装官方 Termux 并打开一次，再回到这里准备运行环境。", false)
