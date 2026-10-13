@@ -16,6 +16,7 @@ import (
 
 const MaxTaskIndexBytes = 16 << 10
 const MaxTaskIndexItems = 8
+const MaxWorkspaceTaskIndexItems = 4
 
 type ThreadSummary struct {
 	ID            string `json:"thread_id"`
@@ -61,6 +62,20 @@ func shortIndexText(text string, limit int) string {
 // Discover counts all readable open tasks but retains at most eight candidates in memory.
 // A corrupt file degrades only its own entry, never the overall context response.
 func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
+	return s.discover(ctx, "", MaxTaskIndexItems)
+}
+
+// DiscoverForWorkspace keeps the bound task plus a small set of recovery
+// candidates from the selected workspace while retaining global task counts.
+func (s *Store) DiscoverForWorkspace(ctx context.Context, workspaceID string) (TaskIndex, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return s.Discover(ctx)
+	}
+	return s.discover(ctx, workspaceID, MaxWorkspaceTaskIndexItems)
+}
+
+func (s *Store) discover(ctx context.Context, workspaceID string, maxItems int) (TaskIndex, error) {
 	index := EmptyTaskIndex()
 	binding := activity.FromContext(ctx)
 	release, err := s.acquireStoreLockContext(ctx)
@@ -109,10 +124,13 @@ func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 		default:
 			continue
 		}
+		if workspaceID != "" && task.ID != binding.TaskID && task.WorkspaceID != workspaceID {
+			continue
+		}
 		candidates = append(candidates, task)
 		sort.Slice(candidates, func(i, j int) bool { return taskIndexCandidateLess(candidates[i], candidates[j], binding) })
-		if len(candidates) > MaxTaskIndexItems {
-			candidates = candidates[:MaxTaskIndexItems]
+		if len(candidates) > maxItems {
+			candidates = candidates[:maxItems]
 		}
 	}
 	for _, candidate := range candidates {

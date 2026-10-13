@@ -43,6 +43,16 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
 	output["android_executor"] = androidExecutorStatusSchema()
+	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
+		runtimeSchema := maps.Clone(originalRuntime)
+		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
+			properties := maps.Clone(originalProperties)
+			properties["build_commit"] = map[string]any{"type": "string", "minLength": 1}
+			properties["build_date"] = map[string]any{"type": "string", "minLength": 1}
+			runtimeSchema["properties"] = properties
+			output["runtime"] = runtimeSchema
+		}
+	}
 	output["plugins"] = pluginIndexSchema()
 	output["tasks"] = taskIndexSchema()
 	output["workspace"] = map[string]any{"type": "object", "additionalProperties": true, "required": []string{"workspace_id", "root", "runtime", "rules_revision"}}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/config"
 	skillstate "github.com/uvwt/agentdock/internal/skill/state"
+	tooltask "github.com/uvwt/agentdock/internal/tool/task"
 )
 
 func TestAgentDockContextToolReturnsStructuredRuntimeIndex(t *testing.T) {
@@ -68,11 +69,23 @@ func TestAgentDockContextToolReturnsStructuredRuntimeIndex(t *testing.T) {
 	if got.DynamicMCP == nil || got.WorkflowTemplates == nil || got.Rules == nil {
 		t.Fatalf("required structured context fields must be arrays: %#v", got)
 	}
-	if got.Runtime == nil || got.Runtime.Version == "" || got.Runtime.OS == "" || got.Runtime.Arch == "" || got.Runtime.PathModel != config.PathModel {
+	if got.Runtime == nil || got.Runtime.Version == "" || got.Runtime.BuildCommit == "" || got.Runtime.BuildDate == "" || got.Runtime.OS == "" || got.Runtime.Arch == "" || got.Runtime.PathModel != config.PathModel {
 		t.Fatalf("runtime context is incomplete: %#v", got.Runtime)
 	}
 	if got.Runtime.AgentDockHome != cfg.AgentDockHome || got.Runtime.AgentDockDefaultDir != cfg.AgentDockDefaultDir || got.Runtime.DefaultCWD != "." {
 		t.Fatalf("runtime paths = %#v", got.Runtime)
+	}
+	definition, ok := rt.ToolDefinition("agentdock_context")
+	if !ok {
+		t.Fatal("agentdock_context definition missing")
+	}
+	rootProperties, _ := definition.OutputSchema["properties"].(map[string]any)
+	runtimeSchema, _ := rootProperties["runtime"].(map[string]any)
+	runtimeProperties, _ := runtimeSchema["properties"].(map[string]any)
+	for _, field := range []string{"build_commit", "build_date"} {
+		if runtimeProperties[field] == nil {
+			t.Fatalf("agentdock_context output schema missing runtime.%s", field)
+		}
 	}
 	rules := strings.Join(got.Rules, "\n")
 	for _, want := range []string{
@@ -91,6 +104,82 @@ func TestAgentDockContextToolReturnsStructuredRuntimeIndex(t *testing.T) {
 		if strings.Contains(rules, removed) {
 			t.Fatalf("context rules still reference removed tool %q: %s", removed, rules)
 		}
+	}
+}
+
+func createContextTaskForWorkspace(t *testing.T, rt *Runtime, title, workspaceID string) string {
+	t.Helper()
+	result, err := rt.taskTools.Manage(context.Background(), tooltask.ManageRequest{
+		Action: "create", Title: title, Goal: "verify compact context",
+		WorkspaceID: workspaceID, CompletionConditions: []string{"verified"},
+		Steps: []tooltask.StepRequest{{ID: "verify", Title: "Verify"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, _ := result["task_id"].(string)
+	if taskID == "" {
+		t.Fatalf("task creation returned no id: %#v", result)
+	}
+	return taskID
+}
+
+func TestAgentDockContextReturnsOnlySelectedWorkspaceTasks(t *testing.T) {
+	root := t.TempDir()
+	selectedRoot := filepath.Join(root, "selected")
+	otherRoot := filepath.Join(root, "other")
+	for _, path := range []string{selectedRoot, otherRoot} {
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := config.Config{AgentDockDefaultDir: selectedRoot, AgentDockHome: filepath.Join(root, ".agentdock")}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := newUnrestrictedTestRuntime(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = rt.Close() })
+
+	selected, err := rt.workspaceRegistry.EnsureRoot(context.Background(), selectedRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := rt.workspaceRegistry.EnsureRoot(context.Background(), otherRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, title := range []string{"selected alpha", "selected beta"} {
+		createContextTaskForWorkspace(t, rt, title, selected.ID)
+	}
+	for index := 0; index < 6; index++ {
+		createContextTaskForWorkspace(t, rt, "unrelated task "+string(rune('A'+index)), other.ID)
+	}
+
+	result, err := rt.Call(context.Background(), "agentdock_context", map[string]any{"workdir": selectedRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got capabilityContext
+	if err := remarshal(result, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Tasks == nil || got.Tasks.ActiveCount != 8 || got.Tasks.ReturnedCount != 2 || !got.Tasks.Truncated {
+		t.Fatalf("selected workspace task index = %#v", got.Tasks)
+	}
+	for _, item := range got.Tasks.Items {
+		if item.WorkspaceID != selected.ID || strings.Contains(item.Title, "unrelated") {
+			t.Fatalf("context leaked unrelated task: %#v", item)
+		}
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "unrelated task") {
+		t.Fatalf("context payload retained unrelated task details: %s", encoded)
 	}
 }
 

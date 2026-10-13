@@ -29,38 +29,51 @@ type Info struct {
 }
 
 func Current() Info {
-	info := Info{
+	commit, buildDate := buildIdentity()
+	shortCommit := commit
+	if len(shortCommit) > 12 {
+		shortCommit = shortCommit[:12]
+	}
+	return Info{
 		ProductName:            ProductName,
 		ExecutionPolicyVersion: executioncompat.PolicyVersion,
 		Version:                strings.TrimSpace(Version),
-		Commit:                 strings.TrimSpace(Commit),
-		BuildDate:              strings.TrimSpace(BuildDate),
+		Commit:                 shortCommit,
+		BuildDate:              buildDate,
 		GoVersion:              runtime.Version(),
 		Platform:               runtime.GOOS + "/" + runtime.GOARCH,
 	}
+}
+
+// FullCommit returns the immutable build revision without display truncation.
+func FullCommit() string {
+	commit, _ := buildIdentity()
+	return commit
+}
+
+func buildIdentity() (string, string) {
+	commit := strings.TrimSpace(Commit)
+	buildDate := strings.TrimSpace(BuildDate)
 	build, ok := debug.ReadBuildInfo()
 	if ok {
 		for _, setting := range build.Settings {
 			switch setting.Key {
 			case "vcs.revision":
-				if info.Commit == "" {
-					info.Commit = strings.TrimSpace(setting.Value)
+				if commit == "" {
+					commit = strings.TrimSpace(setting.Value)
 				}
 			case "vcs.time":
-				if info.BuildDate == "" {
-					info.BuildDate = strings.TrimSpace(setting.Value)
+				if buildDate == "" {
+					buildDate = strings.TrimSpace(setting.Value)
 				}
 			}
 		}
 	}
-	if len(info.Commit) > 12 {
-		info.Commit = info.Commit[:12]
+	if commit == "" {
+		commit = "unknown"
 	}
-	if info.Commit == "" {
-		info.Commit = "unknown"
+	if buildDate == "" {
+		buildDate = "unknown"
 	}
-	if info.BuildDate == "" {
-		info.BuildDate = "unknown"
-	}
-	return info
+	return commit, buildDate
 }
