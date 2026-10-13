@@ -58,7 +58,7 @@ func TestSnapshotPaginationUTF8AndSmallBudget(t *testing.T) {
 	text := strings.Repeat("中🙂ab", 17)
 	_, _ = (sessionOutputWriter{session: s}).Write([]byte(text))
 	first := s.Snapshot("running", 1)
-	if first.Stdout != "" || s.stdoutCursor != 0 || first.StdoutOmittedBytes != len(text) {
+	if first.Stdout != "" || s.stdoutCursor != 0 || first.StdoutOmittedBytes != len(text) || first.StdoutOffsetBytes != 0 || first.StdoutNextOffset != 0 {
 		t.Fatal("small budget consumed an undelivered rune")
 	}
 	var got strings.Builder
@@ -67,7 +67,11 @@ func TestSnapshotPaginationUTF8AndSmallBudget(t *testing.T) {
 		if !utf8.ValidString(part.Stdout) || len(part.Stdout) > 7 {
 			t.Fatal("UTF-8 page exceeded its boundary or byte budget")
 		}
+		start := got.Len()
 		got.WriteString(part.Stdout)
+		if part.StdoutOffsetBytes != start || part.StdoutNextOffset != got.Len() {
+			t.Fatalf("page %d absolute offsets = %d..%d, want %d..%d", page, part.StdoutOffsetBytes, part.StdoutNextOffset, start, got.Len())
+		}
 		if s.stdoutCursor != got.Len() {
 			t.Fatal("cursor counted characters instead of bytes")
 		}
@@ -117,6 +121,10 @@ func TestSnapshotPaginationAfterBufferEviction(t *testing.T) {
 			var got strings.Builder
 			for page := 0; page < 100; page++ {
 				part := s.Snapshot("running", 65536)
+				wantOffset := max(consumed, dropped) + got.Len()
+				if part.StdoutOffsetBytes != wantOffset || part.StdoutNextOffset != wantOffset+len(part.Stdout) {
+					t.Fatalf("page %d absolute offsets = %d..%d, want %d..%d", page, part.StdoutOffsetBytes, part.StdoutNextOffset, wantOffset, wantOffset+len(part.Stdout))
+				}
 				got.WriteString(part.Stdout)
 				if part.StdoutDroppedBytes != dropped || part.StdoutTotalBytes != limit+dropped {
 					t.Fatal("buffer eviction accounting changed")

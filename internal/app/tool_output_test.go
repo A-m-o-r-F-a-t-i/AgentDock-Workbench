@@ -146,7 +146,7 @@ func TestToolOutputBoundariesDisabledAndRulesExempt(t *testing.T) {
 	}
 	root := t.TempDir()
 	writeInstructionFixture(t, root, full)
-	contextResult, err := r.Call(ctx, "agentdock_context", map[string]any{"workdir": root})
+	contextResult, err := r.Call(ctx, "agentdock_context", map[string]any{"workdir": root, "max_response_bytes": 65536})
 	if err != nil {
 		t.Fatal(err)
 	}

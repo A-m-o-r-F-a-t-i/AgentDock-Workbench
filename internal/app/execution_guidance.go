@@ -46,7 +46,9 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	}
 	sessionID := stringArg(result, "session_id")
 	running := stringArg(result, "status") == "running"
-	if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
+	if steps := structuredOutputFollowups(name, result); !failed && len(steps) > 0 {
+		guidance["next_required"] = steps
+	} else if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
 		guidance["next_required"] = steps
 	} else if running && sessionID != "" {
 		arguments := map[string]any{"action": "status", "session_id": sessionID}
@@ -72,6 +74,34 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 		guidance["rules_revision"] = state.target.RulesRevision
 	}
 	return guidance
+}
+
+func structuredOutputFollowups(name string, result Result) []map[string]any {
+	structured, ok := result["structured_output"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	steps := make([]map[string]any, 0, 2)
+	if structured["oversized_item"] != nil {
+		if source, _ := structured["source"].(string); source != "" {
+			steps = append(steps, map[string]any{
+				"action": "read_structured_source", "tool": "read_file",
+				"arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 20000},
+				"text":      "Read the retained activity source to recover the oversized structured item, then follow next_offset. This never re-executes the source tool.",
+			})
+		}
+	}
+	if cursor := stringArg(result, "next_cursor"); cursor != "" {
+		arguments := map[string]any{"cursor": cursor}
+		if minimum := measuredInt(structured, "minimum_response_bytes"); minimum != nil && *minimum > 0 {
+			arguments["max_response_bytes"] = *minimum
+		}
+		steps = append(steps, map[string]any{
+			"action": "continue_structured_output", "tool": name, "arguments": arguments,
+			"text": "Call the same tool again with the original selector arguments plus this cursor. Use the supplied max_response_bytes when present. The retained result is immutable and the source operation will not run again.",
+		})
+	}
+	return steps
 }
 
 // Only trusted top-level discovery results can issue a host handoff. Upstream

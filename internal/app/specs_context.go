@@ -6,10 +6,13 @@ import (
 
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/config"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 type contextRequest struct {
-	Workdir string `json:"workdir,omitempty"`
+	Workdir          string `json:"workdir,omitempty"`
+	Cursor           string `json:"cursor,omitempty"`
+	MaxResponseBytes *int   `json:"max_response_bytes,omitempty"`
 }
 
 func contextToolSpecs() []ToolSpec {
@@ -37,6 +40,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 		"type": "string", "maxLength": 4096,
 		"description": "Existing host workspace directory. Omit or use an empty string to inherit this conversation's workspace, falling back to the device default only when unbound. A complete response coordinates subsequent conversation binding in this call; running sessions and device defaults remain unchanged.",
 	}
+	toolcontract.StructuredPagingInput(input)
 	contract.ValidationInputSchema["properties"] = input
 	contract.ValidationOutputSchema = maps.Clone(contract.ValidationOutputSchema)
 	output := maps.Clone(contract.ValidationOutputSchema["properties"].(map[string]any))
@@ -56,6 +60,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["plugins"] = pluginIndexSchema()
 	output["tasks"] = taskIndexSchema()
 	output["workspace"] = map[string]any{"type": "object", "additionalProperties": true, "required": []string{"workspace_id", "root", "runtime", "rules_revision"}}
+	toolcontract.StructuredPagingOutput(output)
 	if cfg.NexusEndpoint == "" {
 		if original, ok := output["dynamic_mcp"].(map[string]any); ok {
 			index := maps.Clone(original)

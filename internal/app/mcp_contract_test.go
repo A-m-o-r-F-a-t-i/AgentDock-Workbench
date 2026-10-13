@@ -40,6 +40,8 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			// Standalone AgentDock adds only optional local context fields. Compare
 			// every remaining field against the unchanged shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
+			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
+			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "instruction_files")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
@@ -52,6 +54,8 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 				t.Fatalf("context diagnostics schema drifted: %#v", diagnostic)
 			}
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_diagnostics")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "next_cursor")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "structured_output")
 			actualOutput = maps.Clone(actualOutput)
 			rootProperties := maps.Clone(actualOutput["properties"].(map[string]any))
 			runtimeSchema := maps.Clone(rootProperties["runtime"].(map[string]any))

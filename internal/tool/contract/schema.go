@@ -1,5 +1,10 @@
 package contract
 
+const (
+	StructuredResponseMinBytes = 4 << 10
+	StructuredResponseMaxBytes = 64 << 10
+)
+
 // InputObject 构造内建工具的根输入对象。结构已知的工具默认拒绝未知字段；
 // 真正动态的字段应在对应 property 上显式声明 additionalProperties。
 func InputObject(properties map[string]any, required ...string) map[string]any {
@@ -74,4 +79,26 @@ func OpenObject(description string) map[string]any {
 		"description":          description,
 		"additionalProperties": true,
 	}
+}
+
+// StructuredPagingInput adds shared model-facing structured result controls.
+// The cursor is server-issued and bound to a retained result, so continuing a
+// page does not re-run the original read-only operation.
+func StructuredPagingInput(properties map[string]any) {
+	properties["cursor"] = map[string]any{
+		"type": "string", "maxLength": 2048,
+		"description": "Opaque continuation cursor returned by this tool. Repeat the original selectors and pass this cursor to read the next retained page without re-running the source operation.",
+	}
+	properties["max_response_bytes"] = BoundedInteger(
+		"Model-facing response budget in bytes. Omit for the tool default; larger values are capped at 65536.",
+		StructuredResponseMinBytes,
+		StructuredResponseMaxBytes,
+	)
+}
+
+// StructuredPagingOutput documents sparse paging metadata. These fields are
+// absent when the complete structured result already fits the response budget.
+func StructuredPagingOutput(properties map[string]any) {
+	properties["next_cursor"] = String("Opaque cursor for the next retained structured result page.")
+	properties["structured_output"] = OpenObject("Structured result budget, retained source, page coverage and continuation status.")
 }

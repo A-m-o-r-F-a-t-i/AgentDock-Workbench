@@ -38,7 +38,8 @@ func TestActivityCommandLifecycleRedactionAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result["command_ok"] != false || result["thread_id"] != "main" || !strings.Contains(result["stdout"].(string), "private-activity-value") {
+	stdout, _ := result["stdout"].(string)
+	if result["command_ok"] != false || result["thread_id"] != "main" || !strings.Contains(stdout, "private-activity-value") {
 		t.Fatalf("tool result changed: %+v", result)
 	}
 	page, err := r.activity.Query(context.Background(), activity.Query{TaskID: id, ThreadID: "main"})

@@ -54,7 +54,7 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 		if mode == "summary" {
 			meta[ContextResponseCapability] = map[string]any{"structured": true, "text": "summary"}
 		}
-		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: meta})
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"max_response_bytes": 65536}, Meta: meta})
 		if err != nil || result.IsError {
 			t.Fatalf("%s: result=%+v error=%v", mode, result, err)
 		}
