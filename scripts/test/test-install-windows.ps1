@@ -621,10 +621,14 @@ foreach ($required in @(
     'restore',
     'remove',
     'set-enabled',
-    'StopInstalledCore',
-    'new[] { "agentdock", "agentdock-core" }',
+    'StopInstalledRuntime',
+    'InstalledRuntimePaths',
+    'RuntimeProcessNames = ["agentdock-tray", "agentdock", "agentdock-core"]',
+    'active-version.json',
+    'fallback_version',
     'Process.GetProcessesByName(processName)',
-    'process.Kill(entireProcessTree: true)'
+    'process.Kill(entireProcessTree: true)',
+    'RuntimeFilesReadyForReplacement'
 )) {
     if (-not $taskAdminSource.Contains($required)) {
         throw "$taskAdminSourcePath is missing native task administration behavior: $required"
