@@ -192,6 +192,8 @@ internal static class FrontendSafetyTests
         using var f = new Fixture(); var w = f.Window;
         var row = Field<ExecutionObject>(w, "_selected");
         var clock = Field<ConversationActivityClock>(w, "_activityClock");
+        var stop = Named<Button>(w, "StopConversationButton");
+        var resume = Named<Button>(w, "ResumeConversationButton");
         row.InFlight = true;
         foreach (var seconds in new[] { 179, 180, 181 })
         {
@@ -199,15 +201,40 @@ internal static class FrontendSafetyTests
             row.LastToolCallAt = now.AddSeconds(-seconds); clock.Synchronize(now);
             Invoke(w, "UpdateComposerAvailability");
             check(Named<Button>(w, "InsertButton").IsEnabled == (seconds < 180), "WIN-03: insertion time boundary changed.");
-            check(Named<Button>(w, "StopConversationButton").IsEnabled && Named<Button>(w, "StopConversationButton").Visibility == Visibility.Visible,
+            check(stop.IsEnabled && stop.Visibility == Visibility.Visible,
                 "WIN-03: long-running conversation lost its stop button.");
+            check(!resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
+                "WIN-03: active conversation exposed the resume action.");
         }
-        check(!LogicalChildren(Named<FrameworkElement>(w, "InsertionPanel")).Contains(Named<Button>(w, "StopConversationButton")),
-            "WIN-03: stop still belongs to the expiring insertion pane.");
+        var insertionChildren = LogicalChildren(Named<FrameworkElement>(w, "InsertionPanel")).ToArray();
+        check(!insertionChildren.Contains(stop) && !insertionChildren.Contains(resume),
+            "WIN-03: conversation lifecycle actions still belong to the expiring insertion pane.");
         row.Terminated = true; Invoke(w, "UpdateComposerAvailability");
-        check(!Named<Button>(w, "StopConversationButton").IsEnabled, "WIN-03: terminated conversation can be stopped again.");
-        row.Terminated = false; row.Trashed = true; Invoke(w, "UpdateComposerAvailability");
-        check(!Named<Button>(w, "StopConversationButton").IsEnabled, "WIN-03: trash row retained a live stop action.");
+        check(!stop.IsEnabled && stop.Visibility == Visibility.Collapsed,
+            "WIN-03: terminated conversation can be stopped again.");
+        check(resume.IsEnabled && resume.Visibility == Visibility.Visible && Equals(resume.Content, "解除终止"),
+            "WIN-03: terminated conversation did not expose the resume action.");
+
+        Set(w, "_conversationSnapshot", JsonSerializer.SerializeToElement(new { conversation_id = row.Id }));
+        Invoke(w, "UpdateComposerAvailability");
+        check(stop.IsEnabled && stop.Visibility == Visibility.Visible && !resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
+            "WIN-03: resumed conversation kept the stale sidebar termination state.");
+
+        row.Terminated = false;
+        Set(w, "_conversationSnapshot", JsonSerializer.SerializeToElement(new { conversation_id = row.Id, terminated_at = DateTimeOffset.UtcNow }));
+        Invoke(w, "UpdateComposerAvailability");
+        check(resume.IsEnabled && resume.Visibility == Visibility.Visible,
+            "WIN-03: selected conversation detail did not expose the resume action.");
+
+        Set(w, "_conversationSnapshot", JsonSerializer.SerializeToElement(new { conversation_id = "other", terminated_at = DateTimeOffset.UtcNow }));
+        Invoke(w, "UpdateComposerAvailability");
+        check(stop.IsEnabled && stop.Visibility == Visibility.Visible && !resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
+            "WIN-03: stale termination detail changed the selected conversation actions.");
+
+        Set(w, "_conversationSnapshot", default(JsonElement));
+        row.Trashed = true; Invoke(w, "UpdateComposerAvailability");
+        check(!stop.IsEnabled && stop.Visibility == Visibility.Collapsed && !resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
+            "WIN-03: trash row retained a live lifecycle action.");
     }
 
     private static void InitializationClose(Action<bool, string> check)

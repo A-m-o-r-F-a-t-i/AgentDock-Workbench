@@ -51,12 +51,20 @@ public partial class ExecutionWindow
         foreach (var pane in new FrameworkElement[] { InsertionPanel, CallDetailsTabs, TaskDetailsPanel, InfoDetailsText, DataManagementPanel })
             pane.Visibility = Visibility.Collapsed;
     }
-    private bool CanUseComposer() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false, Terminated: false } selected &&
-        !_conversationSnapshot.HasDate("terminated_at") && _activityClock.ServerNow is { } now &&
+    private bool SelectedConversationTerminated(ExecutionObject selected) =>
+        _conversationSnapshot.Text("conversation_id") == selected.Id
+            ? _conversationSnapshot.HasDate("terminated_at")
+            : selected.Terminated;
+
+    private bool CanUseComposer() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false } selected &&
+        !SelectedConversationTerminated(selected) && _activityClock.ServerNow is { } now &&
         ConversationActivityClock.CanInsert(selected.LastToolCallAt, now, false);
 
-    private bool CanTerminateConversation() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false, Terminated: false } &&
-        !_conversationSnapshot.HasDate("terminated_at");
+    private bool CanTerminateConversation() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false } selected &&
+        !SelectedConversationTerminated(selected);
+
+    private bool CanResumeConversation() => _selected is { IsUnknown: false, IsOrphan: false, IsGroupFooter: false, Trashed: false } selected &&
+        SelectedConversationTerminated(selected);
 
     private void UpdateComposerAvailability()
     {
@@ -70,6 +78,9 @@ public partial class ExecutionWindow
         var canTerminate = CanTerminateConversation();
         StopConversationButton.Visibility = canTerminate ? Visibility.Visible : Visibility.Collapsed;
         StopConversationButton.IsEnabled = canTerminate;
+        var canResume = CanResumeConversation();
+        ResumeConversationButton.Visibility = canResume ? Visibility.Visible : Visibility.Collapsed;
+        ResumeConversationButton.IsEnabled = canResume;
         SendInsertionButton.IsEnabled = eligible && _selected is { } selected && !_insertionSending.Contains(selected.Id) &&
             !string.IsNullOrWhiteSpace(InsertionTextBox.Text) && Encoding.UTF8.GetByteCount(InsertionTextBox.Text) <= InsertionTextLimit;
     }
