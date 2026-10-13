@@ -48,13 +48,14 @@ public class ReleaseStartupTest {
         device.executeShellCommand("logcat -c");
         try {
             for (; attempt < 10; attempt++) {
+                prepareForegroundHolder(device, automation, attempt == 0);
                 device.executeShellCommand("am force-stop " + TARGET);
                 String launch = device.executeShellCommand("am start -W -n " + TARGET + "/.MainActivity");
                 assertTrue("Cold start " + attempt + " failed: " + launch, launch.contains("Status: ok"));
                 String pid = device.executeShellCommand("pidof " + TARGET).trim();
                 assertFalse("Release exited after cold start " + attempt, pid.isEmpty());
                 assertTrue("Release window was not observable at cold start " + attempt,
-                    awaitFreshReleaseWindow(automation));
+                    awaitFreshWindow(automation, TARGET));
                 SystemClock.sleep(1_500L);
                 assertEquals("Release restarted after cold start " + attempt, pid,
                     device.executeShellCommand("pidof " + TARGET).trim());
@@ -70,7 +71,23 @@ public class ReleaseStartupTest {
         }
     }
 
-    private static boolean awaitFreshReleaseWindow(UiAutomation automation) {
+    private static void prepareForegroundHolder(UiDevice device, UiAutomation automation, boolean first) throws Exception {
+        String testPackage = InstrumentationRegistry.getInstrumentation().getContext().getPackageName();
+        String holder = testPackage + "/" + ColdStartHostActivity.class.getName();
+        String launch = device.executeShellCommand("am start -W -n " + holder);
+        assertTrue("Test foreground holder failed: " + launch, launch.contains("Status: ok"));
+        // Google API emulator Launcher can ANR after the preceding display-size
+        // tests. Reset only that disposable emulator component, never the target,
+        // before any measured launch. The holder prevents returning to it later.
+        if (first && "1".equals(device.executeShellCommand("getprop ro.kernel.qemu").trim())) {
+            Log.w(LOG_TAG, "Preparing emulator: stopping Pixel Launcher before measured cold starts");
+            device.executeShellCommand("am force-stop com.google.android.apps.nexuslauncher");
+        }
+        assertTrue("Test foreground holder is not visible; no target launch was retried",
+            awaitFreshWindow(automation, testPackage));
+    }
+
+    private static boolean awaitFreshWindow(UiAutomation automation, String packageName) {
         long deadline = SystemClock.uptimeMillis() + WINDOW_TIMEOUT_MS;
         do {
             // Android 14 can cache the old active root while window registration
@@ -79,7 +96,7 @@ public class ReleaseStartupTest {
             AccessibilityNodeInfo root = automation.getRootInActiveWindow();
             if (root != null) {
                 try {
-                    if (TARGET.contentEquals(root.getPackageName() == null ? "" : root.getPackageName())
+                    if (packageName.contentEquals(root.getPackageName() == null ? "" : root.getPackageName())
                             && root.isVisibleToUser()) return true;
                 } finally {
                     root.recycle();
