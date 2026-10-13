@@ -391,8 +391,10 @@ class DeploymentTest(unittest.TestCase):
         mock = self.home / 'mock-bin'; mock.mkdir()
         installed = self.home / 'containers'; installed.write_text(names)
         calls = self.home / 'calls'
-        for name in ('pkg', 'termux-reload-settings'):
+        for name in ('pkg', 'dpkg', 'apt-get', 'termux-reload-settings'):
             path = mock / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o700)
+        path = mock / 'dpkg-query'
+        path.write_text("#!/bin/sh\nprintf 'install ok installed\\n'\n"); path.chmod(0o700)
         path = mock / 'proot-distro'
         path.write_text('''#!/bin/sh
 printf '%s\\n' "$*" >> "$AUDIT_CALLS"
