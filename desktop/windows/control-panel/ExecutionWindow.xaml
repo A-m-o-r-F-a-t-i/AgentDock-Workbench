@@ -180,7 +180,7 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
 		  <Button x:Name="CallPresentationButton" Content="简洁" Click="CallPresentation_Click" Margin="0,0,6,0" FontSize="12" ToolTip="切换到详细视图"/>
           <Button x:Name="FollowButton" Content="跟随" Click="Follow_Click" FontSize="12" ToolTip="跟随最新调用"/>
-          <Button Content="···" Width="30" Padding="0" Click="CallMenu_Click" ToolTip="记录管理" AutomationProperties.Name="记录管理"/>
+          <Button Content="···" Width="30" Padding="0" Click="CallMenu_Click" ToolTip="记录视图与导出" AutomationProperties.Name="记录视图与导出"/>
         </StackPanel>
       </Grid>
       <ScrollViewer x:Name="CallTableScroller" Grid.Row="4" Margin="14,0,14,8" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" SizeChanged="CallTable_SizeChanged">

@@ -20,6 +20,7 @@ internal static class FrontendSafetyTests
     private static T Field<T>(object owner, string name) => (T)owner.GetType().GetField(name, Private)!.GetValue(owner)!;
     private static void Set(object owner, string name, object? value) => owner.GetType().GetField(name, Private)!.SetValue(owner, value);
     private static T Named<T>(Window owner, string name) where T : class => (T)owner.FindName(name);
+    private static string[] MenuHeaders(ItemsControl menu) => menu.Items.OfType<MenuItem>().Select(item => item.Header?.ToString() ?? "").ToArray();
     private static Task Run(object owner, string name, params object?[] args) => (Task)Invoke(owner, name, args)!;
     private static void PumpUntil(Func<bool> finished)
     {
@@ -69,7 +70,8 @@ internal static class FrontendSafetyTests
             {
                 ("selection", SelectionSnapshots), ("tasks", TaskTargetsAndRefresh),
                 ("stop", StopAvailability), ("close", InitializationClose),
-                ("export", FixedExports), ("panel", PanelMutationGuards)
+                ("export", FixedExports), ("menus", CallMenuResponsibilities),
+                ("panel", PanelMutationGuards)
             };
             for (var iteration = 0; iteration < 3; iteration++)
             {
@@ -84,7 +86,7 @@ internal static class FrontendSafetyTests
                 }
             }
             if (failures.Count > 0) throw new AggregateException("Native frontend safety regressions failed.", failures);
-            Console.WriteLine("WIN-01..WIN-08 native WPF safety regressions passed (3 iterations, fixture transport only).");
+            Console.WriteLine("WIN-01..WIN-09 native WPF safety regressions passed (3 iterations, fixture transport only).");
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
     }
@@ -241,6 +243,81 @@ internal static class FrontendSafetyTests
             "WIN-08: invalid target silently produced an empty successful export.");
     }
 
+    private static void CallMenuResponsibilities(Action<bool, string> check)
+    {
+        using var f = new Fixture(); var w = f.Window;
+        var calls = Named<ListBox>(w, "CallsList");
+
+        Invoke(w, "ShowCallToolbarMenu", calls);
+        var toolbar = calls.ContextMenu!;
+        check(MenuHeaders(toolbar).SequenceEqual(new[] { "导出当前筛选", "查看记录" }),
+            "WIN-09: toolbar menu mixed selected-record actions into list controls.");
+        var views = toolbar.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "查看记录"));
+        check(MenuHeaders(views).SequenceEqual(new[] { "当前记录", "已归档记录", "已隔离记录", "回收站记录" }),
+            "WIN-09: toolbar view submenu lost or reordered record views.");
+        check(views.Items.OfType<MenuItem>().Single(item => item.IsChecked).Header?.ToString() == "当前记录",
+            "WIN-09: toolbar view submenu did not mark the active view.");
+        toolbar.IsOpen = false;
+
+        var header = Named<Grid>(w, "ConversationHeader");
+        Invoke(w, "SettingsMenu_Click", header, new RoutedEventArgs());
+        var settings = header.ContextMenu!;
+        check(!MenuHeaders(settings).Contains("历史任务与记录管理"),
+            "WIN-09: settings retained the duplicate history-management entry.");
+        settings.IsOpen = false;
+
+        var objects = Named<ListBox>(w, "ObjectsList");
+        Invoke(w, "SidebarMenu_Click", objects, new RoutedEventArgs());
+        var sidebar = objects.ContextMenu!;
+        var sidebarHeaders = MenuHeaders(sidebar);
+        check(sidebarHeaders.Take(3).SequenceEqual(new[] { "当前对话", "已归档", "回收站" }) &&
+              sidebarHeaders.Contains("历史任务与未归属记录"),
+            "WIN-09: menu cleanup changed the conversation-level sidebar navigation.");
+        sidebar.IsOpen = false;
+
+        var row = new ExecutionCallRow(JsonSerializer.SerializeToElement(new
+        {
+            call_id = "menu-call",
+            tool_name = "exec_command",
+            status = "succeeded",
+            created_at = DateTimeOffset.UtcNow
+        }));
+        w.Calls.Add(row); calls.SelectedItem = row; Layout(w);
+        var cases = new[]
+        {
+            (View: "active", Headers: new[] { "导出所选记录", "归档所选", "隔离所选", "移入回收站" }),
+            (View: "archived", Headers: new[] { "导出所选记录", "取消归档所选", "移入回收站" }),
+            (View: "isolated", Headers: new[] { "导出所选记录", "取消隔离所选", "移入回收站" }),
+            (View: "trash", Headers: new[] { "导出所选记录", "恢复所选", "永久删除所选" })
+        };
+        foreach (var item in cases)
+        {
+            Set(w, "_callView", item.View);
+            Invoke(w, "ShowSelectedCallMenu", calls, new[] { row.Id });
+            var selected = calls.ContextMenu!;
+            var headers = MenuHeaders(selected);
+            check(headers.SequenceEqual(item.Headers),
+                $"WIN-09: {item.View} selected-record menu=[{string.Join(",", headers)}].");
+            var viewLabels = new[] { "当前记录", "已归档记录", "已隔离记录", "回收站记录" };
+            check(!headers.Contains("导出当前筛选") && !headers.Intersect(viewLabels).Any(),
+                "WIN-09: selected-record menu still contains list view controls.");
+            selected.IsOpen = false;
+        }
+
+        var fileRow = new ExecutionCallRow(JsonSerializer.SerializeToElement(new
+        {
+            call_id = "file-menu-call",
+            tool_name = "file_edit",
+            status = "succeeded",
+            runtime = "windows",
+            file_edit = new { path = @"C:\fixture\edited.txt", affected_files = Array.Empty<object>() }
+        }));
+        w.Calls.Add(fileRow); calls.UnselectAll(); calls.SelectedItem = fileRow; Set(w, "_callView", "active");
+        Invoke(w, "ShowSelectedCallMenu", calls, new[] { fileRow.Id });
+        check(MenuHeaders(calls.ContextMenu!).FirstOrDefault() == "在文件资源管理器中显示",
+            "WIN-09: file_edit selected-record menu lost its file explorer action.");
+        calls.ContextMenu!.IsOpen = false;
+    }
     private static void PanelMutationGuards(Action<bool, string> check)
     {
         var root = Path.Combine(Path.GetTempPath(), "agentdock-panel-safety-" + Guid.NewGuid().ToString("N"));
