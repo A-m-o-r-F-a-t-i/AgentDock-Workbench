@@ -10,6 +10,7 @@ on:
       - 'internal/tool/mcp/**'
       - 'internal/tool/file/search*'
       - 'internal/app/discovery_routing_test.go'
+      - 'internal/app/discovery_credential_isolation_test.go'
       - 'internal/app/runtime.go'
       - '.github/workflows/tool-failure-audit.yml'
   workflow_dispatch:
@@ -76,8 +77,8 @@ jobs:
           import os, pathlib, shutil, subprocess
           base = pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-before'
           subprocess.run(['git', 'worktree', 'add', '--detach', str(base), os.environ['BASELINE_COMMIT']], check=True)
-          shutil.copyfile('internal/app/discovery_routing_test.go', base / 'internal/app/discovery_routing_test.go')
-          result = subprocess.run(['go', 'test', './internal/app', '-run', '^TestAuditBuiltinSearchNeverInitializesDynamicServers$', '-count=1', '-timeout=90s', '-v'], cwd=base, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=240)
+          shutil.copyfile('internal/app/discovery_credential_isolation_test.go', base / 'internal/app/discovery_credential_isolation_test.go')
+          result = subprocess.run(['go', 'test', './internal/app', '-run', '^TestAuditDiscoveryCredentialIsolationPortable$', '-count=1', '-timeout=90s', '-v'], cwd=base, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=240)
           (pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-results/before.log').write_text(result.stdout, encoding='utf-8')
           print(result.stdout)
           if result.returncode == 0 or 'unscoped built-in search was poisoned by unrelated credentials' not in result.stdout:
