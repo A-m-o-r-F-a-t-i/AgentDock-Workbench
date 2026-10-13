@@ -99,19 +99,84 @@ type ExchangeResponse struct {
 }
 
 type Broker struct {
-	mu       sync.Mutex
-	nodeID   string
-	workerID string
-	token    string
-	lastSeen time.Time
-	backends map[string]Capability
-	jobs     map[string]*job
-	closed   bool
-	clock    func() time.Time
+	mu                     sync.Mutex
+	nodeID                 string
+	workerID               string
+	token                  string
+	lastSeen               time.Time
+	backends               map[string]Capability
+	jobs                   map[string]*job
+	closed                 bool
+	clock                  func() time.Time
+	availabilityListener   func()
+	androidAvailable       bool
+	availabilityTimer      *time.Timer
+	availabilityGeneration uint64
 }
 
 func New(nodeID string) *Broker {
 	return &Broker{nodeID: nodeID, jobs: map[string]*job{}, backends: map[string]Capability{}, clock: time.Now}
+}
+
+// SetAvailabilityListener reports changes to the model-visible Android tool set.
+// The callback always runs without the broker lock held.
+func (b *Broker) SetAvailabilityListener(listener func()) {
+	b.mu.Lock()
+	b.availabilityListener = listener
+	b.androidAvailable = b.androidAvailableLocked()
+	b.resetAvailabilityTimerLocked()
+	b.mu.Unlock()
+}
+
+func (b *Broker) androidAvailableLocked() bool {
+	return b.freshLocked() && b.backends["android_shizuku"].Ready
+}
+
+func (b *Broker) availabilityChangeLocked() func() {
+	available := b.androidAvailableLocked()
+	if available == b.androidAvailable {
+		return nil
+	}
+	b.androidAvailable = available
+	return b.availabilityListener
+}
+
+func (b *Broker) resetAvailabilityTimerLocked() {
+	b.availabilityGeneration++
+	generation := b.availabilityGeneration
+	if b.availabilityTimer != nil {
+		b.availabilityTimer.Stop()
+		b.availabilityTimer = nil
+	}
+	if b.availabilityListener == nil || b.closed || b.token == "" || b.lastSeen.IsZero() {
+		return
+	}
+	remaining := leaseFreshness - b.clock().Sub(b.lastSeen)
+	if remaining < 0 {
+		remaining = 0
+	}
+	b.availabilityTimer = time.AfterFunc(remaining+time.Millisecond, func() {
+		b.expireAvailability(generation)
+	})
+}
+
+func (b *Broker) expireAvailability(generation uint64) {
+	b.mu.Lock()
+	if generation != b.availabilityGeneration || b.closed {
+		b.mu.Unlock()
+		return
+	}
+	b.availabilityTimer = nil
+	if b.androidAvailableLocked() {
+		b.resetAvailabilityTimerLocked()
+		b.mu.Unlock()
+		return
+	}
+	listener := b.availabilityChangeLocked()
+	b.mu.Unlock()
+	if listener != nil {
+		listener()
+	}
 }
 
 func validCapabilities(backends map[string]Capability) bool {
@@ -137,7 +202,13 @@ func (b *Broker) Register(r RegisterRequest) (Registration, error) {
 		return Registration{}, ErrProtocol
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	var availabilityListener func()
+	defer func() {
+		b.mu.Unlock()
+		if availabilityListener != nil {
+			availabilityListener()
+		}
+	}()
 	if b.closed {
 		return Registration{}, ErrOffline
 	}
@@ -154,6 +225,8 @@ func (b *Broker) Register(r RegisterRequest) (Registration, error) {
 	}
 	b.backends = cloneCapabilities(r.Backends)
 	b.lastSeen = b.clock()
+	b.resetAvailabilityTimerLocked()
+	availabilityListener = b.availabilityChangeLocked()
 	return Registration{Protocol: ProtocolVersion, NodeID: b.nodeID, LeaseToken: b.token}, nil
 }
 
@@ -246,7 +319,13 @@ func (b *Broker) Exchange(token string, r ExchangeRequest) (ExchangeResponse, er
 		return ExchangeResponse{}, ErrProtocol
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	var availabilityListener func()
+	defer func() {
+		b.mu.Unlock()
+		if availabilityListener != nil {
+			availabilityListener()
+		}
+	}()
 	if b.closed || !sameToken(b.token, token) {
 		return ExchangeResponse{}, ErrUnauthorized
 	}
@@ -263,6 +342,8 @@ func (b *Broker) Exchange(token string, r ExchangeRequest) (ExchangeResponse, er
 	}
 	b.lastSeen = b.clock()
 	b.backends = cloneCapabilities(r.Backends)
+	b.resetAvailabilityTimerLocked()
+	availabilityListener = b.availabilityChangeLocked()
 	for _, e := range r.Events {
 		b.applyEventLocked(e)
 	}
@@ -380,12 +461,20 @@ func (b *Broker) applyEventLocked(e Event) {
 // Admitted jobs remain queryable by the same lease after reconnect.
 func (b *Broker) Disconnect(token string) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	var availabilityListener func()
+	defer func() {
+		b.mu.Unlock()
+		if availabilityListener != nil {
+			availabilityListener()
+		}
+	}()
 	if !sameToken(b.token, token) {
 		return ErrUnauthorized
 	}
 	b.lastSeen = time.Time{}
 	b.backends = map[string]Capability{}
+	b.resetAvailabilityTimerLocked()
+	availabilityListener = b.availabilityChangeLocked()
 	for _, j := range b.jobs {
 		j.cancel = true
 		j.state("unknown")
@@ -394,9 +483,21 @@ func (b *Broker) Disconnect(token string) error {
 }
 func (b *Broker) Close() {
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	var availabilityListener func()
+	defer func() {
+		b.mu.Unlock()
+		if availabilityListener != nil {
+			availabilityListener()
+		}
+	}()
 	b.closed = true
+	b.availabilityGeneration++
+	if b.availabilityTimer != nil {
+		b.availabilityTimer.Stop()
+		b.availabilityTimer = nil
+	}
 	b.backends = map[string]Capability{}
+	availabilityListener = b.availabilityChangeLocked()
 	for _, j := range b.jobs {
 		j.finishLocked(-1, session.ErrOutcomeUnknown)
 	}

@@ -411,12 +411,18 @@ func (r *Runtime) commandExecutionContext() (context.Context, error) {
 }
 
 func (r *Runtime) ToolNames() []string {
-	return append([]string(nil), r.toolNames...)
+	names := make([]string, 0, len(r.toolNames))
+	for _, name := range r.toolNames {
+		if r.toolAvailable(name) {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func (r *Runtime) ToolDefinitions() []ToolDefinition {
 	definitions := make([]ToolDefinition, 0, len(r.toolNames))
-	for _, name := range r.toolNames {
+	for _, name := range r.ToolNames() {
 		definition, _ := toolDefinitionForConfig(name, r.cfg)
 		definitions = append(definitions, definition)
 	}
@@ -424,7 +430,7 @@ func (r *Runtime) ToolDefinitions() []ToolDefinition {
 }
 
 func (r *Runtime) ToolDefinition(name string) (ToolDefinition, bool) {
-	if _, available := r.toolValidators[name]; !available {
+	if _, available := r.toolValidators[name]; !available || !r.toolAvailable(name) {
 		return ToolDefinition{}, false
 	}
 	return toolDefinitionForConfig(name, r.cfg)
@@ -449,7 +455,7 @@ func (r *Runtime) Call(ctx context.Context, name string, args map[string]any) (R
 
 func (r *Runtime) validateToolArguments(name string, args map[string]any) error {
 	validator, available := r.toolValidators[name]
-	if !available {
+	if !available || !r.toolAvailable(name) {
 		return toolErrorDetails("UNKNOWN_TOOL", "tool is not available", "validation", map[string]any{"tool": name})
 	}
 	if args == nil {

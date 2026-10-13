@@ -95,11 +95,9 @@ func (s *Server) refreshPresentationState() {
 			s.registeredUIResources = append(s.registeredUIResources, definition.URI)
 		}
 	}
-	// SDK AddTool/RemoveResources coalesce list_changed notifications. Stateless
+	// SDK AddTool/RemoveTools coalesce list_changed notifications. Stateless
 	// HTTP requests and direct Bridge calls always read this current generation.
-	for _, definition := range s.runtime.ToolDefinitions() {
-		s.registerTool(definition)
-	}
+	s.syncRegisteredTools(true)
 	slog.Info("MCP presentation updated", "mode", state.Mode, "revision", state.Revision, "template_references", len(state.Templates), "templates_ready", ready)
 }
 
