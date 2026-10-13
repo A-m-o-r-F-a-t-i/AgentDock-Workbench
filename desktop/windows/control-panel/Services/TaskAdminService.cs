@@ -21,6 +21,9 @@ internal static class TaskAdminService
     private const int TaskRunLevelHighest = 1;
     private const int TaskInstancesIgnoreNew = 2;
     private const int DaclSecurityInformation = 0x4;
+    private const int RuntimeStopTimeoutMilliseconds = 15000;
+    private const int RuntimeStopPollMilliseconds = 250;
+    private static readonly string[] RuntimeProcessNames = ["agentdock-tray", "agentdock", "agentdock-core"];
 
     internal static int Run(string[] arguments)
     {
@@ -43,7 +46,7 @@ internal static class TaskAdminService
                     try
                     {
                         RemoveTask(scheduler.Root, request.TaskName);
-                        StopInstalledCore(request.RuntimeRoot);
+                        StopInstalledRuntime(request.RuntimeRoot);
                         CreateElevatedTask(scheduler.Service, scheduler.Root, request);
                     }
                     catch
@@ -59,7 +62,7 @@ internal static class TaskAdminService
                     try
                     {
                         RemoveTask(scheduler.Root, request.TaskName);
-                        StopInstalledCore(request.RuntimeRoot);
+                        StopInstalledRuntime(request.RuntimeRoot);
                     }
                     catch
                     {
@@ -75,7 +78,7 @@ internal static class TaskAdminService
                 case "remove":
                     RequireRuntimeRoot(request);
                     RemoveTask(scheduler.Root, request.TaskName);
-                    StopInstalledCore(request.RuntimeRoot);
+                    StopInstalledRuntime(request.RuntimeRoot);
                     break;
                 case "set-enabled":
                     SetTaskEnabled(scheduler.Root, request.TaskName, request.Enabled);
@@ -212,17 +215,17 @@ internal static class TaskAdminService
         }
     }
 
-    private static void StopInstalledCore(string runtimeRoot)
+    internal static void StopInstalledRuntime(string runtimeRoot)
     {
-        var expectedPaths = InstalledCorePaths(runtimeRoot);
-        var deadline = DateTime.UtcNow.AddSeconds(15);
+        var expectedPaths = InstalledRuntimePaths(runtimeRoot);
+        var deadline = DateTime.UtcNow.AddMilliseconds(RuntimeStopTimeoutMilliseconds);
 
-        // Task Scheduler may terminate only the stable CUI parent while a generation Core is still alive.
-        // Match by absolute path and cover both the stable legacy entry and active/fallback generations.
+        // The scheduled-task action owns stable and generation tray/Core descendants.
+        // Drain the complete managed process tree and its image locks before replacement.
         while (true)
         {
             var foundTarget = false;
-            foreach (var processName in new[] { "agentdock", "agentdock-core" })
+            foreach (var processName in RuntimeProcessNames)
             {
                 foreach (var process in Process.GetProcessesByName(processName))
                 {
@@ -255,13 +258,17 @@ internal static class TaskAdminService
                         }
                         catch (InvalidOperationException)
                         {
-                            // 进程可能在枚举后自行退出，下一轮会重新确认。
+                            continue;
+                        }
+                        if (!WaitForProcessExit(process, deadline))
+                        {
+                            throw new InvalidOperationException(UiText.Format("StopCoreFailed", string.Join(", ", expectedPaths)));
                         }
                     }
                 }
             }
 
-            if (!foundTarget)
+            if (!foundTarget && RuntimeFilesReadyForReplacement(expectedPaths))
             {
                 return;
             }
@@ -269,16 +276,62 @@ internal static class TaskAdminService
             {
                 throw new InvalidOperationException(UiText.Format("StopCoreFailed", string.Join(", ", expectedPaths)));
             }
-            Thread.Sleep(250);
+            Thread.Sleep(RuntimeStopPollMilliseconds);
         }
     }
 
-    private static HashSet<string> InstalledCorePaths(string runtimeRoot)
+    internal static bool WaitForProcessExit(Process process, DateTime deadline)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return true;
+            }
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return false;
+            }
+            return process.WaitForExit(Math.Max(1, (int)Math.Ceiling(remaining.TotalMilliseconds)));
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    internal static bool RuntimeFilesReadyForReplacement(IEnumerable<string> expectedPaths)
+    {
+        foreach (var path in expectedPaths)
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    internal static HashSet<string> InstalledRuntimePaths(string runtimeRoot)
     {
         var root = Path.GetFullPath(runtimeRoot);
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            Path.GetFullPath(Path.Combine(root, "bin", "agentdock.exe"))
+            Path.GetFullPath(Path.Combine(root, "bin", "agentdock.exe")),
+            Path.GetFullPath(Path.Combine(root, "bin", "agentdock-tray.exe"))
         };
         var activePath = Path.Combine(root, "active-version.json");
         try
@@ -299,12 +352,14 @@ internal static class TaskAdminService
                 {
                     continue;
                 }
-                paths.Add(Path.GetFullPath(Path.Combine(root, "versions", "v" + version, "agentdock-core.exe")));
+                var generationRoot = Path.Combine(root, "versions", "v" + version);
+                paths.Add(Path.GetFullPath(Path.Combine(generationRoot, "agentdock-core.exe")));
+                paths.Add(Path.GetFullPath(Path.Combine(generationRoot, "agentdock-tray.exe")));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            // The stable legacy entry remains a safe cleanup target even when generation state is unreadable.
+            // Stable entry points remain safe cleanup targets when generation state is unreadable.
         }
         return paths;
     }
@@ -365,7 +420,7 @@ internal static class TaskAdminService
     {
         // Validate every restoration input before stopping or deleting anything.
         var (state, xml, userId) = ReadBackup(backupDirectory);
-        if (runtimeRoot.Length > 0) StopInstalledCore(runtimeRoot);
+        if (runtimeRoot.Length > 0) StopInstalledRuntime(runtimeRoot);
         RemoveTask(root, taskName);
         if (!state.Exists) return;
         dynamic task = root.RegisterTask(

@@ -21,6 +21,7 @@ internal static partial class Program
     private static int Main(string[] args)
     {
         TaskSecurityDescriptorTests.Run(Check);
+        TaskRuntimeDrainTests.Run(Check);
         if (args.Length == 1 && args[0] == "--security-contract-only")
         {
             Console.WriteLine($"Task security descriptor contract: {_assertions} assertions; no scheduler or file permissions changed.");
