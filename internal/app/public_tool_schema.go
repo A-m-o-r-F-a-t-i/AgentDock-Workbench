@@ -92,7 +92,7 @@ func compactPublicToolDescriptions(name string, properties map[string]any) {
 	case "file_edit":
 		setSchemaDescription(properties, "path", "Source file or directory path for the selected action.")
 		setSchemaDescription(properties, "new_path", "Destination path for move.")
-		setSchemaDescription(properties, "patch", "Structured patch envelope for one or more file operations.")
+		setSchemaDescription(properties, "patch", "Structured envelope: *** Begin Patch; repeat *** Add File: <path>, *** Delete File: <path>, or *** Update File: <path>; use @@ [<optional context line>] and optional *** End of File; finish with *** End Patch.")
 		setSchemaDescription(properties, "workdir", "Working directory for patch paths.")
 	case "mcp_manage":
 		setSchemaDescription(properties, "header_env", "HTTP header name to host environment variable name.")
