@@ -29,7 +29,7 @@ func compactToolEnvelopeText(name string, envelope map[string]any) map[string]an
 	}
 	output := maps.Clone(envelope)
 	blocks := envelopeBlocks(envelope["content"])
-	kept := make([]any, 0, len(blocks)+1)
+	kept := make([]any, 0, len(blocks))
 	removedDuplicate := false
 	keptBusinessText := false
 	var remoteStructured any
