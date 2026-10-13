@@ -119,7 +119,17 @@ internal static class Program
                 DetachRuntimeStartup(panel);
                 var pages = Named<TabControl>(panel,"MainPages");
                 var tabs = pages.Items.Cast<TabItem>().ToArray();
-                Check(tabs.Select(tab => tab.Tag?.ToString()).SequenceEqual(new[] {"overview","public-access","capabilities","runtime","advanced"}),"Control panel routes differ from the approved pages.");
+                Check(tabs.Select(tab => tab.Tag?.ToString()).SequenceEqual(new[] {"overview","public-access","external-agents","capabilities","runtime","advanced"}),"Control panel routes differ from the approved pages.");
+                pages.SelectedItem = tabs.Single(tab => (string)tab.Tag=="external-agents");
+                Layout(panel);
+                var endpointSources = Named<ComboBox>(panel,"ExternalAgentEndpointComboBox");
+                Check(endpointSources.Items.Cast<ComboBoxItem>().Select(item=>item.Tag?.ToString())
+                    .SequenceEqual(new[] {"local","public"}),"External agent endpoint choices or order changed.");
+                var agentClients = Named<ComboBox>(panel,"ExternalAgentClientComboBox");
+                Check(agentClients.Items.Cast<ComboBoxItem>().Select(item=>item.Tag?.ToString())
+                    .SequenceEqual(new[] {"codex","claude-code","generic-mcp","agent-prompt"}),"External agent client choices or order changed.");
+                Check(Named<TextBox>(panel,"ExternalAgentConfigurationTextBox").IsReadOnly,"External agent configuration output must remain read-only.");
+                foreach (var scale in new[] {1.0,1.25,1.5,2.0}) Render(panel,output,$"external-agents-{theme}",scale);
                 pages.SelectedItem = tabs.Single(tab => (string)tab.Tag=="runtime");
                 foreach (var scale in new[] {1.0,1.25,1.5,2.0}) Render(panel,output,$"settings-{theme}",scale);
                 var groupBox = Named<GroupBox>(panel,"DisplayAndThemeGroup");
