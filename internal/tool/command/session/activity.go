@@ -24,8 +24,8 @@ func (s *Session) SetActivityWarning(message string) {
 func (s *Session) ActivitySnapshot(cursor *OutputCursor) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out, outGap := activityOutput(s.stdout.Bytes(), s.stdoutTotalBytes, s.stdoutDroppedBytes, cursor.Stdout)
-	errout, errGap := activityOutput(s.stderr.Bytes(), s.stderrTotalBytes, s.stderrDroppedBytes, cursor.Stderr)
+	out, outGap := activityOutput(&s.stdout, s.stdoutTotalBytes, s.stdoutDroppedBytes, cursor.Stdout)
+	errout, errGap := activityOutput(&s.stderr, s.stderrTotalBytes, s.stderrDroppedBytes, cursor.Stderr)
 	cursor.Stdout, cursor.Stderr = s.stdoutTotalBytes, s.stderrTotalBytes
 	finished, status := time.Now(), s.statusLocked()
 	if s.completed {
@@ -45,11 +45,12 @@ func (s *Session) ActivitySnapshot(cursor *OutputCursor) Snapshot {
 	}
 }
 
-func activityOutput(buffer []byte, total, dropped, after int) (string, bool) {
+func activityOutput(buffer *outputBuffer, total, dropped, after int) (string, bool) {
 	gap := after < dropped
 	start := max(after, dropped) - dropped
-	if start >= len(buffer) || after >= total {
+	if start >= buffer.Len() || after >= total {
 		return "", gap
 	}
-	return string(buffer[start:]), gap
+	value, _ := buffer.stringFrom(start, 0)
+	return value, gap
 }
