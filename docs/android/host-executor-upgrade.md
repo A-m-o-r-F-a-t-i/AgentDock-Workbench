@@ -4,7 +4,7 @@ Depends on PR-A `fix/android-termux-protocol`. This change does not install soft
 
 ## Enablement
 
-Export the updated four-file Termux bridge bundle, install its modules through the explicit bootstrap, grant RUN_COMMAND, and run the end-to-end host probe. Pair the local Core through the existing Workbench flow. The connection page starts a visible executor only with notification permission. It never starts or repairs Core itself.
+Export the updated five-file Termux bridge bundle, including the fixed Android Core release public key, install it through the explicit bootstrap, grant RUN_COMMAND, and run the end-to-end host probe. Install the signed local Core through the existing deployment page, then pair it through the existing Workbench flow. The connection page starts a visible executor only with notification permission. It never starts or repairs Core itself.
 
 Default execution is unchanged. Select `backend=termux_host` explicitly with an absolute Termux working directory. Do not combine mobile backends with host runtime, Skill, target_kind or external_path selectors.
 

@@ -70,6 +70,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           python3 scripts/test/check-workbench-brand.py
           python3 -B scripts/test/test-workbench-release.py
+          python3 -B scripts/test/test-android-core-release.py
 
   windows:
     needs: resolve-source
@@ -359,6 +360,15 @@ jobs:
             yes | "$sdkmanager" "build-tools;37.0.0" >/dev/null
           fi
           python3 scripts/release/sign-android-release.py --input input --output input/android-release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
+      - name: Sign verified Android Core release
+        env:
+          ANDROID_CORE_RELEASE_PRIVATE_KEY_B64: ${{ secrets.ANDROID_CORE_RELEASE_PRIVATE_KEY_B64 }}
+          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
+          EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"
+          python3 scripts/release/sign-android-core-release.py --input input --output input/android-core-release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
       - name: Validate reports and assemble complete release
         env:
           EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}

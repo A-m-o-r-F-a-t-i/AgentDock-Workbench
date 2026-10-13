@@ -8,9 +8,11 @@ SELF_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BRIDGE="$SELF_DIR/agentdock-workbench"
 MODULE="$SELF_DIR/agentdock_workbench.py"
 HOST_EXECUTOR="$SELF_DIR/agentdock_host_executor.py"
+PUBLISHER_KEY="$SELF_DIR/release-ed25519-public.pem"
 [ -f "$HOST_EXECUTOR" ] || { printf 'Missing host executor module\n' >&2; exit 1; }
 [ -f "$MODULE" ] || { printf 'Missing companion module\n' >&2; exit 1; }
 [ -f "$BRIDGE" ] || { printf 'Missing companion file: %s\n' "$BRIDGE" >&2; exit 1; }
+[ -f "$PUBLISHER_KEY" ] || { printf 'Missing Android Core release public key\n' >&2; exit 1; }
 
 # -y alone does not answer dpkg conffile prompts. Keep the user's existing
 # configuration and finish interrupted package configuration before installing.
@@ -27,6 +29,8 @@ mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
 install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
 install -m 0700 "$BRIDGE" "$HOME/.termux/tasker/agentdock-workbench"
+openssl pkey -pubin -in "$PUBLISHER_KEY" -noout >/dev/null
+install -m 0600 "$PUBLISHER_KEY" "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem"
 properties="$HOME/.termux/termux.properties"
 touch "$properties"
 if grep -q '^[[:space:]]*allow-external-apps[[:space:]]*=' "$properties"; then
@@ -59,6 +63,6 @@ proot-distro login debian -- /bin/sh -lc '
   done
   apt-get clean
 '
-printf '%s\n' 'Termux bridge and Debian PRoot are ready.'
+printf '%s\n' 'Termux bridge, Debian PRoot and the Android Core release trust key are ready.'
 printf '%s\n' 'Return to AgentDock Workbench, grant RUN_COMMAND, then run Probe/Bootstrap.'
-printf '%s\n' 'Core installation remains blocked until a trusted signed ARM64 release manifest/key is available.'
+printf '%s\n' 'Use Install & Update to install the signed ARM64 Core release.'

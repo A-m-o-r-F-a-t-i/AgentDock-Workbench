@@ -7,7 +7,8 @@
 - 校验精确 source SHA 和 WB07 文件归属。
 - 解析 Android XML、Python AST 和 Shell 语法。
 - 执行固定桥契约、安全归档和部署测试。
-- 部署门禁不少于 41 项，全部通过且无跳过；13 个事务阶段分别作为独立测试。
+- 部署门禁不少于 59 项，全部通过且无跳过；13 个事务阶段分别作为独立测试。
+- Core 发布签名测试使用真实 Ed25519/OpenSSL，覆盖来源摘要、错误私钥、清单绑定和危险归档拒绝。
 - 扫描自动 root/ADB、Accessibility/WakeLock 等禁止机制。可选 Shizuku 单独校验受保护 Provider、候选包 authority 与默认关闭；不再将明确授权的 Shizuku 模块混同于保活机制。
 
 ## Build job
@@ -29,7 +30,7 @@ API 26、33、34、35、37 各执行一次 `connectedDebugAndroidTest`，不以�
 ## Not proven by CI
 
 - 真实 ARM64 Termux、Debian PRoot、RUN_COMMAND 和 Core。
-- 发布者签名清单/固定公钥以及真实 install/update/rollback。
+- 公开 Release 资产与设备内固定公钥的真实一致性，以及真机 install/update/rollback。
 - 实际浏览器 OAuth、SAF 文档提供方和真实 Core 管理副作用。
 - 屏幕关闭、Doze、厂商进程策略、重启及 30 分钟/2 小时/8 小时运行。
 - 生产签名、发布、真实安装或生产环境修改。

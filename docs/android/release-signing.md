@@ -38,6 +38,25 @@ Android CI 候选继续使用临时 debug 身份，用于 lint、JVM、仪器测
 
 公开签名报告中的 `source_apk` 必须与候选报告完全一致。证书指纹、来源摘要、公开 APK 摘要或报告身份任一不匹配，发布任务立即失败。
 
+## Android Core 发布身份
+
+Linux ARM64 Core 使用独立 Ed25519 发布身份，不复用 APK 证书。`scripts/release/sign-android-core-release.py` 读取已验证的 `agentdock_linux_arm64.tar.gz`、摘要旁车和 `verification-linux-arm64.json`，核对可执行 `bin/agentdock` 与安全归档结构后生成：
+
+- `AgentDock-Workbench-<version>-Android-Core-arm64.tar.gz`
+- `AgentDock-Workbench-<version>-Android-Core-arm64.manifest.json`
+- `AgentDock-Workbench-<version>-Android-Core-arm64.manifest.sig`
+
+清单绑定产品、平台、ARM64 架构、版本、提交、归档 SHA-256、数据 Schema 和同版本不可变 Release URL。发布器再次核对公开归档与已验证 Linux ARM64 原始字节完全一致。
+
+| 字段 | 值 |
+| --- | --- |
+| 算法 | Ed25519 |
+| 公钥 DER SHA-256 | `e2cf986de8d07dc4b2dccd600711381bb59b6200e85ebd4ae4f24d7d7d6fae92` |
+| 仓库公钥 | `mobile/android/termux/release-ed25519-public.pem` |
+| Actions Secret | `ANDROID_CORE_RELEASE_PRIVATE_KEY_B64` |
+
+私钥只以 Base64 Secret 注入临时文件，不进入仓库、日志、Artifact 或 Release。五文件桥包携带公开密钥，bootstrap 验证 PEM 后将其安装到 Termux 私有信任目录。
+
 ## 密钥保管与轮换
 
 至少保留一份离线加密备份，并验证备份可以读取证书指纹。修改 `release-signing.json` 前必须先设计 Android 签名轮换方案并验证升级链；直接替换证书会使现有安装无法覆盖升级。

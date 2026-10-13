@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY = 'A-m-o-r-F-a-t-i/AgentDock-Workbench'
 PRODUCT = 'AgentDock Workbench'
 ANDROID_RELEASE_CONFIG = Path('packaging/android/release-signing.json')
+ANDROID_CORE_RELEASE_CONFIG = Path('packaging/android/core-release-signing.json')
 
 
 def android_release_identity() -> tuple[str,str]:
@@ -24,6 +25,24 @@ def android_release_identity() -> tuple[str,str]:
     if value.get('schema_version')!=1 or not isinstance(alias,str) or not alias or not re.fullmatch(r'[a-f0-9]{64}',certificate):
         raise RuntimeError('Invalid committed Android release signing identity')
     return alias,certificate
+
+
+def android_core_asset_names(version: str) -> list[str]:
+    stem=f'AgentDock-Workbench-{version}-Android-Core-arm64'
+    return [stem+'.tar.gz',stem+'.manifest.json',stem+'.manifest.sig']
+
+
+def android_core_release_identity() -> str:
+    path=ROOT/ANDROID_CORE_RELEASE_CONFIG
+    value=json.loads(path.read_text(encoding='utf-8-sig'))
+    public_key=value.get('public_key'); fingerprint=str(value.get('public_key_sha256','')).lower()
+    if (value.get('schema_version')!=1 or value.get('algorithm')!='Ed25519' or
+            not isinstance(public_key,str) or not public_key or not re.fullmatch(r'[a-f0-9]{64}',fingerprint)):
+        raise RuntimeError('Invalid Android Core release signing identity')
+    key_path=(ROOT/public_key).resolve()
+    if key_path.is_symlink() or not key_path.is_file() or not 0<key_path.stat().st_size<=16*1024:
+        raise RuntimeError('Android Core release public key is unavailable')
+    return fingerprint
 
 
 def run(*args: str) -> str:
@@ -64,15 +83,17 @@ def expected_payloads(version: str) -> list[str]:
         'install.sh','install.ps1']
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         payloads.append(f'AgentDock-Workbench-{version}-Android.apk')
+    if tuple(map(int,version.split('.'))) >= (1,1,9):
+        payloads.extend(android_core_asset_names(version))
     return payloads
 
 
 def public_installers(version: str) -> list[str]:
-    """Return only user-installable Release attachments.
+    """Return the public installers and Android runtime delivery attachments.
 
-    Archives, bootstrap scripts, manifests and checksum sidecars remain available
-    inside the verified Actions artifact when needed by installation tests, but are
-    intentionally not published as end-user Release downloads.
+    General-purpose archives, bootstrap scripts and checksum sidecars remain in the
+    verified Actions artifact. Android Core is an exception: its deployment archive,
+    signed manifest and detached signature are required by the public APK at runtime.
     """
     installers = [
         'AgentDockSetup-amd64.exe',
@@ -85,6 +106,8 @@ def public_installers(version: str) -> list[str]:
     ]
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         installers.append(f'AgentDock-Workbench-{version}-Android.apk')
+    if tuple(map(int,version.split('.'))) >= (1,1,9):
+        installers.extend(android_core_asset_names(version))
     return installers
 
 
@@ -139,6 +162,7 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
         reports.append(dict(arm_native,assets={}))
     android = None
     android_release = None
+    android_core_release = None
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         android=read_report(inputs,'verification-android.json');identity(android,version,commit)
         expected_apis={26,33,34,35,37}
@@ -175,6 +199,42 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
             raise RuntimeError('Stable Android release signing evidence is incomplete')
         reports.append(dict(android,assets={}))
         reports.append(android_release)
+    if tuple(map(int,version.split('.'))) >= (1,1,9):
+        core_names=android_core_asset_names(version)
+        core_archive,core_manifest,core_signature=core_names
+        raw_name='agentdock_linux_arm64.tar.gz'
+        raw_checksum=digest(locate(inputs,raw_name))
+        public_fingerprint=android_core_release_identity()
+        android_core_release=read_report(inputs,'verification-android-core-release.json')
+        identity(android_core_release,version,commit)
+        core_assets=android_core_release.get('assets')
+        expected_url=f'https://github.com/{REPOSITORY}/releases/download/v{version}/{core_archive}'
+        manifest_value=read_report(inputs,core_manifest)
+        if (android_core_release.get('product_name')!=PRODUCT or
+                android_core_release.get('platform')!='android-core/arm64' or
+                android_core_release.get('signing')!='stable Android Core Ed25519 key' or
+                android_core_release.get('release_signing_validation')!='passed' or
+                android_core_release.get('public_key_sha256')!=public_fingerprint or
+                android_core_release.get('source_archive')!={'name':raw_name,'sha256':raw_checksum} or
+                android_core_release.get('manifest')!={
+                    'name':core_manifest,'signature':core_signature,'asset':core_archive,'asset_url':expected_url} or
+                not isinstance(core_assets,dict) or set(core_assets)!=set(core_names) or
+                any(not re.fullmatch(r'[a-f0-9]{64}',str(core_assets.get(name,''))) for name in core_names)):
+            raise RuntimeError('Stable Android Core release signing evidence is incomplete')
+        if (manifest_value.get('schema_version')!=1 or manifest_value.get('product_name')!=PRODUCT or
+                manifest_value.get('platform')!='linux' or manifest_value.get('arch')!='arm64' or
+                manifest_value.get('version')!=version or manifest_value.get('commit')!=commit or
+                manifest_value.get('sha256')!=raw_checksum or manifest_value.get('asset_url')!=expected_url or
+                type(manifest_value.get('data_schema')) is not int or manifest_value['data_schema']<1):
+            raise RuntimeError('Android Core deployment manifest is incomplete')
+        if locate(inputs,core_signature).stat().st_size!=64:
+            raise RuntimeError('Android Core deployment signature size is invalid')
+        for name in core_names:
+            if digest(locate(inputs,name))!=core_assets[name]:
+                raise RuntimeError('Android Core release bytes differ from signing evidence')
+        if core_assets[core_archive]!=raw_checksum:
+            raise RuntimeError('Android Core public archive differs from verified Linux ARM64 payload')
+        reports.append(android_core_release)
     scope=read_report(inputs/'windows','verification-scope.json');identity(scope,version,commit)
     if scope.get('resolved_commit')!=commit or scope.get('linux_tested_commit')!=commit:
         raise RuntimeError('Windows workflow lost its immutable validation source')
@@ -201,8 +261,10 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
                 raise RuntimeError(f'Artifact differs from target-platform verification: {name}')
     run('go','run','./tools/release','verify-dist',str(dist))
     manifest={'schema_version':1,'product_name':PRODUCT,'version':version,'commit':commit,'prerelease':prerelease,
-              'platforms':[f'{platform}/{arch}' for platform in ['windows','linux','darwin'] for arch in ['amd64','arm64']]+(['android/arm64'] if android else []),
-              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization'], 'android':android_release['signing'] if android_release else 'not_included'},
+              'platforms':[f'{platform}/{arch}' for platform in ['windows','linux','darwin'] for arch in ['amd64','arm64']]+(['android/arm64'] if android else [])+(['android-core/arm64'] if android_core_release else []),
+              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization'],
+                         'android':android_release['signing'] if android_release else 'not_included',
+                         'android_core':android_core_release['signing'] if android_core_release else 'not_included'},
               'validation':reports,'windows_verification_scope':scope,
               'assets':[{'name':name,'bytes':(dist/name).stat().st_size,'sha256':actual[name]} for name in sorted(payloads)]}
     (dist/'release-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

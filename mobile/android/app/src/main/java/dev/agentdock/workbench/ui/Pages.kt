@@ -52,10 +52,22 @@ fun WorkbenchPage(
     }
     val errors = errorKeys.mapNotNull { state.snapshot.errors[it] }
     if (state.screen != WorkbenchScreen.Home && errors.isNotEmpty()) {
+        val advice = CoreFailurePolicy.advise(
+            errors = errors,
+            operations = state.operations,
+            endpoint = state.settings.endpoint,
+            desiredState = state.settings.desiredNodeState
+        )
         Column(pageModifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Core 数据读取失败", modifier = Modifier.testTag("resource-error"), style = MaterialTheme.typography.titleLarge)
-            errors.forEach { Text(it) }
-            Button(onClick = viewModel::refresh) { Text("重新读取") }
+            Text(advice.title, modifier = Modifier.testTag("resource-error"), style = MaterialTheme.typography.titleLarge)
+            Text(advice.detail)
+            TechnicalDetails("原始错误") { errors.forEach { Text(it) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(onClick = viewModel::refresh) { Text("重新读取") }
+                advice.destination?.let { destination ->
+                    OutlinedButton(onClick = { viewModel.navigate(destination) }) { Text(advice.actionLabel) }
+                }
+            }
         }
         return
     }

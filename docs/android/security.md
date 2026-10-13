@@ -19,7 +19,7 @@
 
 ## Release trust
 
-真实部署要求固定受信 Ed25519 公钥、已签名 Linux/ARM64 清单、资产 SHA-256、受限归档结构、Core 自报版本和启动后管理鉴权。主线当前只有归档摘要，没有 WB07 要求的发布者签名清单，因此真实 install/update 返回 `pending_manifest`，且不下载 Core。
+真实部署使用独立于 APK 证书的固定 Ed25519 身份。发布任务把已验证 Linux/ARM64 归档绑定到版本、提交、SHA-256 和不可变 Release URL，并签署清单；五文件桥包把对应公钥以 `0600` 安装到 Termux 私有信任目录。部署器还验证受限归档结构、Core 自报版本和启动后管理鉴权，任一不一致均停止在写入前或执行自动回退。
 
 ## Process and filesystem boundary
 

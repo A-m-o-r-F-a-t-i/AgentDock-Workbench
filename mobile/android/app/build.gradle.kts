@@ -17,6 +17,12 @@ val androidVersionCode = providers.gradleProperty("agentdockAndroidVersionCode")
 val candidateSha = providers.gradleProperty("agentdockCandidateSha").orElse("local").get()
 val candidateRunId = providers.gradleProperty("agentdockCandidateRunId").orElse("local").get()
 val candidateRunAttempt = providers.gradleProperty("agentdockCandidateRunAttempt").orElse("1").get()
+val androidCoreAssetStem = "AgentDock-Workbench-$productVersion-Android-Core-arm64"
+val androidCoreReleaseBase = "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/download/v$productVersion"
+val androidCoreManifestUrl = providers.gradleProperty("agentdockAndroidCoreManifestUrl")
+    .orElse("$androidCoreReleaseBase/$androidCoreAssetStem.manifest.json").get()
+val androidCoreManifestSignatureUrl = providers.gradleProperty("agentdockAndroidCoreManifestSignatureUrl")
+    .orElse("$androidCoreReleaseBase/$androidCoreAssetStem.manifest.sig").get()
 
 android {
     namespace = "dev.agentdock.workbench"
@@ -37,6 +43,8 @@ android {
         buildConfigField("String", "CANDIDATE_SHA", "\"$candidateSha\"")
         buildConfigField("String", "CANDIDATE_RUN_ID", "\"$candidateRunId\"")
         buildConfigField("String", "CANDIDATE_RUN_ATTEMPT", "\"$candidateRunAttempt\"")
+        buildConfigField("String", "ANDROID_CORE_MANIFEST_URL", "\"$androidCoreManifestUrl\"")
+        buildConfigField("String", "ANDROID_CORE_MANIFEST_SIGNATURE_URL", "\"$androidCoreManifestSignatureUrl\"")
         buildConfigField("String", "SIGNING_LABEL", "\"test-signed-debug\"")
     }
 
