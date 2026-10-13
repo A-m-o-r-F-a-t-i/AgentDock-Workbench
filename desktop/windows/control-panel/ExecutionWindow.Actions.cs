@@ -168,11 +168,10 @@ public partial class ExecutionWindow
     {
         var menu = Menu(Anchor(sender, ConversationHeader));
         ActionMenu(menu, "显示、保留与通知", OpenDisplayPreferencesAsync);
-        ActionMenu(menu, "历史任务与记录管理", () => OpenDataManagerAsync(false));
         ActionMenu(menu, "保存当前筛选", () => { var name = ExecutionDialogs.Prompt(this, "保存筛选", "筛选名称", ""); if (!string.IsNullOrWhiteSpace(name)) { _preferences.SavedFilters[name] = [_conversationView, SearchBox.Text, CallSearchBox.Text, ComboValue(CallStatusCombo)]; SavePreferences(); } return Task.CompletedTask; });
         foreach (var pair in _preferences.SavedFilters.ToArray())
             ActionMenu(menu, "筛选：" + pair.Key, async () => { var values = pair.Value; if (values.Length != 4) return; InvalidateBatchSelection(); _conversationView = values[0]; SearchBox.Text = values[1]; CallSearchBox.Text = values[2]; CallStatusCombo.SelectedItem = CallStatusCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == values[3]); await LoadObjectsAsync(); });
-        ActionMenu(menu, "结构与使用说明", () => { ShowInfo("结构与使用说明", "左侧按工作区组织对话。任务位于当前对话内，任务选择和分支浏览不会改变正在执行的上下文。\n\n单条执行记录显示状态、动作、耗时和时间；点击记录后在下方查看命令、输出、来源和技术信息。右键或使用菜单可批量管理记录。\n\n终止对话会先写入服务端门禁，再取消待审批和运行调用。关闭本窗口只退出观察，不会停止执行。\n\n旧任务缺少步骤时显示“进度未记录”。未归属调用保留原始调用 ID，可以导出、隔离、归档和移入回收站。永久删除不会删除项目源码。\n\n快捷键：Ctrl+F 搜索对话，F5 刷新，Esc 关闭详情，Shift+F10 打开所选条目菜单。"); return Task.CompletedTask; });
+        ActionMenu(menu, "结构与使用说明", () => { ShowInfo("结构与使用说明", "左侧按工作区组织对话。任务位于当前对话内，任务选择和分支浏览不会改变正在执行的上下文。\n\n单条执行记录显示状态、动作、耗时和时间；点击记录后在下方查看命令、输出、来源和技术信息。工具栏菜单用于切换记录视图和导出当前筛选，右键菜单用于管理所选记录。\n\n终止对话会先写入服务端门禁，再取消待审批和运行调用。关闭本窗口只退出观察，不会停止执行。\n\n旧任务缺少步骤时显示“进度未记录”。未归属调用保留原始调用 ID，可以导出、隔离、归档和移入回收站。永久删除不会删除项目源码。\n\n快捷键：Ctrl+F 搜索对话，F5 刷新，Esc 关闭详情，Shift+F10 打开所选条目菜单。"); return Task.CompletedTask; });
         OpenMenu(menu);
     }
     private string[] SelectedCallIds() => CallsList.SelectedItems.Cast<ExecutionCallRow>().Where(row => !row.IsInsertion).Select(row => row.Id).Distinct().ToArray();
@@ -181,12 +180,36 @@ public partial class ExecutionWindow
         if (Ancestor<ListBoxItem>(e.OriginalSource as DependencyObject) is not { DataContext: ExecutionCallRow row } item) return;
         if (!item.IsSelected) CallsList.SelectedItem = row;
         if (row.IsInsertion) { ShowInsertionMenu(item,row); e.Handled=true; return; }
-        ShowCallMenu(item, SelectedCallIds()); e.Handled = true;
+        ShowSelectedCallMenu(item, SelectedCallIds()); e.Handled = true;
     }
-    private void CallMenu_Click(object sender, RoutedEventArgs e) => ShowCallMenu(Anchor(sender, CallsList), SelectedCallIds());
-    private void ShowCallMenu(FrameworkElement anchor, string[] ids)
+    private void CallMenu_Click(object sender, RoutedEventArgs e) => ShowCallToolbarMenu(Anchor(sender, CallsList));
+    private void AddCallViewMenu(ContextMenu menu)
     {
-        if (ids.Length == 0 && CallsList.SelectedItem is ExecutionCallRow { IsInsertion:true } message) { ShowInsertionMenu(anchor,message); return; }
+        var views = new MenuItem { Header = "查看记录" };
+        foreach (var view in new[] { ("active", "当前记录"), ("archived", "已归档记录"), ("isolated", "已隔离记录"), ("trash", "回收站记录") })
+        {
+            var item = new MenuItem { Header = view.Item2, IsCheckable = true, IsChecked = _callView == view.Item1 };
+            item.Click += async (_, _) => await GuardAsync(async () => { _callView = view.Item1; await LoadCallsAsync(false); });
+            views.Items.Add(item);
+        }
+        menu.Items.Add(views);
+    }
+    private void ShowCallToolbarMenu(FrameworkElement anchor)
+    {
+        var menu = Menu(anchor);
+        ActionMenu(menu, "导出当前筛选", () => ExportScopeAsync(CallScopeQuery(), "执行记录"));
+        Divider(menu);
+        AddCallViewMenu(menu);
+        OpenMenu(menu);
+    }
+    private void ShowSelectedCallMenu(FrameworkElement anchor, string[] ids)
+    {
+        if (ids.Length == 0)
+        {
+            if (CallsList.SelectedItem is ExecutionCallRow { IsInsertion:true } message) { ShowInsertionMenu(anchor,message); return; }
+            Warn("请先选择要管理的记录。");
+            return;
+        }
         var fixedIds = ids.ToArray(); var menu = Menu(anchor);
         if (fixedIds.Length == 1 && Calls.FirstOrDefault(row => row.Id == fixedIds[0]) is { Tool: "file_edit" } fileRow)
         {
@@ -213,16 +236,28 @@ public partial class ExecutionWindow
             }
             Divider(menu);
         }
-        ActionMenu(menu, "导出当前筛选", () => ExportScopeAsync(CallScopeQuery(), "执行记录"));
-        ActionMenu(menu, "导出所选记录", () => ExportCallIdsAsync(fixedIds), fixedIds.Length > 0);
-        ActionMenu(menu, "归档所选", () => BatchAsync("call", fixedIds, "archive"), fixedIds.Length > 0);
-        ActionMenu(menu, "隔离所选", () => BatchAsync("call", fixedIds, "isolate"), fixedIds.Length > 0);
-        ActionMenu(menu, "移入回收站", () => ConfirmBatchAsync("call", fixedIds, "trash"), fixedIds.Length > 0); Divider(menu);
-        foreach (var view in new[] { ("active", "当前记录"), ("archived", "已归档记录"), ("isolated", "已隔离记录"), ("trash", "回收站记录") })
-            ChoiceMenu(menu, view.Item2, _callView == view.Item1, async () => { _callView = view.Item1; await LoadCallsAsync(false); });
-        if (_callView == "trash") { ActionMenu(menu, "恢复所选", () => BatchAsync("call", fixedIds, "restore"), fixedIds.Length > 0); ActionMenu(menu, "永久删除所选", () => ConfirmBatchAsync("call", fixedIds, "delete"), fixedIds.Length > 0); }
-        if (_callView == "isolated") ActionMenu(menu, "取消隔离所选", () => BatchAsync("call", fixedIds, "unisolate"), fixedIds.Length > 0);
-        if (_callView == "archived") ActionMenu(menu, "取消归档所选", () => BatchAsync("call", fixedIds, "unarchive"), fixedIds.Length > 0);
+        ActionMenu(menu, "导出所选记录", () => ExportCallIdsAsync(fixedIds));
+        Divider(menu);
+        switch (_callView)
+        {
+            case "trash":
+                ActionMenu(menu, "恢复所选", () => BatchAsync("call", fixedIds, "restore"));
+                ActionMenu(menu, "永久删除所选", () => ConfirmBatchAsync("call", fixedIds, "delete"));
+                break;
+            case "isolated":
+                ActionMenu(menu, "取消隔离所选", () => BatchAsync("call", fixedIds, "unisolate"));
+                ActionMenu(menu, "移入回收站", () => ConfirmBatchAsync("call", fixedIds, "trash"));
+                break;
+            case "archived":
+                ActionMenu(menu, "取消归档所选", () => BatchAsync("call", fixedIds, "unarchive"));
+                ActionMenu(menu, "移入回收站", () => ConfirmBatchAsync("call", fixedIds, "trash"));
+                break;
+            default:
+                ActionMenu(menu, "归档所选", () => BatchAsync("call", fixedIds, "archive"));
+                ActionMenu(menu, "隔离所选", () => BatchAsync("call", fixedIds, "isolate"));
+                ActionMenu(menu, "移入回收站", () => ConfirmBatchAsync("call", fixedIds, "trash"));
+                break;
+        }
         OpenMenu(menu);
     }
     private async Task ShowEditedFileAsync(string path)
@@ -388,6 +423,6 @@ public partial class ExecutionWindow
         if (e.Key == Key.Escape) { CloseDetails(); e.Handled = true; }
         else if (e.Key == Key.F && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         else if (e.Key == Key.F5) { await GuardAsync(RefreshExecutionAsync); e.Handled = true; }
-        else if (e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { if (ObjectsList.IsKeyboardFocusWithin) ShowObjectMenu(ObjectsList, SelectedObjectIds()); else if (CallsList.IsKeyboardFocusWithin) ShowCallMenu(CallsList, SelectedCallIds()); else if (ManagedObjectsList.IsKeyboardFocusWithin) ShowDataMenu(ManagedObjectsList); e.Handled = true; }
+        else if (e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { if (ObjectsList.IsKeyboardFocusWithin) ShowObjectMenu(ObjectsList, SelectedObjectIds()); else if (CallsList.IsKeyboardFocusWithin) ShowSelectedCallMenu(CallsList, SelectedCallIds()); else if (ManagedObjectsList.IsKeyboardFocusWithin) ShowDataMenu(ManagedObjectsList); e.Handled = true; }
     }
 }
