@@ -96,7 +96,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["query"] = stringProp("Capability query used.")
 		props["server"] = stringProp("Optional server filter used.")
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
-		props["count"] = intProp("Matching dynamic tool count. Host built-in misuse is a non-retryable tool error, not a successful search result.")
+		props["count"] = intProp("Matching dynamic tool count. A pure host-built-in route omits this count and returns a successful terminal route instead.")
 		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
 		props["complete"] = boolProp("All visible catalogs are current and matching results fit the response limit.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
@@ -112,6 +112,12 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["builtin_tools"] = arrayProp("Compact AgentDock host built-in route summaries without input or output schemas.")
 		props["execution_performed"] = boolProp("False for a host handoff: discovery did not execute the tool.")
 		props["next_action"] = stringProp("Next discovery action; never authorizes or automatically executes a business operation.")
+		props["route_code"] = stringProp("Diagnostic classification for a resolved host route, including repeated wrong-namespace attempts.")
+		props["route_status"] = stringProp("Resolved host-route status.")
+		props["message"] = stringProp("Caller action and prohibited fallback searches for a resolved host route.")
+		props["filesystem_lookup_required"] = boolProp("Always false for a resolved AgentDock host tool.")
+		props["dynamic_discovery_required"] = boolProp("Always false for a resolved AgentDock host tool.")
+		props["recovery_source"] = stringProp("Trusted source of the host schema, normally caller_tools_list.")
 	case ToolList:
 		props = catalogSchemaProperties()
 	case ToolInspect:
@@ -130,6 +136,12 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["builtin_tools"] = arrayProp("Compact AgentDock host built-in route summaries without schemas.")
 		props["execution_performed"] = boolProp("False for a host handoff: no business action ran.")
 		props["next_action"] = stringProp("Caller-side host handoff after completed inspection.")
+		props["route_code"] = stringProp("Diagnostic classification for a resolved pure host route.")
+		props["route_status"] = stringProp("Resolved host-route status.")
+		props["message"] = stringProp("Caller action and prohibited fallback searches for a resolved host route.")
+		props["filesystem_lookup_required"] = boolProp("Always false for a resolved AgentDock host tool.")
+		props["dynamic_discovery_required"] = boolProp("Always false for a resolved AgentDock host tool.")
+		props["recovery_source"] = stringProp("Trusted source of the host schema, normally caller_tools_list.")
 		props["metadata"] = objectProp("Additional standard upstream tool fields, retained without interpreting business data.")
 		props["name"] = stringProp("Qualified MCP tool name.")
 		props["server"] = stringProp("Dynamic MCP server name.")
@@ -154,10 +166,13 @@ func OutputSchema(name string) (map[string]any, bool) {
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
 		"server": toolcontract.String("Dynamic MCP server."), "catalog_revision": toolcontract.String("Referenced complete catalog generation."),
-		"complete": toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
-		"stale":    toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
-		"total":    toolcontract.Integer("Total tools in the referenced catalog."),
-		"error":    toolcontract.String("Catalog attachment problem; never changes the business outcome."),
-		"tools":    map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}}}},
+		"complete":      toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
+		"stale":         toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
+		"total":         toolcontract.Integer("Total tools in the referenced catalog."),
+		"error":         toolcontract.String("Catalog attachment problem; never changes the business outcome."),
+		"delivery":      toolcontract.String("full when tools are included, reference when this trusted scope already received the same revision."),
+		"tools_omitted": toolcontract.Boolean("True only for a compact reference to a complete catalog already delivered in the same trusted scope."),
+		"refresh_tool":  toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
+		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}}}},
 	}
 }

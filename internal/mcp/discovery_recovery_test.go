@@ -33,18 +33,17 @@ func TestBuiltinDiscoveryWireErrorsAndHostSchemaRecovery(t *testing.T) {
 		{Name: "mcp_tool_inspect", Arguments: map[string]any{"names": []string{"read_file"}}},
 	} {
 		result, err := harness.session.CallTool(t.Context(), request)
-		if err != nil || !result.IsError {
-			t.Fatalf("misroute must be tool error, not transport failure/success: %#v %v", result, err)
+		if err != nil || result.IsError {
+			t.Fatalf("resolved host route must be a successful tool result: %#v %v", result, err)
 		}
 		body, ok := result.StructuredContent.(map[string]any)
-		if !ok || body["code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || body["retryable"] != false {
-			t.Fatalf("wire error classification lost: %#v", body)
+		if !ok || body["route_code"] == nil || body["route_status"] != "resolved" || body["retryable"] != false {
+			t.Fatalf("wire route classification lost: %#v", body)
 		}
-		details := body["details"].(map[string]any)
-		if details["required_host_tool"] != "read_file" || details["execution_performed"] != false {
-			t.Fatalf("wire recovery missing: %#v", details)
+		if body["required_host_tool"] != "read_file" || body["execution_performed"] != false || body["filesystem_lookup_required"] != false || body["dynamic_discovery_required"] != false {
+			t.Fatalf("wire recovery missing: %#v", body)
 		}
-		guidance := details["agentdock_guidance"].(map[string]any)
+		guidance := body["agentdock_guidance"].(map[string]any)
 		steps := guidance["next_required"].([]any)
 		step := steps[0].(map[string]any)
 		if len(steps) != 1 || step["action"] != "use_host_tool" || step["tool"] != "read_file" || step["arguments"] != nil {

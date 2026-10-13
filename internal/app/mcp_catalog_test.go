@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/config"
 )
 
@@ -180,5 +181,64 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 	}
 	if _, err := r.Call(context.Background(), "mcp_tool_inspect", map[string]any{"names": []string{"one:*"}, "name": "one:tool_000"}); err == nil || !strings.Contains(err.Error(), "input schema") {
 		t.Fatalf("ambiguous legacy/new selectors accepted: %v", err)
+	}
+}
+
+func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
+	fixture := newCatalogFixture(t, 3)
+	cfg := config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := newUnrestrictedTestRuntime(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, err := r.Call(t.Context(), "mcp_manage", map[string]any{"action": "add", "name": "fixture", "description": "catalog delivery fixture", "transport": "streamable_http", "url": fixture.server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := activity.WithSource(t.Context(), activity.Source{Principal: "catalog-test", Namespace: "mcp", HostConversationID: "catalog-repeat"})
+	if _, err := r.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Call(ctx, "mcp_tool_list", map[string]any{"server": "fixture"}); err != nil {
+		t.Fatal(err)
+	}
+	call := func(callCtx context.Context) map[string]any {
+		result, err := r.Call(callCtx, "mcp_tool_call", map[string]any{"name": "fixture:tool_000", "arguments": map[string]any{"text": "ok"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result["mcp_catalog"].(map[string]any)
+	}
+	first := call(ctx)
+	second := call(ctx)
+	if first["delivery"] != "full" || first["tools_omitted"] != false || catalogCount(first["tools"]) != 3 {
+		t.Fatalf("first trusted call omitted its catalog: %#v", first)
+	}
+	if second["delivery"] != "reference" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
+		t.Fatalf("repeated trusted call duplicated its catalog: %#v", second)
+	}
+	other := activity.WithSource(t.Context(), activity.Source{Principal: "catalog-test", Namespace: "mcp", HostConversationID: "catalog-other"})
+	if _, err := r.Call(other, "agentdock_context", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if isolated := call(other); isolated["delivery"] != "full" || catalogCount(isolated["tools"]) != 3 {
+		t.Fatalf("another conversation inherited the compact reference: %#v", isolated)
+	}
+	if legacy := call(t.Context()); legacy["delivery"] != "full" || catalogCount(legacy["tools"]) != 3 {
+		t.Fatalf("client without trusted metadata lost the full catalog: %#v", legacy)
+	}
+}
+
+func catalogCount(value any) int {
+	switch items := value.(type) {
+	case []any:
+		return len(items)
+	case []map[string]any:
+		return len(items)
+	default:
+		return 0
 	}
 }

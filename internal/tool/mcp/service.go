@@ -12,12 +12,13 @@ import (
 )
 
 type Service struct {
-	mcpClients       *mcpclient.Manager
-	envs             *envstore.Store
-	pluginMembership PluginMembershipLookup
-	pluginHeavy      func(string) (bool, error)
-	builtinLookup    func(string) (BuiltinToolSummary, bool)
-	discoveryRoutes  builtinDiscoveryRoutes
+	mcpClients        *mcpclient.Manager
+	envs              *envstore.Store
+	pluginMembership  PluginMembershipLookup
+	pluginHeavy       func(string) (bool, error)
+	builtinLookup     func(string) (BuiltinToolSummary, bool)
+	discoveryRoutes   builtinDiscoveryRoutes
+	catalogDeliveries catalogDeliveryState
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)

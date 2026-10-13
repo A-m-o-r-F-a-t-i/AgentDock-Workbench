@@ -61,8 +61,10 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 			t.Fatalf("%s: %v", request.name, err)
 		}
 	}
-	_, err := rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
-	assertToolErrorCode(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
+	route, err := rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
+	if err != nil || route["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || route["route_status"] != "resolved" {
+		t.Fatalf("initial host route unresolved: %#v %v", route, err)
+	}
 	for range 20 {
 		result, err := rt.Call(ctx, "mcp_tool_call", map[string]any{"name": "fixture:exec_command", "arguments": map[string]any{}})
 		if err != nil || resultReportsFailure(result) {
@@ -95,8 +97,10 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 	if catalogs.Load() != 1 || calls.Load() != 20 {
 		t.Fatalf("upstream catalog/business calls=%d/%d want 1/20", catalogs.Load(), calls.Load())
 	}
-	_, err = rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
-	assertToolErrorCode(t, err, "ROUTING_LOOP_BLOCKED")
+	route, err = rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
+	if err != nil || route["route_code"] != "ROUTING_LOOP_BLOCKED" || route["route_status"] != "resolved" {
+		t.Fatalf("repeated host route unresolved: %#v %v", route, err)
+	}
 	if _, err := rt.Call(ctx, "task_manage", map[string]any{"action": "list"}); err != nil {
 		t.Fatalf("host recovery tool unavailable: %v", err)
 	}

@@ -37,3 +37,19 @@ func TestCatalogResponseOrderAndBusinessFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestCatalogReferenceDoesNotDuplicateTheFullTextBlock(t *testing.T) {
+	catalog := map[string]any{"server": "test", "catalog_revision": "v1", "complete": true, "stale": false, "total": 2, "delivery": "reference", "tools_omitted": true, "refresh_tool": "mcp_tool_list"}
+	payload := map[string]any{"mcp_catalog": catalog, "result": map[string]any{"isError": false, "content": []any{map[string]any{"type": "text", "text": "business"}}}}
+	result := normalizedEnvelope(t, toolEnvelope("mcp_tool_call", payload, nil))
+	for _, block := range result["content"].([]any) {
+		text, _ := asMap(block)["text"].(string)
+		if strings.Contains(text, "[[AGENTDOCK_MCP_CATALOG_V1]]") {
+			t.Fatalf("compact reference duplicated the full catalog text block: %q", text)
+		}
+	}
+	structured := asMap(result["structuredContent"])
+	if asMap(structured["mcp_catalog"])["delivery"] != "reference" || asMap(structured["mcp_catalog"])["tools_omitted"] != true {
+		t.Fatalf("structured compact reference was lost: %#v", structured)
+	}
+}

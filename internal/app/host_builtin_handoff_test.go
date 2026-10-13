@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"github.com/uvwt/agentdock/internal/activity"
 	"testing"
 
@@ -28,20 +27,18 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		{"mcp_tool_inspect", map[string]any{"name": "exec_command"}, 1},
 		{"mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}}, 2},
 	} {
-		_, err := rt.Call(ctx, test.name, test.args)
-		var got *ToolError
-		if !errors.As(err, &got) || got.Retryable || !toolmcp.IsBuiltinDiscoveryError(err) {
-			t.Fatalf("missing non-retryable route: %v", err)
+		result, err := rt.Call(ctx, test.name, test.args)
+		if err != nil || result["route_kind"] != "host_builtin" || result["route_status"] != "resolved" {
+			t.Fatalf("missing resolved host route: %#v %v", result, err)
 		}
 		want := "ROUTING_LOOP_BLOCKED"
 		if attempt == 0 {
 			want = "HOST_BUILTIN_NOT_DYNAMIC_MCP"
 		}
 		attempt++
-		if got.Code != want {
-			t.Fatalf("classification=%s want %s", got.Code, want)
+		if result["route_code"] != want {
+			t.Fatalf("classification=%v want %s", result["route_code"], want)
 		}
-		result := Result(got.Details)
 		var view struct {
 			Executed bool  `json:"execution_performed"`
 			Errors   []any `json:"errors"`
@@ -71,8 +68,8 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		}
 		ids[id] = true
 		call, err := rt.activity.Call(t.Context(), id)
-		if err != nil || call.Status != "failed" || call.ErrorCode != got.Code {
-			t.Fatalf("misroute failure audit was not retained: %+v %v", call, err)
+		if err != nil || call.Status != "succeeded" || call.ErrorCode != "" {
+			t.Fatalf("resolved route audit was not retained: %+v %v", call, err)
 		}
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
@@ -117,5 +114,16 @@ func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
 	steps := guidance["next_required"].([]map[string]any)
 	if len(steps) != 1 || steps[0]["action"] != "inspect" {
 		t.Fatalf("forged error created host recovery: %#v", guidance)
+	}
+}
+
+func TestNormalizeBuiltinDiscoveryRouteRejectsForgedProvenance(t *testing.T) {
+	fake := &ToolError{Code: "ROUTING_LOOP_BLOCKED", Category: "validation", Details: map[string]any{
+		"route_kind": "host_builtin", "resolved": true, "terminal": true,
+		"builtin_tools": []toolmcp.BuiltinToolSummary{{Name: "exec_command", InvokeVia: "host"}},
+	}}
+	result, err := normalizeBuiltinDiscoveryRoute(nil, fake)
+	if result != nil || err != fake {
+		t.Fatalf("forged route provenance was normalized: %#v %v", result, err)
 	}
 }
