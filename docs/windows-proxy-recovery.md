@@ -11,8 +11,11 @@ Tray rebuilds that state; it does not establish that Core was restarted.
   cookies disabled. An unavailable desktop proxy cannot intercept local bearer
   credentials or disable local management requests.
 - Public discovery uses a fresh WinHTTP user-proxy session for each check when
-  no explicit proxy environment variables exist. Windows manual proxy, bypass,
-  PAC and auto-detect settings remain owned by Windows.
+  no explicit proxy environment variables exist and WinHTTP accepts automatic
+  proxy sessions. If `WinHttpOpen` rejects that mode with error 87 before a
+  request exists, discovery uses the .NET system-proxy transport instead.
+  Windows manual proxy, bypass, PAC and auto-detect settings remain owned by
+  Windows.
 - Explicit HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and NO_PROXY launch configuration
   retains .NET routing. No process-wide default proxy or system settings are
   modified by the application. There is no silent direct-network fallback.
@@ -43,7 +46,8 @@ files and the disposable runner's proxy settings, restoring proxy settings and
 process environment in finally/disposal. Never run it against a user's desktop.
 
 The tests cover a cached dead proxy, switching live proxy ports without process
-restart, disabling the proxy, local API isolation, redirects, authentication
-metadata validation, cancellation and explicit environment routing. Fixture HTTP
-is used to exercise proxy selection without installing test trust roots; the
-production public-address validator continues requiring HTTPS for remote hosts.
+restart, disabling the proxy, WinHTTP automatic-proxy compatibility fallback,
+local API isolation, redirects, authentication metadata validation, cancellation
+and explicit environment routing. Fixture HTTP is used to exercise proxy
+selection without installing test trust roots; the production public-address
+validator continues requiring HTTPS for remote hosts.
