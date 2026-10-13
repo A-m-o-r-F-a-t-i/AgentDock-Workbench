@@ -40,6 +40,28 @@ func TestStatusRecorderInfersOKOnWrite(t *testing.T) {
 	}
 }
 
+func TestLoggingMiddlewarePreservesDownstreamEncoding(t *testing.T) {
+	const body = `{"message":"\u003cscript\u003e"}`
+	handler := loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(body))
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/mcp?message=%3Cscript%3E", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusCreated)
+	}
+	if got := response.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if got := response.Body.String(); got != body {
+		t.Fatalf("body = %q, want exact downstream encoding %q", got, body)
+	}
+}
+
 func TestLoggingMiddlewareDoesNotLogHeadersOrBody(t *testing.T) {
 	previous := slog.Default()
 	defer slog.SetDefault(previous)

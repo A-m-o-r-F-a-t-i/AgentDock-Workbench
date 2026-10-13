@@ -127,6 +127,9 @@ func (w *Workspace) resolve(raw string, mustExist bool) (Path, error) {
 	}
 	parent := candidate
 	for {
+		// Host path selection is this resolver's explicit contract. This read only
+		// discovers the nearest existing parent before symlink canonicalization.
+		// codeql[go/path-injection]
 		if info, err := os.Stat(parent); err == nil && info.IsDir() {
 			break
 		}
@@ -145,6 +148,9 @@ func (w *Workspace) resolve(raw string, mustExist bool) (Path, error) {
 		return Path{}, err
 	}
 	realPath := filepath.Join(realParent, relFromParent)
+	// realPath is the canonical user-selected host target. This read only reports
+	// whether the write target already exists; it does not open or modify it.
+	// codeql[go/path-injection]
 	_, statErr := os.Stat(realPath)
 	return Path{Display: w.displayPath(realPath), Abs: realPath, Exists: statErr == nil}, nil
 }

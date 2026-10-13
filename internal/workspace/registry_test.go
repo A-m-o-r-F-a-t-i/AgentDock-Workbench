@@ -82,6 +82,25 @@ func TestWorkspaceRejectsTraversalAndNoImplicitCWD(t *testing.T) {
 	}
 }
 
+func TestResolveCommandDirectoryRejectsTraversalBeforeCreation(t *testing.T) {
+	_, record := registryFixture(t)
+	taskRoot := filepath.Join(record.ScratchRoot, "tsk_safe")
+	escaped := filepath.Join(record.ScratchRoot, "escaped")
+	_, err := ResolveCommandDirectory(record, TargetRequest{
+		Kind:   "scratch",
+		TaskID: "tsk_safe",
+		Path:   filepath.Join("..", "escaped"),
+	})
+	if !errors.Is(err, ErrWorkspaceBoundary) {
+		t.Fatalf("ResolveCommandDirectory() traversal error = %v", err)
+	}
+	for _, path := range []string{taskRoot, escaped} {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("rejected traversal created %q: %v", path, statErr)
+		}
+	}
+}
+
 func TestWorkspaceRegistryRevisionConcurrentUpdates(t *testing.T) {
 	registry, record := registryFixture(t)
 	ctx := context.Background()
