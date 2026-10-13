@@ -12,11 +12,12 @@ const (
 )
 
 var builtinToolAliases = map[string]string{
-	"edit_file":     "file_edit",
-	"run_command":   "exec_command",
-	"shell_command": "exec_command",
-	"task_update":   "task_manage",
-	"write_file":    "file_edit",
+	"call a dynamic mcp tool": "mcp_tool_call",
+	"edit_file":               "file_edit",
+	"run_command":             "exec_command",
+	"shell_command":           "exec_command",
+	"task_update":             "task_manage",
+	"write_file":              "file_edit",
 }
 
 var builtinRouteModifiers = map[string]struct{}{
@@ -87,22 +88,15 @@ func builtinRouteTokens(query string) []string {
 	})
 }
 
-const hostBuiltinNextAction = "Discovery is complete. Use the caller's AgentDock namespace; do not search again."
-
-func hostBuiltinInspectionResult(builtins []BuiltinToolSummary) Result {
-	return Result{
-		"tools": []map[string]any{}, "count": 0, "total": 0,
-		"complete": true, "errors": []map[string]any{}, "catalogs": []map[string]any{},
-		"builtin_match_count": len(builtins), "dynamic_match_count": 0,
-		"builtin_tools": builtins, "route_kind": routeKindHostBuiltin,
-		"resolved": true, "terminal": true, "execution_performed": false,
-		"route_summary": "识别内置工具 · " + strings.Join(builtinToolNames(builtins), ", "),
-		"next_action":   hostBuiltinNextAction,
-	}
-}
-
 func sortedBuiltinTools(input []BuiltinToolSummary) []BuiltinToolSummary {
-	result := append([]BuiltinToolSummary(nil), input...)
+	result := make([]BuiltinToolSummary, 0, len(input))
+	seen := make(map[string]bool, len(input))
+	for _, item := range input {
+		if !seen[item.Name] {
+			seen[item.Name] = true
+			result = append(result, item)
+		}
+	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
 }

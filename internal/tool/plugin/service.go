@@ -251,7 +251,7 @@ func (s *Service) Load(ctx context.Context, request LoadRequest) (Result, error)
 		instructions = append(instructions, "Read a returned Skill entry point before applying its domain workflow.")
 	}
 	if len(mcpServers) > 0 {
-		instructions = append(instructions, "Select a returned MCP tool description, inspect its qualified_name, then call it. Use mcp_tool_search with the returned server name to refresh or narrow the index.")
+		instructions = append(instructions, "Reuse the returned MCP catalog. Inspect qualified names only when their schemas are unknown, then call them directly. Refresh only the selected service after a capability revision change; use mcp_tool_list if its catalog is missing.")
 	}
 	loadRequired := definition.Heavy || capabilityrouting.RequiresExplicitPluginLoad(definition.Name)
 	return Result{

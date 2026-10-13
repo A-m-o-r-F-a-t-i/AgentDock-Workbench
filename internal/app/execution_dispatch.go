@@ -15,6 +15,7 @@ import (
 	"github.com/uvwt/agentdock/internal/permission"
 	"github.com/uvwt/agentdock/internal/requesttrace"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -331,8 +332,8 @@ func (r *Runtime) executionError(err error, state executionObservation) error {
 	if state.binding.ConversationID != "" {
 		copy.Details["conversation_id"] = state.binding.ConversationID
 	}
-	if toolErr.Category != "validation" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" {
-		copy.Details["agentdock_guidance"] = r.executionGuidance("", state, nil, true)
+	if toolErr.Category != "validation" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err) {
+		copy.Details["agentdock_guidance"] = r.executionErrorGuidance(state, err)
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return errors.Join(&copy, err)

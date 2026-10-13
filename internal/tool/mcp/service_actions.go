@@ -116,19 +116,12 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	limit := boundedInt(intValue(request.Limit, 10), 10, 1, 100)
 	if server == "" {
 		if match, available := s.resolveBuiltinRoute(query); available {
-			result := Result{
-				"query": query, "server": "", "count": 1,
-				"route_kind": routeKindHostBuiltin, "resolved": true, "terminal": true,
-				"builtin_match_count": 1, "dynamic_match_count": 0,
-				"matched_tool": match.Tool.Name, "route_summary": "定位内置工具 · " + match.Tool.Name,
-				"tools": []any{}, "catalogs": []any{}, "builtin_tools": []BuiltinToolSummary{match.Tool},
-				"complete": true, "truncated": false, "cache_only": true,
-				"next_action": hostBuiltinNextAction, "execution_performed": false,
+			err := s.rejectBuiltinDiscovery(ctx, []BuiltinToolSummary{match.Tool})
+			var routeErr *ToolError
+			if match.Alias != "" && errors.As(err, &routeErr) {
+				routeErr.Details["matched_alias"] = match.Alias
 			}
-			if match.Alias != "" {
-				result["matched_alias"] = match.Alias
-			}
-			return result, nil
+			return nil, err
 		}
 	}
 	var allow func(string) bool

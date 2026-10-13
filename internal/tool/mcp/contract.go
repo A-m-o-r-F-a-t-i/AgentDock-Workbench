@@ -42,7 +42,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["expected_revision"] = stringProp("Current server.revision from inspect; required for compare-and-swap update/reset_override.")
 		required = []string{"action"}
 	case ToolSearch:
-		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly.")
+		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly; misuse returns a non-retryable routing error.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
 		props["limit"] = boundedIntProp("Maximum matching tools. Defaults to 10 and is capped at 100.", 1, 100)
 		required = []string{"query"}
@@ -96,7 +96,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["query"] = stringProp("Capability query used.")
 		props["server"] = stringProp("Optional server filter used.")
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
-		props["count"] = intProp("Resolved route match count. Host built-in routes return one; dynamic searches return the matching dynamic tool count.")
+		props["count"] = intProp("Matching dynamic tool count. Host built-in misuse is a non-retryable tool error, not a successful search result.")
 		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
 		props["complete"] = boolProp("All visible catalogs are current and matching results fit the response limit.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
@@ -120,7 +120,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["catalogs"] = arrayProp("Service generations used by this batch.")
 		props["count"] = intProp("Returned complete schema count.")
 		props["total"] = intProp("Total successfully resolved selected tools in this untruncated response.")
-		props["complete"] = boolProp("All selectors were resolved to either dynamic schemas or explicit host built-in routes.")
+		props["complete"] = boolProp("All selectors resolved to dynamic schemas without errors. Mixed host built-in selectors are reported as per-selector routing errors.")
 		props["route_kind"] = stringProp("Resolved namespace: host_builtin, dynamic_mcp, or mixed.")
 		props["resolved"] = boolProp("Whether the selector batch has a deterministic terminal route.")
 		props["terminal"] = boolProp("Whether dynamic inspection must stop and host tools must be used.")
