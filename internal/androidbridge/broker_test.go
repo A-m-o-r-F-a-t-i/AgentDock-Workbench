@@ -24,6 +24,9 @@ func paired(t *testing.T) (*Broker, Registration) {
 func capabilities() map[string]Capability {
 	return map[string]Capability{"termux_host": {Ready: true, State: "verified"}}
 }
+func androidCapabilities(ready bool) map[string]Capability {
+	return map[string]Capability{"android_shizuku": {Ready: ready, State: "verified"}}
+}
 func spec() Spec {
 	return Spec{Backend: "termux_host", Command: "printf hi", Workdir: "/data/data/com.termux/files/home", TimeoutMS: 30000}
 }
@@ -35,6 +38,50 @@ func poll(t *testing.T, b *Broker, r Registration, events ...Event) ExchangeResp
 	}
 	return v
 }
+func TestAvailabilityListenerTracksAndroidReadinessAndLeaseExpiry(t *testing.T) {
+	b := New("node-availability")
+	now := time.Unix(1_000, 0)
+	b.clock = func() time.Time { return now }
+	changes := 0
+	b.SetAvailabilityListener(func() { changes++ })
+	t.Cleanup(b.Close)
+
+	registration, err := b.Register(RegisterRequest{Protocol: 1, WorkerID: strings.Repeat("c", 32), Backends: androidCapabilities(true)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changes != 1 || !b.Ready("android_shizuku") {
+		t.Fatalf("ready registration changes=%d status=%#v", changes, b.Status())
+	}
+	if _, err := b.Exchange(registration.LeaseToken, ExchangeRequest{Protocol: 1, Backends: androidCapabilities(true)}); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 1 {
+		t.Fatalf("unchanged heartbeat emitted availability event: %d", changes)
+	}
+	if _, err := b.Exchange(registration.LeaseToken, ExchangeRequest{Protocol: 1, Backends: androidCapabilities(false)}); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 2 || b.Ready("android_shizuku") {
+		t.Fatalf("not-ready update changes=%d status=%#v", changes, b.Status())
+	}
+	if _, err := b.Exchange(registration.LeaseToken, ExchangeRequest{Protocol: 1, Backends: androidCapabilities(true)}); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 3 || !b.Ready("android_shizuku") {
+		t.Fatalf("ready recovery changes=%d status=%#v", changes, b.Status())
+	}
+
+	now = now.Add(leaseFreshness + time.Second)
+	b.mu.Lock()
+	generation := b.availabilityGeneration
+	b.mu.Unlock()
+	b.expireAvailability(generation)
+	if changes != 4 || b.Ready("android_shizuku") {
+		t.Fatalf("expired lease changes=%d status=%#v", changes, b.Status())
+	}
+}
+
 func TestLeaseCannotBeTakenOverOrUsedForAnotherWorker(t *testing.T) {
 	b, r := paired(t)
 	_, err := b.Register(RegisterRequest{Protocol: 1, WorkerID: strings.Repeat("b", 32), ResumeToken: r.LeaseToken, Backends: capabilities()})

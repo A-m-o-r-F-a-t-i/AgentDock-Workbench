@@ -32,6 +32,21 @@ func androidDeviceToolContract(name string, _ config.Config) (ToolContract, bool
 	return staticToolContract(name, androiddevice.InputSchema, androiddevice.OutputSchema)
 }
 
+func (r *Runtime) toolAvailable(name string) bool {
+	if !androiddevice.IsTool(name) {
+		return true
+	}
+	return r.androidExecutor != nil && r.androidExecutor.Ready("android_shizuku")
+}
+
+// OnToolAvailabilityChanged refreshes model-visible tool directories when a
+// paired Android provider connects, disconnects, changes readiness, or expires.
+func (r *Runtime) OnToolAvailabilityChanged(listener func()) {
+	if r != nil && r.androidExecutor != nil {
+		r.androidExecutor.SetAvailabilityListener(listener)
+	}
+}
+
 // These handlers borrow the existing command lifetime under the original root
 // Call. They must not emit a second call.completed while a session is running.
 func isCommandExecutionTool(name string) bool {
