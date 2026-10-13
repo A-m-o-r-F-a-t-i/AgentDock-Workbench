@@ -16,12 +16,12 @@ func insertionToolSpecs() []ToolSpec {
 		Annotations: &ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, DestructiveHint: boolPointer(false), OpenWorldHint: boolPointer(false)},
 		Contract: func(string, config.Config) (ToolContract, bool) {
 			return ToolContract{
-				InputSchema: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"receipts"}, "properties": map[string]any{
+				ValidationInputSchema: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"receipts"}, "properties": map[string]any{
 					"receipts": map[string]any{"type": "array", "minItems": 1, "maxItems": insertion.MaxPending, "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"insertion_id", "receipt_token"}, "properties": map[string]any{
 						"insertion_id": map[string]any{"type": "string", "pattern": "^ins_[a-f0-9]{32}$"}, "receipt_token": map[string]any{"type": "string", "pattern": "^[a-f0-9]{32}$"},
 					}}},
 				}},
-				OutputSchema: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"acknowledged", "evidence", "next_action"}, "properties": map[string]any{
+				ValidationOutputSchema: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"acknowledged", "evidence", "next_action"}, "properties": map[string]any{
 					"acknowledged": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "evidence": map[string]any{"type": "string", "const": "receiver_receipt"},
 					"next_action": map[string]any{"type": "string", "const": InsertionReceiptNextAction},
 				}},

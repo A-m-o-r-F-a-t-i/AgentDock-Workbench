@@ -32,7 +32,25 @@ func TestAllToolDefinitionsHaveStrictCompilableInputContracts(t *testing.T) {
 			t.Fatalf("%s root additionalProperties = %#v, want false", definition.Name, got)
 		}
 		if _, err := toolcontract.CompileInputSchema(definition.InputSchema); err != nil {
-			t.Fatalf("compile %s input schema: %v", definition.Name, err)
+			t.Fatalf("compile %s public input schema: %v", definition.Name, err)
+		}
+		spec, _ := toolSpecByName(definition.Name)
+		contract, ok := spec.Contract(definition.Name, cfg)
+		if !ok {
+			t.Fatalf("missing %s validation contract", definition.Name)
+		}
+		contract = completeToolContract(definition.Name, contract)
+		if got := contract.ValidationInputSchema["additionalProperties"]; got != false {
+			t.Fatalf("%s validation root additionalProperties = %#v, want false", definition.Name, got)
+		}
+		if _, err := toolcontract.CompileInputSchema(contract.ValidationInputSchema); err != nil {
+			t.Fatalf("compile %s validation input schema: %v", definition.Name, err)
+		}
+		if len(contract.ValidationOutputSchema) == 0 {
+			t.Fatalf("%s validation output schema is empty", definition.Name)
+		}
+		if _, err := toolcontract.CompileInputSchema(contract.ValidationOutputSchema); err != nil {
+			t.Fatalf("compile %s validation output schema: %v", definition.Name, err)
 		}
 		if len(definition.OutputSchema) == 0 {
 			t.Fatalf("%s output schema is empty", definition.Name)
@@ -103,11 +121,16 @@ func TestTypedToolRequestFieldsMatchPublishedSchemas(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition, ok := toolDefinitionForConfig(test.name, fullConfig)
+			spec, ok := toolSpecByName(test.name)
 			if !ok {
-				t.Fatalf("missing tool definition for %s", test.name)
+				t.Fatalf("missing tool spec for %s", test.name)
 			}
-			assertSchemaMatchesRequestType(t, test.name, definition.InputSchema, reflect.TypeOf(test.request), test.exact, test.allowExtra)
+			contract, ok := spec.Contract(test.name, fullConfig)
+			if !ok {
+				t.Fatalf("missing validation contract for %s", test.name)
+			}
+			contract = completeToolContract(test.name, contract)
+			assertSchemaMatchesRequestType(t, test.name, contract.ValidationInputSchema, reflect.TypeOf(test.request), test.exact, test.allowExtra)
 		})
 	}
 }

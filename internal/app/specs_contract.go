@@ -28,7 +28,7 @@ func staticToolContract(
 	if !ok {
 		return ToolContract{}, false
 	}
-	return ToolContract{InputSchema: inputSchema, OutputSchema: outputSchema}, true
+	return newToolContract(name, inputSchema, outputSchema), true
 }
 
 func canonicalToolContract(name string, _ config.Config) (ToolContract, bool) {
@@ -37,13 +37,13 @@ func canonicalToolContract(name string, _ config.Config) (ToolContract, bool) {
 		return ToolContract{}, false
 	}
 	if name == mcpcontract.ToolAgentDockContext {
-		return ToolContract{InputSchema: inputSchema, OutputSchema: mcpcontract.LocalAgentDockContextOutputSchema()}, true
+		return newToolContract(name, inputSchema, mcpcontract.LocalAgentDockContextOutputSchema()), true
 	}
 	outputSchema, ok := mcpcontract.OutputSchema(name)
 	if !ok {
 		return ToolContract{}, false
 	}
-	return ToolContract{InputSchema: inputSchema, OutputSchema: outputSchema}, true
+	return newToolContract(name, inputSchema, outputSchema), true
 }
 
 func fileToolContract(name string, _ config.Config) (ToolContract, bool) {
@@ -63,7 +63,7 @@ func taskToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	if !ok {
 		return ToolContract{}, false
 	}
-	return ToolContract{InputSchema: inputSchema, OutputSchema: outputSchema}, true
+	return newToolContract(name, inputSchema, outputSchema), true
 }
 
 func evolutionToolContract(name string, _ config.Config) (ToolContract, bool) {
