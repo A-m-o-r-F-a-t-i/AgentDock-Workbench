@@ -13,7 +13,7 @@ func commandToolSpecs() []ToolSpec {
 			request.Binding = activity.FromContext(ctx)
 			return r.command.Exec(ctx, request)
 		})},
-		{Name: "session_observe", Contract: commandToolContract, Title: "Observe command sessions", Description: "Inspect only command-process sessions returned by exec_command with status=running. Normally call action=status with the exact returned session_id. action=list is recovery-only; never use this tool for conversation, task, MCP, browser, PCB, or general AgentDock state.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("session_observe", func(_ context.Context, r *Runtime, request toolcommand.SessionObserveRequest) (Result, error) {
+		{Name: "session_observe", Contract: commandToolContract, Title: "Observe command sessions", Description: "Inspect only command-process sessions returned by exec_command with status=running. Use action=status with the exact session_id and the prior observe_after_ms as wait_ms; omit wait_ms for adaptive long-polling. Do not poll in a tight loop. action=list is recovery-only; never use this tool for conversation, task, MCP, browser, PCB, or general AgentDock state.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("session_observe", func(_ context.Context, r *Runtime, request toolcommand.SessionObserveRequest) (Result, error) {
 			return r.command.Observe(request)
 		})},
 		{Name: "session_act", Contract: commandToolContract, Title: "Act on command sessions", Description: "Write to or stop command sessions through a mutating session tool.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("session_act", func(_ context.Context, r *Runtime, request toolcommand.SessionActRequest) (Result, error) {

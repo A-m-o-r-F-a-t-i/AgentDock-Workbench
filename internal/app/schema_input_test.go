@@ -75,6 +75,7 @@ func TestInputSchemaPublishesRuntimeBounds(t *testing.T) {
 		{tool: "exec_command", property: "yield_time_ms", minimum: 0, maximum: 30000},
 		{tool: "exec_command", property: "max_output_bytes", minimum: 1, maximum: toolcommand.MaxOutputBytes},
 		{tool: "session_observe", property: "max_output_bytes", minimum: 1, maximum: toolcommand.MaxOutputBytes},
+		{tool: "session_observe", property: "wait_ms", minimum: 0, maximum: toolcommand.MaxSessionObserveWaitMS},
 		{tool: "session_act", property: "max_output_bytes", minimum: 1, maximum: toolcommand.MaxOutputBytes},
 		{tool: "task_manage", property: "limit", minimum: 1, maximum: 200},
 		{tool: "view_image", property: "max_source_bytes", minimum: 1, maximum: 100 * 1024 * 1024},
@@ -124,16 +125,20 @@ func TestExecCommandInputSchemaPublishesExecutionModes(t *testing.T) {
 	}
 }
 
-func TestExecCommandOutputSchemaPublishesSessionGuidance(t *testing.T) {
-	properties := testOutputSchema("exec_command")["properties"].(map[string]any)
-	for _, property := range []string{"session_reason", "observe_after_ms"} {
-		if _, exists := properties[property]; !exists {
-			t.Fatalf("exec_command output schema missing %s", property)
+func TestCommandOutputSchemasPublishObservationGuidance(t *testing.T) {
+	execProperties := testOutputSchema("exec_command")["properties"].(map[string]any)
+	if _, exists := execProperties["session_reason"]; !exists {
+		t.Fatal("exec_command output schema missing session_reason")
+	}
+	for _, tool := range []string{"exec_command", "session_observe", "session_act"} {
+		properties := testOutputSchema(tool)["properties"].(map[string]any)
+		if _, exists := properties["observe_after_ms"]; !exists {
+			t.Fatalf("%s output schema missing observe_after_ms", tool)
 		}
 	}
 	sessionProperties := testOutputSchema("session_observe")["properties"].(map[string]any)
 	if _, exists := sessionProperties["session_reason"]; exists {
-		t.Fatal("session_observe output schema unexpectedly exposes exec_command session guidance")
+		t.Fatal("session_observe output schema unexpectedly exposes exec_command session_reason")
 	}
 }
 

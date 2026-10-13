@@ -6,10 +6,10 @@ func (s *Service) Observe(request SessionObserveRequest) (Result, error) {
 	action := strings.ToLower(strings.TrimSpace(request.Action))
 	switch action {
 	case "list":
-		if strings.TrimSpace(request.SessionID) != "" || request.MaxOutputBytes != nil {
+		if strings.TrimSpace(request.SessionID) != "" || request.MaxOutputBytes != nil || request.WaitMS != nil {
 			return nil, toolErrorDetails(
 				"INVALID_ARGUMENT",
-				"session_id and max_output_bytes are invalid for session_observe action=list",
+				"session_id, max_output_bytes and wait_ms are invalid for session_observe action=list",
 				"validation",
 				map[string]any{"action": action, "allowed_arguments": []string{"action"}},
 			)

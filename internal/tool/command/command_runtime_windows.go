@@ -154,5 +154,5 @@ func AddRuntimeProperties(props map[string]any) {
 }
 
 func Description() string {
-	return "Run a bounded command on Windows or WSL. Bind an exact Skill with skill_ref to use its resolved root; managed Skills receive isolated environment plus private SKILL_DATA_DIR (Host path on Windows, Linux path in WSL). Explicit workdir and non-reserved env values override defaults. runtime defaults to windows."
+	return "Run a bounded command on Windows or WSL. Bind an exact Skill with skill_ref to use its resolved root; managed Skills receive isolated environment plus private SKILL_DATA_DIR (Host path on Windows, Linux path in WSL). Explicit workdir and non-reserved env values override defaults. Use execution_mode=sync when the next action requires the final exit status; auto or async may return a session for bounded long-poll observation. runtime defaults to windows."
 }

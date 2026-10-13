@@ -15,10 +15,11 @@ func TestSessionObserveRequiresExplicitAction(t *testing.T) {
 
 func TestSessionObserveRejectsArgumentsThatDoNotBelongToList(t *testing.T) {
 	runtime, _ := newCommandTestService(t)
-	limit := 1024
+	limit, wait := 1024, 1000
 	for _, request := range []SessionObserveRequest{
 		{Action: "list", SessionID: "session-unexpected"},
 		{Action: "list", MaxOutputBytes: &limit},
+		{Action: "list", WaitMS: &wait},
 	} {
 		_, err := runtime.Observe(request)
 		assertCommandToolErrorCode(t, err, "INVALID_ARGUMENT")
@@ -45,6 +46,8 @@ func TestSessionObserveAcceptsOnlyActionSpecificSchemaShapes(t *testing.T) {
 		{"action": "list"},
 		{"action": "status", "session_id": "session-123"},
 		{"action": "status", "session_id": "session-123", "max_output_bytes": 4096},
+		{"action": "status", "session_id": "session-123", "wait_ms": 0},
+		{"action": "status", "session_id": "session-123", "wait_ms": MaxSessionObserveWaitMS},
 	}
 	for _, arguments := range valid {
 		if err := validator.Validate(arguments); err != nil {
@@ -56,8 +59,11 @@ func TestSessionObserveAcceptsOnlyActionSpecificSchemaShapes(t *testing.T) {
 		{},
 		{"action": "list", "session_id": "session-123"},
 		{"action": "list", "max_output_bytes": 4096},
+		{"action": "list", "wait_ms": 1000},
 		{"action": "status"},
 		{"action": "status", "session_id": ""},
+		{"action": "status", "session_id": "session-123", "wait_ms": -1},
+		{"action": "status", "session_id": "session-123", "wait_ms": MaxSessionObserveWaitMS + 1},
 	}
 	for _, arguments := range invalid {
 		if err := validator.Validate(arguments); err == nil {

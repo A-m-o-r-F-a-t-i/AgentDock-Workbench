@@ -28,7 +28,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["skill_ref"] = stringProp("Optional exact Skill reference returned by AgentDock context. When workdir is omitted, the command runs from that resolved Skill root and keeps its content read-locked for the command lifetime. Managed Skills also receive a private persistent SKILL_DATA_DIR.")
 		props["env"] = map[string]any{"type": "object", "description": "Explicit command environment values. These override the selected managed Skill environment, except reserved runtime values such as SKILL_DATA_DIR.", "additionalProperties": map[string]any{"type": "string"}}
 		props["timeout_ms"] = boundedIntProp("Timeout in milliseconds. Must be positive and is capped at 86400000.", 1, 86400000)
-		props["execution_mode"] = map[string]any{"type": "string", "description": "Execution mode. Defaults to auto: wait up to yield_time_ms, then return a running session. sync waits for exit; async returns a session immediately.", "enum": []string{"auto", "sync", "async"}}
+		props["execution_mode"] = map[string]any{"type": "string", "description": "Execution mode. Defaults to auto: wait up to yield_time_ms, then return a running session. Use sync when the next action requires final exit status. async returns a session immediately.", "enum": []string{"auto", "sync", "async"}}
 		props["yield_time_ms"] = boundedIntProp("Foreground wait threshold for execution_mode=auto. Defaults to 5000 and is capped at 30000 milliseconds.", 0, 30000)
 		props["max_output_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 65536 and is capped at 4194304.", 1, MaxOutputBytes)
 		props["stdin"] = stringProp("Initial stdin.")
@@ -46,6 +46,7 @@ func InputSchema(name string) (map[string]any, bool) {
 			"description": "Exact session id returned by exec_command; required only for status.",
 		}
 		props["max_output_bytes"] = boundedIntProp("Maximum stdout/stderr bytes for status. Defaults to 65536 and is capped at 4194304. Invalid for list.", 1, MaxOutputBytes)
+		props["wait_ms"] = boundedIntProp("Maximum time to wait for session completion before returning running status. Omit for adaptive backoff, or use the prior observe_after_ms value. Zero returns immediately. Invalid for list.", 0, MaxSessionObserveWaitMS)
 		return sessionObserveInputSchema(props), true
 	case ToolSessionAct:
 		props["action"] = map[string]any{"type": "string", "description": "Mutating session action.", "enum": []string{"write", "kill", "kill_all"}}
@@ -75,6 +76,7 @@ func sessionObserveInputSchema(properties map[string]any) map[string]any {
 				"action":           map[string]any{"const": "status"},
 				"session_id":       properties["session_id"],
 				"max_output_bytes": properties["max_output_bytes"],
+				"wait_ms":          properties["wait_ms"],
 			},
 			"required":             []string{"action", "session_id"},
 			"additionalProperties": false,
@@ -114,10 +116,10 @@ func OutputSchema(name string) (map[string]any, bool) {
 	switch name {
 	case ToolExecCommand:
 		props["session_reason"] = stringProp("Why exec_command returned a session instead of a completed result.")
-		props["observe_after_ms"] = intProp("Suggested delay before inspecting the returned session.")
 	case ToolSessionObserve, ToolSessionAct:
 	default:
 		return nil, false
 	}
+	props["observe_after_ms"] = intProp("Recommended wait_ms for the next session_observe status call. The server returns early when the process exits.")
 	return toolcontract.OutputObject(props), true
 }
