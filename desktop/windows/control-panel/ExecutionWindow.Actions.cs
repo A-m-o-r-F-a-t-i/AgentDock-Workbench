@@ -89,8 +89,8 @@ public partial class ExecutionWindow
         ActionMenu(menu, selected?.Trashed == true ? "从回收站恢复" : "移入回收站", () => ConfirmBatchAsync("conversation", fixedIds, selected?.Trashed == true ? "restore" : "trash", selectionDescription), fixedIds.Length > 0);
         if (selected?.Trashed == true) ActionMenu(menu, "永久删除", () => ConfirmBatchAsync("conversation", fixedIds, "delete", selectionDescription), fixedIds.Length > 0);
         Divider(menu);
-        var terminated = selected?.Terminated == true || selected?.Id == _selected?.Id && _conversationSnapshot.HasDate("terminated_at");
-        ActionMenu(menu, terminated ? "恢复此对话" : "终止此对话", () => ChangeLifecycleAsync(fixedIds[0], terminated ? "resume" : "terminate"), fixedIds.Length == 1 && selected?.Trashed != true);
+        var terminated = selected is not null && SelectedConversationTerminated(selected);
+        ActionMenu(menu, terminated ? "解除终止" : "终止此对话", () => ChangeLifecycleAsync(fixedIds[0], terminated ? "resume" : "terminate"), fixedIds.Length == 1 && selected?.Trashed != true);
         ActionMenu(menu, "关联已有任务", () => LinkTaskAsync(fixedIds[0]), fixedIds.Length == 1 && !terminated && selected?.Trashed != true);
         OpenMenu(menu);
     }
@@ -139,15 +139,16 @@ public partial class ExecutionWindow
     private async Task ChangeLifecycleAsync(string id, string action)
     {
         var stopping = action == "terminate";
-        if (!ExecutionDialogs.Confirm(this, stopping ? "终止此对话" : "恢复此对话", stopping ? "先阻止该对话的新执行请求，再取消待审批请求并停止正在运行的调用。历史记录保持可读。" : "重新允许此对话提交请求。已经取消的调用不会自动重试。", stopping ? "终止" : "恢复")) return;
+        if (!ExecutionDialogs.Confirm(this, stopping ? "终止此对话" : "解除对话终止", stopping ? "先阻止该对话的新执行请求，再取消待审批请求并停止正在运行的调用。历史记录保持可读。" : "重新允许此对话提交请求。已经取消的调用不会自动重试。", stopping ? "终止" : "解除终止")) return;
         var result = await _client.ExecutionPostAsync("/internal/runtime/conversations/" + Escape(id) + "/" + action, new { confirm = true }, _lifetime.Token);
         if (_selected?.Id == id) _conversationSnapshot = result.Field("conversation");
         await LoadObjectsAsync(); await LoadCallsAsync(false); UpdateStopButton();
         var warnings = result.Array("warnings").Select(value => value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value));
-        var text = result.Flag("has_remaining_activity") ? "终止门禁已生效，仍有调用需要核对停止结果。" : stopping ? "此对话已终止，后续执行已被拦截。" : "此对话已恢复，已取消的调用未重放。";
+        var text = result.Flag("has_remaining_activity") ? "终止门禁已生效，仍有调用需要核对停止结果。" : stopping ? "此对话已终止，后续执行已被拦截。" : "此对话已解除终止，可以提交新的执行请求；已取消的调用未重放。";
         Warn(text + string.Join("\n", warnings.Prepend("")));
     }
     private async void Terminate_Click(object sender, RoutedEventArgs e) { if (_selected is { } selected) await GuardAsync(() => ChangeLifecycleAsync(selected.Id, "terminate")); }
+    private async void ResumeConversation_Click(object sender, RoutedEventArgs e) { if (_selected is { } selected) await GuardAsync(() => ChangeLifecycleAsync(selected.Id, "resume")); }
     private async Task LinkTaskAsync(string conversation)
     {
         var page = await _client.ExecutionGetAsync("/internal/runtime/execution/tasks?view=active&limit=200", _lifetime.Token);
@@ -171,7 +172,7 @@ public partial class ExecutionWindow
         ActionMenu(menu, "保存当前筛选", () => { var name = ExecutionDialogs.Prompt(this, "保存筛选", "筛选名称", ""); if (!string.IsNullOrWhiteSpace(name)) { _preferences.SavedFilters[name] = [_conversationView, SearchBox.Text, CallSearchBox.Text, ComboValue(CallStatusCombo)]; SavePreferences(); } return Task.CompletedTask; });
         foreach (var pair in _preferences.SavedFilters.ToArray())
             ActionMenu(menu, "筛选：" + pair.Key, async () => { var values = pair.Value; if (values.Length != 4) return; InvalidateBatchSelection(); _conversationView = values[0]; SearchBox.Text = values[1]; CallSearchBox.Text = values[2]; CallStatusCombo.SelectedItem = CallStatusCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == values[3]); await LoadObjectsAsync(); });
-        ActionMenu(menu, "结构与使用说明", () => { ShowInfo("结构与使用说明", "左侧按工作区组织对话。任务位于当前对话内，任务选择和分支浏览不会改变正在执行的上下文。\n\n单条执行记录显示状态、动作、耗时和时间；点击记录后在下方查看命令、输出、来源和技术信息。工具栏菜单用于切换记录视图和导出当前筛选，右键菜单用于管理所选记录。\n\n终止对话会先写入服务端门禁，再取消待审批和运行调用。关闭本窗口只退出观察，不会停止执行。\n\n旧任务缺少步骤时显示“进度未记录”。未归属调用保留原始调用 ID，可以导出、隔离、归档和移入回收站。永久删除不会删除项目源码。\n\n快捷键：Ctrl+F 搜索对话，F5 刷新，Esc 关闭详情，Shift+F10 打开所选条目菜单。"); return Task.CompletedTask; });
+        ActionMenu(menu, "结构与使用说明", () => { ShowInfo("结构与使用说明", "左侧按工作区组织对话。任务位于当前对话内，任务选择和分支浏览不会改变正在执行的上下文。\n\n单条执行记录显示状态、动作、耗时和时间；点击记录后在下方查看命令、输出、来源和技术信息。工具栏菜单用于切换记录视图和导出当前筛选，右键菜单用于管理所选记录。\n\n终止对话会先写入服务端门禁，再取消待审批和运行调用。已终止对话可通过顶部“解除终止”重新开放；已取消的调用不会自动重试。关闭本窗口只退出观察，不会停止执行。\n\n旧任务缺少步骤时显示“进度未记录”。未归属调用保留原始调用 ID，可以导出、隔离、归档和移入回收站。永久删除不会删除项目源码。\n\n快捷键：Ctrl+F 搜索对话，F5 刷新，Esc 关闭详情，Shift+F10 打开所选条目菜单。"); return Task.CompletedTask; });
         OpenMenu(menu);
     }
     private string[] SelectedCallIds() => CallsList.SelectedItems.Cast<ExecutionCallRow>().Where(row => !row.IsInsertion).Select(row => row.Id).Distinct().ToArray();
