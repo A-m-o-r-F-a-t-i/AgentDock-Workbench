@@ -159,7 +159,7 @@ func (c *sdkProtocolClient) callTool(ctx context.Context, name string, arguments
 	if c.session == nil {
 		return nil, newError("MCP_CONNECTION_FAILED", "MCP session is not initialized", true, map[string]any{"server": c.cfg.Name}, nil)
 	}
-	params := &mcpsdk.CallToolParams{Name: name, Arguments: arguments}
+	params := &mcpsdk.CallToolParams{Name: name, Arguments: arguments, Meta: conversationMetadata(ctx)}
 	unregister := c.registerProgress(ctx, name, params)
 	defer unregister()
 	result, err := c.session.CallTool(ctx, params)
