@@ -11,10 +11,10 @@ import (
 	"unsafe"
 )
 
-const backupNativeMetadataVersion = 1
+const backupNativeMetadataVersion = 2
+const backupNativeMetadataOwnerVersion = 1
 const nativeFileEAInformation = 7
 const nativeFileStreamInformation = 7
-const backupSecurityInformation = windows.OWNER_SECURITY_INFORMATION | windows.GROUP_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION
 const backupSettableAttributes = windows.FILE_ATTRIBUTE_READONLY | windows.FILE_ATTRIBUTE_HIDDEN | windows.FILE_ATTRIBUTE_SYSTEM | windows.FILE_ATTRIBUTE_ARCHIVE | windows.FILE_ATTRIBUTE_TEMPORARY | windows.FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
 
 type backupNativeMetadata struct {
@@ -25,6 +25,29 @@ type backupNativeMetadata struct {
 var writeBackupSecurity = windows.NewLazySystemDLL("kernel32.dll").NewProc("BackupWrite")
 
 func readBackupNativeMetadata(path string) (*backupNativeMetadata, error) {
+	return readBackupNativeMetadataVersion(path, backupNativeMetadataVersion)
+}
+
+func backupNativeMetadataSupported(version int) bool {
+	return version == backupNativeMetadataOwnerVersion || version == backupNativeMetadataVersion
+}
+
+func backupSecurityInformation(version int) (windows.SECURITY_INFORMATION, error) {
+	switch version {
+	case backupNativeMetadataOwnerVersion:
+		return windows.OWNER_SECURITY_INFORMATION | windows.GROUP_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION, nil
+	case backupNativeMetadataVersion:
+		return windows.DACL_SECURITY_INFORMATION, nil
+	default:
+		return 0, fmt.Errorf("unsupported Windows backup metadata version %d", version)
+	}
+}
+
+func readBackupNativeMetadataVersion(path string, version int) (*backupNativeMetadata, error) {
+	securityInformation, err := backupSecurityInformation(version)
+	if err != nil {
+		return nil, err
+	}
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err
@@ -88,7 +111,7 @@ func readBackupNativeMetadata(path string) (*backupNativeMetadata, error) {
 			offset += next
 		}
 	}
-	security, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, backupSecurityInformation)
+	security, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, securityInformation)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +123,15 @@ func readBackupNativeMetadata(path string) (*backupNativeMetadata, error) {
 }
 
 func applyBackupNativeMetadata(path string, metadata *backupNativeMetadata) (resultErr error) {
+	return applyBackupNativeMetadataVersion(path, metadata, backupNativeMetadataVersion)
+}
+
+func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadata, version int) (resultErr error) {
 	if metadata == nil {
 		return errors.New("missing Windows backup metadata")
+	}
+	if !backupNativeMetadataSupported(version) {
+		return fmt.Errorf("unsupported Windows backup metadata version %d", version)
 	}
 	security, err := windows.SecurityDescriptorFromString(metadata.Security)
 	if err != nil {
@@ -111,16 +141,30 @@ func applyBackupNativeMetadata(path string, metadata *backupNativeMetadata) (res
 	if err != nil {
 		return err
 	}
+	// Apply attributes before the recorded DACL. The destination is still a
+	// private staging object at this point; after DACL restoration the current
+	// desktop user may intentionally have read-only access.
+	if err := applyBackupAttributes(name, metadata.Attributes); err != nil {
+		return fmt.Errorf("restore backup attributes: %w", err)
+	}
+	if version == backupNativeMetadataVersion {
+		security, err = backupSecurityWithTargetIdentity(path, security)
+		if err != nil {
+			return err
+		}
+	}
 	length := int(security.Length())
 	if length < 20 || length > 65536 {
 		return errors.New("invalid backup security descriptor size")
 	}
-	// BACKUP_SECURITY_DATA is the documented restoration path. General ACL
-	// editing APIs can recompute inherited ACEs from our private stage parent.
-	// No privilege is enabled here: the handle must grant WRITE_DAC/WRITE_OWNER.
+	// BackupWrite preserves inherited ACEs byte-for-byte, unlike ordinary ACL
+	// setters that recompute them from the private staging parent. Version 2
+	// combines the recorded DACL with the new target's already-assigned owner
+	// and group, so the stream never attempts to assign a foreign SID. Version 1
+	// remains readable for interrupted 1.1.7-1.1.9 journals.
 	handle, err := windows.CreateFile(name, windows.WRITE_DAC|windows.WRITE_OWNER|windows.READ_CONTROL, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("open backup security target: %w", err)
 	}
 	defer windows.CloseHandle(handle)
 	storage := make([]uint64, (20+length+7)/8)
@@ -148,7 +192,31 @@ func applyBackupNativeMetadata(path string, metadata *backupNativeMetadata) (res
 	if int(written) != len(buffer) {
 		return io.ErrShortWrite
 	}
-	attributes := metadata.Attributes
+	return nil
+}
+
+func backupSecurityWithTargetIdentity(path string, daclSecurity *windows.SECURITY_DESCRIPTOR) (*windows.SECURITY_DESCRIPTOR, error) {
+	identity, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION)
+	if err != nil {
+		return nil, err
+	}
+	owner, _, err := identity.Owner()
+	if err != nil || owner == nil {
+		return nil, errors.Join(errors.New("backup target has no owner"), err)
+	}
+	group, _, err := identity.Group()
+	if err != nil || group == nil {
+		return nil, errors.Join(errors.New("backup target has no group"), err)
+	}
+	combined := "O:" + owner.String() + "G:" + group.String() + daclSecurity.String()
+	security, err := windows.SecurityDescriptorFromString(combined)
+	if err != nil {
+		return nil, err
+	}
+	return security, nil
+}
+
+func applyBackupAttributes(name *uint16, attributes uint32) error {
 	if attributes == 0 {
 		attributes = windows.FILE_ATTRIBUTE_NORMAL
 	}

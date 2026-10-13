@@ -421,6 +421,21 @@ jobs:
             $parameters.SignedBuild = $true
           }
           & .\packaging\windows\build-windows-offline-setup.ps1 @parameters
+          [IO.File]::WriteAllText(
+            (Join-Path $outputDir 'version.txt'),
+            $version,
+            [Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Upload current Setup for historical upgrade validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-history-current-setup
+          path: |
+            ${{ runner.temp }}\agentdock-setup\AgentDockSetup-amd64.exe
+            ${{ runner.temp }}\agentdock-setup\version.txt
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Run Setup install and uninstall E2E
         shell: powershell
@@ -531,9 +546,83 @@ jobs:
             --title "AgentDock Windows test $env:TEST_TAG" `
             --notes "Temporary Windows test build from commit $env:GITHUB_SHA. Uses the existing AgentDock self-signed Authenticode certificate."
 
+  history:
+    name: Upgrade v${{ matrix.baseline }} release Setup
+    needs: [changes, validate]
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        baseline:
+          - '1.1.0'
+          - '1.1.1'
+          - '1.1.2'
+          - '1.1.3'
+          - '1.1.4'
+          - '1.1.5'
+          - '1.1.6'
+          - '1.1.7'
+          - '1.1.8'
+          - '1.1.9'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download current Setup
+        uses: actions/download-artifact@v5
+        with:
+          name: windows-history-current-setup
+          path: ${{ runner.temp }}\agentdock-current-setup
+
+      - name: Download v${{ matrix.baseline }} release Setup
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_VERSION: ${{ matrix.baseline }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baselineDirectory = Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup'
+          New-Item -ItemType Directory -Path $baselineDirectory -Force | Out-Null
+          gh release download ("v" + $env:BASELINE_VERSION) `
+            --repo $env:GITHUB_REPOSITORY `
+            --pattern 'AgentDockSetup-amd64.exe' `
+            --dir $baselineDirectory
+          $setup = Join-Path $baselineDirectory 'AgentDockSetup-amd64.exe'
+          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
+            throw "Published Setup is missing for v$env:BASELINE_VERSION."
+          }
+
+      - name: Upgrade v${{ matrix.baseline }} and verify repair and uninstall
+        shell: powershell
+        env:
+          BASELINE_VERSION: ${{ matrix.baseline }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $currentDirectory = Join-Path $env:RUNNER_TEMP 'agentdock-current-setup'
+          $currentVersion = [IO.File]::ReadAllText((Join-Path $currentDirectory 'version.txt')).Trim()
+          & .\scripts\test\test-windows-release-setup-upgrade.ps1 `
+            -BaselineSetup (Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup\AgentDockSetup-amd64.exe') `
+            -CurrentSetup (Join-Path $currentDirectory 'AgentDockSetup-amd64.exe') `
+            -BaselineVersion $env:BASELINE_VERSION `
+            -CurrentVersion $currentVersion `
+            -TestRoot (Join-Path $env:RUNNER_TEMP ("agentdock-release-upgrade-" + $env:BASELINE_VERSION)) `
+            -AllowFixedInstallerMutation
+
+      - name: Upload v${{ matrix.baseline }} upgrade logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-history-v${{ matrix.baseline }}
+          path: ${{ runner.temp }}\agentdock-release-upgrade-${{ matrix.baseline }}
+          if-no-files-found: warn
+          retention-days: 7
+
   gate:
     name: Windows Installer gate
-    needs: [changes, validate]
+    needs: [changes, validate, history]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -544,6 +633,7 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           RELEVANT: ${{ needs.changes.outputs.relevant }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
+          HISTORY_RESULT: ${{ needs.history.result }}
         run: |
           if [[ "$CHANGES_RESULT" != "success" ]]; then
             echo "Windows installer change detection failed: $CHANGES_RESULT" >&2
@@ -554,11 +644,19 @@ jobs:
               echo "Windows installer validation did not pass: $VALIDATE_RESULT" >&2
               exit 1
             fi
-            echo 'Windows installer-relevant changes passed full validation.'
+            if [[ "$HISTORY_RESULT" != "success" ]]; then
+              echo "Windows historical Setup upgrades did not pass: $HISTORY_RESULT" >&2
+              exit 1
+            fi
+            echo 'Windows installer-relevant changes passed full validation and the v1.1.0+ upgrade matrix.'
             exit 0
           fi
           if [[ "$VALIDATE_RESULT" != "skipped" ]]; then
             echo "Unexpected Windows installer validation result for an unrelated change: $VALIDATE_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$HISTORY_RESULT" != "skipped" ]]; then
+            echo "Unexpected Windows historical upgrade result for an unrelated change: $HISTORY_RESULT" >&2
             exit 1
           fi
           echo 'Windows installer validation not required for this change.'

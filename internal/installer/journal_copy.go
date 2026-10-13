@@ -40,10 +40,28 @@ func (r backupContextReader) Read(p []byte) (int, error) {
 // A destination of "" computes an integrity digest without modifying files.
 // Installation material intentionally keeps its separate default-mode copier.
 func copyBackupTree(ctx context.Context, source, destination string) (string, error) {
-	if err := ctx.Err(); err != nil {
+	sourceDigest, destinationDigest, err := copyBackupTreeVersion(ctx, source, destination, backupNativeMetadataVersion, backupNativeMetadataVersion)
+	if err != nil {
 		return "", err
 	}
-	hash := sha256.New()
+	if destination != "" && sourceDigest != destinationDigest {
+		return "", errors.New("copied backup metadata digest changed")
+	}
+	return sourceDigest, nil
+}
+
+func copyBackupTreeVersion(ctx context.Context, source, destination string, sourceNativeVersion, destinationNativeVersion int) (string, string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+	if !backupNativeMetadataSupported(sourceNativeVersion) {
+		return "", "", fmt.Errorf("unsupported source backup metadata version %d", sourceNativeVersion)
+	}
+	if destination != "" && !backupNativeMetadataSupported(destinationNativeVersion) {
+		return "", "", fmt.Errorf("unsupported destination backup metadata version %d", destinationNativeVersion)
+	}
+	sourceHash := sha256.New()
+	destinationHash := sha256.New()
 	var bytes int64
 	var entries int
 	var directories []backupDirectoryMode
@@ -53,6 +71,22 @@ func copyBackupTree(ctx context.Context, source, destination string) (string, er
 	}
 	var nativeChanges []metadataChange
 	metadataBytes := 0
+	writeRecord := func(writer io.Writer, relative string, mode fs.FileMode, directory bool, size int64, digest string, native *backupNativeMetadata) error {
+		record, err := json.Marshal(struct {
+			Path      string                `json:"path"`
+			Mode      uint32                `json:"mode"`
+			Directory bool                  `json:"directory"`
+			Bytes     int64                 `json:"bytes"`
+			Digest    string                `json:"digest"`
+			Native    *backupNativeMetadata `json:"native,omitempty"`
+		}{filepath.ToSlash(relative), uint32(mode.Perm()), directory, size, digest, native})
+		if err != nil {
+			return err
+		}
+		_, _ = writer.Write(record)
+		_, _ = writer.Write([]byte{'\n'})
+		return nil
+	}
 	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -74,19 +108,29 @@ func copyBackupTree(ctx context.Context, source, destination string) (string, er
 		if entries++; entries > backupMaxEntries || strings.Count(relative, string(filepath.Separator)) > backupMaxDepth {
 			return errors.New("backup entry or depth budget exceeded")
 		}
-		native, err := readBackupNativeMetadata(path)
+		sourceNative, err := readBackupNativeMetadataVersion(path, sourceNativeVersion)
 		if err != nil {
 			return fmt.Errorf("backup metadata for %s: %w", path, err)
 		}
-		metadataBytes += backupNativeMetadataSize(native)
+		destinationNative := sourceNative
+		if destination != "" && destinationNativeVersion != sourceNativeVersion {
+			destinationNative, err = readBackupNativeMetadataVersion(path, destinationNativeVersion)
+			if err != nil {
+				return fmt.Errorf("destination backup metadata for %s: %w", path, err)
+			}
+		}
+		metadataBytes += backupNativeMetadataSize(sourceNative)
+		if destination != "" && destinationNativeVersion != sourceNativeVersion {
+			metadataBytes += backupNativeMetadataSize(destinationNative)
+		}
 		if metadataBytes > 32<<20 {
 			return errors.New("backup metadata budget exceeded")
 		}
 		target := ""
 		if destination != "" {
 			target = filepath.Join(destination, relative)
-			if native != nil {
-				nativeChanges = append(nativeChanges, metadataChange{target, native})
+			if destinationNative != nil {
+				nativeChanges = append(nativeChanges, metadataChange{target, destinationNative})
 			}
 		}
 		size := int64(0)
@@ -109,28 +153,23 @@ func copyBackupTree(ctx context.Context, source, destination string) (string, er
 			bytes += size
 		}
 		// JSON escapes path separators/control characters unambiguously.
-		record, err := json.Marshal(struct {
-			Path      string                `json:"path"`
-			Mode      uint32                `json:"mode"`
-			Directory bool                  `json:"directory"`
-			Bytes     int64                 `json:"bytes"`
-			Digest    string                `json:"digest"`
-			Native    *backupNativeMetadata `json:"native,omitempty"`
-		}{filepath.ToSlash(relative), uint32(info.Mode().Perm()), info.IsDir(), size, digest, native})
-		if err != nil {
+		if err := writeRecord(sourceHash, relative, info.Mode(), info.IsDir(), size, digest, sourceNative); err != nil {
 			return err
 		}
-		_, _ = hash.Write(record)
-		_, _ = hash.Write([]byte{'\n'})
+		if destination != "" {
+			if err := writeRecord(destinationHash, relative, info.Mode(), info.IsDir(), size, digest, destinationNative); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	// Apply directory modes only after all children have been written.
 	for i := len(directories) - 1; i >= 0; i-- {
 		if err := os.Chmod(directories[i].path, directories[i].mode); err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 	// Restore ancestors before descendants so inherited Windows permissions do
@@ -138,19 +177,23 @@ func copyBackupTree(ctx context.Context, source, destination string) (string, er
 	// still protects snapshots while original rights are restored below it.
 	for _, change := range nativeChanges {
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return "", "", err
 		}
-		if err := applyBackupNativeMetadata(change.path, change.metadata); err != nil {
-			return "", err
+		if err := applyBackupNativeMetadataVersion(change.path, change.metadata, destinationNativeVersion); err != nil {
+			return "", "", err
 		}
 	}
 	for _, change := range nativeChanges {
-		actual, err := readBackupNativeMetadata(change.path)
+		actual, err := readBackupNativeMetadataVersion(change.path, destinationNativeVersion)
 		if err != nil || !equalBackupNativeMetadata(actual, change.metadata) {
-			return "", fmt.Errorf("native backup metadata was not preserved: %s: %w", change.path, errors.Join(err, errors.New(backupNativeMetadataDifference(actual, change.metadata))))
+			return "", "", fmt.Errorf("native backup metadata was not preserved: %s: %w", change.path, errors.Join(err, errors.New(backupNativeMetadataDifference(actual, change.metadata))))
 		}
 	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	destinationDigest := ""
+	if destination != "" {
+		destinationDigest = hex.EncodeToString(destinationHash.Sum(nil))
+	}
+	return hex.EncodeToString(sourceHash.Sum(nil)), destinationDigest, nil
 }
 
 func copyBackupFile(ctx context.Context, source, destination string, before fs.FileInfo, remaining int64) (string, int64, error) {
