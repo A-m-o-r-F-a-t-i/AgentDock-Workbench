@@ -1,3 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries><package android:name="dev.agentdock.workbench" /></queries>
+    <application>
+        <!-- Only the standalone test APK contains this empty foreground holder. -->
+        <activity android:name="dev.agentdock.releasecheck.ColdStartHostActivity"
+            android:exported="true" android:launchMode="singleTask"
+            android:excludeFromRecents="true" />
+    </application>
 </manifest>
