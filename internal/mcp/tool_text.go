@@ -1,8 +1,12 @@
 package mcp
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
+	"unicode/utf8"
 )
 
 const maxSessionObserveTextSessions = 16
@@ -17,6 +21,117 @@ func toolResultText(name string, structured any) string {
 		}
 	}
 	return pretty(structured)
+}
+
+func compactToolEnvelopeText(name string, envelope map[string]any) map[string]any {
+	if name == "view_image" {
+		return envelope
+	}
+	output := maps.Clone(envelope)
+	blocks := envelopeBlocks(envelope["content"])
+	kept := make([]any, 0, len(blocks))
+	removedDuplicate := false
+	keptBusinessText := false
+	var remoteStructured any
+	if name == "mcp_tool_call" {
+		remoteStructured = asMap(asMap(envelope["structuredContent"])["result"])["structuredContent"]
+	}
+	for _, block := range blocks {
+		object := asMap(block)
+		if object["type"] != "text" {
+			kept = append(kept, block)
+			continue
+		}
+		text, _ := object["text"].(string)
+		if strings.HasPrefix(strings.TrimSpace(text), "[[AGENTDOCK_MCP_CATALOG_V1]]") {
+			removedDuplicate = true
+			continue
+		}
+		if name == "mcp_tool_call" {
+			if remoteStructured != nil && jsonTextMatches(text, remoteStructured) {
+				removedDuplicate = true
+				continue
+			}
+			kept = append(kept, block)
+			keptBusinessText = true
+			continue
+		}
+		removedDuplicate = true
+	}
+	if name != "mcp_tool_call" || (!keptBusinessText && (remoteStructured != nil || removedDuplicate)) {
+		kept = append([]any{map[string]any{"type": "text", "text": toolResultSummary(name, envelope)}}, kept...)
+	}
+	output["content"] = kept
+	return output
+}
+
+func jsonTextMatches(text string, structured any) bool {
+	var parsed any
+	if json.Unmarshal([]byte(strings.TrimSpace(text)), &parsed) != nil {
+		return false
+	}
+	parsedJSON, err := json.Marshal(parsed)
+	if err != nil {
+		return false
+	}
+	structuredJSON, err := json.Marshal(structured)
+	return err == nil && bytes.Equal(parsedJSON, structuredJSON)
+}
+
+func toolResultSummary(name string, envelope map[string]any) string {
+	result := asMap(envelope["structuredContent"])
+	displayName := name
+	if name == "mcp_tool_call" {
+		if qualified, _ := result["name"].(string); qualified != "" {
+			displayName = qualified
+		}
+	}
+	if envelope["isError"] == true {
+		message, _ := result["error"].(string)
+		code, _ := result["code"].(string)
+		label := displayName + " failed"
+		if code != "" {
+			label += " (" + code + ")"
+		}
+		if message != "" {
+			label += ": " + message
+		}
+		return boundedToolSummary(label)
+	}
+	parts := []string{displayName + " succeeded"}
+	for _, key := range []string{"status", "action", "session_id", "exit_code", "command_ok", "changed", "files_changed", "count", "path", "new_path", "task_id", "workspace_id"} {
+		if value := summaryField(result[key]); value != "" {
+			parts = append(parts, key+"="+value)
+		}
+	}
+	parts = append(parts, "Read structuredContent for the complete result.")
+	return boundedToolSummary(strings.Join(parts, " "))
+}
+
+func summaryField(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return boundedText(strings.Join(strings.Fields(typed), " "), 160)
+	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return fmt.Sprint(typed)
+	default:
+		return ""
+	}
+}
+
+func boundedToolSummary(text string) string {
+	return boundedText(strings.Join(strings.Fields(text), " "), ToolSummaryMaxBytes)
+}
+
+func boundedText(text string, limit int) string {
+	if limit < 4 || len(text) <= limit {
+		return text
+	}
+	end := limit - 3
+	for end > 0 && !utf8.ValidString(text[:end]) {
+		end--
+	}
+	return text[:end] + "..."
 }
 
 func hostBuiltinRouteResultText(result map[string]any) string {

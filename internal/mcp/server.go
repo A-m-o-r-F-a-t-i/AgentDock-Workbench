@@ -40,7 +40,15 @@ type Server struct {
 func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 	server := &Server{runtime: runtime, cfg: cfg, registeredTools: map[string]struct{}{}}
 	serverOptions := &mcpsdk.ServerOptions{
-		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{ContextResponseCapability: map[string]any{"text_modes": []string{"full", "summary"}, "structured_required": true}, "agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true}}},
+		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{
+			ContextResponseCapability: map[string]any{
+				"text_modes": []string{responseTextFull, responseTextSummary}, "structured_required": true,
+			},
+			StructuredResultsCapability: map[string]any{
+				"text_modes": []string{responseTextFull, responseTextSummary}, "default_for_modern_protocol": responseTextSummary, "structured_required": true,
+			},
+			"agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true},
+		}},
 		Instructions: initialServerInstructions(runtime, cfg),
 	}
 	server.sdk = mcpsdk.NewServer(

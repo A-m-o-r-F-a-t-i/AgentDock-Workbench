@@ -13,10 +13,18 @@ import (
 )
 
 const ContextResponseCapability = "agentdock/context-response-v1"
+const StructuredResultsCapability = "agentdock/structured-results-v1"
 const ContextSummaryMaxBytes = 1024
+const ToolSummaryMaxBytes = 512
 const transportMetadataKey = "agentdock/transport"
 
+const (
+	responseTextFull    = "full"
+	responseTextSummary = "summary"
+)
+
 type contextResponseKey struct{}
+type structuredResultsKey struct{}
 type contextWireProtocolKey struct{}
 
 // The SDK has already validated per-request protocol metadata before calling
@@ -28,35 +36,75 @@ func contextWireProtocol(ctx context.Context, meta map[string]any) context.Conte
 }
 
 // WithStructuredContext asserts that the adapter delivers structuredContent
-// intact. Unknown clients continue receiving complete compatibility JSON text.
+// intact for bootstrap context. Unknown clients retain complete compatibility JSON.
 func WithStructuredContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, contextResponseKey{}, true)
+	return context.WithValue(ctx, contextResponseKey{}, responseTextSummary)
 }
+
+// WithStructuredResults selects compact compatibility text for ordinary tools.
+// Complete business data remains in structuredContent.
+func WithStructuredResults(ctx context.Context) context.Context {
+	return context.WithValue(ctx, structuredResultsKey{}, responseTextSummary)
+}
+
 func summaryContext(ctx context.Context) bool {
-	value, _ := ctx.Value(contextResponseKey{}).(bool)
-	return value
+	return responseTextMode(ctx, "agentdock_context") == responseTextSummary
 }
-func contextResponseOptions(ctx context.Context, meta map[string]any) (context.Context, error) {
-	raw, exists := meta[ContextResponseCapability]
-	if !exists {
-		return ctx, nil
+
+func responseTextMode(ctx context.Context, name string) string {
+	if name == "agentdock_context" {
+		if mode, _ := ctx.Value(contextResponseKey{}).(string); mode != "" {
+			return mode
+		}
 	}
+	if mode, _ := ctx.Value(structuredResultsKey{}).(string); mode != "" {
+		return mode
+	}
+	if name != "agentdock_context" {
+		if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
+			return responseTextSummary
+		}
+	}
+	return responseTextFull
+}
+
+func responseModeOption(raw any, capability string) (string, error) {
 	options, ok := raw.(map[string]any)
 	if !ok || len(options) != 2 || options["structured"] != true {
-		return ctx, errors.New("context response negotiation requires structured=true and text=full or summary")
+		return "", errors.New(capability + " negotiation requires structured=true and text=full or summary")
 	}
-	switch options["text"] {
-	case "summary":
-		return WithStructuredContext(ctx), nil
-	case "full":
-		return context.WithValue(ctx, contextResponseKey{}, false), nil
-	default:
-		return ctx, errors.New("invalid context compatibility text mode")
+	mode, _ := options["text"].(string)
+	if mode != responseTextFull && mode != responseTextSummary {
+		return "", errors.New("invalid " + capability + " text mode")
 	}
+	return mode, nil
 }
+
+func contextResponseOptions(ctx context.Context, meta map[string]any) (context.Context, error) {
+	if raw, exists := meta[ContextResponseCapability]; exists {
+		mode, err := responseModeOption(raw, ContextResponseCapability)
+		if err != nil {
+			return ctx, err
+		}
+		ctx = context.WithValue(ctx, contextResponseKey{}, mode)
+	}
+	if raw, exists := meta[StructuredResultsCapability]; exists {
+		mode, err := responseModeOption(raw, StructuredResultsCapability)
+		if err != nil {
+			return ctx, err
+		}
+		ctx = context.WithValue(ctx, structuredResultsKey{}, mode)
+	}
+	return ctx, nil
+}
+
 func responseEnvelope(ctx context.Context, name string, result any, err error) map[string]any {
-	if name != "agentdock_context" || err != nil || !summaryContext(ctx) {
-		return toolEnvelope(name, result, err)
+	envelope := toolEnvelope(name, result, err)
+	if responseTextMode(ctx, name) != responseTextSummary {
+		return envelope
+	}
+	if name != "agentdock_context" || err != nil {
+		return compactToolEnvelopeText(name, envelope)
 	}
 	payload := asMap(result)
 	count := func(key string) int {
