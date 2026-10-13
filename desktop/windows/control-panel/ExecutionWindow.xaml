@@ -147,6 +147,7 @@
           <TextBlock x:Name="ConversationStartedAt" Grid.Column="1" Margin="12,0,0,0" FontSize="12" Foreground="{DynamicResource SecondaryText}" VerticalAlignment="Center" Visibility="Collapsed" AutomationProperties.Name="对话开始时间"/>
         </Grid>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="GoalModeButton" Content="目标模式" Click="GoalMode_Click" IsEnabled="False" FontSize="12" ToolTip="绑定浏览器对话，五分钟停更后自动续执行"/>
           <Button x:Name="AttentionButton" Content="待处理" Visibility="Collapsed" Click="Attention_Click" FontSize="12"/>
           <Button Content="权限" Click="Permissions_Click" FontSize="12"/>
 		  <Button Content="控制面板" Click="ControlPanel_Click" FontSize="12"/>

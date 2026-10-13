@@ -49,6 +49,10 @@ jobs:
         run: |
           dotnet run --project desktop/windows/control-panel-tests/AgentDock.ControlPanel.Tests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project desktop/windows/control-panel-goal-tests/AgentDock.ControlPanel.GoalTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project desktop/windows/control-panel-goal-native-tests/AgentDock.ControlPanel.GoalNativeTests.csproj -c Release -p:AgentDockRuntimeSplit=true -- dist/goal-mode-layout
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Native WPF layout and interaction regressions
         if: matrix.rid == 'win-x64'
         shell: pwsh

@@ -349,7 +349,7 @@ public partial class ExecutionWindow : Window
         }
         finally { _tickRunning = false; }
     }
-    private void UpdateStopButton() => UpdateComposerAvailability();
+    private void UpdateStopButton() { UpdateComposerAvailability(); UpdateGoalModeButton(); }
     private void UpdateEmpty() { EmptyPanel.Visibility = Calls.Count == 0 ? Visibility.Visible : Visibility.Collapsed; EmptyText.Text = "暂无符合条件的执行记录"; }
     private void UpdateFollowButton() { FollowButton.Content = _following ? "跟随" : "继续跟随"; FollowButton.SetResourceReference(Button.BackgroundProperty, _following ? "SelectionBackground" : "PanelBackground"); }
     private void OpenDetails(string title, FrameworkElement pane)
