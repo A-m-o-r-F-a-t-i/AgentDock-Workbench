@@ -74,7 +74,11 @@ func assertJournalFile(t *testing.T, path, expected string) {
 }
 
 func TestRestorePreparationFailurePreservesAllCurrentTargets(t *testing.T) {
-	for _, failure := range []string{"missing", "partial", "corrupt", "cancelled", "legacy_without_digest"} {
+	failures := []string{"missing", "partial", "corrupt", "cancelled"}
+	if backupNativeMetadataVersion != 0 {
+		failures = append(failures, "legacy_without_digest")
+	}
+	for _, failure := range failures {
 		t.Run(failure, func(t *testing.T) {
 			j, _, original := journalFixture(t)
 			created := filepath.Join(filepath.Dir(original), "new-resource")
