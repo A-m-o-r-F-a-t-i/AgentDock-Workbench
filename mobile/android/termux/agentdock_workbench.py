@@ -33,6 +33,12 @@ MAX_EXPANDED = 512 * 1024 * 1024
 MAX_BACKUP = 1024 * 1024 * 1024
 MAX_ENTRIES = 25000
 MAX_JOURNALS = 128
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 20
+METADATA_DOWNLOAD_TIMEOUT_SECONDS = 30
+ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS = 600
+DOWNLOAD_PROCESS_GRACE_SECONDS = 15
+RANGE_REJECTED = {33, 36}
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 NONCE = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
@@ -406,14 +412,43 @@ class NodeBackend:
     def fetch(self, url: str, target: Path, maximum: int, resume: bool = False) -> None:
         https_url(url)
         check(not target.is_symlink(), "unsafe_path", "下载暂存文件无效")
-        args = ["curl", "--noproxy", "*", "-fsSL", "--retry", "2", "--max-time", "180", "--max-filesize", str(maximum), "--proto", "=https", "--proto-redir", "=https", "--tlsv1.2"]
-        if resume and target.exists() and target.stat().st_size <= maximum:
-            args += ["--continue-at", "-"]
-        result = subprocess.run(args + [url, "-o", str(target)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=200, close_fds=True)
-        if result.returncode in (22, 33, 36) and resume:
-            target.unlink(missing_ok=True)
-            return self.fetch(url, target, maximum, False)
-        check(result.returncode == 0 and target.is_file() and target.stat().st_size <= maximum, "download_failed", "下载未完成，可按原操作继续；未使用残包")
+        if target.exists():
+            check(target.is_file(), "unsafe_path", "下载暂存路径不是普通文件")
+            check(target.stat().st_size <= maximum, "size_limit", "下载暂存文件超过大小上限")
+        attempt_timeout = ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS if resume else METADATA_DOWNLOAD_TIMEOUT_SECONDS
+        resume_supported = resume
+        for _ in range(DOWNLOAD_ATTEMPTS):
+            can_resume = resume_supported and target.is_file() and 0 < target.stat().st_size <= maximum
+            args = [
+                "curl", "--noproxy", "*", "-fsSL", "--retry", "0",
+                "--connect-timeout", str(DOWNLOAD_CONNECT_TIMEOUT_SECONDS),
+                "--max-time", str(attempt_timeout), "--max-filesize", str(maximum),
+                "--proto", "=https", "--proto-redir", "=https", "--tlsv1.2",
+            ]
+            if can_resume:
+                args += ["--continue-at", "-"]
+            try:
+                result = subprocess.run(
+                    args + [url, "-o", str(target)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=attempt_timeout + DOWNLOAD_PROCESS_GRACE_SECONDS,
+                    close_fds=True,
+                )
+                returncode = result.returncode
+            except subprocess.TimeoutExpired:
+                returncode = 28
+            if target.exists():
+                check(not target.is_symlink() and target.is_file(), "unsafe_path", "下载暂存文件类型改变")
+                check(target.stat().st_size <= maximum, "size_limit", "下载文件超过大小上限")
+            if returncode == 0 and target.is_file():
+                return
+            if can_resume and returncode in RANGE_REJECTED:
+                target.unlink(missing_ok=True)
+                resume_supported = False
+            elif not resume:
+                target.unlink(missing_ok=True)
+        raise BridgeError("download_failed", "下载未完成，可按原操作继续；已保留可验证残包", True)
 
     def verify_signature(self, key: Path, manifest: Path, signature: Path) -> None:
         result = subprocess.run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(key), "-rawin", "-in", str(manifest), "-sigfile", str(signature)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, close_fds=True)
@@ -613,7 +648,10 @@ class Deployment:
                 check(record.get("status") in TERMINAL, "transaction_pending", "存在未完成部署事务；请按原 operation ID 继续或回退")
 
     def finish(self, journal: dict, status: str, message: str) -> dict:
-        self.save(journal, "complete", status=status, retryable=False, message=message)
+        changes = {"status": status, "retryable": False, "message": message}
+        if status == "succeeded":
+            changes["failure_code"] = ""
+        self.save(journal, "complete", **changes)
         if read_text(self.root / "active-operation") == journal["operation_id"]:
             (self.root / "active-operation").unlink(missing_ok=True)
             fsync_directory(self.root)
@@ -654,12 +692,37 @@ class Deployment:
         directory = self.journal_path(journal["operation_id"]).parent
         manifest, signature = directory / "manifest.json", directory / "manifest.sig"
         self.save(journal, "manifest")
-        self.backend.fetch(https_url(payload.get("manifest_url", "")), manifest, MAX_JSON)
-        self.backend.fetch(https_url(payload.get("manifest_signature_url", "")), signature, 4096)
-        self.backend.verify_signature(key, manifest, signature)
-        manifest_digest = sha256(manifest)
-        check(not journal.get("manifest_digest") or journal["manifest_digest"] == manifest_digest, "manifest_changed", "原操作的签名清单内容已改变，请取消后重新确认；未替换目标")
-        self.save(journal, manifest_digest=manifest_digest)
+        manifest_url = https_url(payload.get("manifest_url", ""))
+        signature_url = https_url(payload.get("manifest_signature_url", ""))
+        manifest_digest = journal.get("manifest_digest", "")
+        cached_manifest = bool(manifest_digest) and manifest.is_file() and signature.is_file()
+        if cached_manifest:
+            self.backend.verify_signature(key, manifest, signature)
+            check(sha256(manifest) == manifest_digest, "manifest_changed", "原操作的缓存清单内容已改变，请取消后重新确认；未替换目标")
+            refreshed_manifest = directory / "manifest.refresh.json"
+            refreshed_signature = directory / "manifest.refresh.sig"
+            try:
+                self.backend.fetch(manifest_url, refreshed_manifest, MAX_JSON)
+                self.backend.fetch(signature_url, refreshed_signature, 4096)
+                self.backend.verify_signature(key, refreshed_manifest, refreshed_signature)
+                check(sha256(refreshed_manifest) == manifest_digest, "manifest_changed", "原操作的签名清单内容已改变，请取消后重新确认；未替换目标")
+                os.replace(refreshed_manifest, manifest)
+                os.replace(refreshed_signature, signature)
+                fsync_directory(directory)
+            except BridgeError as error:
+                if error.code != "download_failed":
+                    raise
+            finally:
+                refreshed_manifest.unlink(missing_ok=True)
+                refreshed_signature.unlink(missing_ok=True)
+        else:
+            self.backend.fetch(manifest_url, manifest, MAX_JSON)
+            self.backend.fetch(signature_url, signature, 4096)
+            self.backend.verify_signature(key, manifest, signature)
+            observed_manifest_digest = sha256(manifest)
+            check(not manifest_digest or manifest_digest == observed_manifest_digest, "manifest_changed", "原操作的签名清单内容已改变，请取消后重新确认；未替换目标")
+            if not manifest_digest:
+                self.save(journal, manifest_digest=observed_manifest_digest)
         release = read_json(manifest)
         check(isinstance(release, dict) and release.get("schema_version") == 1 and release.get("platform") == "linux"
               and release.get("arch") == "arm64" and release.get("version") == version
