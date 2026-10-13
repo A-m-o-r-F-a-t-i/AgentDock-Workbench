@@ -568,12 +568,13 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	if s.stderrCursor > 0 && s.stderrCursor <= len(stderrFull) {
 		stderrSegment = stderrFull[s.stderrCursor:]
 	}
-	if advance {
-		s.stdoutCursor = len(stdoutFull)
-		s.stderrCursor = len(stderrFull)
-	}
 	stdout := trim(stdoutSegment, maxBytes)
 	stderr := trim(stderrSegment, maxBytes)
+	if advance {
+		// Keep the undelivered suffix available, including bytes held back at a UTF-8 boundary.
+		s.stdoutCursor += len(stdout)
+		s.stderrCursor += len(stderr)
+	}
 	finished := time.Now()
 	if s.external {
 		status = s.statusLocked()
