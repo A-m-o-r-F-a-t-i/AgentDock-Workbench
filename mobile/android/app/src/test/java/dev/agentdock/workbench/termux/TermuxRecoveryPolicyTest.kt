@@ -43,6 +43,30 @@ class TermuxRecoveryPolicyTest {
             operation("requires_user_action", data = "{\"failure_code\":\"background_launch_blocked\"}"), 2_000)
         assertEquals("background_launch_blocked", advice.code); assertTrue(advice.allowProbe)
     }
+    @Test fun sharedLauncherClassifiesImmediateSystemRejections() {
+        TermuxRecoveryPolicy.launch(true) { true }
+        assertEquals("launch_not_accepted", assertThrows(TermuxLaunchFailure::class.java) {
+            TermuxRecoveryPolicy.launch(true) { false }
+        }.code)
+        assertEquals("permission_missing", assertThrows(TermuxLaunchFailure::class.java) {
+            TermuxRecoveryPolicy.launch(false) { throw SecurityException("denied") }
+        }.code)
+        val blocked = assertThrows(TermuxLaunchFailure::class.java) {
+            TermuxRecoveryPolicy.launch(true) { throw IllegalStateException("background restricted") }
+        }
+        assertEquals("background_launch_blocked", blocked.code)
+        assertEquals("background restricted", blocked.cause?.message)
+    }
+    @Test fun readOnlyHostTimeoutOffersTermuxRecovery() {
+        val failure = TermuxRecoveryPolicy.hostProbeTimeout()
+        assertEquals("background_launch_blocked", failure.code)
+        val advice = checkNotNull(TermuxRecoveryPolicy.advise(failure))
+        assertEquals("background_launch_blocked", advice.code)
+        assertEquals("需要先打开 Termux", advice.title)
+        assertTrue(advice.allowProbe)
+        assertTrue(advice.detail.contains("重新验证"))
+        assertNull(TermuxRecoveryPolicy.advise(IllegalStateException("unrelated")))
+    }
     @Test fun malformedAndUnrelatedMetadataDoNotDiagnoseAnOemBlock() {
         for (data in listOf("not json", "{\"other\":\"background_launch_blocked\"}"))
             assertEquals("bridge_unverified", TermuxRecoveryPolicy.advise(available, operation("failed", data = data), 2_000).code)
