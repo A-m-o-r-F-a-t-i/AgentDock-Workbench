@@ -17,6 +17,7 @@ type Service struct {
 	pluginMembership PluginMembershipLookup
 	pluginHeavy      func(string) (bool, error)
 	builtinLookup    func(string) (BuiltinToolSummary, bool)
+	discoveryRoutes  builtinDiscoveryRoutes
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)

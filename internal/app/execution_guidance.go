@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -92,4 +93,17 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 		})
 	}
 	return steps
+}
+
+// Only a locally marked routing error can replace generic failure guidance.
+func (r *Runtime) executionErrorGuidance(state executionObservation, err error) map[string]any {
+	guidance := r.executionGuidance("", state, nil, true)
+	var routeErr *ToolError
+	if !toolmcp.IsBuiltinDiscoveryError(err) || !errors.As(err, &routeErr) {
+		return guidance
+	}
+	if steps := r.hostBuiltinHandoff("mcp_tool_search", Result(routeErr.Details)); len(steps) > 0 {
+		guidance["next_required"] = steps
+	}
+	return guidance
 }

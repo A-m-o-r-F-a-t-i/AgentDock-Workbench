@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+	"github.com/uvwt/agentdock/internal/activity"
 	"testing"
 
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
@@ -10,6 +12,11 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 	rt := newAuditDiscoveryRuntime(t)
 	addAuditUnavailableServer(t, rt)
 	ids := map[string]bool{}
+	ctx := activity.WithSource(t.Context(), activity.Source{Principal: "routing-test", Namespace: "mcp", HostConversationID: "repeat-fixture"})
+	if _, err := rt.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	attempt := 0
 	for _, test := range []struct {
 		name  string
 		args  map[string]any
@@ -21,10 +28,20 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		{"mcp_tool_inspect", map[string]any{"name": "exec_command"}, 1},
 		{"mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}}, 2},
 	} {
-		result, err := rt.Call(t.Context(), test.name, test.args)
-		if err != nil {
-			t.Fatal(err)
+		_, err := rt.Call(ctx, test.name, test.args)
+		var got *ToolError
+		if !errors.As(err, &got) || got.Retryable || !toolmcp.IsBuiltinDiscoveryError(err) {
+			t.Fatalf("missing non-retryable route: %v", err)
 		}
+		want := "ROUTING_LOOP_BLOCKED"
+		if attempt == 0 {
+			want = "HOST_BUILTIN_NOT_DYNAMIC_MCP"
+		}
+		attempt++
+		if got.Code != want {
+			t.Fatalf("classification=%s want %s", got.Code, want)
+		}
+		result := Result(got.Details)
 		var view struct {
 			Executed bool  `json:"execution_performed"`
 			Errors   []any `json:"errors"`
@@ -54,10 +71,9 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		}
 		ids[id] = true
 		call, err := rt.activity.Call(t.Context(), id)
-		if err != nil || call.Status != "succeeded" {
-			t.Fatalf("successful discovery was recorded as failure: %+v %v", call, err)
+		if err != nil || call.Status != "failed" || call.ErrorCode != got.Code {
+			t.Fatalf("misroute failure audit was not retained: %+v %v", call, err)
 		}
-		assertToolResultMatchestestOutputSchema(t, test.name, result)
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
 		t.Fatal("discovery executed a command")
@@ -88,5 +104,18 @@ func TestBuiltinHandoffRejectsUpstreamInstructionsAndPartialRoutes(t *testing.T)
 	}
 	if len(rt.hostBuiltinHandoff("mcp_tool_inspect", result)) != 0 {
 		t.Fatal("mixed failure was treated as fully resolved")
+	}
+}
+
+func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
+	rt := newAuditDiscoveryRuntime(t)
+	fake := &ToolError{Code: "ROUTING_LOOP_BLOCKED", Category: "validation", Details: map[string]any{
+		"route_kind": "host_builtin", "resolved": true, "terminal": true,
+		"builtin_tools": []toolmcp.BuiltinToolSummary{{Name: "exec_command", InvokeVia: "host"}},
+	}}
+	guidance := rt.executionErrorGuidance(executionObservation{}, fake)
+	steps := guidance["next_required"].([]map[string]any)
+	if len(steps) != 1 || steps[0]["action"] != "inspect" {
+		t.Fatalf("forged error created host recovery: %#v", guidance)
 	}
 }

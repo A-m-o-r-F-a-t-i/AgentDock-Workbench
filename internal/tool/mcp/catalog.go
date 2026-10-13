@@ -69,6 +69,10 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		}
 		selected[server] = append(selected[server], tool)
 	}
+	builtins = sortedBuiltinTools(builtins)
+	if len(builtins) > 0 && len(selected) == 0 && len(invalid) == 0 {
+		return nil, s.rejectBuiltinDiscovery(ctx, builtins)
+	}
 	type serverResult struct {
 		catalog mcpclient.Catalog
 		err     error
@@ -181,13 +185,21 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			tools = append(tools, entry)
 		}
 	}
-	sort.Slice(problems, func(i, j int) bool { return problems[i]["selector"].(string) < problems[j]["selector"].(string) })
-	builtins = sortedBuiltinTools(builtins)
-	// Both single and batch selectors have completed discovery. Treating an
-	// available host tool as a validation error sends callers back into inspect.
-	if len(builtins) > 0 && len(tools) == 0 && len(problems) == 0 {
-		return hostBuiltinInspectionResult(builtins), nil
+	if len(builtins) > 0 {
+		routeError := s.rejectBuiltinDiscovery(ctx, builtins)
+		var typed *ToolError
+		if !errors.As(routeError, &typed) {
+			return nil, routeError
+		}
+		for _, item := range builtins {
+			problems = append(problems, map[string]any{
+				"selector": item.Name, "code": typed.Code, "status": "host_builtin",
+				"message": typed.Message, "retryable": false,
+				"required_host_tool": item.Name, "invoke_via": "host",
+			})
+		}
 	}
+	sort.Slice(problems, func(i, j int) bool { return problems[i]["selector"].(string) < problems[j]["selector"].(string) })
 	if legacy {
 		if singleError != nil {
 			return nil, singleError

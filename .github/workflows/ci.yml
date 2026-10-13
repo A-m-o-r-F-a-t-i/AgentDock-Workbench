@@ -84,6 +84,10 @@ jobs:
             -count=20 \
             -timeout=90s
 
+      - name: Built-in discovery and recovery race regression
+        if: runner.os == 'Linux'
+        run: go test -race ./internal/tool/mcp ./internal/app ./internal/mcp -run '^TestBuiltin' -count=3 -timeout=3m
+
       - name: Race
         if: runner.os == 'Linux'
         run: go test -race -p 2 ./internal/activity ./internal/permission ./internal/insertion ./internal/fs/... ./internal/snapshot ./internal/acp ./internal/selfupdate -count=1 -timeout=8m
