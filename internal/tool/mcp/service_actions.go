@@ -208,6 +208,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if catalogErr != nil {
 		catalog = map[string]any{"server": serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
+	catalog = s.catalogDeliveries.prepare(ctx, catalog)
 	response := Result{"name": qualifiedName, "mcp_catalog": catalog}
 	if result != nil {
 		response["result"] = result

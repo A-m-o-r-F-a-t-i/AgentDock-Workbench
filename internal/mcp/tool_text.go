@@ -11,7 +11,36 @@ func toolResultText(name string, structured any) string {
 	if name == "session_observe" {
 		return sessionObserveResultText(asMap(structured))
 	}
+	if name == "mcp_tool_search" || name == "mcp_tool_inspect" {
+		if result := asMap(structured); result["route_kind"] == "host_builtin" && result["resolved"] == true && result["terminal"] == true {
+			return hostBuiltinRouteResultText(result)
+		}
+	}
 	return pretty(structured)
+}
+
+func hostBuiltinRouteResultText(result map[string]any) string {
+	names := []string{}
+	switch values := result["required_host_tools"].(type) {
+	case []string:
+		names = append(names, values...)
+	case []any:
+		for _, value := range values {
+			if name, ok := value.(string); ok && strings.TrimSpace(name) != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	if len(names) == 0 {
+		if name, _ := result["required_host_tool"].(string); strings.TrimSpace(name) != "" {
+			names = append(names, name)
+		}
+	}
+	label := strings.Join(names, ", ")
+	if label == "" {
+		label = "AgentDock host tool"
+	}
+	return "Host route resolved: " + label + ". Use the caller host tool from tools/list. Do not search dynamic MCP catalogs, files, source code, or activity logs for this schema. No business action ran."
 }
 
 func sessionObserveResultText(result map[string]any) string {

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"net/http"
 	"net/http/httptest"
@@ -57,20 +56,19 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 		{"write_file", "file_edit", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
 	} {
 		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": test.query})
-		var got *ToolError
-		if result != nil || !errors.As(err, &got) || got.Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || got.Retryable || !toolmcp.IsBuiltinDiscoveryError(err) {
-			t.Fatalf("misroute not classified: %#v %v", result, err)
+		if err != nil || result["route_kind"] != "host_builtin" || result["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || result["route_status"] != "resolved" {
+			t.Fatalf("host route not resolved: %#v %v", result, err)
 		}
-		if got.Details["required_host_tool"] != test.want || stringArg(got.Details, "matched_alias") != test.alias || got.Details["execution_performed"] != false {
-			t.Fatalf("wrong canonical recovery: %#v", got.Details)
+		if result["required_host_tool"] != test.want || stringArg(result, "matched_alias") != test.alias || result["execution_performed"] != false || result["filesystem_lookup_required"] != false || result["dynamic_discovery_required"] != false {
+			t.Fatalf("wrong canonical recovery: %#v", result)
 		}
-		raw, _ := json.Marshal(got.Details)
+		raw, _ := json.Marshal(result)
 		if strings.Contains(string(raw), "input_schema") || strings.Contains(string(raw), "InputSchema") || strings.Contains(string(raw), "OutputSchema") {
 			t.Fatalf("host schema leaked: %s", raw)
 		}
-		call, e := rt.activity.Call(t.Context(), stringArg(got.Details, "call_id"))
-		if e != nil || call.Status != "failed" || call.ErrorCode != got.Code {
-			t.Fatalf("misroute audit lost: %+v %v", call, e)
+		call, e := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
+		if e != nil || call.Status != "succeeded" || call.ErrorCode != "" {
+			t.Fatalf("resolved route audit is not successful: %+v %v", call, e)
 		}
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
@@ -84,26 +82,25 @@ func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T)
 	rt := newAuditDiscoveryRuntime(t)
 	for _, args := range []map[string]any{{"names": []string{"exec_command", "task_manage"}}, {"name": "exec_command"}} {
 		result, err := rt.Call(t.Context(), "mcp_tool_inspect", args)
-		var got *ToolError
-		if result != nil || !errors.As(err, &got) || got.Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || got.Retryable {
-			t.Fatalf("inspect fabricated success: %#v %v", result, err)
+		if err != nil || result["route_kind"] != "host_builtin" || result["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || result["terminal"] != true {
+			t.Fatalf("inspect host route unresolved: %#v %v", result, err)
 		}
 		count := 1
 		if args["names"] != nil {
 			count = 2
 		}
-		builtins, ok := got.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary)
+		builtins, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary)
 		if !ok || len(builtins) != count {
-			t.Fatalf("host members lost: %#v", got.Details)
+			t.Fatalf("host members lost: %#v", result)
 		}
 		for _, item := range builtins {
 			if item.InvokeVia != "host" {
 				t.Fatalf("wrong host route: %+v", item)
 			}
 		}
-		call, e := rt.activity.Call(t.Context(), stringArg(got.Details, "call_id"))
-		if e != nil || call.Status != "failed" || call.ErrorCode != got.Code {
-			t.Fatalf("inspect audit lost: %+v %v", call, e)
+		call, e := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
+		if e != nil || call.Status != "succeeded" || call.ErrorCode != "" {
+			t.Fatalf("inspect route audit is not successful: %+v %v", call, e)
 		}
 	}
 }

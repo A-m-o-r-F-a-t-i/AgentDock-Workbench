@@ -13,6 +13,9 @@ func appendMCPCatalog(envelope map[string]any, name string) map[string]any {
 	if !ok {
 		return envelope
 	}
+	if value := asMap(catalog); value["tools_omitted"] == true || value["delivery"] == "reference" {
+		return envelope
+	}
 	data, err := json.Marshal(catalog)
 	if err != nil {
 		return appendResponseBlocks(envelope, []string{"[[AGENTDOCK_MCP_CATALOG_V1]]\n{\"complete\":false,\"error\":\"Catalog encoding failed; the preceding business result is unchanged.\"}\n[[END_AGENTDOCK_MCP_CATALOG_V1]]"})
