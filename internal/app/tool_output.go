@@ -98,18 +98,12 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 	if len(slots) == 0 && len(exempt) == 0 {
 		return result
 	}
-	description := map[string]any{"unit": "unicode_scalar", "limit_chars": policy.MaxChars, "scope": "declared_ordinary_text", "displayed_chars": 0, "truncated": false}
-	if len(exempt) > 0 {
-		description["unapplied_fields"] = exempt
-	}
-	result["output_policy"] = description
 	remaining := policy.MaxChars
 	// Audit records mask all caller-supplied environment values. Applying that
 	// rule to authorized output would hide ordinary compiler and path settings.
 	previewRedactor := r.executionRedactor(nil)
 	storageRedactor := r.executionRedactor(p.args)
 	source := make(map[string]any, len(slots))
-	fields := make([]map[string]any, 0, len(slots))
 	truncated := false
 	for _, slot := range slots {
 		clean := previewRedactor.Text(slot.body, math.MaxInt)
@@ -118,13 +112,18 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 		truncated = truncated || more
 		source[slot.name] = clean
 		slot.set(preview)
-		fields = append(fields, map[string]any{"field": slot.name, "displayed_chars": count, "displayed_bytes": len(preview), "truncated": more})
 	}
-	description["displayed_chars"] = policy.MaxChars - remaining
-	description["truncated"], description["fields"] = truncated, fields
 	if !truncated {
+		if len(exempt) > 0 {
+			result["output_policy"] = map[string]any{"truncated": false, "unapplied_fields": exempt}
+		}
 		return result
 	}
+	description := map[string]any{"truncated": true}
+	if len(exempt) > 0 {
+		description["unapplied_fields"] = exempt
+	}
+	result["output_policy"] = description
 	state, reason := "complete", ""
 	for _, key := range []string{"truncated", "stdout_truncated", "stderr_truncated", "diff_truncated", "partial"} {
 		if result[key] == true {
@@ -134,9 +133,9 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 	if result["status"] == "running" {
 		state, reason = "partial", "Snapshot of a running command; subsequent output belongs to the original command session."
 	}
-	description["source_truncated"] = state == "partial"
-	description["source_scope"] = "ordinary fields returned by this call before display truncation"
-	description["storage_redaction"] = "Retained activity output additionally masks caller-supplied environment values; continuation offsets refer to that saved representation."
+	if state == "partial" {
+		description["source_truncated"] = true
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	payload := r.activity.CapturePayload(ctx, source, state, storageRedactor)
@@ -151,7 +150,12 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 			return result
 		}
 	}
-	description["storage_state"], description["storage_reason"] = payload.State, payload.Reason
+	if payload.State != "" && payload.State != "complete" {
+		description["storage_state"] = payload.State
+	}
+	if payload.Reason != "" {
+		description["storage_reason"] = payload.Reason
+	}
 	if payload.Ref != "" {
 		description["saved_bytes"] = payload.Bytes
 		if p.state.binding.SourceOwnerKey != "" {

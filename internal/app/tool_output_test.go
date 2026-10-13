@@ -40,8 +40,13 @@ func TestToolOutputSharedUnicodeBudgetAndDurableRead(t *testing.T) {
 	stderr := strings.Repeat("错误", 200)
 	result := outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"stdout": stdout, "stderr": stderr, "status": "failed", "exit_code": 7, "command_ok": false})
 	policy := result["output_policy"].(map[string]any)
-	if policy["displayed_chars"] != 1000 || policy["truncated"] != true || result["exit_code"] != 7 || result["command_ok"] != false || utf8.RuneCountInString(stringArg(result, "stdout"))+utf8.RuneCountInString(stringArg(result, "stderr")) != 1000 {
+	if policy["truncated"] != true || result["exit_code"] != 7 || result["command_ok"] != false || utf8.RuneCountInString(stringArg(result, "stdout"))+utf8.RuneCountInString(stringArg(result, "stderr")) != 1000 {
 		t.Fatalf("budget or control changed: %v", policy)
+	}
+	for _, key := range []string{"unit", "limit_chars", "scope", "displayed_chars", "fields", "source_scope", "storage_redaction"} {
+		if policy[key] != nil {
+			t.Fatalf("verbose output policy field %s leaked to the model: %v", key, policy)
+		}
 	}
 	continuation, ok := policy["continue_read"].(map[string]any)
 	if !ok {
@@ -113,9 +118,16 @@ func TestToolOutputBoundariesDisabledAndRulesExempt(t *testing.T) {
 		setOutputBudget(t, r, true, limit)
 		for _, length := range []int{limit - 1, limit, limit + 1} {
 			result := outputCall(t, r, ctx, "read_file", map[string]any{"path": "ordinary.txt"}, Result{"content": strings.Repeat("😀", length)})
-			policy := result["output_policy"].(map[string]any)
-			if utf8.RuneCountInString(stringArg(result, "content")) != min(limit, length) || policy["truncated"] != (length > limit) {
-				t.Fatalf("boundary %d/%d failed", limit, length)
+			if utf8.RuneCountInString(stringArg(result, "content")) != min(limit, length) {
+				t.Fatalf("boundary %d/%d changed content length", limit, length)
+			}
+			policy, present := result["output_policy"].(map[string]any)
+			if length <= limit {
+				if present {
+					t.Fatalf("complete boundary %d/%d returned output policy: %v", limit, length, policy)
+				}
+			} else if !present || policy["truncated"] != true {
+				t.Fatalf("truncated boundary %d/%d lost output policy: %v", limit, length, policy)
 			}
 		}
 	}
