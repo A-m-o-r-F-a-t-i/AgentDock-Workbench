@@ -89,6 +89,9 @@ func TestResolveForWriteRelativeUsesDefaultDirectory(t *testing.T) {
 	if p.Abs != want {
 		t.Fatalf("ResolveForWrite() Abs = %q, want %q", p.Abs, want)
 	}
+	if _, err := os.Stat(want); !os.IsNotExist(err) {
+		t.Fatalf("ResolveForWrite() modified target during resolution: %v", err)
+	}
 }
 
 func TestResolveForWriteFollowsSymlinkParent(t *testing.T) {

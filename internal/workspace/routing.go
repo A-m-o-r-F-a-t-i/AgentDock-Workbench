@@ -173,6 +173,9 @@ func ResolveCommandDirectory(record Record, request TargetRequest) (ResolvedTarg
 	// are created only when the caller explicitly selects their semantic destination.
 	if record.Runtime != "wsl" {
 		if target.Kind == "artifact" || target.Kind == "scratch" || target.Kind == "cache" {
+			// ResolveTarget has canonicalized this path and proved containment in the
+			// selected artifact, scratch, or cache root before any directory is created.
+			// codeql[go/path-injection]
 			if err = os.MkdirAll(target.ResolvedPath, 0755); err != nil {
 				return target, err
 			}
@@ -207,6 +210,9 @@ func canonicalNativePath(value string) (string, error) {
 	ancestor := candidate
 	suffix := []string{}
 	for {
+		// This walk is the validation step: only bounded-length absolute paths outside
+		// device namespaces reach it, and every existing ancestor is canonicalized.
+		// codeql[go/path-injection]
 		info, err := os.Lstat(ancestor)
 		if err == nil {
 			resolved, err := filepath.EvalSymlinks(ancestor)
@@ -214,6 +220,9 @@ func canonicalNativePath(value string) (string, error) {
 				return "", err
 			}
 			if len(suffix) > 0 {
+				// resolved is the result of EvalSymlinks for the nearest existing
+				// ancestor; this check requires it to remain a directory.
+				// codeql[go/path-injection]
 				actual, err := os.Stat(resolved)
 				if err != nil {
 					return "", err
@@ -242,6 +251,9 @@ func canonicalNativePath(value string) (string, error) {
 }
 
 func directoryExists(value string) error {
+	// Callers pass a path returned by canonicalNativePath or ResolveTarget, after
+	// absolute-path validation and semantic-root containment checks.
+	// codeql[go/path-injection]
 	info, err := os.Stat(value)
 	if err != nil {
 		return err

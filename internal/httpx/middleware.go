@@ -32,6 +32,9 @@ func (r *statusRecorder) Write(data []byte) (int, error) {
 	if r.status == 0 {
 		r.status = http.StatusOK
 	}
+	// This recorder is a transparent transport wrapper. The downstream handler
+	// selects the content type and performs any context-specific encoding.
+	// codeql[go/reflected-xss]
 	n, err := r.ResponseWriter.Write(data)
 	r.bytes += n
 	if err != nil {
