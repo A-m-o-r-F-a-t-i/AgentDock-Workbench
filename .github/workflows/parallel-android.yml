@@ -124,6 +124,9 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import hashlib
+          import json
+          import subprocess
           import xml.etree.ElementTree as ET
           files = list(Path("mobile/android/app/src/main").rglob("*.xml"))
           if not files:
@@ -166,6 +169,24 @@ jobs:
               raise SystemExit(f"unexpected cleartext loopback domains: {sorted(actual)!r}")
           if any(domain.attrib.get("includeSubdomains") != "false" for domain in domains):
               raise SystemExit("loopback cleartext domains must not include subdomains")
+
+          identity = json.loads(Path("packaging/android/core-release-signing.json").read_text())
+          public_key = Path(identity["public_key"])
+          if identity.get("schema_version") != 1 or identity.get("algorithm") != "Ed25519" or not public_key.is_file():
+              raise SystemExit("Android Core release identity is incomplete")
+          public_der = subprocess.check_output([
+              "openssl", "pkey", "-pubin", "-in", str(public_key), "-outform", "DER"
+          ])
+          if hashlib.sha256(public_der).hexdigest() != identity.get("public_key_sha256"):
+              raise SystemExit("Android Core release public key fingerprint mismatch")
+          bootstrap = Path("mobile/android/termux/agentdock-workbench-bootstrap.sh").read_text()
+          view_model = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/WorkbenchViewModel.kt").read_text()
+          for text in (bootstrap, view_model):
+              if "release-ed25519-public.pem" not in text:
+                  raise SystemExit("complete Termux bridge must carry the Android Core release public key")
+          deployment_page = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/DeploymentPage.kt").read_text()
+          if "ANDROID_CORE_MANIFEST_URL" not in deployment_page or "ANDROID_CORE_MANIFEST_SIGNATURE_URL" not in deployment_page:
+              raise SystemExit("Android deployment page must use the signed official Core source")
           PY
           for script in mobile/android/termux/agentdock-workbench mobile/android/termux/*.sh scripts/ci/parallel-android/*.sh; do
             bash -n "$script"

@@ -33,9 +33,9 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         model.showNotice(if (granted) "系统已授予 RUN_COMMAND；仍需探测外部桥。" else "RUN_COMMAND 未获授权，未提交 Termux 操作。")
     }
-    var manifest by rememberSaveable { mutableStateOf("") }
-    var signature by rememberSaveable { mutableStateOf("") }
-    var startAfter by rememberSaveable { mutableStateOf(false) }
+    var manifest by rememberSaveable { mutableStateOf(BuildConfig.ANDROID_CORE_MANIFEST_URL) }
+    var signature by rememberSaveable { mutableStateOf(BuildConfig.ANDROID_CORE_MANIFEST_SIGNATURE_URL) }
+    var startAfter by rememberSaveable { mutableStateOf(true) }
     var nodeName by rememberSaveable { mutableStateOf("AgentDock Workbench") }
     var port by rememberSaveable { mutableStateOf("8765") }
     var distro by rememberSaveable { mutableStateOf("debian") }
@@ -95,9 +95,13 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                     OutlinedButton(onClick = { offer("初始化受管节点", "只准备新的私有受管目录和身份。不会下载安装 Core，也不会替换已有有效身份。", "bootstrap") }, enabled = enabled) { Text("初始化目录") }
                 }
                 if (status != null) {
-                    Text("Core 版本：${status.optString("version").ifBlank { "未安装或未知" }}")
+                    val installedVersion = status.optString("version")
+                    Text("Core 版本：${installedVersion.ifBlank { "未安装" }}")
                     Text("运行意图：${status.optString("desired_state", "未知")} · 身份：${status.optString("process_identity", "未知")}")
                     Text("已验证健康：${status.optBoolean("healthy")} · 受信公钥存在：${status.optBoolean("manifest_trust_ready")}")
+                    if (installedVersion.isBlank()) {
+                        Text("当前手机尚未安装受管 Core。使用下方官方签名源安装并启动后，任务、活动与调用页面才能读取本机数据。")
+                    }
                     val active = status.optString("active_operation_id")
                     if (active.isNotBlank()) TextButton(onClick = { targetOperation = active }) { Text("查看未完成事务 $active") }
                 }
@@ -134,7 +138,11 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         }
         item {
             DeploymentSection("安装与升级") {
-                Text("发布公钥必须通过可信渠道放入 Termux 私有信任目录。缺少公钥、签名清单或 APK/Core 版本不一致时，部署保持受阻。")
+                Text("官方 ${BuildConfig.PRODUCT_VERSION} 清单与签名地址已预填。导出的完整桥包会把固定发布公钥安装到 Termux 私有信任目录；签名、架构、版本或摘要不一致时，部署保持受阻。")
+                TextButton(onClick = {
+                    manifest = BuildConfig.ANDROID_CORE_MANIFEST_URL
+                    signature = BuildConfig.ANDROID_CORE_MANIFEST_SIGNATURE_URL
+                }) { Text("恢复官方发布源") }
                 DeploymentInput("HTTPS 发布清单", manifest) { manifest = it.take(4096) }
                 DeploymentInput("HTTPS 分离签名", signature) { signature = it.take(4096) }
                 Row {

@@ -598,7 +598,7 @@ class WorkbenchViewModel(
                     val app = getApplication<Application>()
                     val output = app.contentResolver.openOutputStream(uri, "w") ?: error("无法打开导出目标")
                     java.util.zip.ZipOutputStream(output).use { zip ->
-                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh")) {
+                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh", "release-ed25519-public.pem")) {
                             zip.putNextEntry(java.util.zip.ZipEntry(name))
                             app.assets.open(name).use { it.copyTo(zip) }
                             zip.closeEntry()

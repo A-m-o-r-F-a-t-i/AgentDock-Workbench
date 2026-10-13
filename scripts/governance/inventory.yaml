@@ -110,7 +110,7 @@ scripts:
     public_contract: false
     deletable: true
     oversize_justification: 同一隔离故障注入夹具需要覆盖签名清单、断点下载、逐阶段事务续接、schema 数据快照、健康回退、显式回滚、清理预览、一次性配对及恢复熔断；共享真实文件系统和 OpenSSL 状态可避免拆分后产生不一致的伪造边界。
-    notes: 仅在临时目录和注入式进程后端上执行 41 项部署事务回归，不安装、启动或修改生产 Core。
+    notes: 仅在临时目录和注入式进程后端上执行 59 项部署事务回归，不安装、启动或修改生产 Core。
 
   - path: scripts/test/test-linux-native-packages.py
     class: test
@@ -128,6 +128,11 @@ scripts:
     owner: release
     public_contract: false
     notes: 使用隔离候选、密钥替身和签名工具替身验证Android公开APK的证据绑定、固定证书指纹及凭据缺失失败。
+  - path: scripts/test/test-android-core-release.py
+    class: test
+    owner: release
+    public_contract: false
+    notes: 使用真实 Ed25519/OpenSSL 与合成 ARM64 Core 归档验证签名清单、来源摘要、错误私钥及不安全归档拒绝。
   - path: packaging/build-unix-release.py
     class: packaging
     owner: release
@@ -144,6 +149,11 @@ scripts:
     owner: release
     public_contract: false
     notes: 将已完成五API验证的测试签名Android候选对齐并用固定发布身份重签，校验证书指纹后生成公开APK与来源绑定报告。
+  - path: scripts/release/sign-android-core-release.py
+    class: packaging
+    owner: release
+    public_contract: false
+    notes: 将已验证 Linux ARM64 Core 归档绑定到 Android 部署清单，使用固定 Ed25519 发布身份签名并生成公开资产证据。
   - path: scripts/test/check-workbench-brand.py
     class: test
     owner: release

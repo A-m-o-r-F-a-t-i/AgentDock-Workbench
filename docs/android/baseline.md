@@ -15,10 +15,10 @@
 ## 验收基线
 
 - 60 项 JVM 测试。
-- 41 项部署测试，其中 13 项逐阶段中断恢复。
+- 59 项部署测试，其中 13 项逐阶段中断恢复。
 - 13 项 Android 仪器测试。
 - API 26、33、34、35、37。
 - 每个 API 23 张规定截图。
 - 所有证据绑定精确 source SHA、run ID 与 attempt。
 
-Linux ARM64 归档和 SHA-256 已存在，但发布者签名清单/固定公钥尚未进入主线，因此 install/update 在真实环境继续受 `pending_manifest` 门禁保护。
+公开 Android Release 使用独立 Ed25519 身份签署 Linux ARM64 Core 部署清单；固定公钥进入五文件 Termux 桥包，归档、清单和签名必须绑定同一版本与提交。设备上的实际 install/update/rollback 仍作为独立真机验收。

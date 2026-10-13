@@ -56,7 +56,9 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Publisher regression without network writes
-        run: python3 -B scripts/test/test-workbench-release.py
+        run: |
+          python3 -B scripts/test/test-workbench-release.py
+          python3 -B scripts/test/test-android-core-release.py
       - name: Verify original build and assembly succeeded
         id: source
         run: |
@@ -145,6 +147,13 @@ jobs:
             yes | "$sdkmanager" "build-tools;37.0.0" >/dev/null
           fi
           python3 verified-source/scripts/release/sign-android-release.py --input input --output input/android-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/release-signing.json
+      - name: Sign verified Android Core release
+        env:
+          ANDROID_CORE_RELEASE_PRIVATE_KEY_B64: ${{ secrets.ANDROID_CORE_RELEASE_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"
+          python3 verified-source/scripts/release/sign-android-core-release.py --input input --output input/android-core-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/core-release-signing.json
       - name: Verify original payloads and publish by numeric ID
         run: |
           set -euo pipefail

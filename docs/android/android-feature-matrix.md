@@ -20,7 +20,7 @@
 | WB-A14 | Skill | detail/files/file、standalone/plugin member 启停 | SkillManagementPage | 实际 Skill 文件 |
 | WB-A15 | 插件/MCP | 插件完整管理；MCP 增删刷新和环境变量 | PluginMcpManagementPage | 外部 MCP/OAuth |
 | WB-A16 | Core 连接 | 手动、Origin 绑定、一次性本机配对、远程 OAuth/PKCE | OAuth/Keystore 测试 | 浏览器与真实 Core |
-| WB-A17 | 安装更新 | 持久事务、签名门禁、续接、快照、回退、保留、熔断 | 41 项部署测试 | 签名清单和 ARM64 |
+| WB-A17 | 安装更新 | 固定 Ed25519 信任、签名 Core 资产、持久事务、续接、快照、回退、保留、熔断 | 59 项部署测试、Core 发布签名测试 | 真机 Release 安装、更新与回退 |
 | WB-A18 | 工程文件 | SAF 导入导出、树/预览、Termux 探针/创建 | ProjectArchivePolicyTest | 真实文档提供方 |
 | WB-A19 | 日志诊断 | 有界脱敏日志、游标搜索、诊断预览/导出、清理预览确认 | 部署与桥测试 | 真实日志内容 |
 | WB-A20 | 外观输出 | 主题、密度、详细调用、Core 输出 revision 设置 | 深色/大字体/横屏/展开截图 | 厂商字体渲染 |
@@ -31,4 +31,4 @@
 
 ## 验收解释
 
-Actions 证明客户端逻辑、协议边界和模拟器兼容性。真实安装、真实 ARM64 PRoot、生产凭据、长期保活和发布者签名材料必须单独取证。本任务禁止以真实安装补足这些证据。
+Actions 证明客户端逻辑、协议边界、发布资产绑定和模拟器兼容性。真实安装、真实 ARM64 PRoot、生产凭据、长期保活及设备上的安装/更新/回退仍需单独取证。
