@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,9 +26,11 @@ import (
 
 type Server struct {
 	presentationMu        sync.Mutex
+	toolMu                sync.Mutex
 	presentation          atomic.Pointer[presentationState]
 	templateReads         atomic.Uint64
 	registeredUIResources []string
+	registeredTools       map[string]struct{}
 	runtime               *app.Runtime
 	cfg                   config.Config
 	sdk                   *mcpsdk.Server
@@ -35,7 +38,7 @@ type Server struct {
 }
 
 func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
-	server := &Server{runtime: runtime, cfg: cfg}
+	server := &Server{runtime: runtime, cfg: cfg, registeredTools: map[string]struct{}{}}
 	serverOptions := &mcpsdk.ServerOptions{
 		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{
 			ContextResponseCapability: map[string]any{
@@ -57,6 +60,7 @@ func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 		server.sdk.AddReceivingMiddleware(server.observeDiscovery)
 		server.sdk.AddReceivingMiddleware(server.traceProtocol)
 		runtime.OnDisplaySettingsChanged(server.refreshPresentation)
+		runtime.OnToolAvailabilityChanged(server.refreshToolAvailability)
 		server.refreshPresentation()
 	}
 	server.httpHandler = mcpsdk.NewStreamableHTTPHandler(
@@ -170,6 +174,50 @@ func (s *Server) registerTool(def ToolDefinition) {
 	s.sdk.AddTool(tool, func(ctx context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return s.callTool(ctx, def.Name, request)
 	})
+}
+
+func (s *Server) refreshToolAvailability() {
+	s.syncRegisteredTools(false)
+}
+
+// syncRegisteredTools keeps the SDK directory aligned with runtime capability
+// readiness. Re-registering existing tools is reserved for presentation changes.
+func (s *Server) syncRegisteredTools(updateExisting bool) {
+	if s == nil || s.sdk == nil || s.runtime == nil {
+		return
+	}
+	definitions := s.runtime.ToolDefinitions()
+	desired := make(map[string]ToolDefinition, len(definitions))
+	for _, definition := range definitions {
+		desired[definition.Name] = definition
+	}
+
+	s.toolMu.Lock()
+	defer s.toolMu.Unlock()
+	if s.registeredTools == nil {
+		s.registeredTools = map[string]struct{}{}
+	}
+	removed := make([]string, 0)
+	for name := range s.registeredTools {
+		if _, keep := desired[name]; !keep {
+			removed = append(removed, name)
+		}
+	}
+	sort.Strings(removed)
+	if len(removed) > 0 {
+		s.sdk.RemoveTools(removed...)
+		for _, name := range removed {
+			delete(s.registeredTools, name)
+		}
+	}
+	for _, definition := range definitions {
+		_, registered := s.registeredTools[definition.Name]
+		if registered && !updateExisting {
+			continue
+		}
+		s.registerTool(definition)
+		s.registeredTools[definition.Name] = struct{}{}
+	}
 }
 
 func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {

@@ -39,6 +39,61 @@ func waitDeviceJournal(t *testing.T, r *Runtime) {
 	}
 }
 
+func hasToolName(names []string, target string) bool {
+	for _, name := range names {
+		if name == target {
+			return true
+		}
+	}
+	return false
+}
+
+func TestAndroidDeviceToolsFollowVerifiedBackendAvailability(t *testing.T) {
+	r, ctx := profileRuntime(t, permission.DefaultSettings(), permission.Full)
+	for _, name := range []string{"android_device_read", "android_device_act"} {
+		if hasToolName(r.ToolNames(), name) {
+			t.Fatalf("offline runtime exposed %s", name)
+		}
+		if _, ok := r.ToolDefinition(name); ok {
+			t.Fatalf("offline runtime returned definition for %s", name)
+		}
+	}
+	if _, err := r.Call(ctx, "android_device_read", map[string]any{"action": "status"}); err == nil {
+		t.Fatal("offline Android tool call was admitted")
+	}
+
+	uid := 2000
+	caps := map[string]androidbridge.Capability{"android_shizuku": {Ready: true, State: "verified", UID: &uid}}
+	lease, err := r.androidExecutor.Register(androidbridge.RegisterRequest{Protocol: 1, WorkerID: strings.Repeat("c", 32), Backends: caps})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"android_device_read", "android_device_act"} {
+		if !hasToolName(r.ToolNames(), name) {
+			t.Fatalf("ready runtime omitted %s", name)
+		}
+		if _, ok := r.ToolDefinition(name); !ok {
+			t.Fatalf("ready runtime omitted definition for %s", name)
+		}
+	}
+	result, err := r.Call(ctx, "android_device_read", map[string]any{"action": "status"})
+	if err != nil || result["device_status"] == nil {
+		t.Fatalf("ready status call = %#v, %v", result, err)
+	}
+
+	if err := r.androidExecutor.Disconnect(lease.LeaseToken); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"android_device_read", "android_device_act"} {
+		if hasToolName(r.ToolNames(), name) {
+			t.Fatalf("disconnected runtime retained %s", name)
+		}
+	}
+	if _, err := r.Call(ctx, "android_device_act", map[string]any{"action": "keyevent", "keycode": 4}); err == nil {
+		t.Fatal("disconnected Android tool call was admitted")
+	}
+}
+
 func TestAndroidDeviceReadKeepsOriginalRootAndSessionOwnership(t *testing.T) {
 	r, ctx, lease, caps := fakeAndroidDevice(t)
 	result, err := r.Call(ctx, "android_device_read", map[string]any{"action": "packages", "execution_mode": "async"})
@@ -80,6 +135,11 @@ func TestAndroidDeviceCapturePermissionCannotBypassReadOnlyProfile(t *testing.T)
 	settings := permission.DefaultSettings()
 	settings.Profile.Filesystem = permission.FileRead
 	r, ctx := profileRuntime(t, settings, permission.Full)
+	uid := 2000
+	caps := map[string]androidbridge.Capability{"android_shizuku": {Ready: true, State: "verified", UID: &uid}}
+	if _, err := r.androidExecutor.Register(androidbridge.RegisterRequest{Protocol: 1, WorkerID: strings.Repeat("e", 32), Backends: caps}); err != nil {
+		t.Fatal(err)
+	}
 	result, err := r.Call(ctx, "android_device_read", map[string]any{"action": "status"})
 	if err != nil {
 		t.Fatal(err)
