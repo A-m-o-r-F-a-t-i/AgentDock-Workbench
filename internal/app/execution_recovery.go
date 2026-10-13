@@ -79,7 +79,15 @@ func (r *Runtime) drainExecutionsOnClose() error {
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
+		if r.commandSettlementCancel != nil {
+			r.commandSettlementCancel()
+		}
 		return errors.New("some tool calls did not acknowledge shutdown; their side effects must be verified")
+	}
+	// Every settlement is registered before its owning executePrepared call
+	// leaves executionWG, so no new Add can race this wait.
+	if err := r.drainCommandTerminalSettlements(); err != nil {
+		return err
 	}
 	if r.permissions == nil {
 		return nil

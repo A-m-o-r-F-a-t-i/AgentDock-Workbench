@@ -57,6 +57,9 @@ type Runtime struct {
 	activeCalls              map[string]*liveExecution
 	pendingCalls             map[string]*preparedExecution
 	executionWG              sync.WaitGroup
+	commandSettlementWG      sync.WaitGroup
+	commandSettlementCtx     context.Context
+	commandSettlementCancel  context.CancelFunc
 	localCompletions         sync.Map // call ID -> bounded journal completion reservation
 
 	workspaceRegistry *workspace.Registry
@@ -170,9 +173,11 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		return nil, fmt.Errorf("initialize insertion queue: %w", err)
 	}
 	commandCtx, commandCancel := context.WithCancel(context.Background())
+	commandSettlementCtx, commandSettlementCancel := context.WithCancel(context.Background())
 	defer func() {
 		if !initialized {
 			commandCancel()
+			commandSettlementCancel()
 		}
 	}()
 	runtime := &Runtime{
@@ -185,6 +190,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		cfg: cfg, ws: ws, skills: skills, activity: activityStore,
 		toolNames: toolNames, toolValidators: toolValidators,
 		commandCtx: commandCtx, commandCancel: commandCancel,
+		commandSettlementCtx: commandSettlementCtx, commandSettlementCancel: commandSettlementCancel,
 	}
 	defer func() {
 		if !initialized {

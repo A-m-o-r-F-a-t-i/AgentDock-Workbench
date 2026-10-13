@@ -55,6 +55,12 @@ func (s *Service) Close() error {
 	if _, err := s.killAll(); err != nil {
 		closeErrors = append(closeErrors, fmt.Errorf("stop command sessions: %w", err))
 	}
+	// Any process that still has no confirmed completion after the stop attempt
+	// is closed as unknown by its activity owner. This also releases every
+	// terminal Future without allowing a late process callback to settle twice.
+	if s.activityCancel != nil {
+		s.activityCancel()
+	}
 	activityCtx, activityCancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer activityCancel()
 	if err := s.WaitActivity(activityCtx); err != nil {
