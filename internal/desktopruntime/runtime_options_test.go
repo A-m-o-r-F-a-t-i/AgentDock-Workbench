@@ -14,7 +14,7 @@ func TestRuntimeOptionsDefaultsAndRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &options); err != nil {
 		t.Fatal(err)
 	}
-	if options.AgentsAutoLoad || options.ACPMaxPrompts != 2 || options.ACPInteractionMS != 300000 {
+	if options.AgentsAutoLoad || options.WindowsCommandShell != "pwsh" || options.ACPMaxPrompts != 2 || options.ACPInteractionMS != 300000 {
 		t.Fatalf("wrong defaults: %#v", options)
 	}
 	options, err := normalizeRuntimeOptions(options)
@@ -33,7 +33,7 @@ func TestRuntimeOptionsDefaultsAndRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env["AGENTDOCK_DEFAULT_DIR"] != options.DefaultDir || env["AGENTDOCK_AGENTS_AUTOLOAD"] != "false" || env["AGENTDOCK_ACP_INTERACTION_TIMEOUT_MS"] != "300000" {
+	if env["AGENTDOCK_DEFAULT_DIR"] != options.DefaultDir || env["AGENTDOCK_AGENTS_AUTOLOAD"] != "false" || env["AGENTDOCK_WINDOWS_COMMAND_SHELL"] != "pwsh" || env["AGENTDOCK_ACP_INTERACTION_TIMEOUT_MS"] != "300000" {
 		t.Fatalf("wrong environment: %#v", env)
 	}
 }
@@ -49,6 +49,7 @@ func TestRuntimeOptionsRejectInvalidBeforeWrite(t *testing.T) {
 		"timeout low":                         func(o *RuntimeOptions) { o.ACPInteractionMS = 999 },
 		"timeout high":                        func(o *RuntimeOptions) { o.ACPInteractionMS = 3600001 },
 		"invalid CIDR":                        func(o *RuntimeOptions) { o.TrustedProxyCIDRs = []string{"all"} },
+		"invalid Windows command shell":       func(o *RuntimeOptions) { o.WindowsCommandShell = "powershell" },
 		"literal secret instead of reference": func(o *RuntimeOptions) { o.CommandEnvFromEnv = map[string]string{"CHILD": "not a variable name"} },
 	} {
 		t.Run(name, func(t *testing.T) {

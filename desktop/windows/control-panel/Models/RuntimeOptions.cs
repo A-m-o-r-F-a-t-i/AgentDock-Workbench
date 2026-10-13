@@ -22,6 +22,9 @@ public sealed class RuntimeOptions
     [JsonPropertyName("command_env_from_env")]
     public Dictionary<string, string> CommandEnvFromEnv { get; set; } = [];
 
+    [JsonPropertyName("windows_command_shell")]
+    public string WindowsCommandShell { get; set; } = "pwsh";
+
     [JsonPropertyName("acp_max_concurrent_prompts")]
     public int AcpMaxConcurrentPrompts { get; set; } = 2;
 

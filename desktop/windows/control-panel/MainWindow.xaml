@@ -267,6 +267,15 @@
             </GroupBox>
             <GroupBox Header="{local:Loc ProcessAndNetwork}">
               <StackPanel>
+                <TextBlock Text="{local:Loc WindowsCommandShell}" Margin="0,0,0,5" />
+                <ComboBox x:Name="WindowsCommandShellComboBox" SelectedValuePath="Tag" SelectedIndex="0"
+                          Width="260" HorizontalAlignment="Left" Margin="0,0,0,6">
+                  <ComboBoxItem Tag="pwsh" Content="{local:Loc WindowsCommandShellPowerShell}" />
+                  <ComboBoxItem Tag="cmd" Content="{local:Loc WindowsCommandShellCommandPrompt}" />
+                  <ComboBoxItem Tag="git-bash" Content="{local:Loc WindowsCommandShellGitBash}" />
+                </ComboBox>
+                <TextBlock Text="{local:Loc WindowsCommandShellHelp}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SecondaryText}" Margin="0,0,0,12" />
                 <TextBlock Text="{local:Loc BrowserExecutable}" Margin="0,0,0,5" />
                 <DockPanel Margin="0,0,0,12">
                   <Button DockPanel.Dock="Right" Content="{local:Loc Browse}" Tag="browser" Margin="8,0,0,0" Click="RuntimeFileBrowse_Click" />

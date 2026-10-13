@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/config"
 )
 
 const windowsNativeChildReadyEnv = "AGENTDOCK_TEST_WINDOWS_NATIVE_CHILD_READY"
@@ -19,6 +22,66 @@ const windowsNativeChildReadyEnv = "AGENTDOCK_TEST_WINDOWS_NATIVE_CHILD_READY"
 type windowsNativeChildReady struct {
 	PID  int `json:"pid"`
 	Port int `json:"port"`
+}
+
+func TestWindowsShellSelectionBuildsExpectedCommands(t *testing.T) {
+	lookup := func(name string) (string, error) {
+		switch name {
+		case "pwsh.exe":
+			return `C:\Tools\pwsh.exe`, nil
+		case "cmd.exe":
+			return `C:\Windows\System32\cmd.exe`, nil
+		default:
+			return "", errors.New("not found")
+		}
+	}
+	gitBash := func() string { return `C:\Program Files\Git\bin\bash.exe` }
+	for _, test := range []struct {
+		name  string
+		shell string
+		want  []string
+	}{
+		{name: "PowerShell", shell: config.WindowsCommandShellPwsh, want: []string{`C:\Tools\pwsh.exe`, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", powershellUTF8Prefix + "echo hello"}},
+		{name: "Command Prompt", shell: config.WindowsCommandShellCmd, want: []string{`C:\Windows\System32\cmd.exe`, "/D", "/S", "/C", "echo hello"}},
+		{name: "Git Bash", shell: config.WindowsCommandShellGitBash, want: []string{`C:\Program Files\Git\bin\bash.exe`, "--noprofile", "--norc", "-c", "echo hello"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := windowsShellCommand(context.Background(), test.shell, "echo hello", lookup, gitBash)
+			if got, want := strings.Join(cmd.Args, "\x00"), strings.Join(test.want, "\x00"); got != want {
+				t.Fatalf("command args = %#v, want %#v", cmd.Args, test.want)
+			}
+		})
+	}
+}
+
+func TestWindowsPowerShellFallsBackToCommandPrompt(t *testing.T) {
+	lookup := func(name string) (string, error) {
+		if name == "cmd.exe" {
+			return `C:\Windows\System32\cmd.exe`, nil
+		}
+		return "", errors.New("not found")
+	}
+	cmd := windowsShellCommand(context.Background(), config.WindowsCommandShellPwsh, "echo fallback", lookup, func() string { return "unused" })
+	if got, want := strings.Join(cmd.Args, "\x00"), strings.Join([]string{`C:\Windows\System32\cmd.exe`, "/D", "/S", "/C", "echo fallback"}, "\x00"); got != want {
+		t.Fatalf("fallback command args = %#v", cmd.Args)
+	}
+}
+
+func TestGitBashCandidatesFollowGitForWindowsInstall(t *testing.T) {
+	env := map[string]string{
+		"ProgramFiles": `C:\Program Files`,
+		"LocalAppData": `C:\Users\tester\AppData\Local`,
+	}
+	candidates := gitBashCandidates(`C:\Program Files\Git\cmd\git.exe`, func(name string) string { return env[name] })
+	joined := strings.ToLower(strings.Join(candidates, "\n"))
+	for _, expected := range []string{
+		`c:\program files\git\bin\bash.exe`,
+		`c:\users\tester\appdata\local\programs\git\bin\bash.exe`,
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("Git Bash candidates %#v do not contain %q", candidates, expected)
+		}
+	}
 }
 
 func TestWindowsPowerShellOutputIsUTF8(t *testing.T) {

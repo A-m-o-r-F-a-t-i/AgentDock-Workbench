@@ -851,6 +851,21 @@
   <data name="ProcessAndNetwork" xml:space="preserve">
     <value>进程与网络</value>
   </data>
+  <data name="WindowsCommandShell" xml:space="preserve">
+    <value>Windows 命令运行环境</value>
+  </data>
+  <data name="WindowsCommandShellPowerShell" xml:space="preserve">
+    <value>PowerShell（pwsh）</value>
+  </data>
+  <data name="WindowsCommandShellCommandPrompt" xml:space="preserve">
+    <value>命令提示符（cmd）</value>
+  </data>
+  <data name="WindowsCommandShellGitBash" xml:space="preserve">
+    <value>Git Bash</value>
+  </data>
+  <data name="WindowsCommandShellHelp" xml:space="preserve">
+    <value>选择 Windows 命令会话使用的 Shell。PowerShell（pwsh）保持现有行为并作为默认值。Git Bash 需要通过 PATH 或标准安装位置找到 Git for Windows。</value>
+  </data>
   <data name="BrowserExecutable" xml:space="preserve">
     <value>浏览器程序（留空自动查找）</value>
   </data>

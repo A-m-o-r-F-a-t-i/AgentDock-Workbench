@@ -46,3 +46,15 @@ func TestPrepareCommandInvocationRejectsWSLDistributionForWindowsRuntime(t *test
 		t.Fatal("expected wsl_distribution validation error")
 	}
 }
+
+func TestPrepareCommandInvocationUsesConfiguredWindowsShell(t *testing.T) {
+	service, cfg := newCommandTestService(t)
+	cfg.WindowsCommandShell = "git-bash"
+	invocation, err := service.prepareCommandInvocationArgs(map[string]any{"runtime": "windows"}, "echo ok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invocation.shell != "git-bash" {
+		t.Fatalf("invocation shell = %q, want git-bash", invocation.shell)
+	}
+}

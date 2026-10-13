@@ -851,6 +851,21 @@ Update now?</value>
   <data name="ProcessAndNetwork" xml:space="preserve">
     <value>Processes and network</value>
   </data>
+  <data name="WindowsCommandShell" xml:space="preserve">
+    <value>Windows command environment</value>
+  </data>
+  <data name="WindowsCommandShellPowerShell" xml:space="preserve">
+    <value>PowerShell (pwsh)</value>
+  </data>
+  <data name="WindowsCommandShellCommandPrompt" xml:space="preserve">
+    <value>Command Prompt (cmd)</value>
+  </data>
+  <data name="WindowsCommandShellGitBash" xml:space="preserve">
+    <value>Git Bash</value>
+  </data>
+  <data name="WindowsCommandShellHelp" xml:space="preserve">
+    <value>Select the shell used by Windows command sessions. PowerShell (pwsh) keeps the current behavior and remains the default. Git Bash requires Git for Windows in PATH or a standard install location.</value>
+  </data>
   <data name="BrowserExecutable" xml:space="preserve">
     <value>Browser executable (blank for automatic discovery)</value>
   </data>
