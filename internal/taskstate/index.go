@@ -61,7 +61,7 @@ func shortIndexText(text string, limit int) string {
 // A corrupt file degrades only its own entry, never the overall context response.
 func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 	index := EmptyTaskIndex()
-	release, err := s.acquireStoreLock()
+	release, err := s.acquireStoreLockContext(ctx)
 	if err != nil {
 		return index, err
 	}
