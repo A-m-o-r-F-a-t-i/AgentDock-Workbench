@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/textutil"
 )
 
@@ -61,6 +62,7 @@ func shortIndexText(text string, limit int) string {
 // A corrupt file degrades only its own entry, never the overall context response.
 func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 	index := EmptyTaskIndex()
+	binding := activity.FromContext(ctx)
 	release, err := s.acquireStoreLockContext(ctx)
 	if err != nil {
 		return index, err
@@ -108,22 +110,23 @@ func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 			continue
 		}
 		candidates = append(candidates, task)
-		sort.Slice(candidates, func(i, j int) bool { return candidates[i].UpdatedAt.After(candidates[j].UpdatedAt) })
+		sort.Slice(candidates, func(i, j int) bool { return taskIndexCandidateLess(candidates[i], candidates[j], binding) })
 		if len(candidates) > MaxTaskIndexItems {
 			candidates = candidates[:MaxTaskIndexItems]
 		}
 	}
 	for _, candidate := range candidates {
-		task, loadErr := s.attachThreadLocked(candidate)
+		task, loadErr := s.attachIndexThreadLocked(candidate, binding)
 		if loadErr != nil {
-			warn("Could not restore active thread of " + candidate.ID)
+			if candidate.ID == binding.TaskID {
+				warn("Could not restore bound thread of " + candidate.ID)
+				index.Items = append(index.Items, taskIndexItem(candidate))
+			} else {
+				warn("Could not restore active thread of " + candidate.ID)
+			}
 			continue
 		}
-		workspaceID := task.WorkspaceID
-		if task.ActiveThread != nil && task.ActiveThread.WorkspaceID != "" {
-			workspaceID = task.ActiveThread.WorkspaceID
-		}
-		index.Items = append(index.Items, TaskIndexItem{TaskID: task.ID, Title: shortIndexText(task.Title, 256), Status: task.Status, Project: shortIndexText(task.Project, 128), WorkspaceID: workspaceID, ActiveThread: SummarizeThread(task.ActiveThread), UpdatedAt: task.UpdatedAt})
+		index.Items = append(index.Items, taskIndexItem(task))
 	}
 	for {
 		index.ReturnedCount = len(index.Items)
@@ -140,6 +143,52 @@ func (s *Store) Discover(ctx context.Context) (TaskIndex, error) {
 		}
 		index.Items = index.Items[:len(index.Items)-1]
 	}
+}
+
+func (s *Store) attachIndexThreadLocked(task Task, binding activity.Binding) (Task, error) {
+	threadID := task.ActiveThreadID
+	if task.ID == binding.TaskID && binding.ThreadID != "" {
+		threadID = binding.ThreadID
+	}
+	if threadID == "" {
+		threadID = MainThreadID
+	}
+	thread, err := s.loadThreadLocked(task, threadID)
+	if err != nil {
+		return Task{}, err
+	}
+	projectThread(&task, thread)
+	return task, nil
+}
+
+func taskIndexItem(task Task) TaskIndexItem {
+	workspaceID := task.WorkspaceID
+	if task.ActiveThread != nil && task.ActiveThread.WorkspaceID != "" {
+		workspaceID = task.ActiveThread.WorkspaceID
+	}
+	return TaskIndexItem{TaskID: task.ID, Title: shortIndexText(task.Title, 256), Status: task.Status, Project: shortIndexText(task.Project, 128), WorkspaceID: workspaceID, ActiveThread: SummarizeThread(task.ActiveThread), UpdatedAt: task.UpdatedAt}
+}
+
+func taskIndexCandidateLess(left, right Task, binding activity.Binding) bool {
+	leftRank := taskIndexCandidateRank(left, binding)
+	rightRank := taskIndexCandidateRank(right, binding)
+	if leftRank != rightRank {
+		return leftRank < rightRank
+	}
+	if left.UpdatedAt.Equal(right.UpdatedAt) {
+		return left.ID < right.ID
+	}
+	return left.UpdatedAt.After(right.UpdatedAt)
+}
+
+func taskIndexCandidateRank(task Task, binding activity.Binding) int {
+	if binding.TaskID != "" && task.ID == binding.TaskID {
+		return 0
+	}
+	if binding.WorkspaceID != "" && task.WorkspaceID == binding.WorkspaceID {
+		return 1
+	}
+	return 2
 }
 
 func (s *Store) SetWorkspace(id, workspaceID string) (Task, error) {
