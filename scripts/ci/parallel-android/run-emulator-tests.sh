@@ -101,6 +101,11 @@ timeout --signal=TERM --kill-after=20s 10m gradle -p "$repo_root/mobile/android"
 release_rc=${PIPESTATUS[0]}
 set -e
 timeout 20s adb logcat -d -v threadtime >"$release_evidence/logcat.txt" 2>&1 || true
+# Failure images are collected after the independent test APK exits, before the
+# disposable emulator is removed. Their absence cannot satisfy the test gate.
+mkdir -p "$release_evidence/screenshots"
+timeout 30s adb pull "/sdcard/Download/agentdock-release-startup/." \
+  "$release_evidence/screenshots/" >"$release_evidence/screenshot-pull.txt" 2>&1 || true
 python3 - "$repo_root" "$evidence" "$release_rc" <<'PY_RELEASE'
 import json, pathlib, shutil, sys, xml.etree.ElementTree as ET
 repo, evidence = map(pathlib.Path, sys.argv[1:3])
