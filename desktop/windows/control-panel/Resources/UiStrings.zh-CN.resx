@@ -936,4 +936,27 @@
   <data name="PublicMetadataMismatch" xml:space="preserve"><value>元数据与当前 Origin 不一致</value></data>
   <data name="PublicDiscoveryAuthorizationRequired" xml:space="preserve"><value>公网可达，认证发现通过</value></data>
   <data name="PublicOAuthCapabilitiesMissing" xml:space="preserve"><value>OAuth 元数据缺少授权码、S256 或刷新能力声明。</value></data>
+  <data name="ExternalAgents" xml:space="preserve"><value>外部 Agent</value></data>
+  <data name="ExternalAgentsDescription" xml:space="preserve"><value>让 Codex、Claude Code 或其他 Streamable HTTP MCP 客户端接入 AgentDock，使用其工具、任务、审批和活动审计能力。</value></data>
+  <data name="ExternalAgentConnection" xml:space="preserve"><value>AgentDock MCP 连接</value></data>
+  <data name="ExternalAgentEndpointSource" xml:space="preserve"><value>连接目标</value></data>
+  <data name="ExternalAgentLocalEndpoint" xml:space="preserve"><value>本地 MCP · 当前电脑</value></data>
+  <data name="ExternalAgentPublicEndpoint" xml:space="preserve"><value>公网 MCP · 远程 Agent</value></data>
+  <data name="ExternalAgentEndpoint" xml:space="preserve"><value>MCP 地址</value></data>
+  <data name="ExternalAgentClientSetup" xml:space="preserve"><value>客户端配置</value></data>
+  <data name="ExternalAgentClient" xml:space="preserve"><value>Agent 客户端</value></data>
+  <data name="ExternalAgentCodex" xml:space="preserve"><value>Codex</value></data>
+  <data name="ExternalAgentClaudeCode" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="ExternalAgentGenericMcp" xml:space="preserve"><value>通用 MCP JSON</value></data>
+  <data name="ExternalAgentSetupPrompt" xml:space="preserve"><value>Agent 接入提示词</value></data>
+  <data name="CopyEndpoint" xml:space="preserve"><value>复制地址</value></data>
+  <data name="CopyConfiguration" xml:space="preserve"><value>复制配置</value></data>
+  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>生成的配置不包含凭据，优先使用 OAuth。缺少 OAuth 的客户端应通过环境变量或密钥管理器使用现有 Bearer 凭据。AgentDock 的权限、审批、工作区边界和活动记录继续生效。</value></data>
+  <data name="ExternalAgentInvalidEndpoint" xml:space="preserve"><value>需要有效的 AgentDock HTTP(S) MCP 地址，并以 /mcp 结尾。</value></data>
+  <data name="ExternalAgentEndpointUnavailable" xml:space="preserve"><value>AgentDock MCP 地址不可用，请启动 Core 或刷新运行状态。</value></data>
+  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>已就绪 · 使用 OAuth 发现，并继续执行 AgentDock 现有权限控制。</value></data>
+  <data name="ExternalAgentEndpointCopied" xml:space="preserve"><value>MCP 地址已复制。</value></data>
+  <data name="ExternalAgentConfigurationCopied" xml:space="preserve"><value>Agent 配置已复制。</value></data>
+  <data name="ExternalAgentCopyFailed" xml:space="preserve"><value>复制失败：{0}</value></data>
+  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>通过 {0} 的 Streamable HTTP MCP 服务连接 AgentDock Workbench，并将服务注册为 &quot;agentdock&quot;，优先使用 OAuth 发现。连接后先调用一次 agentdock_context；context_diagnostics.complete=true 时复用已返回的上下文。遵守 AgentDock 的工作区、审批和权限边界，不要把访问凭据写入提示词、日志、聊天记录或项目文件。</value></data>
 </root>

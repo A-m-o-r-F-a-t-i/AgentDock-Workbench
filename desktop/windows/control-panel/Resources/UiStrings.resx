@@ -936,4 +936,27 @@ Update now?</value>
   <data name="PublicMetadataMismatch" xml:space="preserve"><value>Metadata does not match the current origin</value></data>
   <data name="PublicDiscoveryAuthorizationRequired" xml:space="preserve"><value>Public endpoint reachable; authentication discovery passed</value></data>
   <data name="PublicOAuthCapabilitiesMissing" xml:space="preserve"><value>OAuth metadata is missing authorization code, S256 or refresh support.</value></data>
+  <data name="ExternalAgents" xml:space="preserve"><value>External agents</value></data>
+  <data name="ExternalAgentsDescription" xml:space="preserve"><value>Connect Codex, Claude Code, or another Streamable HTTP MCP client so it can use AgentDock tools, tasks, approvals, and audit records.</value></data>
+  <data name="ExternalAgentConnection" xml:space="preserve"><value>AgentDock MCP connection</value></data>
+  <data name="ExternalAgentEndpointSource" xml:space="preserve"><value>Connection target</value></data>
+  <data name="ExternalAgentLocalEndpoint" xml:space="preserve"><value>Local MCP · this computer</value></data>
+  <data name="ExternalAgentPublicEndpoint" xml:space="preserve"><value>Public MCP · remote agents</value></data>
+  <data name="ExternalAgentEndpoint" xml:space="preserve"><value>MCP endpoint</value></data>
+  <data name="ExternalAgentClientSetup" xml:space="preserve"><value>Client configuration</value></data>
+  <data name="ExternalAgentClient" xml:space="preserve"><value>Agent client</value></data>
+  <data name="ExternalAgentCodex" xml:space="preserve"><value>Codex</value></data>
+  <data name="ExternalAgentClaudeCode" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="ExternalAgentGenericMcp" xml:space="preserve"><value>Generic MCP JSON</value></data>
+  <data name="ExternalAgentSetupPrompt" xml:space="preserve"><value>Agent setup prompt</value></data>
+  <data name="CopyEndpoint" xml:space="preserve"><value>Copy endpoint</value></data>
+  <data name="CopyConfiguration" xml:space="preserve"><value>Copy configuration</value></data>
+  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>Generated configuration contains no credentials. OAuth is preferred. Clients without OAuth should keep the existing Bearer credential in an environment variable or secret manager. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply.</value></data>
+  <data name="ExternalAgentInvalidEndpoint" xml:space="preserve"><value>A valid AgentDock HTTP(S) MCP endpoint ending in /mcp is required.</value></data>
+  <data name="ExternalAgentEndpointUnavailable" xml:space="preserve"><value>The AgentDock MCP endpoint is unavailable. Start Core or refresh the runtime status.</value></data>
+  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>Ready · OAuth discovery and existing AgentDock permission controls apply.</value></data>
+  <data name="ExternalAgentEndpointCopied" xml:space="preserve"><value>MCP endpoint copied.</value></data>
+  <data name="ExternalAgentConfigurationCopied" xml:space="preserve"><value>Agent configuration copied.</value></data>
+  <data name="ExternalAgentCopyFailed" xml:space="preserve"><value>Copy failed: {0}</value></data>
+  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>Connect to AgentDock Workbench through the Streamable HTTP MCP server at {0}. Register it as &quot;agentdock&quot; and prefer OAuth discovery. After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files.</value></data>
 </root>

@@ -54,6 +54,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let applyButton = NSButton(title: L10n.text("Configure and enable"), target: nil, action: nil)
     private let permissionsButton = NSButton(title: L10n.text("Check permissions"), target: nil, action: nil)
     private let advancedButton = NSButton(title: L10n.text("Advanced settings"), target: nil, action: nil)
+    private let externalAgentsButton = NSButton(title: L10n.text("External agents…"), target: nil, action: nil)
     private let logsButton = NSButton(title: L10n.text("Open logs"), target: nil, action: nil)
 
     private var currentStatus = ServiceStatus.missing
@@ -84,6 +85,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private var publicCheckTask: Task<Void, Never>?
 
     private var advancedSettings: AdvancedSettingsWindowController?
+    private var externalAgentAccessWindow: ExternalAgentAccessWindowController?
     private lazy var permissionsWindow = DesktopPermissionsWindowController()
 
     init(
@@ -136,6 +138,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             subtitleLabel.stringValue = L10n.text("Local MCP service and public access management")
             applyButton.title = L10n.text("Apply changes")
             advancedButton.isEnabled = !controlsLocked
+            externalAgentsButton.isEnabled = !controlsLocked
             logsButton.isEnabled = true
             serviceSection.isHidden = false
             updateServiceSection(status)
@@ -148,6 +151,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             applyButton.title = L10n.text("Configure and enable")
             applyButton.isEnabled = true
             advancedButton.isEnabled = false
+            externalAgentsButton.isEnabled = false
             logsButton.isEnabled = false
             serviceSection.isHidden = true
             authTokenValue = ""
@@ -155,6 +159,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             select(mode: .local)
         }
         updateNexusState(status.nexusConnection)
+        externalAgentAccessWindow?.update(status: status)
         refreshCredentialFields()
         refreshChangeState()
         updateWindowHeight()
@@ -182,6 +187,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
         guard status.installed else { return }
         updateServiceSection(status)
         updateNexusState(status.nexusConnection)
+        externalAgentAccessWindow?.update(status: status)
         refreshCredentialFields()
     }
 
@@ -331,12 +337,15 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
         advancedButton.bezelStyle = .inline
         advancedButton.target = self
         advancedButton.action = #selector(openAdvancedPressed)
+        externalAgentsButton.bezelStyle = .inline
+        externalAgentsButton.target = self
+        externalAgentsButton.action = #selector(openExternalAgentsPressed)
         applyButton.bezelStyle = .rounded
         applyButton.keyEquivalent = "\r"
         applyButton.target = self
         applyButton.action = #selector(applyPressed)
 
-        let footer = NSStackView(views: [logsButton, permissionsButton, advancedButton, progress, statusLabel, NSView(), applyButton])
+        let footer = NSStackView(views: [logsButton, permissionsButton, advancedButton, externalAgentsButton, progress, statusLabel, NSView(), applyButton])
         footer.orientation = .horizontal
         footer.alignment = .centerY
         footer.spacing = 10
@@ -409,6 +418,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             startStopButton.isEnabled = status.installed && !migrationRequired
             restartButton.isEnabled = status.installed && !status.requiresApproval && !migrationRequired
             updateButton.isEnabled = status.installed && !migrationRequired
+            externalAgentsButton.isEnabled = status.installed
         }
     }
 
@@ -732,6 +742,15 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
         }
         advancedSettings?.present(status: currentStatus)
     }
+
+    @objc private func openExternalAgentsPressed() {
+        guard currentStatus.installed else { return }
+        if externalAgentAccessWindow == nil {
+            externalAgentAccessWindow = ExternalAgentAccessWindowController()
+        }
+        externalAgentAccessWindow?.present(status: currentStatus)
+    }
+
     @objc private func openLogsPressed() { service.openLogs() }
 
     @objc private func testPublicAddressPressed() {
@@ -808,8 +827,9 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private func setBusy(_ busy: Bool) {
         isBusy = busy
         let locked = controlsLocked
-        for control in [publicMode, serverURLField, tunnelTokenField, startStopButton, restartButton, updateButton, advancedButton] {
-            control.isEnabled = !locked && (control !== advancedButton || currentStatus.installed)
+        for control in [publicMode, serverURLField, tunnelTokenField, startStopButton, restartButton, updateButton, advancedButton, externalAgentsButton] {
+            let requiresInstallation = control === advancedButton || control === externalAgentsButton
+            control.isEnabled = !locked && (!requiresInstallation || currentStatus.installed)
         }
         if !locked && migrationRequired {
             startStopButton.isEnabled = false
