@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/fs/filelock"
 )
 
@@ -102,5 +103,69 @@ func TestTaskIndexLockAdmissionHonorsCancellation(t *testing.T) {
 		release()
 		<-done
 		t.Fatal("canceled task index request remained queued behind the store lock")
+	}
+}
+
+func TestTaskIndexKeepsBoundTaskAndPrefersWorkspace(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := s.Create("bound current task", "goal", []string{"verified"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetWorkspace(bound.ID, "wsp_current"); err != nil {
+		t.Fatal(err)
+	}
+	related, err := s.Create("related workspace task", "goal", []string{"verified"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetWorkspace(related.ID, "wsp_current"); err != nil {
+		t.Fatal(err)
+	}
+	for range 8 {
+		other, createErr := s.Create("newer unrelated task", "goal", []string{"verified"}, nil, nil)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = s.SetWorkspace(other.ID, "wsp_other"); createErr != nil {
+			t.Fatal(createErr)
+		}
+	}
+	ctx := activity.WithExecutionScope(context.Background(), activity.Binding{TaskID: bound.ID, ThreadID: MainThreadID, WorkspaceID: "wsp_current"})
+	index, err := s.Discover(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(index.Items) != MaxTaskIndexItems || index.Items[0].TaskID != bound.ID || index.Items[1].TaskID != related.ID {
+		t.Fatalf("context recovery priority lost: %+v", index.Items)
+	}
+}
+
+func TestTaskIndexRestoresConversationBoundThread(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.Create("multi-thread task", "goal", []string{"verified"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	branch, err := s.CreateThread(task.ID, MainThreadID, false, ThreadInput{Title: "conversation branch", WorkspaceID: "wsp_branch"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := activity.WithExecutionScope(context.Background(), activity.Binding{TaskID: task.ID, ThreadID: branch.ID, WorkspaceID: "wsp_branch"})
+	index, err := s.Discover(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(index.Items) == 0 || index.Items[0].TaskID != task.ID || index.Items[0].ActiveThread == nil {
+		t.Fatalf("bound task missing: %+v", index.Items)
+	}
+	if index.Items[0].ActiveThread.ID != branch.ID || index.Items[0].WorkspaceID != "wsp_branch" {
+		t.Fatalf("bound thread not restored: %+v", index.Items[0])
 	}
 }
