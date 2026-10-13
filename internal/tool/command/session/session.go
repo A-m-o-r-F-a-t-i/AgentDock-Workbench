@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
-	"github.com/uvwt/agentdock/internal/textutil"
 )
 
 type PreparationStatus struct {
@@ -61,8 +59,8 @@ type Session struct {
 	completed          bool
 	exitCode           int
 	waitErr            error
-	stdout             bytes.Buffer
-	stderr             bytes.Buffer
+	stdout             outputBuffer
+	stderr             outputBuffer
 	stdoutTotalBytes   int
 	stderrTotalBytes   int
 	stdoutDroppedBytes int
@@ -565,18 +563,8 @@ func (s *Session) Peek(status string, maxBytes int) Snapshot {
 func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stdoutFull := s.stdout.String()
-	stderrFull := s.stderr.String()
-	stdoutSegment := stdoutFull
-	stderrSegment := stderrFull
-	if s.stdoutCursor > 0 && s.stdoutCursor <= len(stdoutFull) {
-		stdoutSegment = stdoutFull[s.stdoutCursor:]
-	}
-	if s.stderrCursor > 0 && s.stderrCursor <= len(stderrFull) {
-		stderrSegment = stderrFull[s.stderrCursor:]
-	}
-	stdout := trim(stdoutSegment, maxBytes)
-	stderr := trim(stderrSegment, maxBytes)
+	stdout, stdoutAvailable := s.stdout.stringFrom(s.stdoutCursor, maxBytes)
+	stderr, stderrAvailable := s.stderr.stringFrom(s.stderrCursor, maxBytes)
 	if advance {
 		// Keep the undelivered suffix available, including bytes held back at a UTF-8 boundary.
 		s.stdoutCursor += len(stdout)
@@ -597,10 +585,10 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 		StdoutOutputBytes: len([]byte(stdout)), StderrOutputBytes: len([]byte(stderr)),
 		StdoutTotalBytes: s.stdoutTotalBytes, StderrTotalBytes: s.stderrTotalBytes,
 		StdoutDroppedBytes: s.stdoutDroppedBytes, StderrDroppedBytes: s.stderrDroppedBytes,
-		StdoutOmittedBytes: omittedBytes(stdoutSegment, maxBytes), StderrOmittedBytes: omittedBytes(stderrSegment, maxBytes),
+		StdoutOmittedBytes: stdoutAvailable - len(stdout), StderrOmittedBytes: stderrAvailable - len(stderr),
 		StdoutOutputLines: countLines(stdout), StderrOutputLines: countLines(stderr),
-		StdoutTruncated: maxBytes > 0 && len([]byte(stdoutSegment)) > maxBytes,
-		StderrTruncated: maxBytes > 0 && len([]byte(stderrSegment)) > maxBytes,
+		StdoutTruncated: maxBytes > 0 && stdoutAvailable > maxBytes,
+		StderrTruncated: maxBytes > 0 && stderrAvailable > maxBytes,
 		Completed:       s.completed, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
 		CommandOK: s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		Runtime:   s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
@@ -621,30 +609,17 @@ func (w sessionOutputWriter) Write(data []byte) (int, error) {
 	if w.stderr {
 		dst = &s.stderr
 	}
-	n, err := dst.Write(data)
+	n, dropped := dst.append(data)
 	if w.stderr {
 		s.stderrTotalBytes += n
-		dropped := trimBuffer(dst, 4*1024*1024)
 		s.stderrDroppedBytes += dropped
 		s.stderrCursor = adjustCursorAfterDrop(s.stderrCursor, dropped)
 	} else {
 		s.stdoutTotalBytes += n
-		dropped := trimBuffer(dst, 4*1024*1024)
 		s.stdoutDroppedBytes += dropped
 		s.stdoutCursor = adjustCursorAfterDrop(s.stdoutCursor, dropped)
 	}
-	return n, err
-}
-
-func trim(value string, maxBytes int) string {
-	return textutil.SafeTruncateString(value, maxBytes).Text
-}
-
-func omittedBytes(value string, maxBytes int) int {
-	if maxBytes <= 0 || len([]byte(value)) <= maxBytes {
-		return 0
-	}
-	return len([]byte(value)) - len([]byte(trim(value, maxBytes)))
+	return n, nil
 }
 
 func countLines(value string) int {
@@ -656,18 +631,6 @@ func countLines(value string) int {
 		count++
 	}
 	return count
-}
-
-func trimBuffer(buf *bytes.Buffer, limit int) int {
-	if limit <= 0 || buf.Len() <= limit {
-		return 0
-	}
-	data := buf.Bytes()
-	dropped := len(data) - limit
-	kept := append([]byte(nil), data[dropped:]...)
-	buf.Reset()
-	_, _ = buf.Write(kept)
-	return dropped
 }
 
 func adjustCursorAfterDrop(cursor, dropped int) int {
