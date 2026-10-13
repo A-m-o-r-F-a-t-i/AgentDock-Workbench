@@ -385,7 +385,7 @@ func toolEnvelope(name string, structured any, err error) map[string]any {
 				}
 			}
 		}
-		return appendMCPCatalog(map[string]any{"isError": true, "structuredContent": payload, "content": []map[string]any{{"type": "text", "text": pretty(payload)}}}, name)
+		return appendMCPCatalog(map[string]any{"isError": true, "structuredContent": payload, "content": []map[string]any{{"type": "text", "text": toolResultText(name, payload)}}}, name)
 	}
 	if name == "view_image" {
 		payload := asMap(structured)
@@ -398,7 +398,7 @@ func toolEnvelope(name string, structured any, err error) map[string]any {
 	if name == "mcp_tool_call" {
 		return appendMCPCatalog(dynamicMCPToolEnvelope(structured), name)
 	}
-	return map[string]any{"isError": false, "structuredContent": structured, "content": []map[string]any{{"type": "text", "text": pretty(structured)}}}
+	return map[string]any{"isError": false, "structuredContent": structured, "content": []map[string]any{{"type": "text", "text": toolResultText(name, structured)}}}
 }
 
 func dynamicMCPToolEnvelope(structured any) map[string]any {

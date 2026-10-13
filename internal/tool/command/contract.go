@@ -35,9 +35,18 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["tty"] = boolProp("Keep stdin open.")
 		required = []string{"cmd"}
 	case ToolSessionObserve:
-		props["action"] = map[string]any{"type": "string", "description": "Read-only session action.", "enum": []string{"list", "status"}}
-		props["session_id"] = stringProp("Session id returned by exec_command, required for status.")
-		props["max_output_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 65536 and is capped at 4194304.", 1, MaxOutputBytes)
+		props["action"] = map[string]any{
+			"type":        "string",
+			"description": "Required command-session action. Use status with the exact session_id returned by exec_command when status=running. list is recovery-only and must not be used for conversation, task, MCP, browser, or general AgentDock state.",
+			"enum":        []string{"list", "status"},
+		}
+		props["session_id"] = map[string]any{
+			"type":        "string",
+			"minLength":   1,
+			"description": "Exact session id returned by exec_command; required only for status.",
+		}
+		props["max_output_bytes"] = boundedIntProp("Maximum stdout/stderr bytes for status. Defaults to 65536 and is capped at 4194304. Invalid for list.", 1, MaxOutputBytes)
+		return sessionObserveInputSchema(props), true
 	case ToolSessionAct:
 		props["action"] = map[string]any{"type": "string", "description": "Mutating session action.", "enum": []string{"write", "kill", "kill_all"}}
 		props["session_id"] = stringProp("Session id returned by exec_command, required for write/kill.")
@@ -47,6 +56,31 @@ func InputSchema(name string) (map[string]any, bool) {
 		return nil, false
 	}
 	return toolcontract.InputObject(props, required...), true
+}
+
+func sessionObserveInputSchema(properties map[string]any) map[string]any {
+	schema := toolcontract.InputObject(properties, "action")
+	schema["oneOf"] = []map[string]any{
+		{
+			"type": "object",
+			"properties": map[string]any{
+				"action": map[string]any{"const": "list"},
+			},
+			"required":             []string{"action"},
+			"additionalProperties": false,
+		},
+		{
+			"type": "object",
+			"properties": map[string]any{
+				"action":           map[string]any{"const": "status"},
+				"session_id":       properties["session_id"],
+				"max_output_bytes": properties["max_output_bytes"],
+			},
+			"required":             []string{"action", "session_id"},
+			"additionalProperties": false,
+		},
+	}
+	return schema
 }
 
 func OutputSchema(name string) (map[string]any, bool) {

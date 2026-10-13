@@ -4,16 +4,29 @@ import "strings"
 
 func (s *Service) Observe(request SessionObserveRequest) (Result, error) {
 	action := strings.ToLower(strings.TrimSpace(request.Action))
-	if action == "" {
-		action = "list"
-	}
 	switch action {
 	case "list":
+		if strings.TrimSpace(request.SessionID) != "" || request.MaxOutputBytes != nil {
+			return nil, toolErrorDetails(
+				"INVALID_ARGUMENT",
+				"session_id and max_output_bytes are invalid for session_observe action=list",
+				"validation",
+				map[string]any{"action": action, "allowed_arguments": []string{"action"}},
+			)
+		}
 		return s.listSessions()
 	case "status":
+		if strings.TrimSpace(request.SessionID) == "" {
+			return nil, toolErrorDetails(
+				"INVALID_ARGUMENT",
+				"session_id is required for session_observe action=status",
+				"validation",
+				map[string]any{"action": action, "required": []string{"session_id"}},
+			)
+		}
 		return s.sessionStatus(request)
 	default:
-		return nil, toolErrorDetails("INVALID_ACTION", "unsupported session_observe action", "validation", map[string]any{"action": request.Action, "allowed": []string{"list", "status"}})
+		return nil, toolErrorDetails("INVALID_ACTION", "session_observe action must be list or status", "validation", map[string]any{"action": request.Action, "allowed": []string{"list", "status"}})
 	}
 }
 
