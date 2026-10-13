@@ -22,7 +22,7 @@ func responseGuidanceSchema(original any) map[string]any {
 			"version":      map[string]any{"type": "integer", "const": 1},
 			"insertion_id": text(), "conversation_id": text(), "text": text(),
 			"attention":         map[string]any{"type": "string", "const": InsertionAttention},
-			"required_response": map[string]any{"type": "string", "const": InsertionResponseInstructions},
+			"required_response": map[string]any{"type": "string", "minLength": 1, "description": "Runtime instructions for this authenticated update; shared handling policy is in agentdock_context."},
 			"sequence":          map[string]any{"type": "integer", "minimum": 1},
 			"receipt_token":     map[string]any{"type": "string", "pattern": "^[a-f0-9]{32}$"},
 			"delivery_attempt":  map[string]any{"type": "integer", "minimum": 1, "maximum": 6},

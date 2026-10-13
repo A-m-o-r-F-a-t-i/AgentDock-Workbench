@@ -27,7 +27,13 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	properties["binding_updated"] = map[string]any{"type": "boolean"}
 	properties["output_policy"] = map[string]any{"type": "object", "additionalProperties": true, "description": "Budget for declared ordinary text fields, separate from control metadata and complete rules. Includes actual storage/continuation state when shortened."}
 	properties["agentdock_guidance"] = responseGuidanceSchema(properties["agentdock_guidance"])
-	success["properties"] = properties
+	// Publish shared metadata once at the visible root. The success alternative
+	// references that same contract, preserving its required-field validation.
+	successProperties := maps.Clone(properties)
+	for _, name := range []string{"agentdock_guidance", "permission", "workspace_target", "conversation_state", "output_policy"} {
+		successProperties[name] = map[string]any{"$ref": "#/properties/" + name}
+	}
+	success["properties"] = successProperties
 	pending := map[string]any{"type": "object", "properties": map[string]any{
 		"status": map[string]any{"const": "pending_approval"}, "executed": map[string]any{"const": false},
 		"approval_id": map[string]any{"type": "string", "pattern": "^approval_[a-f0-9]{32}$"},
