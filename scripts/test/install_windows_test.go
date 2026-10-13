@@ -564,9 +564,9 @@ func TestWindowsTaskAdminUsesNativeAgentDockHelper(t *testing.T) {
 		"restore",
 		"remove",
 		"set-enabled",
-		"StopInstalledCore",
-		"InstalledCorePaths",
-		"new[] { \"agentdock\", \"agentdock-core\" }",
+		"StopInstalledRuntime",
+		"InstalledRuntimePaths",
+		"RuntimeProcessNames = [\"agentdock-tray\", \"agentdock\", \"agentdock-core\"]",
 		"active-version.json",
 		"fallback_version",
 		"--task-name",
@@ -577,6 +577,11 @@ func TestWindowsTaskAdminUsesNativeAgentDockHelper(t *testing.T) {
 		"RecoveryFiles.WriteText",
 		"VerifyRestoredBackup",
 		"process.Kill(entireProcessTree: true)",
+		"process.WaitForExit(",
+		"RuntimeFilesReadyForReplacement",
+		"FileAccess.ReadWrite",
+		"Path.Combine(root, \"bin\", \"agentdock-tray.exe\")",
+		"Path.Combine(generationRoot, \"agentdock-tray.exe\")",
 	} {
 		if !strings.Contains(source, want) {
 			t.Fatalf("TaskAdminService.cs missing %q", want)
