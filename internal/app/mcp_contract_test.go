@@ -53,6 +53,15 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_diagnostics")
 			actualOutput = maps.Clone(actualOutput)
 			rootProperties := maps.Clone(actualOutput["properties"].(map[string]any))
+			runtimeSchema := maps.Clone(rootProperties["runtime"].(map[string]any))
+			for _, field := range []string{"build_commit", "build_date"} {
+				property := runtimeSchema["properties"].(map[string]any)[field]
+				if !reflect.DeepEqual(property, map[string]any{"type": "string", "minLength": 1}) {
+					t.Fatalf("invalid local runtime metadata schema %s: %#v", field, property)
+				}
+				runtimeSchema = withoutLocalContextProperty(t, runtimeSchema, field)
+			}
+			rootProperties["runtime"] = runtimeSchema
 			dynamic := maps.Clone(rootProperties["dynamic_mcp"].(map[string]any))
 			item := dynamic["items"].(map[string]any)
 			for field, kind := range map[string]string{"revision": "string", "server_version": "string", "tool_count_known": "boolean"} {

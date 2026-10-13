@@ -144,6 +144,52 @@ func TestTaskIndexKeepsBoundTaskAndPrefersWorkspace(t *testing.T) {
 	}
 }
 
+func TestTaskIndexWorkspaceScopeExcludesUnrelatedCandidates(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := s.Create("bound current task", "goal", []string{"verified"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetWorkspace(bound.ID, "wsp_current"); err != nil {
+		t.Fatal(err)
+	}
+	related, err := s.Create("related workspace task", "goal", []string{"verified"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetWorkspace(related.ID, "wsp_current"); err != nil {
+		t.Fatal(err)
+	}
+	for range 8 {
+		other, createErr := s.Create("unrelated task", "goal", []string{"verified"}, nil, nil)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = s.SetWorkspace(other.ID, "wsp_other"); createErr != nil {
+			t.Fatal(createErr)
+		}
+	}
+	ctx := activity.WithExecutionScope(context.Background(), activity.Binding{TaskID: bound.ID, ThreadID: MainThreadID, WorkspaceID: "wsp_current"})
+	index, err := s.DiscoverForWorkspace(ctx, "wsp_current")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index.ActiveCount != 10 || index.BlockedCount != 0 || !index.Truncated || index.ReturnedCount != 2 {
+		t.Fatalf("workspace index metadata = %+v", index)
+	}
+	if len(index.Items) != 2 || index.Items[0].TaskID != bound.ID || index.Items[1].TaskID != related.ID {
+		t.Fatalf("workspace index leaked unrelated tasks: %+v", index.Items)
+	}
+	for _, item := range index.Items {
+		if item.WorkspaceID != "wsp_current" {
+			t.Fatalf("workspace index returned foreign item: %+v", item)
+		}
+	}
+}
+
 func TestTaskIndexRestoresConversationBoundThread(t *testing.T) {
 	s, err := New(t.TempDir())
 	if err != nil {
