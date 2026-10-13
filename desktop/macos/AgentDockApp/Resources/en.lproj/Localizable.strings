@@ -731,3 +731,26 @@
 "Rebind plugin source and update?" = "Rebind plugin source and update?";
 
 "The installed source differs from the selected package. Confirm this source change explicitly." = "The installed source differs from the selected package. Confirm this source change explicitly.";
+
+"External agents…" = "External agents…";
+"External agent access" = "External agent access";
+"Connect Codex, Claude Code, or another Streamable HTTP MCP client to AgentDock." = "Connect Codex, Claude Code, or another Streamable HTTP MCP client to AgentDock.";
+"Local MCP · this Mac" = "Local MCP · this Mac";
+"Public MCP · remote agents" = "Public MCP · remote agents";
+"Connection target" = "Connection target";
+"MCP endpoint" = "MCP endpoint";
+"Agent client" = "Agent client";
+"Codex" = "Codex";
+"Claude Code" = "Claude Code";
+"Generic MCP JSON" = "Generic MCP JSON";
+"Agent setup prompt" = "Agent setup prompt";
+"Configuration" = "Configuration";
+"Copy endpoint" = "Copy endpoint";
+"Copy configuration" = "Copy configuration";
+"Generated configuration contains no credentials. OAuth is preferred. Clients without OAuth should keep the existing Bearer credential in an environment variable or secret manager. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply." = "Generated configuration contains no credentials. OAuth is preferred. Clients without OAuth should keep the existing Bearer credential in an environment variable or secret manager. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply.";
+"A valid AgentDock HTTP(S) MCP endpoint ending in /mcp is required." = "A valid AgentDock HTTP(S) MCP endpoint ending in /mcp is required.";
+"The AgentDock MCP endpoint is unavailable. Start Core or refresh the runtime status." = "The AgentDock MCP endpoint is unavailable. Start Core or refresh the runtime status.";
+"Ready · OAuth discovery and existing AgentDock permission controls apply." = "Ready · OAuth discovery and existing AgentDock permission controls apply.";
+"MCP endpoint copied." = "MCP endpoint copied.";
+"Agent configuration copied." = "Agent configuration copied.";
+"Connect to AgentDock Workbench through the Streamable HTTP MCP server at %@. Register it as \"agentdock\" and prefer OAuth discovery. After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files." = "Connect to AgentDock Workbench through the Streamable HTTP MCP server at %@. Register it as \"agentdock\" and prefer OAuth discovery. After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files.";

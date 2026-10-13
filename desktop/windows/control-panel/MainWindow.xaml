@@ -82,9 +82,9 @@
                   <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Text="{local:Loc LocalMCP}" VerticalAlignment="Center" Margin="0,0,0,10" />
-                <TextBox x:Name="LocalMcpTextBox" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Margin="0,0,0,10" />
+                <TextBox x:Name="LocalMcpTextBox" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Margin="0,0,0,10" TextChanged="ExternalAgentSourceTextChanged" />
                 <TextBlock Text="{local:Loc PublicMCP}" Grid.Row="1" VerticalAlignment="Center" Margin="0,0,0,10" />
-                <TextBox x:Name="PublicMcpTextBox" Grid.Row="1" Grid.Column="1" IsReadOnly="True" Margin="0,0,8,10" />
+                <TextBox x:Name="PublicMcpTextBox" Grid.Row="1" Grid.Column="1" IsReadOnly="True" Margin="0,0,8,10" TextChanged="ExternalAgentSourceTextChanged" />
                 <Button Grid.Row="1" Grid.Column="2" Content="{local:Loc Test}" Click="TestPublicButton_Click" />
                 <TextBlock Text="{local:Loc PublicCheck}" Grid.Row="2" VerticalAlignment="Center" />
                 <TextBlock x:Name="PublicTestStatusText" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{local:Loc NotChecked}" TextWrapping="Wrap" />
@@ -198,6 +198,118 @@
               <Button x:Name="RegenerateQuickButton" Content="{local:Loc RegenerateTemporaryAddress}" Click="RegenerateQuickButton_Click" />
             </StackPanel>
             <TextBlock x:Name="TunnelActionStatusText" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Tag="external-agents" Header="{local:Loc ExternalAgents}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="ExternalAgentsPanel"
+                      Margin="18"
+                      Loaded="ExternalAgentsPanel_Loaded"
+                      IsVisibleChanged="ExternalAgentsPanel_IsVisibleChanged">
+            <TextBlock Text="{local:Loc ExternalAgentsDescription}"
+                       Foreground="{DynamicResource SecondaryText}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,14" />
+
+            <GroupBox Header="{local:Loc ExternalAgentConnection}" Margin="0,0,0,12">
+              <Grid Margin="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="150" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="{local:Loc ExternalAgentEndpointSource}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                <ComboBox x:Name="ExternalAgentEndpointComboBox"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="0,0,0,10"
+                          SelectedIndex="0"
+                          SelectionChanged="ExternalAgentSelectionChanged">
+                  <ComboBoxItem Tag="local" Content="{local:Loc ExternalAgentLocalEndpoint}" />
+                  <ComboBoxItem x:Name="ExternalAgentPublicEndpointItem" Tag="public" Content="{local:Loc ExternalAgentPublicEndpoint}" />
+                </ComboBox>
+
+                <TextBlock Grid.Row="1" Text="{local:Loc ExternalAgentEndpoint}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                <TextBox x:Name="ExternalAgentEndpointTextBox"
+                         Grid.Row="1"
+                         Grid.Column="1"
+                         IsReadOnly="True"
+                         FontFamily="Consolas"
+                         Margin="0,0,8,10" />
+                <Button x:Name="CopyExternalAgentEndpointButton"
+                        Grid.Row="1"
+                        Grid.Column="2"
+                        Content="{local:Loc CopyEndpoint}"
+                        Click="CopyExternalAgentEndpoint_Click" />
+
+                <TextBlock x:Name="ExternalAgentStatusText"
+                           Grid.Row="2"
+                           Grid.Column="1"
+                           Grid.ColumnSpan="2"
+                           Foreground="{DynamicResource SecondaryText}"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Header="{local:Loc ExternalAgentClientSetup}">
+              <Grid Margin="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="150" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="{local:Loc ExternalAgentClient}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                <ComboBox x:Name="ExternalAgentClientComboBox"
+                          Grid.Column="1"
+                          Margin="0,0,0,10"
+                          SelectedIndex="0"
+                          SelectionChanged="ExternalAgentSelectionChanged">
+                  <ComboBoxItem Tag="codex" Content="{local:Loc ExternalAgentCodex}" />
+                  <ComboBoxItem Tag="claude-code" Content="{local:Loc ExternalAgentClaudeCode}" />
+                  <ComboBoxItem Tag="generic-mcp" Content="{local:Loc ExternalAgentGenericMcp}" />
+                  <ComboBoxItem Tag="agent-prompt" Content="{local:Loc ExternalAgentSetupPrompt}" />
+                </ComboBox>
+
+                <TextBox x:Name="ExternalAgentConfigurationTextBox"
+                         Grid.Row="1"
+                         Grid.ColumnSpan="2"
+                         Height="290"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         FontFamily="Consolas" />
+
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,10">
+                  <Button x:Name="CopyExternalAgentConfigurationButton"
+                          Content="{local:Loc CopyConfiguration}"
+                          Click="CopyExternalAgentConfiguration_Click" />
+                  <Button Content="{local:Loc Refresh}"
+                          Click="RefreshExternalAgentButton_Click" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="3"
+                           Grid.ColumnSpan="2"
+                           Text="{local:Loc ExternalAgentSecurityNote}"
+                           Foreground="{DynamicResource SecondaryText}"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </GroupBox>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
