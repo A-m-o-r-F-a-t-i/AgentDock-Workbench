@@ -28,11 +28,12 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 		wantInput, _ := mcpcontract.InputSchema(name)
 		spec, _ := toolSpecByName(name)
 		base, _ := spec.Contract(name, config.Config{})
-		actualInput, actualOutput := base.InputSchema, base.OutputSchema
-		if !reflect.DeepEqual(base.InputSchema, definition.InputSchema) {
-			t.Fatalf("%s public business contract was altered by execution metadata", name)
+		base = completeToolContract(name, base)
+		actualInput, actualOutput := base.ValidationInputSchema, base.ValidationOutputSchema
+		if !reflect.DeepEqual(base.PublicInputSchema, definition.InputSchema) {
+			t.Fatalf("%s public input contract drifted from its projection", name)
 		}
-		if !reflect.DeepEqual(executionOutputSchema(base.OutputSchema), definition.OutputSchema) {
+		if !reflect.DeepEqual(executionOutputSchema(base.PublicOutputSchema), definition.OutputSchema) {
 			t.Fatalf("%s execution output extension drifted", name)
 		}
 		if name == mcpcontract.ToolAgentDockContext {

@@ -13,7 +13,7 @@ func workspaceToolSpecs() []ToolSpec {
 			return ToolContract{}, false
 		}
 		output, ok := toolworkspace.OutputSchema(name, cfg)
-		return ToolContract{InputSchema: input, OutputSchema: output}, ok
+		return newToolContract(name, input, output), ok
 	}, Annotations: mutatingToolAnnotations(false, false), Handler: typedToolHandler(toolworkspace.ToolManage, func(ctx context.Context, r *Runtime, request toolworkspace.Request) (Result, error) {
 		return r.workspaceTools.Manage(ctx, request)
 	})}}

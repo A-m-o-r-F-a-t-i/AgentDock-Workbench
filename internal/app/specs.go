@@ -11,9 +11,14 @@ import (
 
 type ToolHandler func(context.Context, *Runtime, map[string]any) (Result, error)
 
+// ToolContract separates the compact model-facing directory from the complete
+// Runtime validation contract. Public schemas may omit inherited execution
+// fields; validation schemas remain capability-owned and authoritative.
 type ToolContract struct {
-	InputSchema  map[string]any
-	OutputSchema map[string]any
+	PublicInputSchema      map[string]any
+	PublicOutputSchema     map[string]any
+	ValidationInputSchema  map[string]any
+	ValidationOutputSchema map[string]any
 }
 
 type ToolContractProvider func(string, config.Config) (ToolContract, bool)
@@ -80,6 +85,7 @@ func (s ToolSpec) definition(cfg config.Config) ToolDefinition {
 	if s.Contract != nil {
 		contract, _ = s.Contract(s.Name, cfg)
 	}
+	contract = completeToolContract(s.Name, contract)
 	annotations := cloneToolAnnotations(s.Annotations)
 	// Input contracts contain business arguments only. Transport identity and
 	// inherited execution scope never become model-supplied schema properties.
@@ -93,8 +99,8 @@ func (s ToolSpec) definition(cfg config.Config) ToolDefinition {
 		UIBinding:              toolUIBinding(s.Name),
 		FileArgRewritePaths:    append([]string(nil), s.FileArgRewritePaths...),
 		FileResultRewritePaths: append([]string(nil), s.FileResultRewritePaths...),
-		InputSchema:            contract.InputSchema,
-		OutputSchema:           executionOutputSchema(contract.OutputSchema),
+		InputSchema:            contract.PublicInputSchema,
+		OutputSchema:           executionOutputSchema(contract.PublicOutputSchema),
 		Annotations:            annotations,
 	}
 }
@@ -134,14 +140,24 @@ func compileAvailableToolContracts(cfg config.Config) ([]string, map[string]*too
 		if !spec.available(cfg) {
 			continue
 		}
-		definition := spec.definition(cfg)
-		if len(definition.InputSchema) == 0 {
+		contract, ok := spec.Contract(spec.Name, cfg)
+		if !ok {
+			return nil, nil, fmt.Errorf("tool %s has no contract", spec.Name)
+		}
+		contract = completeToolContract(spec.Name, contract)
+		if len(contract.PublicInputSchema) == 0 {
+			return nil, nil, fmt.Errorf("tool %s has no public input schema", spec.Name)
+		}
+		if len(contract.ValidationInputSchema) == 0 {
 			return nil, nil, fmt.Errorf("tool %s has no input schema", spec.Name)
 		}
-		if len(definition.OutputSchema) == 0 {
+		if len(contract.PublicOutputSchema) == 0 {
+			return nil, nil, fmt.Errorf("tool %s has no public output schema", spec.Name)
+		}
+		if len(contract.ValidationOutputSchema) == 0 {
 			return nil, nil, fmt.Errorf("tool %s has no output schema", spec.Name)
 		}
-		validator, err := compileBuiltInInputValidator(definition.InputSchema)
+		validator, err := compileBuiltInInputValidator(contract.ValidationInputSchema)
 		if err != nil {
 			return nil, nil, fmt.Errorf("compile %s input schema: %w", spec.Name, err)
 		}

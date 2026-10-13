@@ -31,15 +31,15 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	if !ok {
 		return ToolContract{}, false
 	}
-	contract.InputSchema = maps.Clone(contract.InputSchema)
-	input := maps.Clone(contract.InputSchema["properties"].(map[string]any))
+	contract.ValidationInputSchema = maps.Clone(contract.ValidationInputSchema)
+	input := maps.Clone(contract.ValidationInputSchema["properties"].(map[string]any))
 	input["workdir"] = map[string]any{
 		"type": "string", "maxLength": 4096,
 		"description": "Existing host workspace directory. Omit or use an empty string to inherit this conversation's workspace, falling back to the device default only when unbound. A complete response coordinates subsequent conversation binding in this call; running sessions and device defaults remain unchanged.",
 	}
-	contract.InputSchema["properties"] = input
-	contract.OutputSchema = maps.Clone(contract.OutputSchema)
-	output := maps.Clone(contract.OutputSchema["properties"].(map[string]any))
+	contract.ValidationInputSchema["properties"] = input
+	contract.ValidationOutputSchema = maps.Clone(contract.ValidationOutputSchema)
+	output := maps.Clone(contract.ValidationOutputSchema["properties"].(map[string]any))
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
 	output["android_executor"] = androidExecutorStatusSchema()
@@ -69,8 +69,8 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 			}
 		}
 	}
-	contract.OutputSchema["properties"] = output
-	return contract, true
+	contract.ValidationOutputSchema["properties"] = output
+	return newToolContract(name, contract.ValidationInputSchema, contract.ValidationOutputSchema), true
 }
 
 func instructionFilesSchema() map[string]any {
