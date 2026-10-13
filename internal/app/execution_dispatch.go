@@ -644,7 +644,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		if p.approvalID != "" {
 			r.watchApprovalCommand(p.approvalID, state.binding.CallID, stringArg(result, "session_id"))
 		}
-		return r.decorateExecution(result, p), nil
+		return compactExecutionSuccess(r.decorateExecution(result, p), p), nil
 	}
 	status := "succeeded"
 	if err != nil || resultReportsFailure(result) {
@@ -712,7 +712,7 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 		}
 		return nil, r.executionError(err, p.state)
 	}
-	return r.decorateExecution(result, p), nil
+	return compactExecutionSuccess(r.decorateExecution(result, p), p), nil
 }
 func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result {
 	r.rememberCapabilityAccess(p.state.binding, p.spec.Name, p.args, result)

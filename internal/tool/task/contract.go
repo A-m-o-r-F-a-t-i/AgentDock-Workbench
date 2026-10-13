@@ -85,6 +85,7 @@ func ManageOutputSchema(cfg config.Config) map[string]any {
 		"task_id":              stringProp("Persistent task id returned by create and usable with task lifecycle actions."),
 		"task":                 objectProp("Full persistent task state returned only by get."),
 		"task_summary":         objectProp("Compact task summary returned by task lifecycle actions."),
+		"checkpoint":           objectProp("Saved checkpoint receipt with status, step counts and persistence reference. Use thread_get for the complete thread."),
 		"review_status":        stringProp("Final review status when present: not_started, pass, or failed."),
 		"final_review":         objectProp("Compact final review state with status and counts."),
 		"tasks":                arrayProp("Compact task summaries ordered by most recent update."),
