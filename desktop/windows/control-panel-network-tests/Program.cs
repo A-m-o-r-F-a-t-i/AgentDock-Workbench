@@ -46,6 +46,7 @@ internal static class Program
         try
         {
             foreach (var name in variables) Environment.SetEnvironmentVariable(name, null);
+            PublicHandlerCompatibilityTests();
             await using var proxyA = new HttpFixture(request => Discovery(request, ProxyOrigin));
             await using var proxyB = new HttpFixture(request => Discovery(request, ProxyOrigin));
             var reservation = new TcpListener(IPAddress.Loopback, 0);
@@ -117,6 +118,37 @@ internal static class Program
             foreach (var (name, value) in savedEnvironment) Environment.SetEnvironmentVariable(name, value);
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
+    }
+
+    private static void PublicHandlerCompatibilityTests()
+    {
+        var remote = new Uri("https://agentdock-handler-fixture.invalid");
+        using (var native = RuntimeHttpClients.CreatePublicHandler(remote, winInetProxySessionCompatible: true))
+            Check(native is WinHttpHandler
+                {
+                    AutomaticRedirection: false,
+                    WindowsProxyUsePolicy: WindowsProxyUsePolicy.UseWinInetProxy,
+                    CookieUsePolicy: CookieUsePolicy.IgnoreCookies
+                }, "Compatible Windows systems retain fresh WinINet proxy discovery.");
+
+        using (var fallback = RuntimeHttpClients.CreatePublicHandler(remote, winInetProxySessionCompatible: false))
+            Check(fallback is SocketsHttpHandler
+                {
+                    UseProxy: true,
+                    AllowAutoRedirect: false,
+                    UseCookies: false
+                }, "WinHttpOpen error 87 falls back to the system-proxy HTTP transport.");
+
+        using (var local = RuntimeHttpClients.CreatePublicHandler(new Uri("http://127.0.0.1:8765"),
+            winInetProxySessionCompatible: false))
+            Check(local is SocketsHttpHandler
+                {
+                    UseProxy: false,
+                    AllowAutoRedirect: false,
+                    UseCookies: false
+                }, "Loopback control traffic remains direct regardless of public proxy compatibility.");
+
+        Completed.Add("winhttp-automatic-proxy-compatibility-fallback");
     }
 
     private static async Task Probe(string origin)
