@@ -130,6 +130,10 @@ internal static class Program
                 var own = outlines.Where(border => ReferenceEquals(border.TemplatedParent,groupBox)).ToArray();
                 Check(own.Length==1 && own[0].BorderThickness==new Thickness(2),"GroupBox must have one 2-DIP outline.");
                 Check(Named<ComboBox>(panel,"ThemePreferenceCombo") is not null,"Theme preference was lost during migration.");
+                var commandShell = Named<ComboBox>(panel,"WindowsCommandShellComboBox");
+                Check(commandShell.Items.Cast<ComboBoxItem>().Select(item=>item.Tag?.ToString())
+                    .SequenceEqual(new[] {"pwsh","cmd","git-bash"}),"Windows command shell choices or order changed.");
+                Check(commandShell.SelectedValue?.ToString()=="pwsh","Windows command shell no longer defaults to pwsh.");
                 typeof(MainWindow).GetMethod("CloseForReplacement", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(panel,null);
                 Directory.Delete(root,true);
             }

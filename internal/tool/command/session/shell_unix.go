@@ -8,7 +8,7 @@ import (
 	"os/exec"
 )
 
-func shellCommand(ctx context.Context, command string) *exec.Cmd {
+func shellCommand(ctx context.Context, _ string, command string) *exec.Cmd {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"

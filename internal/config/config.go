@@ -28,6 +28,7 @@ type Config struct {
 	AgentDockHome                string
 	AgentDockDefaultDir          string
 	CommandEnvFromEnv            map[string]string
+	WindowsCommandShell          string
 	Host                         string
 	Port                         int
 	AuthToken                    string
@@ -112,6 +113,10 @@ func FromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	windowsCommandShell, err := NormalizeWindowsCommandShell(os.Getenv("AGENTDOCK_WINDOWS_COMMAND_SHELL"))
+	if err != nil {
+		return Config{}, fmt.Errorf("AGENTDOCK_WINDOWS_COMMAND_SHELL: %w", err)
+	}
 	acpEnabled, err := getenvBool("AGENTDOCK_ACP_ENABLED", false)
 	if err != nil {
 		return Config{}, err
@@ -151,6 +156,7 @@ func FromEnv() (Config, error) {
 		AgentDockHome:                strings.TrimSpace(os.Getenv("AGENTDOCK_HOME")),
 		AgentDockDefaultDir:          strings.TrimSpace(os.Getenv("AGENTDOCK_DEFAULT_DIR")),
 		CommandEnvFromEnv:            commandEnvFromEnv,
+		WindowsCommandShell:          windowsCommandShell,
 		Host:                         getenv("AGENTDOCK_HOST", "127.0.0.1"),
 		Port:                         port,
 		AuthToken:                    os.Getenv("AGENTDOCK_AUTH_TOKEN"),
@@ -237,6 +243,10 @@ func (c *Config) Normalize() error {
 	}
 	if err := validateEnvironmentMapping(c.CommandEnvFromEnv); err != nil {
 		return fmt.Errorf("AGENTDOCK_COMMAND_ENV_FROM_ENV_JSON: %w", err)
+	}
+	c.WindowsCommandShell, err = NormalizeWindowsCommandShell(c.WindowsCommandShell)
+	if err != nil {
+		return fmt.Errorf("AGENTDOCK_WINDOWS_COMMAND_SHELL: %w", err)
 	}
 	if err := c.normalizeACP(); err != nil {
 		return err

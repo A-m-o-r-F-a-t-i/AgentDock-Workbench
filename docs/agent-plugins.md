@@ -100,9 +100,9 @@ Windows Desktop 启动由运行清单、控制面板设置和受保护凭据重�
 
 ## 运行配置页面
 
-“运行配置”页提供默认全局工作区、AGENTS.md 自动加载、额外指令文件、浏览器程序、可信代理 CIDR、命令环境变量引用、ACP 并发提示数和超时。保存前校验，成功后重启；失败恢复原设置，并独立于请求取消尝试恢复旧实例。数据目录及配置文件位置只读展示。
+“运行配置”页提供默认全局工作区、AGENTS.md 自动加载、额外指令文件、浏览器程序、可信代理 CIDR、命令环境变量引用、Windows 命令运行环境以及 ACP 并发提示数和超时。Windows 命令运行环境支持 `pwsh`、`cmd` 和 Git Bash，旧配置与新安装均默认使用 `pwsh`。保存前校验，成功后重启；失败恢复原设置，并独立于请求取消尝试恢复旧实例。数据目录及配置文件位置只读展示。
 
-配置保存在 `control-panel-settings.json.runtime_options`，默认工作区同步运行清单。`config runtime-get` 和 `config runtime-update` 为 GUI 提供同一原生 CLI 接口，不依赖正在运行的 Core。已有高级设置页负责端口、日志、MCP Apps、浏览器连接模式、ACP Profile 等参数，公网设置与凭据仍由专门页面管理。
+配置保存在 `control-panel-settings.json.runtime_options`，默认工作区同步运行清单。Git Bash 从 `git.exe` 所在安装目录及 Git for Windows 标准位置解析，未安装时命令会返回明确的可执行程序启动错误。`config runtime-get` 和 `config runtime-update` 为 GUI 提供同一原生 CLI 接口，不依赖正在运行的 Core。已有高级设置页负责端口、日志、MCP Apps、浏览器连接模式、ACP Profile 等参数，公网设置与凭据仍由专门页面管理。
 
 ## 验证与依据
 

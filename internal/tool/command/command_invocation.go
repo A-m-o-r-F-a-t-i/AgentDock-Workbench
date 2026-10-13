@@ -17,6 +17,7 @@ import (
 
 type commandInvocation struct {
 	command      string
+	shell        string
 	workdir      string
 	env          []string
 	external     session.ExternalFactory
@@ -32,7 +33,7 @@ func (invocation commandInvocation) start(ctx context.Context, timeout time.Dura
 	if invocation.build != nil {
 		return session.StartCommandWithTTY(ctx, invocation.build, timeout, tty, prepare)
 	}
-	return session.StartWithTTY(ctx, invocation.command, invocation.workdir, invocation.env, timeout, tty, prepare)
+	return session.StartWithShellTTY(ctx, invocation.shell, invocation.command, invocation.workdir, invocation.env, timeout, tty, prepare)
 }
 
 func (svc *Service) acquireSkill(ctx context.Context, skillRef string) (SkillLease, error) {
@@ -130,7 +131,7 @@ func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRe
 	}
 	releaseOnError = false
 	return commandInvocation{
-		command: request.Cmd, workdir: workdir, env: commandEnv, skillRelease: lease.Release,
+		command: request.Cmd, shell: svc.config().WindowsCommandShell, workdir: workdir, env: commandEnv, skillRelease: lease.Release,
 		execution: session.ExecutionContext{Runtime: runtime.GOOS, Workdir: workdir},
 	}, nil
 }

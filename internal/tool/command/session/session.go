@@ -404,8 +404,15 @@ func Start(ctx context.Context, command, workdir string, env []string, timeout t
 }
 
 func StartWithTTY(ctx context.Context, command, workdir string, env []string, timeout time.Duration, tty bool, prepare PrepareFunc) (*Session, PreparationStatus, error) {
+	return StartWithShellTTY(ctx, "", command, workdir, env, timeout, tty, prepare)
+}
+
+// StartWithShellTTY starts a command through the selected Windows command shell.
+// Non-Windows platforms ignore shell, and an empty Windows value preserves the
+// historical PowerShell default.
+func StartWithShellTTY(ctx context.Context, shell, command, workdir string, env []string, timeout time.Duration, tty bool, prepare PrepareFunc) (*Session, PreparationStatus, error) {
 	return StartCommandWithTTY(ctx, func(cmdCtx context.Context) *exec.Cmd {
-		cmd := shellCommand(cmdCtx, command)
+		cmd := shellCommand(cmdCtx, shell, command)
 		cmd.Dir = workdir
 		cmd.Env = env
 		return cmd

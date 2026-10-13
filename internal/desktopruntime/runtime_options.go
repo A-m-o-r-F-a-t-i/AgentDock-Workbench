@@ -26,6 +26,7 @@ type RuntimeOptions struct {
 	BrowserExecutablePath string            `json:"browser_executable_path"`
 	TrustedProxyCIDRs     []string          `json:"trusted_proxy_cidrs"`
 	CommandEnvFromEnv     map[string]string `json:"command_env_from_env"`
+	WindowsCommandShell   string            `json:"windows_command_shell"`
 	ACPMaxPrompts         int               `json:"acp_max_concurrent_prompts"`
 	ACPInteractionMS      int               `json:"acp_interaction_timeout_ms"`
 }
@@ -38,7 +39,7 @@ type RuntimeOptionsView struct {
 }
 
 func defaultRuntimeOptions() RuntimeOptions {
-	return RuntimeOptions{AgentsAutoLoad: true, ACPMaxPrompts: 2, ACPInteractionMS: 300000,
+	return RuntimeOptions{AgentsAutoLoad: true, WindowsCommandShell: agentconfig.WindowsCommandShellPwsh, ACPMaxPrompts: 2, ACPInteractionMS: 300000,
 		TrustedProxyCIDRs: []string{}, CommandEnvFromEnv: map[string]string{}}
 }
 
@@ -116,6 +117,11 @@ func normalizeRuntimeOptions(options RuntimeOptions) (RuntimeOptions, error) {
 	if err := agentconfig.ValidateEnvironmentMapping(options.CommandEnvFromEnv); err != nil {
 		return options, fmt.Errorf("命令环境变量引用无效: %w", err)
 	}
+	windowsCommandShell, err := agentconfig.NormalizeWindowsCommandShell(options.WindowsCommandShell)
+	if err != nil {
+		return options, fmt.Errorf("Windows 命令运行环境无效: %w", err)
+	}
+	options.WindowsCommandShell = windowsCommandShell
 	return options, nil
 }
 
@@ -131,6 +137,7 @@ func (options RuntimeOptions) environment() (map[string]string, error) {
 		"AGENTDOCK_BROWSER_EXECUTABLE_PATH":    options.BrowserExecutablePath,
 		"AGENTDOCK_TRUSTED_PROXY_CIDRS":        strings.Join(options.TrustedProxyCIDRs, ","),
 		"AGENTDOCK_COMMAND_ENV_FROM_ENV_JSON":  string(mapping),
+		"AGENTDOCK_WINDOWS_COMMAND_SHELL":      options.WindowsCommandShell,
 		"AGENTDOCK_ACP_MAX_CONCURRENT_PROMPTS": strconv.Itoa(options.ACPMaxPrompts),
 		"AGENTDOCK_ACP_INTERACTION_TIMEOUT_MS": strconv.Itoa(options.ACPInteractionMS),
 	}, nil

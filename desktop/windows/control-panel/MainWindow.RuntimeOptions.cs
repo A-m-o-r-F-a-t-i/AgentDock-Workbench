@@ -35,6 +35,9 @@ public partial class MainWindow
             TrustedProxyTextBox.Text = string.Join(Environment.NewLine, options.TrustedProxyCidrs ?? []);
             CommandEnvReferencesTextBox.Text = JsonSerializer.Serialize(options.CommandEnvFromEnv ?? [],
                 new JsonSerializerOptions { WriteIndented = true });
+            WindowsCommandShellComboBox.SelectedValue = options.WindowsCommandShell is "cmd" or "git-bash"
+                ? options.WindowsCommandShell
+                : "pwsh";
             AcpConcurrencyTextBox.Text = options.AcpMaxConcurrentPrompts.ToString(CultureInfo.InvariantCulture);
             AcpTimeoutTextBox.Text = options.AcpInteractionTimeoutMs.ToString(CultureInfo.InvariantCulture);
             AgentDockHomeTextBox.Text = view.AgentDockHome;
@@ -54,6 +57,7 @@ public partial class MainWindow
         _runtimeOptionsBusy = busy;
         SaveRuntimeOptionsButton.IsEnabled = !busy && _runtimeOptionsLoaded;
         ReloadRuntimeOptionsButton.IsEnabled = !busy;
+        WindowsCommandShellComboBox.IsEnabled = !busy;
     }
 
     private async void ReloadRuntimeOptions_Click(object sender, RoutedEventArgs e) => await LoadRuntimeOptionsAsync();
@@ -76,6 +80,11 @@ public partial class MainWindow
             {
                 throw new InvalidOperationException(UiText.Get("RuntimeOptionsInvalid"));
             }
+            var windowsCommandShell = WindowsCommandShellComboBox.SelectedValue?.ToString();
+            if (windowsCommandShell is not ("pwsh" or "cmd" or "git-bash"))
+            {
+                throw new InvalidOperationException(UiText.Get("RuntimeOptionsInvalid"));
+            }
             options = new RuntimeOptions
             {
                 DefaultDir = DefaultWorkspaceTextBox.Text.Trim(),
@@ -84,6 +93,7 @@ public partial class MainWindow
                 BrowserExecutablePath = BrowserExecutableTextBox.Text.Trim(),
                 TrustedProxyCidrs = TrustedProxyTextBox.Text.Split(['\r', '\n', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                 CommandEnvFromEnv = references,
+                WindowsCommandShell = windowsCommandShell,
                 AcpMaxConcurrentPrompts = concurrency,
                 AcpInteractionTimeoutMs = timeout
             };

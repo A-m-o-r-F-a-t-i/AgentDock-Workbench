@@ -17,6 +17,7 @@ func TestDesktopStartupIsolatesStaleInheritedRuntimeParameters(t *testing.T) {
 	for key, value := range map[string]string{"AGENTDOCK_INSTRUCTIONS_FILE": filepath.Join(root, "removed", "AGENTS.md"), "AGENTDOCK_PORT": "invalid", "AGENTDOCK_STDIO": "true", "AGENTDOCK_BROWSER_ENABLED": "invalid", "AGENTDOCK_ACP_ENABLED": "invalid", "AGENTDOCK_DEFAULT_DIR": "relative-obsolete", "AGENTDOCK_OAUTH_ACCESS_TOKEN_TTL": "broken"} {
 		t.Setenv(key, value)
 	}
+	t.Setenv("AGENTDOCK_WINDOWS_COMMAND_SHELL", "cmd")
 	manifest := Manifest{SchemaVersion: SchemaVersion, InstallRoot: root, AgentDockBinary: filepath.Join(root, "agentdock.exe"), AgentDockHome: filepath.Join(root, "home"), AgentDockDefaultDir: filepath.Join(root, "workspace"), Host: "127.0.0.1", Port: 19879, LocalMCPURL: "http://127.0.0.1:19879/mcp", TunnelMode: "none", InstallChannel: "test"}
 	if err := Save(filepath.Join(root, "runtime.json"), manifest); err != nil {
 		t.Fatal(err)
@@ -24,7 +25,7 @@ func TestDesktopStartupIsolatesStaleInheritedRuntimeParameters(t *testing.T) {
 	if err := platformPrepareCoreEnvironment(root); err != nil {
 		t.Fatal(err)
 	}
-	if os.Getenv("AGENTDOCK_INSTRUCTIONS_FILE") != "" || os.Getenv("AGENTDOCK_STDIO") != "" || os.Getenv("AGENTDOCK_DEFAULT_DIR") != manifest.AgentDockDefaultDir {
+	if os.Getenv("AGENTDOCK_INSTRUCTIONS_FILE") != "" || os.Getenv("AGENTDOCK_STDIO") != "" || os.Getenv("AGENTDOCK_DEFAULT_DIR") != manifest.AgentDockDefaultDir || os.Getenv("AGENTDOCK_WINDOWS_COMMAND_SHELL") != "pwsh" {
 		t.Fatal("stale parameters remained effective")
 	}
 	options := defaultRuntimeOptions()

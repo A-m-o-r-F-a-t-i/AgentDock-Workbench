@@ -3,6 +3,15 @@ using AgentDock.ControlPanel;
 var assertions = 0;
 void Check(bool condition, string name) { if (!condition) throw new InvalidOperationException(name); assertions++; }
 var now = DateTimeOffset.Parse("2026-09-22T12:00:00Z");
+var defaultRuntimeOptions = new RuntimeOptions();
+Check(defaultRuntimeOptions.WindowsCommandShell == "pwsh", "Windows command shell default changed");
+var serializedRuntimeOptions = System.Text.Json.JsonSerializer.Serialize(defaultRuntimeOptions);
+Check(serializedRuntimeOptions.Contains("\"windows_command_shell\":\"pwsh\"", StringComparison.Ordinal),
+    "Windows command shell was not persisted in runtime options");
+var gitBashRuntimeOptions = System.Text.Json.JsonSerializer.Deserialize<RuntimeOptions>("{\"windows_command_shell\":\"git-bash\"}");
+Check(gitBashRuntimeOptions?.WindowsCommandShell == "git-bash", "Windows command shell was not restored from runtime options");
+var legacyRuntimeOptions = System.Text.Json.JsonSerializer.Deserialize<RuntimeOptions>("{}");
+Check(legacyRuntimeOptions?.WindowsCommandShell == "pwsh", "Legacy runtime options no longer default to pwsh");
 Check(ConversationActivityPolicy.ActivityWindow.TotalMilliseconds == 120000 &&
       ConversationActivityPolicy.InsertionWindow.TotalMilliseconds == 180000 &&
       ConversationActivityPolicy.UnclaimedInsertionExpiry.TotalMilliseconds == 300000 &&
