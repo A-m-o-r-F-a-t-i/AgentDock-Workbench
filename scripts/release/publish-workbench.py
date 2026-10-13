@@ -14,6 +14,16 @@ from urllib.parse import quote
 ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY = 'A-m-o-r-F-a-t-i/AgentDock-Workbench'
 PRODUCT = 'AgentDock Workbench'
+ANDROID_RELEASE_CONFIG = Path('packaging/android/release-signing.json')
+
+
+def android_release_identity() -> tuple[str,str]:
+    path=ROOT/ANDROID_RELEASE_CONFIG
+    value=json.loads(path.read_text(encoding='utf-8-sig'))
+    alias=value.get('key_alias'); certificate=str(value.get('certificate_sha256','')).lower()
+    if value.get('schema_version')!=1 or not isinstance(alias,str) or not alias or not re.fullmatch(r'[a-f0-9]{64}',certificate):
+        raise RuntimeError('Invalid committed Android release signing identity')
+    return alias,certificate
 
 
 def run(*args: str) -> str:
@@ -53,7 +63,7 @@ def expected_payloads(version: str) -> list[str]:
         f'agentdock-workbench-{version}-1.x86_64.rpm',f'agentdock-workbench-{version}-1.aarch64.rpm',
         'install.sh','install.ps1']
     if tuple(map(int,version.split('.'))) >= (1,1,8):
-        payloads.append(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
+        payloads.append(f'AgentDock-Workbench-{version}-Android.apk')
     return payloads
 
 
@@ -74,7 +84,7 @@ def public_installers(version: str) -> list[str]:
         f'agentdock-workbench-{version}-1.aarch64.rpm',
     ]
     if tuple(map(int,version.split('.'))) >= (1,1,8):
-        installers.append(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
+        installers.append(f'AgentDock-Workbench-{version}-Android.apk')
     return installers
 
 
@@ -128,12 +138,18 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
             raise RuntimeError('Native Windows ARM64 installation evidence incomplete')
         reports.append(dict(arm_native,assets={}))
     android = None
+    android_release = None
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         android=read_report(inputs,'verification-android.json');identity(android,version,commit)
         expected_apis={26,33,34,35,37}
+        candidate_name=f'AgentDock-Workbench-{version}-Android-test-signed.apk'
+        candidate_assets=android.get('assets')
         if (android.get('product_name')!=PRODUCT or android.get('platform')!='android/arm64' or
+                android.get('signing')!='test-signed Android debug key' or
                 android.get('apk_validation')!='passed' or android.get('emulator_validation')!='passed' or
-                set(android.get('api_levels',[]))!=expected_apis or len(android.get('emulators',[]))!=5):
+                set(android.get('api_levels',[]))!=expected_apis or len(android.get('emulators',[]))!=5 or
+                not isinstance(candidate_assets,dict) or set(candidate_assets)!={candidate_name} or
+                not re.fullmatch(r'[a-f0-9]{64}',str(candidate_assets.get(candidate_name,'')))):
             raise RuntimeError('Android APK or five-API validation incomplete')
         if {row.get('api') for row in android['emulators']}!=expected_apis:
             raise RuntimeError('Android API evidence mismatch')
@@ -141,7 +157,24 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
             if (type(row.get('tests')) is not int or row['tests']<13 or row.get('passed')!=row['tests'] or
                     row.get('screenshots',0)<23 or row.get('attempt_exit_codes')!=[0]):
                 raise RuntimeError('Android navigation/screenshot evidence incomplete')
-        reports.append(android)
+        candidate_checksum=str(candidate_assets[candidate_name])
+        candidate=locate(inputs,candidate_name)
+        if digest(candidate)!=candidate_checksum or locate(inputs,candidate_name+'.sha256').read_text(encoding='utf-8-sig').strip()!=f'{candidate_checksum}  {candidate_name}':
+            raise RuntimeError('Android candidate bytes differ from verified evidence')
+        public_name=f'AgentDock-Workbench-{version}-Android.apk'
+        alias,certificate=android_release_identity()
+        android_release=read_report(inputs,'verification-android-release.json');identity(android_release,version,commit)
+        release_assets=android_release.get('assets')
+        if (android_release.get('product_name')!=PRODUCT or android_release.get('platform')!='android/arm64' or
+                android_release.get('signing')!='stable Android release key' or
+                android_release.get('release_signing_validation')!='passed' or
+                android_release.get('key_alias')!=alias or android_release.get('certificate_sha256')!=certificate or
+                android_release.get('source_apk')!={'name':candidate_name,'sha256':candidate_checksum} or
+                not isinstance(release_assets,dict) or set(release_assets)!={public_name} or
+                not re.fullmatch(r'[a-f0-9]{64}',str(release_assets.get(public_name,'')))):
+            raise RuntimeError('Stable Android release signing evidence is incomplete')
+        reports.append(dict(android,assets={}))
+        reports.append(android_release)
     scope=read_report(inputs/'windows','verification-scope.json');identity(scope,version,commit)
     if scope.get('resolved_commit')!=commit or scope.get('linux_tested_commit')!=commit:
         raise RuntimeError('Windows workflow lost its immutable validation source')
@@ -169,7 +202,7 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
     run('go','run','./tools/release','verify-dist',str(dist))
     manifest={'schema_version':1,'product_name':PRODUCT,'version':version,'commit':commit,'prerelease':prerelease,
               'platforms':[f'{platform}/{arch}' for platform in ['windows','linux','darwin'] for arch in ['amd64','arm64']]+(['android/arm64'] if android else []),
-              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization'], 'android':android['signing'] if android else 'not_included'},
+              'signing':{'windows':windows['agentdock_authenticode'],'macos':mac['codesign'],'macos_notarization':mac['notarization'], 'android':android_release['signing'] if android_release else 'not_included'},
               'validation':reports,'windows_verification_scope':scope,
               'assets':[{'name':name,'bytes':(dist/name).stat().st_size,'sha256':actual[name]} for name in sorted(payloads)]}
     (dist/'release-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
