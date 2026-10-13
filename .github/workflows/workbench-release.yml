@@ -327,6 +327,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: actions/download-artifact@v8
         with:
           pattern: workbench-*-${{ github.run_id }}
@@ -335,6 +339,26 @@ jobs:
         with:
           name: ${{ needs.windows.outputs.artifact_name }}
           path: input/windows
+      - name: Sign verified Android installer with the stable release identity
+        env:
+          ANDROID_RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
+          EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_RELEASE_KEYSTORE_B64"
+          test -n "$ANDROID_RELEASE_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_RELEASE_KEY_PASSWORD"
+          test -n "${ANDROID_HOME:-}"
+          if ! find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit | grep -q . || ! find "$ANDROID_HOME/build-tools" -type f -name zipalign -print -quit | grep -q .; then
+            sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+            test -x "$sdkmanager"
+            yes | "$sdkmanager" "build-tools;37.0.0" >/dev/null
+          fi
+          python3 scripts/release/sign-android-release.py --input input --output input/android-release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
       - name: Validate reports and assemble complete release
         env:
           EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}

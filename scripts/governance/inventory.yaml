@@ -123,6 +123,11 @@ scripts:
     public_contract: false
     notes: 合成桌面与Android产物验证缺包、摘要、跨提交证据、预发布Latest隔离和发布白名单，测试不调用网络写入。
     oversize_justification: 同一发布夹具覆盖旧版六平台门禁、1.1.8新增Android证据以及草稿复用、摘要校验和预发布通道的无网络写入回归。
+  - path: scripts/test/test-android-release-signing.py
+    class: test
+    owner: release
+    public_contract: false
+    notes: 使用隔离候选、密钥替身和签名工具替身验证Android公开APK的证据绑定、固定证书指纹及凭据缺失失败。
   - path: packaging/build-unix-release.py
     class: packaging
     owner: release
@@ -134,6 +139,11 @@ scripts:
     public_contract: false
     oversize_justification: 同一事务入口必须将跨平台同SHA证据、公开安装器白名单、远端Release数字身份、摘要校验、可恢复草稿以及显式同版本预发布替换绑定为一个原子发布边界；拆分会使验证后的本地制品与远端删除、上传、重新发布步骤失去共享身份和失败恢复状态。
     notes: 全平台同SHA报告和摘要校验，上传完整草稿后按显式通道发布；预发布保留正式Latest。
+  - path: scripts/release/sign-android-release.py
+    class: packaging
+    owner: release
+    public_contract: false
+    notes: 将已完成五API验证的测试签名Android候选对齐并用固定发布身份重签，校验证书指纹后生成公开APK与来源绑定报告。
   - path: scripts/test/check-workbench-brand.py
     class: test
     owner: release

@@ -21,7 +21,7 @@ class ReleaseGate(unittest.TestCase):
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
             'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
             'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
-            'AgentDock-Workbench-1.1.8-Android-test-signed.apk'])
+            'AgentDock-Workbench-1.1.8-Android.apk'])
         for name in release.public_installers('1.1.8'):
             self.assertFalse(name.endswith(('.zip','.tar.gz','.sha256')))
             self.assertNotIn(name,('install.sh','install.ps1','SHA256SUMS','release-manifest.json'))
@@ -132,21 +132,33 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     target_version='1.1.8'
     def setUp(self):
         super().setUp()
-        apk=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
+        candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
+        candidate_path=self.inputs/candidate;candidate_path.write_bytes(b'verified-android-candidate')
+        candidate_checksum=release.digest(candidate_path)
+        candidate_path.with_name(candidate+'.sha256').write_text(f'{candidate_checksum}  {candidate}\n')
+        public=f'AgentDock-Workbench-{self.version}-Android.apk'
+        alias,certificate=release.android_release_identity()
         self.reports['verification-android.json']={
             'version':self.version,'commit':self.commit,'product_name':release.PRODUCT,
             'platform':'android/arm64','apk_validation':'passed','emulator_validation':'passed',
             'api_levels':[26,33,34,35,37],'signing':'test-signed Android debug key',
             'physical_arm64_termux':'not_run',
             'emulators':[{'api':api,'tests':13,'passed':13,'screenshots':23,'attempt_exit_codes':[0]} for api in [26,33,34,35,37]],
-            'assets':{apk:release.digest(self.inputs/apk)}}
+            'assets':{candidate:candidate_checksum}}
+        self.reports['verification-android-release.json']={
+            'version':self.version,'commit':self.commit,'product_name':release.PRODUCT,
+            'platform':'android/arm64','signing':'stable Android release key',
+            'key_alias':alias,'certificate_sha256':certificate,
+            'source_apk':{'name':candidate,'sha256':candidate_checksum},
+            'release_signing_validation':'passed','assets':{public:release.digest(self.inputs/public)}}
         self.flush()
     def test_android_payload_and_prerelease_manifest(self):
         manifest=release.assemble(self.inputs,self.dist,self.version,self.commit,True)
         self.assertTrue(manifest['prerelease'])
         self.assertEqual(len(manifest['assets']),17)
         self.assertIn('android/arm64',manifest['platforms'])
-        self.assertEqual(manifest['signing']['android'],'test-signed Android debug key')
+        self.assertEqual(manifest['signing']['android'],'stable Android release key')
+        self.assertFalse((self.dist/f'AgentDock-Workbench-{self.version}-Android-test-signed.apk').exists())
     def test_missing_android_report_blocks_publication(self):
         (self.inputs/'verification-android.json').unlink()
         with self.assertRaisesRegex(RuntimeError,'Missing verified build input'):self.assemble()
@@ -162,6 +174,15 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     def test_incomplete_android_tests_block_publication(self):
         self.reports['verification-android.json']['emulators'][0]['passed']=12;self.flush()
         with self.assertRaisesRegex(RuntimeError,'navigation/screenshot evidence'):self.assemble()
+    def test_missing_stable_android_signing_blocks_publication(self):
+        (self.inputs/'verification-android-release.json').unlink()
+        with self.assertRaisesRegex(RuntimeError,'Missing verified build input'):self.assemble()
+    def test_wrong_android_release_certificate_blocks_publication(self):
+        self.reports['verification-android-release.json']['certificate_sha256']='f'*64;self.flush()
+        with self.assertRaisesRegex(RuntimeError,'release signing evidence'):self.assemble()
+    def test_signed_apk_must_reference_the_verified_candidate(self):
+        self.reports['verification-android-release.json']['source_apk']['sha256']='f'*64;self.flush()
+        with self.assertRaisesRegex(RuntimeError,'release signing evidence'):self.assemble()
 
 class PublicationGate(unittest.TestCase):
     def setUp(self):

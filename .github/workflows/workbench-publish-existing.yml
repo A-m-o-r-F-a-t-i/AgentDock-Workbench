@@ -51,6 +51,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Publisher regression without network writes
         run: python3 -B scripts/test/test-workbench-release.py
       - name: Verify original build and assembly succeeded
@@ -123,6 +127,24 @@ jobs:
           run-id: ${{ inputs.run_id }}
           name: workbench-android-${{ inputs.run_id }}
           path: input/android
+      - name: Sign verified Android installer with the stable release identity
+        if: steps.source.outputs.android_required == 'true'
+        env:
+          ANDROID_RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_RELEASE_KEYSTORE_B64"
+          test -n "$ANDROID_RELEASE_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_RELEASE_KEY_PASSWORD"
+          test -n "${ANDROID_HOME:-}"
+          if ! find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit | grep -q . || ! find "$ANDROID_HOME/build-tools" -type f -name zipalign -print -quit | grep -q .; then
+            sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+            test -x "$sdkmanager"
+            yes | "$sdkmanager" "build-tools;37.0.0" >/dev/null
+          fi
+          python3 verified-source/scripts/release/sign-android-release.py --input input --output input/android-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/release-signing.json
       - name: Verify original payloads and publish by numeric ID
         run: |
           set -euo pipefail

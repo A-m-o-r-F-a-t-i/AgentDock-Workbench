@@ -20,6 +20,7 @@ Android Workbench APK
 - Termux 部署采用持久事务日志、签名清单门禁、断点续接、一致性数据快照、健康验证、自动回退、单恢复点保留、指数退避和熔断。
 - SAF ZIP 导入导出与 Termux 路径探针分别授权，不把 Android URI 猜成 Linux 路径。
 - 候选 APK 只在 GitHub Actions 生成并使用测试签名，不进入 Release。
+- 公开 APK 在发布阶段使用固定证书重签；证书指纹、Actions Secret 和轮换要求见 [Android 发布签名](release-signing.md)。
 
 ## 验收边界
 
