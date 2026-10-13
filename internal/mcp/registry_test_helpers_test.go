@@ -26,5 +26,13 @@ func outputSchema(name string) map[string]any {
 	if !ok {
 		return nil
 	}
+	return definition.ValidationOutputSchema
+}
+
+func publishedOutputSchema(name string) map[string]any {
+	definition, ok := toolDefinition(name)
+	if !ok {
+		return nil
+	}
 	return definition.OutputSchema
 }
