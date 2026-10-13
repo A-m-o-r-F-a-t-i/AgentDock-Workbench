@@ -31,6 +31,40 @@ func journalFixture(t *testing.T) (*rollbackJournal, string, string) {
 	return j, state, original
 }
 
+func legacyJournalFixture(t *testing.T) (*rollbackJournal, string, string, string) {
+	t.Helper()
+	root := t.TempDir()
+	original := filepath.Join(root, "application")
+	if err := os.Mkdir(original, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(original, "secret"), []byte("legacy-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := filepath.Join(root, "state")
+	j := newJournal(state, "legacy-recovery-fixture")
+	if err := os.MkdirAll(j.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	container, err := os.MkdirTemp(j.Dir, "snapshot-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(container, "payload")
+	if err := copyTree(original, backup, 0); err != nil {
+		t.Fatal(err)
+	}
+	next := j.nextState()
+	next.Backups = append(next.Backups, journalBackup{Original: original, Backup: backup, Existed: true})
+	if err := j.commit(next); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(original, "secret"), []byte("current-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return j, state, original, backup
+}
+
 func assertJournalFile(t *testing.T, path, expected string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -77,6 +111,54 @@ func TestRestorePreparationFailurePreservesAllCurrentTargets(t *testing.T) {
 			assertJournalFile(t, created, "keep-current-resource")
 		})
 	}
+}
+
+func TestRestoreMigratesPre117JournalBeforeMovingCurrent(t *testing.T) {
+	j, state, original, _ := legacyJournalFixture(t)
+	if err := j.Restore(t.Context(), Request{}); err != nil {
+		t.Fatal(err)
+	}
+	assertJournalFile(t, filepath.Join(original, "secret"), "legacy-secret")
+	if j.Backups[0].NativeVersion != backupNativeMetadataVersion || len(j.Backups[0].Digest) != 64 {
+		t.Fatalf("legacy backup was not bound to current metadata: %+v", j.Backups[0])
+	}
+	loaded, err := loadJournal(state, "legacy-recovery-fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded == nil || loaded.Backups[0].NativeVersion != backupNativeMetadataVersion || loaded.Backups[0].Digest != j.Backups[0].Digest {
+		t.Fatalf("legacy migration was not durable: %+v", loaded)
+	}
+}
+
+func TestRestoreRejectsTamperedMigratedLegacyBackupBeforeMovingCurrent(t *testing.T) {
+	j, _, original, backup := legacyJournalFixture(t)
+	if err := j.migrateLegacyBackups(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(backup, "secret"), []byte("tampered-backup"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Restore(t.Context(), Request{}); err == nil {
+		t.Fatal("accepted a legacy backup changed after integrity binding")
+	}
+	assertJournalFile(t, filepath.Join(original, "secret"), "current-secret")
+}
+
+func TestRestoreRejectsLegacyBackupOutsideJournalBeforeMovingCurrent(t *testing.T) {
+	j, _, original, _ := legacyJournalFixture(t)
+	outside := filepath.Join(filepath.Dir(j.Dir), "outside-backup")
+	if err := os.Mkdir(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "secret"), []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	j.Backups[0].Backup = outside
+	if err := j.Restore(t.Context(), Request{}); err == nil {
+		t.Fatal("accepted a legacy backup outside its transaction directory")
+	}
+	assertJournalFile(t, filepath.Join(original, "secret"), "current-secret")
 }
 
 func TestRestoreResumesAfterEachRenameBoundary(t *testing.T) {
