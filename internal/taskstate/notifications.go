@@ -65,7 +65,7 @@ func (s *Store) ClaimCompletionNotifications(ctx context.Context, limit int, now
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	release, err := s.acquireStoreLock()
+	release, err := s.acquireStoreLockContext(ctx)
 	if err != nil {
 		return nil, err
 	}

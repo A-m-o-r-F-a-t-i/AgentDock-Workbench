@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/fs/filelock"
@@ -16,7 +15,6 @@ import (
 type Store struct {
 	management map[string]taskManagement
 	root       string
-	mu         sync.Mutex
 }
 
 func New(root string) (*Store, error) {
@@ -37,33 +35,34 @@ func New(root string) (*Store, error) {
 }
 
 func (s *Store) acquireStoreLock() (func(), error) {
-	s.mu.Lock()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	return s.acquireStoreLockContext(context.Background())
+}
+
+// filelock.Acquire provides the single in-process and cross-process gate. Passing
+// the caller context keeps queue admission cancellable without a second mutex.
+func (s *Store) acquireStoreLockContext(parent context.Context) (func(), error) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
 	releaseFileLock, err := filelock.Acquire(ctx, filepath.Join(s.root, ".store.lock"))
-	cancel()
 	if err != nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("lock task state: %w", err)
 	}
 	if err := s.recoverThreadTransactionLocked(); err != nil {
 		releaseFileLock()
-		s.mu.Unlock()
 		return nil, err
 	}
 	if err := s.loadManagementLocked(); err != nil {
 		releaseFileLock()
-		s.mu.Unlock()
 		return nil, err
 	}
 	if err := s.recoverManagementDeleteLocked(); err != nil {
 		releaseFileLock()
-		s.mu.Unlock()
 		return nil, err
 	}
-	return func() {
-		releaseFileLock()
-		s.mu.Unlock()
-	}, nil
+	return releaseFileLock, nil
 }
 
 func (s *Store) Root() string { return s.root }

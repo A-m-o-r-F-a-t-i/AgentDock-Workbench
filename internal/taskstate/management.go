@@ -163,7 +163,7 @@ func (s *Store) ManagedTasks(ctx context.Context, query TaskQuery) (ManagedTaskP
 	if query.Limit <= 0 || query.Limit > 200 {
 		query.Limit = 100
 	}
-	release, err := s.acquireStoreLock()
+	release, err := s.acquireStoreLockContext(ctx)
 	if err != nil {
 		return page, err
 	}

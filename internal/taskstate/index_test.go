@@ -3,10 +3,14 @@ package taskstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/uvwt/agentdock/internal/fs/filelock"
 )
 
 func TestTaskIndexBoundedRecoveryAndWarnings(t *testing.T) {
@@ -69,5 +73,34 @@ func TestEmptyTaskIndexContainsArray(t *testing.T) {
 	data, _ := json.Marshal(index)
 	if !strings.Contains(string(data), `"items":[]`) || index.Truncated || index.ActiveCount != 0 {
 		t.Fatal(string(data))
+	}
+}
+
+func TestTaskIndexLockAdmissionHonorsCancellation(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	release, err := filelock.Acquire(t.Context(), filepath.Join(s.Root(), ".store.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Discover(ctx)
+		done <- err
+	}()
+	select {
+	case err = <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled lock admission returned %v", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		release()
+		<-done
+		t.Fatal("canceled task index request remained queued behind the store lock")
 	}
 }
