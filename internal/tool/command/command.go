@@ -25,6 +25,9 @@ const (
 	sessionKillWait              = 3 * time.Second
 	defaultCommandYield          = 5 * time.Second
 	maxCommandYield              = 30 * time.Second
+	minSessionObserveDelay       = 2 * time.Second
+	maxSessionObserveDelay       = 15 * time.Second
+	maxSessionObserveWaitMS      = int(maxSessionObserveDelay / time.Millisecond)
 	maxCommandTimeout            = 24 * time.Hour
 	maxCommandOutputBytes        = 4 << 20
 	maxConcurrentCommandSessions = 32
@@ -157,7 +160,6 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 		result := snapshotResult(s.Snapshot("running", maxBytes))
 		result["sandbox"] = preparationStatusResult(sandboxStatus)
 		result["session_reason"] = reason
-		result["observe_after_ms"] = 1000
 		return result
 	}
 
@@ -261,6 +263,32 @@ func commandOutputLimit(requested *int) int {
 	return boundedInt(intValue(requested, 65536), 65536, 1, maxCommandOutputBytes)
 }
 
+func sessionObserveDelay(elapsedMS int64) time.Duration {
+	delay := time.Duration(elapsedMS) * time.Millisecond / 2
+	if delay < minSessionObserveDelay {
+		return minSessionObserveDelay
+	}
+	if delay > maxSessionObserveDelay {
+		return maxSessionObserveDelay
+	}
+	return delay
+}
+
+func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) {
+	if requested == nil {
+		return sessionObserveDelay(elapsedMS), nil
+	}
+	if *requested < 0 || *requested > maxSessionObserveWaitMS {
+		return 0, toolErrorDetails(
+			"INVALID_ARGUMENT",
+			fmt.Sprintf("wait_ms must be between 0 and %d", maxSessionObserveWaitMS),
+			"validation",
+			map[string]any{"wait_ms": *requested, "minimum": 0, "maximum": maxSessionObserveWaitMS},
+		)
+	}
+	return time.Duration(*requested) * time.Millisecond, nil
+}
+
 // snapshotResult 是 Command capability 向外部 Tool Result 的输出边界；Session 核心只暴露强类型快照。
 func snapshotResult(snapshot session.Snapshot) Result {
 	result := Result{
@@ -293,6 +321,9 @@ func snapshotResult(snapshot session.Snapshot) Result {
 	}
 	if snapshot.Workdir != "" {
 		result["workdir"] = snapshot.Workdir
+	}
+	if snapshot.Status == "running" {
+		result["observe_after_ms"] = sessionObserveDelay(snapshot.ElapsedMS).Milliseconds()
 	}
 	return result
 }
@@ -478,6 +509,24 @@ func (svc *Service) sessionStatus(request SessionObserveRequest) (Result, error)
 		return nil, toolError("SESSION_NOT_FOUND", "session not found", "not_found")
 	}
 	maxBytes := commandOutputLimit(request.MaxOutputBytes)
+	select {
+	case <-s.Done:
+		return svc.completedSessionResult(s, maxBytes, true), nil
+	default:
+	}
+	wait, err := sessionObserveWait(request.WaitMS, s.Summary().ElapsedMS)
+	if err != nil {
+		return nil, err
+	}
+	if wait > 0 {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+		select {
+		case <-s.Done:
+			return svc.completedSessionResult(s, maxBytes, true), nil
+		case <-timer.C:
+		}
+	}
 	select {
 	case <-s.Done:
 		return svc.completedSessionResult(s, maxBytes, true), nil

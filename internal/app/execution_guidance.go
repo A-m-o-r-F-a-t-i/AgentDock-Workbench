@@ -49,7 +49,14 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
 		guidance["next_required"] = steps
 	} else if running && sessionID != "" {
-		guidance["next_required"] = []map[string]any{{"action": "observe", "tool": "session_observe", "arguments": map[string]any{"action": "status", "session_id": sessionID}, "text": "Continue observing this session. Do not start the same long command again."}}
+		arguments := map[string]any{"action": "status", "session_id": sessionID}
+		if waitMS := measuredInt(result, "observe_after_ms"); waitMS != nil && *waitMS >= 0 {
+			arguments["wait_ms"] = *waitMS
+		}
+		guidance["next_required"] = []map[string]any{{
+			"action": "observe", "tool": "session_observe", "arguments": arguments,
+			"text": "Await this exact session with the supplied wait_ms; the server returns early when the process exits. Do not poll in a tight loop, do not call action=list, and do not restart the command. Continue independent work first when possible.",
+		}}
 	} else if failed || resultReportsFailure(result) || result["command_ok"] == false {
 		guidance["next_required"] = []map[string]any{{"action": "inspect", "text": "Inspect the actual error, exit code and partial effects before retrying. Reuse the same task and thread; a tool response alone does not imply command success."}}
 	} else if name == "file_edit" && result["dry_run"] != true && result["changed"] != false {

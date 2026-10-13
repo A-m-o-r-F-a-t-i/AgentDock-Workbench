@@ -58,3 +58,6 @@ func (s *Service) InternalCommandEnv(extra map[string]string) ([]string, error) 
 
 // MaxOutputBytes is the public exec/session output contract limit used by schema generation.
 const MaxOutputBytes = maxCommandOutputBytes
+
+// MaxSessionObserveWaitMS is the maximum bounded wait for one status observation.
+const MaxSessionObserveWaitMS = maxSessionObserveWaitMS

@@ -31,6 +31,46 @@ func TestCommandOutputLimit(t *testing.T) {
 	}
 }
 
+func TestSessionObserveDelayUsesBoundedBackoff(t *testing.T) {
+	tests := []struct {
+		elapsed time.Duration
+		want    time.Duration
+	}{
+		{elapsed: 0, want: minSessionObserveDelay},
+		{elapsed: 10 * time.Second, want: 5 * time.Second},
+		{elapsed: 2 * time.Minute, want: maxSessionObserveDelay},
+		{elapsed: time.Hour, want: maxSessionObserveDelay},
+	}
+	for _, test := range tests {
+		if got := sessionObserveDelay(test.elapsed.Milliseconds()); got != test.want {
+			t.Fatalf("sessionObserveDelay(%s) = %s, want %s", test.elapsed, got, test.want)
+		}
+	}
+}
+
+func TestSessionStatusLongPollWaitsBeforeReturningRunning(t *testing.T) {
+	svc := &Service{sessions: session.NewStore()}
+	stored := &session.Session{ID: "session-long-poll", StartedAt: time.Now(), Done: make(chan struct{})}
+	svc.sessions.Add(stored)
+	defer close(stored.Done)
+
+	waitMS := 25
+	started := time.Now()
+	result, err := svc.sessionStatus(SessionObserveRequest{SessionID: stored.ID, WaitMS: &waitMS})
+	if err != nil {
+		t.Fatalf("sessionStatus() error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed < 20*time.Millisecond {
+		t.Fatalf("sessionStatus() returned after %s, want bounded long-poll", elapsed)
+	}
+	if result["status"] != "running" {
+		t.Fatalf("sessionStatus() status = %#v, want running", result["status"])
+	}
+	if result["observe_after_ms"] != minSessionObserveDelay.Milliseconds() {
+		t.Fatalf("sessionStatus() observe_after_ms = %#v", result["observe_after_ms"])
+	}
+}
+
 func TestExecCommandRejectsNonPositiveTimeout(t *testing.T) {
 	runtime, _ := newCommandTestService(t)
 	for _, timeout := range []int{-1, 0} {
@@ -181,7 +221,7 @@ func TestListSessionsKeepsCompletedResultAvailable(t *testing.T) {
 	if started["status"] != "running" {
 		t.Fatalf("initial status = %#v, want running", started["status"])
 	}
-	if started["session_reason"] != "foreground_threshold_exceeded" || started["observe_after_ms"] != 1000 {
+	if started["session_reason"] != "foreground_threshold_exceeded" || started["observe_after_ms"] != minSessionObserveDelay.Milliseconds() {
 		t.Fatalf("auto session metadata = %#v", started)
 	}
 	sessionID, _ := started["session_id"].(string)
