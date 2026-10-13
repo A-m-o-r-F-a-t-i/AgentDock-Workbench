@@ -84,9 +84,11 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 }
 
 func TestContextTransportNegotiationRejectsMalformedMetadata(t *testing.T) {
-	for _, raw := range []any{true, "summary", map[string]any{"structured": false, "text": "summary"}, map[string]any{"structured": true, "text": "invalid"}, map[string]any{"structured": true, "text": "summary", "extra": true}} {
-		if _, err := contextResponseOptions(t.Context(), map[string]any{ContextResponseCapability: raw}); err == nil {
-			t.Fatal("invalid negotiation accepted")
+	for _, capability := range []string{ContextResponseCapability, StructuredResultsCapability} {
+		for _, raw := range []any{true, "summary", map[string]any{"structured": false, "text": "summary"}, map[string]any{"structured": true, "text": "invalid"}, map[string]any{"structured": true, "text": "summary", "extra": true}} {
+			if _, err := contextResponseOptions(t.Context(), map[string]any{capability: raw}); err == nil {
+				t.Fatalf("invalid %s negotiation accepted", capability)
+			}
 		}
 	}
 	result := map[string]any{"rules": []string{"retain me"}}

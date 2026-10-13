@@ -34,7 +34,10 @@ func TestOutputBudgetBothAdaptersPreserveCopiesAndInsertion(t *testing.T) {
 					}
 					return normalizedEnvelope(t, result)
 				}
-				result, err := h.session.CallTool(t.Context(), &mcpsdk.CallToolParams{Name: name, Arguments: args, Meta: mcpsdk.Meta{"openai/session": host}})
+				result, err := h.session.CallTool(t.Context(), &mcpsdk.CallToolParams{Name: name, Arguments: args, Meta: mcpsdk.Meta{
+					"openai/session":            host,
+					StructuredResultsCapability: map[string]any{"structured": true, "text": responseTextFull},
+				}})
 				if err != nil {
 					t.Fatal(err)
 				}
