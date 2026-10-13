@@ -154,6 +154,7 @@
           <Button Content="设置" Click="SettingsMenu_Click" FontSize="12"/>
           <Button x:Name="InsertButton" Content="插入" Click="Insert_Click" IsEnabled="False" Margin="8,0,0,0" FontSize="12"/>
           <Button x:Name="StopConversationButton" Content="终止" Click="Terminate_Click" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Visibility="Collapsed" MinWidth="56" FontSize="12"/>
+          <Button x:Name="ResumeConversationButton" Content="解除终止" Click="ResumeConversation_Click" Margin="8,0,0,0" Visibility="Collapsed" MinWidth="72" FontSize="12" ToolTip="重新允许此对话提交新请求；已取消的调用不会自动重试"/>
           <Button Content="···" Click="ConversationMenu_Click" Width="30" Padding="0" Margin="2,0,0,0" ToolTip="当前对话操作" AutomationProperties.Name="当前对话操作"/>
         </StackPanel>
       </Grid>

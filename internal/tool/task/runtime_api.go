@@ -11,6 +11,10 @@ func (s *Service) ContextIndex(ctx context.Context) (taskstate.TaskIndex, error)
 	return s.tasks.Discover(ctx)
 }
 
+func (s *Service) ContextIndexForWorkspace(ctx context.Context, workspaceID string) (taskstate.TaskIndex, error) {
+	return s.tasks.DiscoverForWorkspace(ctx, workspaceID)
+}
+
 func (s *Service) RuntimeTasks(status string, limit int) (Result, error) {
 	statusFilter := taskstate.Status(strings.ToLower(strings.TrimSpace(status)))
 	if statusFilter != "" && statusFilter != taskstate.StatusActive && statusFilter != taskstate.StatusBlocked && statusFilter != taskstate.StatusCompleted {

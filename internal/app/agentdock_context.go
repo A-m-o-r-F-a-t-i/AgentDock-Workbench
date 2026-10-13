@@ -107,14 +107,16 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	if !nexusLocalOnly {
 		// runtime 只保留模型操作主机所需的稳定环境事实；Nexus Bridge 已通过 Hello 持有这些节点事实，
 		// 私有 context.local 不重复传输，避免两个来源长期漂移。
+		build := buildinfo.Current()
 		contextResult.Runtime = &capabilityRuntimeContext{
-			Version: buildinfo.Version, OS: runtime.GOOS, Arch: runtime.GOARCH,
+			Version: build.Version, BuildCommit: buildinfo.FullCommit(), BuildDate: build.BuildDate,
+			OS: runtime.GOOS, Arch: runtime.GOARCH,
 			AgentDockHome: r.cfg.AgentDockHome, AgentDockDefaultDir: r.cfg.AgentDockDefaultDir,
 			DefaultCWD: r.ws.DefaultDisplay(), PathModel: config.PathModel,
 		}
 		taskStarted := time.Now()
 		indexCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		index, indexErr := r.taskTools.ContextIndex(indexCtx)
+		index, indexErr := r.taskTools.ContextIndexForWorkspace(indexCtx, selectedWorkspace.ID)
 		cancel()
 		taskElapsed = time.Since(taskStarted)
 		contextResult.Tasks = &index
@@ -226,6 +228,8 @@ type capabilityContext struct {
 
 type capabilityRuntimeContext struct {
 	Version             string `json:"version"`
+	BuildCommit         string `json:"build_commit"`
+	BuildDate           string `json:"build_date"`
 	OS                  string `json:"os"`
 	Arch                string `json:"arch"`
 	AgentDockHome       string `json:"agentdock_home"`
