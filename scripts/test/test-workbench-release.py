@@ -260,7 +260,7 @@ class PublicationGate(unittest.TestCase):
             if self.remote_tag_commit!=self.remote_tag_ref:lines.append(self.remote_tag_commit+'\trefs/tags/'+self.tag+'^{}')
             return '\n'.join(lines)
         if args[:2]==('git','tag'):
-            self.pending_tag_commit=args[5]
+            self.pending_tag_commit=args[-1]
             return ''
         if args[:2]==('git','push'):
             lease=next((value for value in args if value.startswith('--force-with-lease=')),None)
@@ -365,6 +365,17 @@ class PublicationGate(unittest.TestCase):
             self.publish(True,True)
         self.assertEqual(self.mutations(),[])
         self.assertFalse(self.record['draft'])
+    def test_replacement_resumes_after_draft_target_changed_before_tag_push(self):
+        previous='b'*40
+        self.remote_tag_ref='c'*40;self.remote_tag_commit=previous
+        self.record['target_commitish']=self.commit;self.record['draft']=True;self.record['prerelease']=True
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(True,True)
+        self.assertEqual(len([args for args in self.commands if args[:2]==('git','push')]),1)
+        self.assertEqual(self.remote_tag_commit,self.commit)
+        self.assertEqual([args[3] for args in self.mutations()],['DELETE','POST','PATCH'])
+        self.assertFalse(self.record['draft'])
+        self.assertEqual(self.record['target_commitish'],self.commit)
     def test_explicit_published_prerelease_promotion_reconciles_assets_and_becomes_latest(self):
         self.record['draft']=False;self.record['prerelease']=True
         self.record['name']='AgentDock Workbench 1.1.7 Pre-release'

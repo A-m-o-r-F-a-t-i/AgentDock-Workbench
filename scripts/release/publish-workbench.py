@@ -338,7 +338,10 @@ def remote_tag_identity(tag: str) -> tuple[str | None,str | None]:
 
 
 def write_release_tag(tag: str,commit: str,title: str,expected_ref: str | None=None) -> None:
-    run('git','tag','-f','-a',tag,commit,'-m',title)
+    # A release tag is an immutable source pointer here, not a signed identity.
+    # Use a lightweight local ref so recovery works in clean CI checkouts that
+    # deliberately have no git author configuration.
+    run('git','tag','-f',tag,commit)
     arguments=['git','push']
     if expected_ref is not None:
         arguments.append(f'--force-with-lease=refs/tags/{tag}:{expected_ref}')
@@ -381,9 +384,16 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
         if replace_published and record.get('immutable') is True:
             raise RuntimeError('Published prerelease is immutable and cannot be replaced')
     release_target=str(record.get('target_commitish','')).lower() if record is not None else ''
+    release_was_draft=bool(record.get('draft')) if record is not None else False
     tag_ref,tag_commit=remote_tag_identity(tag)
-    if replace_published and tag_ref is not None and tag_commit!=commit and release_target!=tag_commit:
-        raise RuntimeError('Existing prerelease target does not match the remote tag; preserve it for inspection')
+    if replace_published and tag_ref is not None and tag_commit!=commit:
+        allowed_targets={tag_commit}
+        if release_was_draft:
+            # A prior replacement may have updated the draft target before its
+            # compare-and-swap tag push failed. Resume that exact partial state.
+            allowed_targets.add(commit)
+        if release_target not in allowed_targets:
+            raise RuntimeError('Existing prerelease target does not match the remote tag or verified source; preserve it for inspection')
     if tag_ref is None:
         if record is not None:
             raise RuntimeError('Existing release has no remote tag; preserve it for inspection')
