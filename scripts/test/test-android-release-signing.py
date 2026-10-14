@@ -73,6 +73,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.runner = self.runner_patch.start()
         self.addCleanup(self.runner_patch.stop)
         self.report_certificate = CERTIFICATE
+        self.verification_output = None
 
     def fake_tool(self, tool: Path, *arguments: str):
         name = tool.name
@@ -86,7 +87,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
                 stream.write(b"-stable-signed")
             output = "signed"
         elif name == "apksigner" and arguments[0] == "verify":
-            output = f"Signer #1 certificate SHA-256 digest: {self.report_certificate}\n"
+            output = self.verification_output or f"Signer #1 certificate SHA-256 digest: {self.report_certificate}\n"
         else:
             raise AssertionError((tool, arguments))
         return subprocess.CompletedProcess([str(tool), *arguments], 0, output, "")
@@ -112,6 +113,24 @@ class AndroidReleaseSigningTest(unittest.TestCase):
             (self.output / (public.name + ".sha256")).read_text().strip(),
             f"{module.digest(public)}  {public.name}",
         )
+
+    def test_current_apksigner_scheme_output_is_accepted(self):
+        self.verification_output = (
+            "Verified using v2 scheme (APK Signature Scheme v2): true\n"
+            "Number of signers: 1\n"
+            f"V2 Signer: certificate SHA-256 digest: {CERTIFICATE}\n"
+        )
+        self.assertEqual(self.sign()["certificate_sha256"], CERTIFICATE)
+
+    def test_multiple_apksigner_signers_are_rejected(self):
+        self.verification_output = (
+            "Number of signers: 2\n"
+            f"V2 Signer: certificate SHA-256 digest: {CERTIFICATE}\n"
+            f"V3 Signer: certificate SHA-256 digest: {'c' * 64}\n"
+        )
+        with self.assertRaisesRegex(RuntimeError, "exactly one signer"):
+            self.sign()
+        self.assertFalse((self.output / f"AgentDock-Workbench-{self.version}-Android.apk").exists())
 
     def test_candidate_byte_change_is_rejected_before_signing(self):
         self.candidate.write_bytes(b"changed")

@@ -111,6 +111,14 @@ def public_installers(version: str) -> list[str]:
     return installers
 
 
+def obsolete_public_installers(version: str) -> set[str]:
+    """Return historical public names that an explicit replacement may remove."""
+    obsolete: set[str] = set()
+    if tuple(map(int,version.split('.'))) >= (1,1,8):
+        obsolete.add(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
+    return obsolete
+
+
 def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=False) -> dict:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version) or not re.fullmatch(r'[a-f0-9]{40}',commit):
         raise RuntimeError('Invalid release identity')
@@ -288,7 +296,7 @@ def find_release(tag: str) -> dict | None:
     raise RuntimeError('Release listing exceeded its bounded search; no release was created')
 
 
-def release_assets(record: dict,expected: dict[str,dict]) -> dict[str,dict]:
+def release_assets(record: dict,expected: dict[str,dict],allowed_extra: set[str] | None=None) -> dict[str,dict]:
     rows=record.get('assets',[])
     if not isinstance(rows,list):
         raise RuntimeError('Remote release assets are invalid')
@@ -297,7 +305,10 @@ def release_assets(record: dict,expected: dict[str,dict]) -> dict[str,dict]:
         if not isinstance(asset,dict) or not isinstance(asset.get('name'),str) or not asset['name'] or asset['name'] in actual:
             raise RuntimeError('Remote release contains duplicate or unexpected assets')
         actual[asset['name']]=asset
-    if set(actual)-set(expected):
+    allowed=set(expected)
+    if allowed_extra:
+        allowed.update(allowed_extra)
+    if set(actual)-allowed:
         raise RuntimeError('Remote release contains duplicate or unexpected assets')
     return actual
 
@@ -314,6 +325,33 @@ def missing_release_assets(record: dict,expected: dict[str,dict]) -> list[str]:
     return sorted(set(expected)-set(actual))
 
 
+def remote_tag_identity(tag: str) -> tuple[str | None,str | None]:
+    remote=run('git','ls-remote','--tags','origin',f'refs/tags/{tag}',f'refs/tags/{tag}^{{}}')
+    if not remote:
+        return None,None
+    refs={line.split()[1]:line.split()[0] for line in remote.splitlines() if len(line.split())==2}
+    direct=refs.get(f'refs/tags/{tag}')
+    resolved=refs.get(f'refs/tags/{tag}^{{}}',direct)
+    if not direct or not resolved or not re.fullmatch(r'[a-f0-9]{40}',direct) or not re.fullmatch(r'[a-f0-9]{40}',resolved):
+        raise RuntimeError('Remote release tag identity is incomplete')
+    return direct,resolved
+
+
+def write_release_tag(tag: str,commit: str,title: str,expected_ref: str | None=None) -> None:
+    # A release tag is an immutable source pointer here, not a signed identity.
+    # Use a lightweight local ref so recovery works in clean CI checkouts that
+    # deliberately have no git author configuration.
+    run('git','tag','-f',tag,commit)
+    arguments=['git','push']
+    if expected_ref is not None:
+        arguments.append(f'--force-with-lease=refs/tags/{tag}:{expected_ref}')
+    arguments.extend(['origin',f'refs/tags/{tag}:refs/tags/{tag}'])
+    run(*arguments)
+    _,resolved=remote_tag_identity(tag)
+    if resolved!=commit:
+        raise RuntimeError('Remote release tag does not match the verified source after update')
+
+
 def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_published: bool=False) -> None:
     if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY:
         raise RuntimeError('Publication is restricted to the user fork')
@@ -324,14 +362,6 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     previous_latest=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id') if prerelease else None
     notes=ROOT/f'docs/releases/{tag}.md'
     if not notes.is_file():raise RuntimeError('Final release notes are missing')
-    remote=run('git','ls-remote','--tags','origin',f'refs/tags/{tag}',f'refs/tags/{tag}^{{}}')
-    if remote:
-        refs={line.split()[1]:line.split()[0] for line in remote.splitlines()}
-        resolved=refs.get(f'refs/tags/{tag}^{{}}',refs.get(f'refs/tags/{tag}'))
-        if resolved!=commit:raise RuntimeError('Remote release tag does not match the verified source')
-    else:
-        subprocess.run(['git','tag',tag,commit],cwd=ROOT,check=True)
-        subprocess.run(['git','push','origin',f'refs/tags/{tag}'],cwd=ROOT,check=True)
     public_names=public_installers(version)
     files=[]
     for name in public_names:
@@ -344,6 +374,34 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     if record is None:
         if replace_published:
             raise RuntimeError('Published replacement requires an existing release')
+    elif not isinstance(record,dict) or type(record.get('id')) is not int or record['id']<=0 or record.get('tag_name')!=tag:
+        raise RuntimeError('Created release could not be located; preserve draft and inspect before retrying')
+    obsolete=obsolete_public_installers(version) if replace_published else set()
+    if record is not None:
+        release_assets(record,expected,obsolete)
+        if replace_published and record.get('prerelease') is not True:
+            raise RuntimeError('Published replacement requires an existing prerelease')
+        if replace_published and record.get('immutable') is True:
+            raise RuntimeError('Published prerelease is immutable and cannot be replaced')
+    release_target=str(record.get('target_commitish','')).lower() if record is not None else ''
+    release_was_draft=bool(record.get('draft')) if record is not None else False
+    tag_ref,tag_commit=remote_tag_identity(tag)
+    if replace_published and tag_ref is not None and tag_commit!=commit:
+        allowed_targets={tag_commit}
+        if release_was_draft:
+            # A prior replacement may have updated the draft target before its
+            # compare-and-swap tag push failed. Resume that exact partial state.
+            allowed_targets.add(commit)
+        if release_target not in allowed_targets:
+            raise RuntimeError('Existing prerelease target does not match the remote tag or verified source; preserve it for inspection')
+    if tag_ref is None:
+        if record is not None:
+            raise RuntimeError('Existing release has no remote tag; preserve it for inspection')
+        write_release_tag(tag,commit,title)
+        tag_ref,tag_commit=remote_tag_identity(tag)
+    elif tag_commit!=commit and not replace_published:
+        raise RuntimeError('Remote release tag does not match the verified source')
+    if record is None:
         # Retain the identity returned by the successful POST. A subsequent
         # list can temporarily omit the freshly created draft. Never repeat
         # creation merely because a collection read did not show it yet.
@@ -356,26 +414,25 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     endpoint=f'repos/{REPOSITORY}/releases/{release_id}'
     # Reject unknown names before a published release is hidden. This keeps the
     # explicit replacement path scoped to the installer set assembled above.
-    release_assets(record,expected)
+    release_assets(record,expected,obsolete)
     if not record.get('draft'):
         if not replace_published:
             raise RuntimeError('Refusing to replace an already published release')
-        if record.get('prerelease') is not True:
-            raise RuntimeError('Published replacement requires an existing prerelease')
-        if record.get('immutable') is True:
-            raise RuntimeError('Published prerelease is immutable and cannot be replaced')
         record=json.loads(run('gh','api','--method','PATCH',endpoint,
             '-F','draft=true','-F','prerelease=true','-f','make_latest=false','-f',f'target_commitish={commit}'))
     elif replace_published and record.get('prerelease') is not True:
         raise RuntimeError('Published replacement requires an existing prerelease')
+    if replace_published and tag_commit!=commit:
+        write_release_tag(tag,commit,title,tag_ref)
+        tag_ref,tag_commit=remote_tag_identity(tag)
     record=json.loads(run('gh','api',endpoint))
     if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
         raise RuntimeError('Release identity or draft state changed before upload')
     if replace_published:
-        actual=release_assets(record,expected)
+        actual=release_assets(record,expected,obsolete)
         stale=[]
         for name,asset in actual.items():
-            if not asset_matches(asset,expected[name]):
+            if name not in expected or not asset_matches(asset,expected[name]):
                 asset_id=asset.get('id')
                 if type(asset_id) is not int or asset_id<=0:
                     raise RuntimeError(f'Remote stale asset has no stable numeric ID: {name}')
@@ -408,6 +465,9 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
             published['prerelease']!=prerelease or published['name']!=title):
         raise RuntimeError('Published release identity/channel mismatch')
     if missing_release_assets(published,expected):raise RuntimeError('Published release asset set is incomplete')
+    _,published_tag_commit=remote_tag_identity(tag)
+    if published_tag_commit!=commit:
+        raise RuntimeError('Published release tag does not match the verified source')
     if prerelease and json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id')!=previous_latest:
         raise RuntimeError('Prerelease unexpectedly changed the stable Latest release')
     print(published['html_url'])
