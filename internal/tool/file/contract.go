@@ -88,6 +88,9 @@ func InputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+	if name == ToolListDir || name == ToolSearchText {
+		toolcontract.StructuredPagingInput(props)
+	}
 	schema := toolcontract.InputObject(props, required...)
 	if name == ToolFileEdit {
 		schema["allOf"] = []any{
@@ -229,6 +232,9 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["deletions"] = intProp("Deleted logical lines across this transaction; CRLF/LF or final newline changes alone do not add/remove lines. Missing when unknown or unsupported.")
 	default:
 		return nil, false
+	}
+	if name == ToolListDir || name == ToolSearchText {
+		toolcontract.StructuredPagingOutput(props)
 	}
 	AddRuntimeOutputProperties(props)
 	return toolcontract.OutputObject(props, required...), true

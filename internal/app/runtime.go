@@ -62,6 +62,10 @@ type Runtime struct {
 	commandSettlementCtx     context.Context
 	commandSettlementCancel  context.CancelFunc
 	localCompletions         sync.Map // call ID -> bounded journal completion reservation
+	structuredOutputMu       sync.Mutex
+	structuredSnapshots      map[string]*structuredOutputSnapshot
+	structuredCursors        map[string]structuredOutputCursor
+	structuredSnapshotBytes  int64
 
 	workspaceRegistry *workspace.Registry
 	workspaceTools    *toolworkspace.Service
@@ -192,6 +196,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		executionInstance: instance, insertions: insertions, capabilityManager: mcpClients,
 		conversations: conversations, permissions: permissions, tasks: tasks,
 		activeCalls: map[string]*liveExecution{}, pendingCalls: map[string]*preparedExecution{},
+		structuredSnapshots: map[string]*structuredOutputSnapshot{}, structuredCursors: map[string]structuredOutputCursor{},
 		workspaceRegistry: workspaceRegistry, workspaceTools: toolworkspace.New(workspaceRegistry),
 		cfg: cfg, ws: ws, skills: skills, activity: activityStore,
 		toolNames: toolNames, toolValidators: toolValidators,

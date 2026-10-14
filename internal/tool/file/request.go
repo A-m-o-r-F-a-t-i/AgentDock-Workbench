@@ -22,30 +22,34 @@ type ReadRequest struct {
 // ListRequest 是 list_dir 进入文件核心后的稳定输入契约。
 type ListRequest struct {
 	RuntimeOptions
-	Path            string   `json:"path,omitempty"`
-	MaxDepth        *int     `json:"max_depth,omitempty"`
-	MaxEntries      *int     `json:"max_entries,omitempty"`
-	Patterns        []string `json:"patterns,omitempty"`
-	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
-	EntryType       string   `json:"entry_type,omitempty"`
-	IncludeHidden   bool     `json:"include_hidden,omitempty"`
-	IncludeIgnored  bool     `json:"include_ignored,omitempty"`
+	Path             string   `json:"path,omitempty"`
+	Cursor           string   `json:"cursor,omitempty"`
+	MaxResponseBytes *int     `json:"max_response_bytes,omitempty"`
+	MaxDepth         *int     `json:"max_depth,omitempty"`
+	MaxEntries       *int     `json:"max_entries,omitempty"`
+	Patterns         []string `json:"patterns,omitempty"`
+	ExcludePatterns  []string `json:"exclude_patterns,omitempty"`
+	EntryType        string   `json:"entry_type,omitempty"`
+	IncludeHidden    bool     `json:"include_hidden,omitempty"`
+	IncludeIgnored   bool     `json:"include_ignored,omitempty"`
 }
 
 // SearchRequest 是 search_text 进入文件核心后的稳定输入契约。
 type SearchRequest struct {
 	RuntimeOptions
-	Path           string   `json:"path,omitempty"`
-	Query          string   `json:"query"`
-	Regex          bool     `json:"regex,omitempty"`
-	CaseSensitive  bool     `json:"case_sensitive,omitempty"`
-	IncludeHidden  bool     `json:"include_hidden,omitempty"`
-	IncludeIgnored bool     `json:"include_ignored,omitempty"`
-	IncludeGlobs   []string `json:"include_globs,omitempty"`
-	Glob           string   `json:"glob,omitempty"`
-	ExcludeGlobs   []string `json:"exclude_globs,omitempty"`
-	ContextLines   *int     `json:"context_lines,omitempty"`
-	MaxResults     *int     `json:"max_results,omitempty"`
+	Path             string   `json:"path,omitempty"`
+	Query            string   `json:"query"`
+	Cursor           string   `json:"cursor,omitempty"`
+	MaxResponseBytes *int     `json:"max_response_bytes,omitempty"`
+	Regex            bool     `json:"regex,omitempty"`
+	CaseSensitive    bool     `json:"case_sensitive,omitempty"`
+	IncludeHidden    bool     `json:"include_hidden,omitempty"`
+	IncludeIgnored   bool     `json:"include_ignored,omitempty"`
+	IncludeGlobs     []string `json:"include_globs,omitempty"`
+	Glob             string   `json:"glob,omitempty"`
+	ExcludeGlobs     []string `json:"exclude_globs,omitempty"`
+	ContextLines     *int     `json:"context_lines,omitempty"`
+	MaxResults       *int     `json:"max_results,omitempty"`
 }
 
 // EditRequest 统一承载 file_edit 五种 action 的输入，避免为每个 action 再制造一层类型。

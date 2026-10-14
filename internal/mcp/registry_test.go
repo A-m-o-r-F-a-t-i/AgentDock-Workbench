@@ -114,8 +114,8 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	for _, key := range []string{"conversation_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "retry_of_call_id"} {
 		delete(businessProps, key)
 	}
-	if len(businessProps) != 2 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil {
-		t.Fatalf("agentdock_context should expose only workdir and known_context_revision: %#v", inputProps)
+	if len(businessProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil {
+		t.Fatalf("agentdock_context should expose workdir, known_context_revision, and structured result paging controls: %#v", inputProps)
 	}
 	if required, _ := inputSchema("agentdock_context")["required"].([]string); len(required) != 0 {
 		t.Fatalf("agentdock_context must still accept empty arguments: %#v", required)

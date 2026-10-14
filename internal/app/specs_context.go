@@ -1,17 +1,20 @@
 package app
 
 import (
-	"github.com/uvwt/agentdock/internal/contextguide"
 	"maps"
 
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/contextguide"
 	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 type contextRequest struct {
 	Workdir              string `json:"workdir,omitempty"`
 	KnownContextRevision string `json:"known_context_revision,omitempty"`
+	Cursor               string `json:"cursor,omitempty"`
+	MaxResponseBytes     *int   `json:"max_response_bytes,omitempty"`
 }
 
 func contextToolSpecs() []ToolSpec {
@@ -39,6 +42,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 		"type": "string", "maxLength": 4096,
 		"description": "Existing host workspace directory. Omit or use an empty string to inherit this conversation's workspace, falling back to the device default only when unbound. A complete response coordinates subsequent conversation binding in this call; running sessions and device defaults remain unchanged.",
 	}
+	toolcontract.StructuredPagingInput(input)
 	input["known_context_revision"] = map[string]any{
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
 		"description": "context_revision from a complete response already held by the caller. A matching revision permits a compact reference only after the server fully reloads, revalidates, and coordinates the current context. Omit when the complete context may be absent.",
@@ -64,6 +68,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["plugins"] = pluginIndexSchema()
 	output["tasks"] = taskIndexSchema()
 	output["workspace"] = map[string]any{"type": "object", "additionalProperties": true, "required": []string{"workspace_id", "root", "runtime", "rules_revision"}}
+	toolcontract.StructuredPagingOutput(output)
 	if cfg.NexusEndpoint == "" {
 		if original, ok := output["dynamic_mcp"].(map[string]any); ok {
 			index := maps.Clone(original)

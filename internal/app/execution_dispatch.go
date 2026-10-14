@@ -39,6 +39,7 @@ type preparedExecution struct {
 	mcpCall             *toolmcp.PreparedCall
 	outputPolicy        config.ToolOutputSettings
 	completion          *activity.AppendReservation
+	structuredResume    *structuredOutputResume
 }
 
 func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[string]any) (result Result, returnErr error) {
@@ -634,7 +635,9 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	waitMS := handlerStarted.Sub(p.state.started).Milliseconds()
 	p.state.waitMS, p.state.executed = &waitMS, true
 	requesttrace.Dispatched(ctx, p.state.binding.CallID)
-	if p.spec.Name == "session_act" && stringArg(p.args, "action") == "kill_all" {
+	if stringArg(p.args, "cursor") != "" {
+		result, p.structuredResume, err = r.resumeStructuredOutput(ctx, p)
+	} else if p.spec.Name == "session_act" && stringArg(p.args, "action") == "kill_all" {
 		result, err = r.executeSessionSelection(ctx, p)
 	} else {
 		result, err = p.spec.Handler(ctx, r, p.args)
@@ -644,7 +647,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	if p.spec.Name == "file_edit" && err == nil {
 		r.recordFileChanges(p.args, result, state)
 	}
-	if err == nil && !resultReportsFailure(result) {
+	if err == nil && !resultReportsFailure(result) && p.structuredResume == nil {
 		if p.spec.Name == "agentdock_context" {
 			err = r.finalizeContextBinding(ctx, p, result)
 		} else {
@@ -744,8 +747,11 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 	return compactExecutionSuccess(r.decorateExecution(result, p), p), nil
 }
 func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result {
-	r.rememberCapabilityAccess(p.state.binding, p.spec.Name, p.args, result)
-	decorated := maps.Clone(result)
+	if p.structuredResume == nil {
+		r.rememberCapabilityAccess(p.state.binding, p.spec.Name, p.args, result)
+	}
+	projected := r.applyStructuredOutputPolicy(p, result)
+	decorated := maps.Clone(projected)
 	if decorated == nil {
 		decorated = Result{}
 	}
@@ -766,7 +772,7 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 		decorated["approval_id"] = p.approvalID
 	}
 	decorated["permission"] = p.decision
-	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.state, result, false)
+	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.args, p.state, projected, false)
 	decorated["binding_quality"] = p.state.binding.BindingQuality
 	return r.applyToolOutputPolicy(p, decorated)
 }
