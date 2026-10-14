@@ -53,6 +53,8 @@ class FakeBackend(m.NodeBackend):
             raise m.BridgeError('health_failed', 'synthetic startup failure')
     def fetch(self, url, target, maximum, resume=False):
         self.state.setdefault('downloads', []).append((url, resume))
+        if self.state.get('metadata_unavailable') and not url.endswith('/core.tar.gz'):
+            raise m.BridgeError('download_failed', 'synthetic metadata outage', True)
         data = self.state['assets'][url]
         m.check(len(data) <= maximum, 'size_limit', 'download bound')
         if self.state.get('break_download') and url.endswith('/core.tar.gz'):
@@ -166,9 +168,69 @@ class DeploymentTest(unittest.TestCase):
         self.seed(); payload = self.release(); self.state['break_download'] = True
         first = self.manager.dispatch('update', 'partial', payload)
         self.assertEqual('requires_user_action', first['status'])
+        self.assertEqual('download_failed', first['data']['failure_code'])
+        before_resume = len(self.state['downloads'])
+        self.state['metadata_unavailable'] = True
         result = self.make().dispatch('resume', 'resume_partial', {'target_operation_id': 'partial', 'confirm_start': True})
         self.assertEqual('updated', result['status'])
-        self.assertTrue(any(resume for url, resume in self.state['downloads'] if url.endswith('/core.tar.gz')))
+        self.assertEqual('', result['data']['failure_code'])
+        resumed = self.state['downloads'][before_resume:]
+        self.assertEqual([
+            ('https://release.example/manifest.json', False),
+            ('https://release.example/core.tar.gz', True),
+        ], resumed)
+
+    def test_archive_fetch_resumes_partial_after_timeout(self):
+        target = self.home / 'archive.tar.gz.partial'
+        payload = b'complete archive bytes'
+        calls = []
+        def run(args, **kwargs):
+            calls.append(args)
+            if len(calls) == 1:
+                target.write_bytes(payload[:8])
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+            self.assertIn('--continue-at', args)
+            with target.open('ab') as output:
+                output.write(payload[8:])
+            return subprocess.CompletedProcess(args, 0)
+        with patch.object(m.subprocess, 'run', side_effect=run):
+            m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
+        self.assertEqual(payload, target.read_bytes())
+        self.assertNotIn('--continue-at', calls[0])
+        self.assertIn('--continue-at', calls[1])
+
+    def test_archive_fetch_range_rejection_restarts_once(self):
+        target = self.home / 'range.tar.gz.partial'
+        target.write_bytes(b'partial')
+        calls = []
+        def run(args, **_kwargs):
+            calls.append(args)
+            if len(calls) == 1:
+                self.assertIn('--continue-at', args)
+                return subprocess.CompletedProcess(args, 33)
+            self.assertNotIn('--continue-at', args)
+            self.assertFalse(target.exists())
+            target.write_bytes(b'complete')
+            return subprocess.CompletedProcess(args, 0)
+        with patch.object(m.subprocess, 'run', side_effect=run):
+            m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
+        self.assertEqual(b'complete', target.read_bytes())
+        self.assertEqual(2, len(calls))
+
+    def test_archive_fetch_failure_preserves_partial_bytes(self):
+        target = self.home / 'preserved.tar.gz.partial'
+        calls = []
+        def run(args, **_kwargs):
+            calls.append(args)
+            if not target.exists():
+                target.write_bytes(b'preserve me')
+            return subprocess.CompletedProcess(args, 28)
+        with patch.object(m.subprocess, 'run', side_effect=run):
+            with self.assertRaises(m.BridgeError) as error:
+                m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
+        self.assertEqual('download_failed', error.exception.code)
+        self.assertEqual(b'preserve me', target.read_bytes())
+        self.assertEqual(m.DOWNLOAD_ATTEMPTS, len(calls))
     def test_changed_manifest_requires_a_new_confirmation(self):
         self.seed(); payload = self.release(); self.state['break_download'] = True
         self.manager.dispatch('update', 'changing', payload)
@@ -498,4 +560,4 @@ if __name__ == '__main__':
     output.write_text(json.dumps({'scope':'synthetic filesystem and injected process backend; real OpenSSL signature checks',
         'tests': result.testsRun, 'failures':len(result.failures), 'errors':len(result.errors), 'skipped':len(result.skipped),
         'production_installed':False, 'source_sha':os.environ.get('GITHUB_SHA','unknown')}, indent=2) + '\n')
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 41 and not result.skipped else 1)
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 62 and not result.skipped else 1)
