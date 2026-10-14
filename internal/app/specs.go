@@ -56,7 +56,7 @@ type ToolDefinition struct {
 	// OutputSchema is the optional model-facing MCP output contract. AgentDock
 	// omits it because structured results include a server-owned execution
 	// envelope in addition to the capability business result.
-	OutputSchema           map[string]any
+	OutputSchema map[string]any
 	// ValidationOutputSchema is the complete internal result contract: business
 	// output plus the AgentDock execution envelope and approval alternative.
 	ValidationOutputSchema map[string]any
