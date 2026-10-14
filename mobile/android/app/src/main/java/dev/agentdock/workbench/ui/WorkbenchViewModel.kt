@@ -327,13 +327,28 @@ class WorkbenchViewModel(
                     "一次性本机配对只支持字面 loopback Origin；远程 Core 请使用其 OAuth/管理授权流程。"
                 }
                 val pending = withContext(Dispatchers.IO) { graph.termux.dispatchLocalPairing(origin) }
+                _state.update {
+                    it.copy(message = "已提交一次性公钥配对 ${pending.operationId}；正在等待绑定回执。")
+                }
+                val completion = withContext(Dispatchers.IO) { graph.termux.awaitCompletion(pending.operationId) }
+                val credentialAvailable = completion?.phase == "succeeded" && withContext(Dispatchers.IO) {
+                    graph.credentials.getCore(origin).isNotBlank()
+                }
+                val decision = LocalPairingUiPolicy.evaluate(
+                    operationId = pending.operationId,
+                    completion = completion,
+                    credentialAvailable = credentialAvailable
+                )
                 val operations = withContext(Dispatchers.IO) { graph.operations.list() }
+                if (decision.refreshCore) stopStreams()
                 _state.update {
                     it.copy(
                         operations = operations,
-                        message = "已提交一次性公钥配对 ${pending.operationId}；成功回执会自动写入与当前 Origin 绑定的 Keystore 密文。"
+                        credentialAvailable = if (completion?.phase == "succeeded") credentialAvailable else it.credentialAvailable,
+                        message = decision.message
                     )
                 }
+                if (decision.refreshCore) refresh()
             } catch (error: CancellationException) { throw error
             } catch (error: Exception) { showError(error)
             } finally { _state.update { it.copy(actionBusy = false) } }
