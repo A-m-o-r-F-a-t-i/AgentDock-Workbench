@@ -9,8 +9,8 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 中的安装包
-// 及 Android 运行时交付附件；内部归档、安装脚本和 checksum 仅用于构建与验收。
+// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 中的安装包；
+// 内部归档、安装脚本和 checksum 仅用于构建与验收。
 type Artifact struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
@@ -54,12 +54,8 @@ func verifyDist(dir string, stdout io.Writer) error {
 }
 
 func ReleaseCatalog() []Artifact {
-	androidCoreStem := "AgentDock-Workbench-" + buildinfo.Version + "-Android-Core-arm64"
 	payloads := []Artifact{
 		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
-		{Name: androidCoreStem + ".tar.gz", Kind: "android-runtime", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
-		{Name: androidCoreStem + ".manifest.json", Kind: "deployment-manifest", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
-		{Name: androidCoreStem + ".manifest.sig", Kind: "deployment-signature", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
 		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true},
 		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true},
 		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true},
@@ -72,8 +68,8 @@ func ReleaseCatalog() []Artifact {
 		{Name: "agentdock-workbench_" + buildinfo.Version + "_arm64.deb", Kind: "debian-package", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
 		{Name: "agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm", Kind: "rpm-package", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
 		{Name: "agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm", Kind: "rpm-package", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
-		{Name: "AgentDockSetup-amd64.exe", Kind: "setup", Platform: "windows", Arch: "amd64", Required: true, PublicContract: true},
-		{Name: "AgentDockSetup-arm64.exe", Kind: "setup", Platform: "windows", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: "AgentDock-Workbench-Setup-amd64.exe", Kind: "setup", Platform: "windows", Arch: "amd64", Required: true, PublicContract: true},
+		{Name: "AgentDock-Workbench-Setup-arm64.exe", Kind: "setup", Platform: "windows", Arch: "arm64", Required: true, PublicContract: true},
 	}
 	scripts := []Artifact{
 		{Name: "install.sh", Kind: "bootstrap", Platform: "unix", Required: true},

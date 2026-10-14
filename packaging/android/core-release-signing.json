@@ -1,6 +1,0 @@
-{
-  "schema_version": 1,
-  "algorithm": "Ed25519",
-  "public_key": "mobile/android/termux/release-ed25519-public.pem",
-  "public_key_sha256": "e2cf986de8d07dc4b2dccd600711381bb59b6200e85ebd4ae4f24d7d7d6fae92"
-}

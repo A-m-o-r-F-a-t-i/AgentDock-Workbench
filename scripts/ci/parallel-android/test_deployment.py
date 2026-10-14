@@ -24,7 +24,7 @@ class SimulatedCrash(BaseException):
     pass
 
 class FakeBackend(m.NodeBackend):
-    """Models process I/O only; filesystem/journals/signatures/extraction remain real."""
+    """Models process I/O only; filesystem, journals and extraction remain real."""
     def __init__(self, root, config, state):
         super().__init__(root, config)
         self.state = state
@@ -52,19 +52,6 @@ class FakeBackend(m.NodeBackend):
         (self.root / 'data/schema.txt').write_text(version)
         if version in self.state.get('fail_versions', set()):
             raise m.BridgeError('health_failed', 'synthetic startup failure')
-    def fetch(self, url, target, maximum, resume=False):
-        self.state.setdefault('downloads', []).append((url, resume))
-        if self.state.get('metadata_unavailable') and not url.endswith('/core.tar.gz'):
-            raise m.BridgeError('download_failed', 'synthetic metadata outage', True)
-        data = self.state['assets'][url]
-        m.check(len(data) <= maximum, 'size_limit', 'download bound')
-        if self.state.get('break_download') and url.endswith('/core.tar.gz'):
-            target.write_bytes(data[:10])
-            self.state['break_download'] = False
-            raise m.BridgeError('download_failed', 'partial synthetic transfer')
-        target.write_bytes(data)
-    # Signature verification deliberately uses the real OpenSSL implementation.
-
 class DeploymentTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='wb07-deployment-')
@@ -72,17 +59,12 @@ class DeploymentTest(unittest.TestCase):
         self.previous_test_mode = os.environ.get('AGENTDOCK_WORKBENCH_TEST_MODE')
         os.environ['AGENTDOCK_WORKBENCH_TEST_MODE'] = '1'
         (self.home / 'storage/shared').mkdir(parents=True)
-        self.state = {'assets': {}, 'running': False, 'starts': [], 'fail_versions': set()}
+        self.state = {'running': False, 'starts': [], 'fail_versions': set()}
         self.now = [1000.0]
         self.manager = self.make()
         self.manager.initialize()
         self.workspace = self.manager.workspace_root()
         m.atomic_bytes(self.manager.root / 'auth-token', b'1' * 64)
-        self.private_key = self.home / 'test-release-key.pem'
-        key = self.manager.state / 'trust/release-ed25519-public.pem'
-        key.parent.mkdir(parents=True)
-        subprocess.run(['openssl', 'genpkey', '-algorithm', 'ED25519', '-out', str(self.private_key)], check=True, capture_output=True)
-        subprocess.run(['openssl', 'pkey', '-in', str(self.private_key), '-pubout', '-out', str(key)], check=True, capture_output=True)
         (self.workspace / 'project.txt').write_text('user project')
         (self.manager.root / 'data/config.txt').write_text('preserve settings')
     def tearDown(self):
@@ -93,7 +75,7 @@ class DeploymentTest(unittest.TestCase):
         self.tmp.cleanup()
     def make(self, fault=lambda _: None):
         return m.Deployment(self.home, lambda root, config: FakeBackend(root, config, self.state), lambda: self.now[0], fault)
-    def release(self, version='1.1.8', corrupt_digest=False, build_marker=''):
+    def release(self, version='1.1.8', build_marker=''):
         content = io.BytesIO()
         with tarfile.open(fileobj=content, mode='w:gz') as archive:
             data = version.encode()
@@ -103,19 +85,10 @@ class DeploymentTest(unittest.TestCase):
                 marker = build_marker.encode()
                 entry = tarfile.TarInfo('build.txt'); entry.size = len(marker)
                 archive.addfile(entry, io.BytesIO(marker))
-        data = content.getvalue()
-        digest = m.hashlib.sha256(data).hexdigest()
-        manifest = {'schema_version': 1, 'platform': 'linux', 'arch': 'arm64', 'version': version,
-                    'asset_url': 'https://release.example/core.tar.gz', 'sha256': '0' * 64 if corrupt_digest else digest,
-                    'data_schema': 'fixture-' + version}
-        source = self.home / 'manifest-to-sign.json'; source.write_bytes(m.json_bytes(manifest))
-        signature = self.home / 'test.sig'
-        subprocess.run(['openssl', 'pkeyutl', '-sign', '-inkey', str(self.private_key), '-rawin', '-in', str(source), '-out', str(signature)], check=True, capture_output=True)
-        self.state['assets'] = {'https://release.example/manifest.json': source.read_bytes(),
-                                'https://release.example/manifest.sig': signature.read_bytes(),
-                                'https://release.example/core.tar.gz': data}
-        return {'apk_version': version, 'manifest_url': 'https://release.example/manifest.json',
-                'manifest_signature_url': 'https://release.example/manifest.sig', 'start_after_install': True}
+        bundle = self.manager.state / 'bundle' / m.BUNDLED_CORE_NAME
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        bundle.write_bytes(content.getvalue())
+        return {'apk_version': version, 'start_after_install': True}
     def seed(self, version='1.1.7', name='old'):
         path = self.manager.root / 'versions' / name
         (path / 'bin').mkdir(parents=True)
@@ -140,11 +113,12 @@ class DeploymentTest(unittest.TestCase):
         result = manager.dispatch('stop', 'stop_without_shared', {})
         self.assertEqual('stopped', result['status'])
         self.assertEqual('stopped', (manager.root / 'desired-state').read_text())
-    def test_missing_trust_downloads_nothing(self):
-        (self.manager.state / 'trust/release-ed25519-public.pem').unlink()
-        result = self.manager.dispatch('install', 'install_missing', self.release())
-        self.assertEqual('pending_manifest', result['status'])
-        self.assertFalse(self.state.get('downloads'))
+    def test_missing_bundled_core_changes_nothing(self):
+        payload = self.release()
+        (self.manager.state / 'bundle' / m.BUNDLED_CORE_NAME).unlink()
+        result = self.manager.dispatch('install', 'install_missing', payload)
+        self.assertEqual('requires_user_action', result['status'])
+        self.assertEqual('bundled_core_missing', result['data']['failure_code'])
         self.assertEqual('', self.manager.pointer('current'))
     def test_install_idempotency_and_query(self):
         payload = self.release()
@@ -162,96 +136,43 @@ class DeploymentTest(unittest.TestCase):
         self.manager.dispatch('install', 'bound_op', payload)
         with self.assertRaises(m.BridgeError):
             self.manager.dispatch('install', 'bound_op', dict(payload, apk_version='2.0.0'))
-    def test_invalid_signature_never_stops_existing_core(self):
+    def test_missing_binary_never_stops_existing_core(self):
         self.seed(); payload = self.release()
-        self.state['assets']['https://release.example/manifest.sig'] = b'wrong'
-        result = self.manager.dispatch('update', 'bad_signature', payload)
+        bundle = self.manager.state / 'bundle' / m.BUNDLED_CORE_NAME
+        with tarfile.open(bundle, 'w:gz') as archive:
+            marker = b'no executable'
+            entry = tarfile.TarInfo('build.txt'); entry.size = len(marker)
+            archive.addfile(entry, io.BytesIO(marker))
+        result = self.manager.dispatch('update', 'missing_binary', payload)
         self.assertEqual('requires_user_action', result['status'])
-        self.assertEqual('trust_failed', result['data']['failure_code'])
-        self.assertTrue(self.state['running']); self.assertEqual('old', self.manager.pointer('current'))
-    def test_digest_mismatch_never_switches_or_stops(self):
-        self.seed()
-        result = self.manager.dispatch('update', 'bad_digest', self.release(corrupt_digest=True))
         self.assertEqual('verification_failed', result['data']['failure_code'])
+        self.assertTrue(self.state['running']); self.assertEqual('old', self.manager.pointer('current'))
+
+    def test_symlinked_bundled_core_never_switches_or_stops(self):
+        self.seed(); payload = self.release()
+        bundle = self.manager.state / 'bundle' / m.BUNDLED_CORE_NAME
+        external = self.home / 'external-core.tar.gz'; external.write_bytes(bundle.read_bytes())
+        bundle.unlink(); bundle.symlink_to(external)
+        result = self.manager.dispatch('update', 'linked_bundle', payload)
+        self.assertEqual('bundled_core_missing', result['data']['failure_code'])
         self.assertEqual(0, self.state.get('stops', 0)); self.assertEqual('old', self.manager.pointer('current'))
     def test_apk_core_version_mismatch_blocks_before_asset(self):
         self.seed(); payload = self.release(); payload['apk_version'] = '9.9.9'
         result = self.manager.dispatch('update', 'bad_version', payload)
         self.assertEqual('version_mismatch', result['data']['failure_code'])
-        self.assertFalse(any(url.endswith('/core.tar.gz') for url, _ in self.state.get('downloads', [])))
-    def test_partial_download_resumes_same_operation(self):
-        self.seed(); payload = self.release(); self.state['break_download'] = True
-        first = self.manager.dispatch('update', 'partial', payload)
-        self.assertEqual('requires_user_action', first['status'])
-        self.assertEqual('download_failed', first['data']['failure_code'])
-        before_resume = len(self.state['downloads'])
-        self.state['metadata_unavailable'] = True
-        result = self.make().dispatch('resume', 'resume_partial', {'target_operation_id': 'partial', 'confirm_start': True})
-        self.assertEqual('updated', result['status'])
-        self.assertEqual('', result['data']['failure_code'])
-        resumed = self.state['downloads'][before_resume:]
-        self.assertEqual([
-            ('https://release.example/manifest.json', False),
-            ('https://release.example/core.tar.gz', True),
-        ], resumed)
+        self.assertEqual(0, self.state.get('stops', 0))
 
-    def test_archive_fetch_resumes_partial_after_timeout(self):
-        target = self.home / 'archive.tar.gz.partial'
-        payload = b'complete archive bytes'
-        calls = []
-        def run(args, **kwargs):
-            calls.append(args)
-            if len(calls) == 1:
-                target.write_bytes(payload[:8])
-                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
-            self.assertIn('--continue-at', args)
-            with target.open('ab') as output:
-                output.write(payload[8:])
-            return subprocess.CompletedProcess(args, 0)
-        with patch.object(m.subprocess, 'run', side_effect=run):
-            m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
-        self.assertEqual(payload, target.read_bytes())
-        self.assertNotIn('--continue-at', calls[0])
-        self.assertIn('--continue-at', calls[1])
-
-    def test_archive_fetch_range_rejection_restarts_once(self):
-        target = self.home / 'range.tar.gz.partial'
-        target.write_bytes(b'partial')
-        calls = []
-        def run(args, **_kwargs):
-            calls.append(args)
-            if len(calls) == 1:
-                self.assertIn('--continue-at', args)
-                return subprocess.CompletedProcess(args, 33)
-            self.assertNotIn('--continue-at', args)
-            self.assertFalse(target.exists())
-            target.write_bytes(b'complete')
-            return subprocess.CompletedProcess(args, 0)
-        with patch.object(m.subprocess, 'run', side_effect=run):
-            m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
-        self.assertEqual(b'complete', target.read_bytes())
-        self.assertEqual(2, len(calls))
-
-    def test_archive_fetch_failure_preserves_partial_bytes(self):
-        target = self.home / 'preserved.tar.gz.partial'
-        calls = []
-        def run(args, **_kwargs):
-            calls.append(args)
-            if not target.exists():
-                target.write_bytes(b'preserve me')
-            return subprocess.CompletedProcess(args, 28)
-        with patch.object(m.subprocess, 'run', side_effect=run):
-            with self.assertRaises(m.BridgeError) as error:
-                m.NodeBackend(self.manager.root, self.manager.config).fetch('https://release.example/core.tar.gz', target, 1024, resume=True)
-        self.assertEqual('download_failed', error.exception.code)
-        self.assertEqual(b'preserve me', target.read_bytes())
-        self.assertEqual(m.DOWNLOAD_ATTEMPTS, len(calls))
-    def test_changed_manifest_requires_a_new_confirmation(self):
-        self.seed(); payload = self.release(); self.state['break_download'] = True
-        self.manager.dispatch('update', 'changing', payload)
+    def test_changed_bundle_requires_a_new_confirmation(self):
+        self.seed(); payload = self.release(); fired = [False]
+        def fault(phase):
+            if phase == 'verify' and not fired[0]:
+                fired[0] = True
+                raise SimulatedCrash()
+        with self.assertRaises(SimulatedCrash):
+            self.make(fault).dispatch('update', 'changing', payload)
         self.release('1.1.9')
         result = self.make().dispatch('resume', 'resume_changing', {'target_operation_id': 'changing'})
-        self.assertEqual('manifest_changed', result['data']['failure_code'])
+        self.assertEqual('bundle_changed', result['data']['failure_code'])
         self.assertEqual('old', self.manager.pointer('current'))
     def test_health_failure_restores_schema_and_keeps_new_data(self):
         self.seed(); self.state['fail_versions'].add('1.1.8')
@@ -294,15 +215,23 @@ class DeploymentTest(unittest.TestCase):
         self.assertIn(result['status'], {'failed', 'requires_user_action'})
         self.assertNotEqual('corrupted snapshot', (self.manager.root / 'data/config.txt').read_text())
     def test_unfinished_transaction_protects_refs_and_blocks_another(self):
-        self.seed(); self.state['break_download'] = True
-        payload = self.release(); self.manager.dispatch('update', 'pending', payload)
+        self.seed(); payload = self.release()
+        def fault(phase):
+            if phase == 'verify':
+                raise SimulatedCrash()
+        with self.assertRaises(SimulatedCrash):
+            self.make(fault).dispatch('update', 'pending', payload)
         with self.assertRaises(m.BridgeError):
             self.manager.dispatch('update', 'different', payload)
         self.manager.cleanup(False)
         self.assertTrue((self.manager.root / 'versions/old').is_dir())
     def test_cancel_before_switch_does_not_touch_running_source(self):
-        self.seed(); self.state['break_download'] = True
-        self.manager.dispatch('update', 'cancel_me', self.release())
+        self.seed(); payload = self.release()
+        def fault(phase):
+            if phase == 'verify':
+                raise SimulatedCrash()
+        with self.assertRaises(SimulatedCrash):
+            self.make(fault).dispatch('update', 'cancel_me', payload)
         result = self.manager.dispatch('cancel_operation', 'cancel', {'target_operation_id': 'cancel_me', 'confirm_cancel': True})
         self.assertEqual('ok', result['status']); self.assertEqual('cancelled', result['data']['status'])
         self.assertTrue(self.state['running']); self.assertEqual('old', self.manager.pointer('current'))
@@ -639,7 +568,11 @@ esac
 '''); path.chmod(0o700)
         env = dict(os.environ, HOME=str(self.home), PATH=str(mock)+os.pathsep+os.environ['PATH'],
                    AUDIT_CALLS=str(calls), AUDIT_INSTALLED=str(installed), AUDIT_FAIL_LIST='1' if fail_list else '0')
-        script = MODULE.with_name('agentdock-workbench-bootstrap.sh')
+        bundle = self.home / 'bootstrap-bundle'; bundle.mkdir()
+        for name in ('agentdock-workbench-bootstrap.sh', 'agentdock-workbench', 'agentdock_workbench.py', 'agentdock_host_executor.py'):
+            shutil.copy2(MODULE.with_name(name), bundle / name)
+        (bundle / m.BUNDLED_CORE_NAME).write_bytes(b'fixture bundled core')
+        script = bundle / 'agentdock-workbench-bootstrap.sh'
         result = subprocess.run(['/bin/sh', str(script)], env=env, capture_output=True, text=True, timeout=15)
         if repeat:
             self.assertEqual(0, result.returncode, result.stderr)
@@ -716,15 +649,16 @@ def phase_case(phase):
         self.assertEqual('user project', (self.workspace / 'project.txt').read_text())
         self.assertEqual('succeeded', self.manager.query('crash_case')['status'])
     return test
-for phase in ('created','manifest','download','verify','prepared','stop','backup','switch','pointer-published','start','health','commit','complete'):
+for phase in ('created','verify','prepared','stop','backup','switch','pointer-published','start','health','commit','complete'):
     setattr(DeploymentTest, 'test_resume_after_' + phase.replace('-', '_'), phase_case(phase))
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(DeploymentTest)
+    expected_tests = suite.countTestCases()
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     output = Path(os.environ.get('WB07_DEPLOYMENT_RESULT', 'evidence/contract/deployment-result.json'))
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps({'scope':'synthetic filesystem and injected process backend; real OpenSSL signature checks',
+    output.write_text(json.dumps({'scope':'synthetic filesystem and injected process backend; real bundled archive extraction',
         'tests': result.testsRun, 'failures':len(result.failures), 'errors':len(result.errors), 'skipped':len(result.skipped),
         'production_installed':False, 'source_sha':os.environ.get('GITHUB_SHA','unknown')}, indent=2) + '\n')
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 72 and not result.skipped else 1)
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun == expected_tests and not result.skipped else 1)

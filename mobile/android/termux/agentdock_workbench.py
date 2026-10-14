@@ -22,8 +22,6 @@ import sys
 import tarfile
 import tempfile
 import time
-import urllib.parse
-import urllib.request
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -33,12 +31,7 @@ MAX_EXPANDED = 512 * 1024 * 1024
 MAX_BACKUP = 1024 * 1024 * 1024
 MAX_ENTRIES = 25000
 MAX_JOURNALS = 128
-DOWNLOAD_ATTEMPTS = 3
-DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 20
-METADATA_DOWNLOAD_TIMEOUT_SECONDS = 30
-ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS = 600
-DOWNLOAD_PROCESS_GRACE_SECONDS = 15
-RANGE_REJECTED = {33, 36}
+BUNDLED_CORE_NAME = "agentdock-core-arm64.tar.gz"
 MAX_TERMINAL_JOURNALS = 32
 TERMINAL_JOURNAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 ABANDONED_TRANSACTION_RETENTION_SECONDS = 7 * 24 * 60 * 60
@@ -375,17 +368,6 @@ def snapshot_tree(source: Path, target: Path) -> None:
     os.replace(temporary, target)
     fsync_directory(target.parent)
 
-def https_url(value: str) -> str:
-    check(isinstance(value, str) and 0 < len(value) <= 4096, "invalid_url", "下载地址无效")
-    parsed = urllib.parse.urlsplit(value)
-    check(parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username and not parsed.password
-          and not parsed.query and not parsed.fragment, "invalid_url", "清单和源资产须为无凭据、无查询参数的 HTTPS 地址")
-    return value
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise BridgeError("redirect_rejected", "节点响应重定向被拒绝")
-
 class NodeBackend:
     """Actual Termux/PRoot I/O. CI uses an injected, temporary-filesystem backend."""
     def __init__(self, root: Path, config: dict[str, Any]):
@@ -538,51 +520,6 @@ class NodeBackend:
         child.poll()
         self.stop()
         raise BridgeError("health_failed", "Core 身份、版本、管理鉴权或健康检查失败")
-
-    def fetch(self, url: str, target: Path, maximum: int, resume: bool = False) -> None:
-        https_url(url)
-        check(not target.is_symlink(), "unsafe_path", "下载暂存文件无效")
-        if target.exists():
-            check(target.is_file(), "unsafe_path", "下载暂存路径不是普通文件")
-            check(target.stat().st_size <= maximum, "size_limit", "下载暂存文件超过大小上限")
-        attempt_timeout = ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS if resume else METADATA_DOWNLOAD_TIMEOUT_SECONDS
-        resume_supported = resume
-        for _ in range(DOWNLOAD_ATTEMPTS):
-            can_resume = resume_supported and target.is_file() and 0 < target.stat().st_size <= maximum
-            args = [
-                "curl", "--noproxy", "*", "-fsSL", "--retry", "0",
-                "--connect-timeout", str(DOWNLOAD_CONNECT_TIMEOUT_SECONDS),
-                "--max-time", str(attempt_timeout), "--max-filesize", str(maximum),
-                "--proto", "=https", "--proto-redir", "=https", "--tlsv1.2",
-            ]
-            if can_resume:
-                args += ["--continue-at", "-"]
-            try:
-                result = subprocess.run(
-                    args + [url, "-o", str(target)],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=attempt_timeout + DOWNLOAD_PROCESS_GRACE_SECONDS,
-                    close_fds=True,
-                )
-                returncode = result.returncode
-            except subprocess.TimeoutExpired:
-                returncode = 28
-            if target.exists():
-                check(not target.is_symlink() and target.is_file(), "unsafe_path", "下载暂存文件类型改变")
-                check(target.stat().st_size <= maximum, "size_limit", "下载文件超过大小上限")
-            if returncode == 0 and target.is_file():
-                return
-            if can_resume and returncode in RANGE_REJECTED:
-                target.unlink(missing_ok=True)
-                resume_supported = False
-            elif not resume:
-                target.unlink(missing_ok=True)
-        raise BridgeError("download_failed", "下载未完成，可按原操作继续；已保留可验证残包", True)
-
-    def verify_signature(self, key: Path, manifest: Path, signature: Path) -> None:
-        result = subprocess.run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(key), "-rawin", "-in", str(manifest), "-sigfile", str(signature)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, close_fds=True)
-        check(result.returncode == 0, "trust_failed", "发布清单签名验证失败")
 
 def core_launch_command(config: dict) -> str:
     # The validated node.json port is authoritative; ignore legacy port files.
@@ -835,7 +772,7 @@ class Deployment:
                 "data": {"version": version, "desired_state": self.desired(), "healthy": healthy, "process_identity": "verified" if owned else "unknown" if error else "absent", "active_operation_id": active, "node": self.config,
                          "environment": self.backend.environment(), "recovery": read_json(self.root / "recovery.json", {}),
                          "workspace": self.workspace_status(),
-                         "manifest_trust_ready": (self.state / "trust/release-ed25519-public.pem").is_file(), "observed_at": self.clock()}}
+                         "bundled_core_ready": self.bundled_core_ready(), "observed_at": self.clock()}}
 
     def journal_path(self, identity: str) -> Path:
         check(isinstance(identity, str) and IDENTIFIER.fullmatch(identity) is not None, "invalid_request", "操作标识无效")
@@ -923,64 +860,37 @@ class Deployment:
         atomic_bytes(self.root / "active-operation", identity.encode())
         return journal
 
+    def bundled_core(self) -> Path:
+        archive = self.state / "bundle" / BUNDLED_CORE_NAME
+        check(not archive.is_symlink() and archive.is_file() and 0 < archive.stat().st_size <= MAX_ARCHIVE,
+              "bundled_core_missing", "APK 内置 Core 尚未导入 Termux；请重新导出并运行完整桥包")
+        return archive
+
+    def bundled_core_ready(self) -> bool:
+        archive = self.state / "bundle" / BUNDLED_CORE_NAME
+        return not archive.is_symlink() and archive.is_file() and 0 < archive.stat().st_size <= MAX_ARCHIVE
+
     def prepare_install(self, journal: dict) -> None:
         payload = journal["payload"]
-        key = self.state / "trust/release-ed25519-public.pem"
-        check(key.is_file() and not key.is_symlink() and key.stat().st_size < 8192, "pending_manifest", "缺少受信发布公钥；未下载或安装 Core")
         self.backend.validate_environment()
         version = payload.get("apk_version", "")
-        check(isinstance(version, str) and len(version) <= 80 and VERSION.fullmatch(version) is not None, "version_mismatch", "必须提供当前 APK 的准确产品版本")
-        directory = self.journal_path(journal["operation_id"]).parent
-        manifest, signature = directory / "manifest.json", directory / "manifest.sig"
-        self.save(journal, "manifest")
-        manifest_url = https_url(payload.get("manifest_url", ""))
-        signature_url = https_url(payload.get("manifest_signature_url", ""))
-        manifest_digest = journal.get("manifest_digest", "")
-        cached_manifest = bool(manifest_digest) and manifest.is_file() and signature.is_file()
-        if cached_manifest:
-            self.backend.verify_signature(key, manifest, signature)
-            check(sha256(manifest) == manifest_digest, "manifest_changed", "原操作的缓存清单内容已改变，请取消后重新确认；未替换目标")
-            refreshed_manifest = directory / "manifest.refresh.json"
-            refreshed_signature = directory / "manifest.refresh.sig"
-            try:
-                self.backend.fetch(manifest_url, refreshed_manifest, MAX_JSON)
-                self.backend.fetch(signature_url, refreshed_signature, 4096)
-                self.backend.verify_signature(key, refreshed_manifest, refreshed_signature)
-                check(sha256(refreshed_manifest) == manifest_digest, "manifest_changed", "原操作的签名清单内容已改变，请取消后重新确认；未替换目标")
-                os.replace(refreshed_manifest, manifest)
-                os.replace(refreshed_signature, signature)
-                fsync_directory(directory)
-            except BridgeError as error:
-                if error.code != "download_failed":
-                    raise
-            finally:
-                refreshed_manifest.unlink(missing_ok=True)
-                refreshed_signature.unlink(missing_ok=True)
-        else:
-            self.backend.fetch(manifest_url, manifest, MAX_JSON)
-            self.backend.fetch(signature_url, signature, 4096)
-            self.backend.verify_signature(key, manifest, signature)
-            observed_manifest_digest = sha256(manifest)
-            check(not manifest_digest or manifest_digest == observed_manifest_digest, "manifest_changed", "原操作的签名清单内容已改变，请取消后重新确认；未替换目标")
-            if not manifest_digest:
-                self.save(journal, manifest_digest=observed_manifest_digest)
-        release = read_json(manifest)
-        check(isinstance(release, dict) and release.get("schema_version") == 1 and release.get("platform") == "linux"
-              and release.get("arch") == "arm64" and release.get("version") == version
-              and re.fullmatch(r"[a-f0-9]{64}", str(release.get("sha256", ""))) is not None, "version_mismatch", "签名清单的平台、架构、摘要或 APK/Core 版本不匹配")
-        asset_url = https_url(release.get("asset_url", ""))
-        archive = directory / "core.tar.gz.partial"
-        self.save(journal, "download", target_version=version)
-        if not archive.is_file() or sha256(archive) != release["sha256"]:
-            self.backend.fetch(asset_url, archive, MAX_ARCHIVE, resume=True)
-        check(sha256(archive) == release["sha256"], "verification_failed", "Core 包 SHA-256 不匹配；未进入维护阶段")
-        target_name = version + "-" + release["sha256"][:12]
+        check(isinstance(version, str) and len(version) <= 80 and VERSION.fullmatch(version) is not None,
+              "version_mismatch", "必须提供当前 APK 的准确产品版本")
+        archive = self.bundled_core()
+        archive_digest = sha256(archive)
+        bound_digest = str(journal.get("bundle_digest", ""))
+        check(not bound_digest or bound_digest == archive_digest, "bundle_changed",
+              "原操作绑定的 APK 内置 Core 已变化，请取消后重新确认")
+        if not bound_digest:
+            self.save(journal, bundle_digest=archive_digest)
+        target_name = version + "-" + archive_digest[:12]
         target = self.root / "versions" / target_name
         stage = self.root / "versions" / (".stage-" + journal["operation_id"])
         self.save(journal, "verify", target=target_name)
         if target.exists():
             metadata = self.metadata(target_name)
-            check(metadata.get("sha256") == release["sha256"] and metadata.get("binary_sha256") == sha256(target / "bin/agentdock"), "version_conflict", "已有版本目录内容不同；未覆盖")
+            check(metadata.get("sha256") == archive_digest and metadata.get("binary_sha256") == sha256(target / "bin/agentdock"),
+                  "version_conflict", "已有版本目录内容不同；未覆盖")
         else:
             if stage.exists():
                 check(not stage.is_symlink(), "unsafe_path", "版本暂存目录无效")
@@ -988,10 +898,10 @@ class Deployment:
             stage.mkdir(mode=0o700)
             safe_extract(archive, stage)
             check((stage / "bin/agentdock").is_file() and os.access(stage / "bin/agentdock", os.X_OK), "verification_failed", "缺少可执行 Core")
-            check(self.backend.binary_version(stage) == version, "version_mismatch", "Core 自报版本与签名清单不同")
-            metadata = {key: release[key] for key in ("version", "platform", "arch", "sha256")}
+            check(self.backend.binary_version(stage) == version, "version_mismatch", "APK 内置 Core 自报版本与 APK 不一致")
+            metadata = {"version": version, "platform": "linux", "arch": "arm64", "sha256": archive_digest}
             metadata["binary_sha256"] = sha256(stage / "bin/agentdock")
-            metadata["data_schema"] = str(release.get("data_schema", "unknown"))[:128]
+            metadata["data_schema"] = "apk-bundled"
             atomic_json(stage / ".workbench-release.json", metadata)
             os.replace(stage, target)
             fsync_directory(target.parent)
@@ -1462,8 +1372,8 @@ class Deployment:
             "workspace_migration_preview": set(), "uninstall_preview": set(),
             "logs": {"log", "offset", "search"}, "operation_query": {"target_operation_id"},
             "configure": {"node"}, "adopt": {"existing_root", "confirm_adopt"},
-            "install": {"apk_version", "manifest_url", "manifest_signature_url", "start_after_install"},
-            "update": {"apk_version", "manifest_url", "manifest_signature_url", "start_after_install"},
+            "install": {"apk_version", "start_after_install"},
+            "update": {"apk_version", "start_after_install"},
             "resume": {"target_operation_id", "confirm_start"},
             "cancel_operation": {"target_operation_id", "confirm_cancel"},
             "repair": {"confirm_reset"}, "rollback": {"confirm_data_restore", "start_after_install"},
@@ -1579,7 +1489,7 @@ class Deployment:
                 self.backend.bearer()
             else:
                 atomic_bytes(token, secrets.token_hex(32).encode())
-            return {"status": "ok", "message": "私有节点目录与环境已准备；Core 仍需签名清单安装"}
+            return {"status": "ok", "message": "私有节点目录、环境与 APK 内置 Core 已准备"}
         if operation == "pair_local_core":
             key_id = payload.get("key_id", "")
             algorithm = payload.get("algorithm", "")

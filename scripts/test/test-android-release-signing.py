@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,9 +33,25 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.inputs.mkdir()
         self.version = "1.1.9"
         self.commit = "b" * 40
+        self.core_name = "agentdock_linux_arm64.tar.gz"
+        self.core = self.inputs / self.core_name
+        self.core.write_bytes(b"verified-linux-arm64-core")
+        self.core_checksum = module.digest(self.core)
+        (self.inputs / (self.core_name + ".sha256")).write_text(
+            f"{self.core_checksum}  {self.core_name}\n"
+        )
+        (self.inputs / "verification-linux-arm64.json").write_text(json.dumps({
+            "product_name": "AgentDock Workbench",
+            "version": self.version,
+            "commit": self.commit,
+            "platform": "linux/arm64",
+            "native_execution": "passed",
+            "assets": {self.core_name: self.core_checksum},
+        }))
         self.candidate_name = f"AgentDock-Workbench-{self.version}-Android-test-signed.apk"
         self.candidate = self.inputs / self.candidate_name
-        self.candidate.write_bytes(b"verified-candidate")
+        with zipfile.ZipFile(self.candidate, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("assets/agentdock-core-arm64.tar.gz", self.core.read_bytes())
         checksum = module.digest(self.candidate)
         (self.inputs / (self.candidate_name + ".sha256")).write_text(
             f"{checksum}  {self.candidate_name}\n"
@@ -108,6 +125,11 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.assertTrue(public.is_file())
         self.assertEqual(report["certificate_sha256"], CERTIFICATE)
         self.assertEqual(report["source_apk"]["sha256"], module.digest(self.candidate))
+        self.assertEqual(report["bundled_core"], {
+            "apk_asset": "assets/agentdock-core-arm64.tar.gz",
+            "source_archive": {"name": self.core_name, "sha256": self.core_checksum},
+            "validation": "passed",
+        })
         self.assertEqual(report["assets"][public.name], module.digest(public))
         self.assertEqual(
             (self.output / (public.name + ".sha256")).read_text().strip(),
@@ -135,6 +157,20 @@ class AndroidReleaseSigningTest(unittest.TestCase):
     def test_candidate_byte_change_is_rejected_before_signing(self):
         self.candidate.write_bytes(b"changed")
         with self.assertRaisesRegex(RuntimeError, "differ from verified evidence"):
+            self.sign()
+        self.runner.assert_not_called()
+
+    def test_candidate_bundled_core_must_match_verified_linux_archive(self):
+        with zipfile.ZipFile(self.candidate, "w") as archive:
+            archive.writestr("assets/agentdock-core-arm64.tar.gz", b"different")
+        checksum = module.digest(self.candidate)
+        (self.inputs / (self.candidate_name + ".sha256")).write_text(
+            f"{checksum}  {self.candidate_name}\n"
+        )
+        report = json.loads((self.inputs / "verification-android.json").read_text())
+        report["assets"][self.candidate_name] = checksum
+        (self.inputs / "verification-android.json").write_text(json.dumps(report))
+        with self.assertRaisesRegex(RuntimeError, "verified Linux ARM64 Core"):
             self.sign()
         self.runner.assert_not_called()
 

@@ -14,10 +14,10 @@
 
 #ifdef WindowsARM64
 #define PayloadArchitecture "arm64"
-#define SetupBaseFilename "AgentDockSetup-arm64"
+#define SetupBaseFilename "AgentDock-Workbench-Setup-arm64"
 #else
 #define PayloadArchitecture "amd64"
-#define SetupBaseFilename "AgentDockSetup-amd64"
+#define SetupBaseFilename "AgentDock-Workbench-Setup-amd64"
 #endif
 
 [Setup]

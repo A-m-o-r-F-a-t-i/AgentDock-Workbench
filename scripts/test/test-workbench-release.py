@@ -8,6 +8,7 @@ import tempfile
 import subprocess
 import textwrap
 import unittest
+import zipfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,12 +27,17 @@ class ReleaseGate(unittest.TestCase):
             self.assertFalse(name.endswith(('.zip','.tar.gz','.sha256')))
             self.assertNotIn(name,('install.sh','install.ps1','SHA256SUMS','release-manifest.json'))
 
-    def test_119_public_release_includes_android_core_delivery(self):
+    def test_119_public_release_contains_single_android_installer(self):
         names=release.public_installers('1.1.9')
-        self.assertEqual(names[-3:],release.android_core_asset_names('1.1.9'))
-        self.assertIn('AgentDock-Workbench-1.1.9-Android-Core-arm64.tar.gz',names)
-        self.assertIn('AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.json',names)
-        self.assertIn('AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.sig',names)
+        self.assertEqual(names[:2],[
+            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe'])
+        self.assertEqual(names[-1],'AgentDock-Workbench-1.1.9-Android.apk')
+        self.assertEqual(len(names),8)
+        self.assertFalse(any('Android-Core-arm64' in name for name in names))
+        self.assertEqual(release.obsolete_public_installers('1.1.8'),{
+            'AgentDock-Workbench-1.1.8-Android-test-signed.apk'})
+        self.assertTrue({'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe'}.issubset(
+            release.obsolete_public_installers('1.1.9')))
 
     def test_repository_license_is_preserved(self):
         license_text=(ROOT/'LICENSE').read_text()
@@ -73,16 +79,16 @@ class ReleaseGate(unittest.TestCase):
         self.assertEqual(len(list(self.dist.iterdir())),2*len(self.payloads)+2)
         self.assertEqual(self.assemble()['commit'],self.commit)
     def test_missing_target_asset(self):
-        (self.inputs/'AgentDockSetup-arm64.exe').unlink()
+        (self.inputs/release.windows_setup_names(self.version)[1]).unlink()
         with self.assertRaisesRegex(RuntimeError,'Missing verified build input'):self.assemble()
     def test_modified_payload(self):
         (self.inputs/'agentdock_linux_arm64.tar.gz').write_text('changed')
-        with self.assertRaisesRegex(RuntimeError,'checksum|Core release signing evidence'):self.assemble()
+        with self.assertRaisesRegex(RuntimeError,'checksum|verified Linux ARM64 Core'):self.assemble()
     def test_mixed_source(self):
         self.reports['verification-darwin-amd64.json']['commit']='b'*40;self.flush()
         with self.assertRaisesRegex(RuntimeError,'different source'):self.assemble()
     def test_conflicting_copies(self):
-        other=self.inputs/'other';other.mkdir();(other/'AgentDockSetup-amd64.exe').write_text('different')
+        other=self.inputs/'other';other.mkdir();(other/release.windows_setup_names(self.version)[0]).write_text('different')
         with self.assertRaisesRegex(RuntimeError,'Conflicting artifact'):self.assemble()
     def test_report_hash_is_authoritative(self):
         self.reports['verification-linux-amd64.json']['assets']={'agentdock_linux_amd64.tar.gz':'f'*64};self.flush()
@@ -143,11 +149,21 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     target_version='1.1.9'
     def setUp(self):
         super().setUp()
+        raw_name='agentdock_linux_arm64.tar.gz'
+        raw_bytes=(self.inputs/raw_name).read_bytes()
+        raw_checksum=release.digest(self.inputs/raw_name)
+        bundled_asset='assets/agentdock-core-arm64.tar.gz'
+        def write_apk(path):
+            with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_STORED) as archive:
+                archive.writestr(bundled_asset,raw_bytes)
         candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
-        candidate_path=self.inputs/candidate;candidate_path.write_bytes(b'verified-android-candidate')
+        candidate_path=self.inputs/candidate;write_apk(candidate_path)
         candidate_checksum=release.digest(candidate_path)
         candidate_path.with_name(candidate+'.sha256').write_text(f'{candidate_checksum}  {candidate}\n')
         public=f'AgentDock-Workbench-{self.version}-Android.apk'
+        public_path=self.inputs/public;write_apk(public_path)
+        public_checksum=release.digest(public_path)
+        public_path.with_name(public+'.sha256').write_text(f'{public_checksum}  {public}\n')
         alias,certificate=release.android_release_identity()
         self.reports['verification-android.json']={
             'version':self.version,'commit':self.commit,'product_name':release.PRODUCT,
@@ -161,37 +177,18 @@ class AndroidReleaseGate(EnhancedReleaseGate):
             'platform':'android/arm64','signing':'stable Android release key',
             'key_alias':alias,'certificate_sha256':certificate,
             'source_apk':{'name':candidate,'sha256':candidate_checksum},
-            'release_signing_validation':'passed','assets':{public:release.digest(self.inputs/public)}}
-        raw_name='agentdock_linux_arm64.tar.gz'
-        raw_checksum=release.digest(self.inputs/raw_name)
-        core_archive,core_manifest,core_signature=release.android_core_asset_names(self.version)
-        (self.inputs/core_archive).write_bytes((self.inputs/raw_name).read_bytes())
-        core_url=f'https://github.com/{release.REPOSITORY}/releases/download/v{self.version}/{core_archive}'
-        (self.inputs/core_manifest).write_text(json.dumps({
-            'schema_version':1,'product_name':release.PRODUCT,'platform':'linux','arch':'arm64',
-            'version':self.version,'commit':self.commit,'sha256':raw_checksum,
-            'asset_url':core_url,'data_schema':1
-        }))
-        (self.inputs/core_signature).write_bytes(b's'*64)
-        core_assets={name:release.digest(self.inputs/name) for name in [core_archive,core_manifest,core_signature]}
-        for name,checksum in core_assets.items():
-            (self.inputs/(name+'.sha256')).write_text(f'{checksum}  {name}\n')
-        self.reports['verification-android-core-release.json']={
-            'version':self.version,'commit':self.commit,'product_name':release.PRODUCT,
-            'platform':'android-core/arm64','signing':'stable Android Core Ed25519 key',
-            'public_key_sha256':release.android_core_release_identity(),
-            'source_archive':{'name':raw_name,'sha256':raw_checksum},
-            'manifest':{'name':core_manifest,'signature':core_signature,'asset':core_archive,'asset_url':core_url},
-            'release_signing_validation':'passed','assets':core_assets}
+            'bundled_core':{'apk_asset':bundled_asset,
+                'source_archive':{'name':raw_name,'sha256':raw_checksum},'validation':'passed'},
+            'release_signing_validation':'passed','assets':{public:public_checksum}}
         self.flush()
     def test_android_payload_and_prerelease_manifest(self):
         manifest=release.assemble(self.inputs,self.dist,self.version,self.commit,True)
         self.assertTrue(manifest['prerelease'])
-        self.assertEqual(len(manifest['assets']),20)
+        self.assertEqual(len(manifest['assets']),17)
         self.assertIn('android/arm64',manifest['platforms'])
-        self.assertIn('android-core/arm64',manifest['platforms'])
+        self.assertNotIn('android-core/arm64',manifest['platforms'])
         self.assertEqual(manifest['signing']['android'],'stable Android release key')
-        self.assertEqual(manifest['signing']['android_core'],'stable Android Core Ed25519 key')
+        self.assertNotIn('android_core',manifest['signing'])
         self.assertFalse((self.dist/f'AgentDock-Workbench-{self.version}-Android-test-signed.apk').exists())
     def test_missing_android_report_blocks_publication(self):
         (self.inputs/'verification-android.json').unlink()
@@ -217,24 +214,22 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     def test_signed_apk_must_reference_the_verified_candidate(self):
         self.reports['verification-android-release.json']['source_apk']['sha256']='f'*64;self.flush()
         with self.assertRaisesRegex(RuntimeError,'release signing evidence'):self.assemble()
-    def test_missing_android_core_report_blocks_publication(self):
-        (self.inputs/'verification-android-core-release.json').unlink()
-        with self.assertRaisesRegex(RuntimeError,'Missing verified build input'):self.assemble()
-    def test_android_core_archive_must_match_linux_arm64(self):
-        archive=release.android_core_asset_names(self.version)[0]
-        (self.inputs/archive).write_bytes(b'different')
-        checksum=release.digest(self.inputs/archive)
-        (self.inputs/(archive+'.sha256')).write_text(f'{checksum}  {archive}\n')
-        self.reports['verification-android-core-release.json']['assets'][archive]=checksum;self.flush()
-        with self.assertRaisesRegex(RuntimeError,'public archive differs'):self.assemble()
-    def test_android_core_manifest_must_bind_public_asset(self):
-        manifest=release.android_core_asset_names(self.version)[1]
-        value=json.loads((self.inputs/manifest).read_text());value['asset_url']='https://example.invalid/core.tar.gz'
-        (self.inputs/manifest).write_text(json.dumps(value))
-        checksum=release.digest(self.inputs/manifest)
-        (self.inputs/(manifest+'.sha256')).write_text(f'{checksum}  {manifest}\n')
-        self.reports['verification-android-core-release.json']['assets'][manifest]=checksum;self.flush()
-        with self.assertRaisesRegex(RuntimeError,'deployment manifest'):self.assemble()
+    def test_candidate_apk_must_contain_verified_linux_arm64_core(self):
+        candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
+        with zipfile.ZipFile(self.inputs/candidate,'w') as archive:
+            archive.writestr('assets/agentdock-core-arm64.tar.gz',b'different')
+        checksum=release.digest(self.inputs/candidate)
+        (self.inputs/(candidate+'.sha256')).write_text(f'{checksum}  {candidate}\n')
+        self.reports['verification-android.json']['assets'][candidate]=checksum;self.flush()
+        with self.assertRaisesRegex(RuntimeError,'verified Linux ARM64 Core'):self.assemble()
+    def test_signed_apk_must_keep_verified_bundled_core(self):
+        public=f'AgentDock-Workbench-{self.version}-Android.apk'
+        with zipfile.ZipFile(self.inputs/public,'w') as archive:
+            archive.writestr('assets/agentdock-core-arm64.tar.gz',b'different')
+        checksum=release.digest(self.inputs/public)
+        (self.inputs/(public+'.sha256')).write_text(f'{checksum}  {public}\n')
+        self.reports['verification-android-release.json']['assets'][public]=checksum;self.flush()
+        with self.assertRaisesRegex(RuntimeError,'lost the verified bundled Core'):self.assemble()
 
 class PublicationGate(unittest.TestCase):
     def setUp(self):

@@ -394,7 +394,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: agentdock-windows-setup-${{ matrix.goarch }}
-          path: dist/AgentDockSetup-${{ matrix.goarch }}.exe
+          path: dist/AgentDock-Workbench-Setup-${{ matrix.goarch }}.exe
           if-no-files-found: error
 
   publish:
@@ -457,8 +457,8 @@ jobs:
             for file in \
               install.sh \
               install.ps1 \
-              AgentDockSetup-amd64.exe \
-              AgentDockSetup-arm64.exe; do
+              AgentDock-Workbench-Setup-amd64.exe \
+              AgentDock-Workbench-Setup-arm64.exe; do
               shasum -a 256 "$file" > "$file.sha256"
             done
           )
@@ -772,10 +772,10 @@ jobs:
             -OutputPath $downloadedInstaller
           "DOWNLOADED_INSTALLER=$downloadedInstaller" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
           "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
-          $setup = Join-Path $env:RUNNER_TEMP 'AgentDockSetup-amd64.exe'
+          $setup = Join-Path $env:RUNNER_TEMP 'AgentDock-Workbench-Setup-amd64.exe'
           Invoke-WebRequest `
             -UseBasicParsing `
-            -Uri "https://github.com/${{ github.repository }}/releases/download/$tag/AgentDockSetup-amd64.exe" `
+            -Uri "https://github.com/${{ github.repository }}/releases/download/$tag/AgentDock-Workbench-Setup-amd64.exe" `
             -OutFile $setup
           "PUBLISHED_SETUP=$setup" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
 

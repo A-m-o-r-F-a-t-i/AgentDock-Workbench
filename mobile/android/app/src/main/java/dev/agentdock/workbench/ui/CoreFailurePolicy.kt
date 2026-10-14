@@ -41,11 +41,11 @@ internal object CoreFailurePolicy {
             .getOrNull() in setOf("127.0.0.1", "localhost", "::1")
 
         if (loopback && status?.has("version") == true && status.optString("version").isBlank() && !deploymentAfterStatus) {
-            val trustReady = status.optBoolean("manifest_trust_ready")
-            val preparation = if (trustReady) {
-                "前往“安装与更新”，使用已预填的官方签名源安装并启动 Core。"
+            val bundledCoreReady = status.optBoolean("bundled_core_ready")
+            val preparation = if (bundledCoreReady) {
+                "前往“安装与更新”，部署 APK 内置 Core 并启动节点。"
             } else {
-                "先重新导出并运行完整 Termux 桥包，安装固定发布公钥，再使用官方签名源安装并启动 Core。"
+                "先从当前 APK 重新导出并运行完整 Termux 桥包，再部署其中的内置 Core。"
             }
             return CoreFailureAdvice(
                 title = "本机 Core 尚未安装",

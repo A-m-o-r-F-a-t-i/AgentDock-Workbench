@@ -33,8 +33,6 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         model.showNotice(if (granted) "系统已授予 RUN_COMMAND；仍需探测外部桥。" else "RUN_COMMAND 未获授权，未提交 Termux 操作。")
     }
-    var manifest by rememberSaveable { mutableStateOf(BuildConfig.ANDROID_CORE_MANIFEST_URL) }
-    var signature by rememberSaveable { mutableStateOf(BuildConfig.ANDROID_CORE_MANIFEST_SIGNATURE_URL) }
     var startAfter by rememberSaveable { mutableStateOf(true) }
     var nodeName by rememberSaveable { mutableStateOf("AgentDock Workbench") }
     var port by rememberSaveable { mutableStateOf("8765") }
@@ -103,14 +101,14 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                     val installedVersion = status.optString("version")
                     Text("Core 版本：${installedVersion.ifBlank { "未安装" }}")
                     Text("运行意图：${status.optString("desired_state", "未知")} · 身份：${status.optString("process_identity", "未知")}")
-                    Text("已验证健康：${status.optBoolean("healthy")} · 受信公钥存在：${status.optBoolean("manifest_trust_ready")}")
+                    Text("已验证健康：${status.optBoolean("healthy")} · APK 内置 Core 已准备：${status.optBoolean("bundled_core_ready")}")
                     status.optJSONObject("workspace")?.let { workspace ->
                         Text("公共工作区：${workspace.optString("path", "未配置")}")
                         Text("用户可访问：${workspace.optBoolean("user_accessible")} · 当前可用：${workspace.optBoolean("available")}")
                         if (workspace.optBoolean("legacy_private_pending")) Text("检测到旧私有工作区，请在下方预览并迁移。")
                     }
                     if (installedVersion.isBlank()) {
-                        Text("当前手机尚未安装受管 Core。使用下方官方签名源安装并启动后，任务、活动与调用页面才能读取本机数据。")
+                        Text("当前手机尚未安装受管 Core。运行包含 Core 的完整桥包后，使用下方按钮部署并启动，任务、活动与调用页面即可读取本机数据。")
                     }
                     val active = status.optString("active_operation_id")
                     if (active.isNotBlank()) TextButton(onClick = { targetOperation = active }) { Text("查看未完成事务 $active") }
@@ -153,13 +151,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         }
         item {
             DeploymentSection("安装与升级") {
-                Text("官方 ${BuildConfig.PRODUCT_VERSION} 清单与签名地址已预填。导出的完整桥包会把固定发布公钥安装到 Termux 私有信任目录；签名、架构、版本或摘要不一致时，部署保持受阻。")
-                TextButton(onClick = {
-                    manifest = BuildConfig.ANDROID_CORE_MANIFEST_URL
-                    signature = BuildConfig.ANDROID_CORE_MANIFEST_SIGNATURE_URL
-                }) { Text("恢复官方发布源") }
-                DeploymentInput("HTTPS 发布清单", manifest) { manifest = it.take(4096) }
-                DeploymentInput("HTTPS 分离签名", signature) { signature = it.take(4096) }
+                Text("AgentDock Workbench APK 已包含同版本 ARM64 Core。导出的完整桥包会把该 Core 写入 Termux 私有目录，安装与升级不再访问额外发布文件。")
                 Row {
                     Checkbox(startAfter, { startAfter = it })
                     Text("明确允许启动并完成新版本健康验证", Modifier.padding(top = 12.dp))
@@ -167,14 +159,8 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                 DeploymentRow {
                     listOf("install" to "安装", "update" to "升级").forEach { (operation, title) ->
                         Button(onClick = {
-                            val valid = listOf(manifest, signature).all { text ->
-                                runCatching { java.net.URI(text) }.getOrNull()?.let { uri ->
-                                    uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null
-                                } == true
-                            }
-                            if (!valid) model.showNotice("清单和签名地址须为无凭据、无查询参数的 HTTPS 地址。")
-                            else offer(title, "目标必须与 APK ${BuildConfig.PRODUCT_VERSION} 同版本。下载校验完成后进入维护阶段，备份 Core 数据并切换版本。未允许启动时，事务会停留在待健康验证阶段。", operation,
-                                JSONObject().put("manifest_url", manifest).put("manifest_signature_url", signature).put("start_after_install", startAfter))
+                            offer(title, "部署 APK ${BuildConfig.PRODUCT_VERSION} 内置 Core。解包并核对 Core 自报版本后进入维护阶段，备份数据并切换版本。未允许启动时，事务会停留在待健康验证阶段。", operation,
+                                JSONObject().put("start_after_install", startAfter))
                         }, enabled = enabled) { Text(title) }
                     }
                     OutlinedButton(onClick = { offer("回退版本与数据", "恢复上一份已验证健康版本及其一致性 Core 数据快照。当前数据会先保留在私有隔离目录；用户工程不变。", "rollback",

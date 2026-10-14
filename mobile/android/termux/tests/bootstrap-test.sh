@@ -8,7 +8,7 @@ cp "$source_root/agentdock-workbench-bootstrap.sh" "$tmp/bundle with spaces/boot
 for companion in agentdock-workbench agentdock_workbench.py agentdock_host_executor.py; do
   printf '#!/bin/sh\n# fixture companion\nexit 0\n' >"$tmp/bundle with spaces/$companion"
 done
-cp "$source_root/release-ed25519-public.pem" "$tmp/bundle with spaces/release-ed25519-public.pem"
+printf 'fixture bundled core\n' >"$tmp/bundle with spaces/agentdock-core-arm64.tar.gz"
 cat >"$tmp/bin/dpkg" <<'MOCK'
 #!/usr/bin/env bash
 set -eu
@@ -82,9 +82,9 @@ for scenario in fresh installed dirty-config config-failure install-failure list
       [[ -x "$HOME/.termux/tasker/agentdock-workbench" ]]
       [[ -d "$HOME/storage/shared/Documents/AgentDock/Workspaces" ]]
       [[ -d "$HOME/storage/shared/Documents/AgentDock/Artifacts" ]]
-      cmp "$source_root/release-ed25519-public.pem" "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem"
-      [[ "$(stat -c '%a' "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem")" == 600 ]]
-      grep -Fq 'Termux bridge, Debian PRoot and the Android Core release trust key are ready.' "$CASE_DIR/output"
+      cmp "$tmp/bundle with spaces/agentdock-core-arm64.tar.gz" "$HOME/.agentdock-workbench/bundle/agentdock-core-arm64.tar.gz"
+      [[ "$(stat -c '%a' "$HOME/.agentdock-workbench/bundle/agentdock-core-arm64.tar.gz")" == 600 ]]
+      grep -Fq 'Termux bridge, Debian PRoot and the APK-bundled Android Core are ready.' "$CASE_DIR/output"
       if [[ "$scenario" == fresh ]]; then
         [[ -f "$HOME/.agentdock-workbench/managed-distro-debian" ]]
         timeout 15s bash "$tmp/bundle with spaces/bootstrap.sh" < /dev/null >>"$CASE_DIR/output" 2>&1
@@ -97,7 +97,7 @@ for scenario in fresh installed dirty-config config-failure install-failure list
       ;;
     *)
       [[ "$rc" != 0 && "$rc" != 124 ]] || { cat "$CASE_DIR/output"; exit 1; }
-      if grep -Fq 'Android Core release trust key are ready.' "$CASE_DIR/output"; then exit 1; fi
+      if grep -Fq 'APK-bundled Android Core are ready.' "$CASE_DIR/output"; then exit 1; fi
       if [[ "$scenario" == config-failure ]]; then if grep -q ' apt ' "$BOOTSTRAP_LOG"; then exit 1; fi; fi
       if [[ "$scenario" == list-failure ]]; then if grep -q '^proot install' "$BOOTSTRAP_LOG"; then exit 1; fi; fi
       ;;

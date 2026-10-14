@@ -40,8 +40,8 @@ Get-ChildItem Env:AGENTDOCK_* | ForEach-Object { $initialEnvironment[$_.Name] = 
 $initialPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
 $listener.Start(); $port = $listener.LocalEndpoint.Port; $listener.Stop()
-$setupPath = Join-Path $normalOutput 'AgentDockSetup-amd64.exe'
-$faultSetup = Join-Path $faultOutput 'AgentDockSetup-amd64.exe'
+$setupPath = Join-Path $normalOutput 'AgentDock-Workbench-Setup-amd64.exe'
+$faultSetup = Join-Path $faultOutput 'AgentDock-Workbench-Setup-amd64.exe'
 $coreFailureOutput = Join-Path $root 'core-failure-setup'
 $productionRoot = Join-Path $env:LOCALAPPDATA 'AgentDock'
 $productionPointer = Join-Path $productionRoot 'active-version.json'
@@ -290,7 +290,7 @@ try {
     Get-ChildItem $runtimeRoot -Filter '*.dpapi' -File | ForEach-Object { $hashes[$_.Name] = (Get-FileHash $_.FullName).Hash }
     if ($hashes.Count -eq 0) { throw 'Baseline has no protected credentials.' }
     if ($CoreFailureWrapper) {
-        Invoke-Setup (Join-Path $coreFailureOutput 'AgentDockSetup-amd64.exe') 'inno-core-start-rollback' $true
+        Invoke-Setup (Join-Path $coreFailureOutput 'AgentDock-Workbench-Setup-amd64.exe') 'inno-core-start-rollback' $true
         Assert-Preservation 'rolled_back' $oldVersion $hashes
     }
     Invoke-Setup $faultSetup 'inno-upgrade-rollback' $true

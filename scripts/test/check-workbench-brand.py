@@ -26,7 +26,7 @@ def main() -> None:
     assert f'AppName={PRODUCT}\n' in setup
     assert 'D6788C7A-4104-48D4-B5C3-F4858B5606EA' in setup
     assert 'DefaultDirName={localappdata}\\AgentDock' in setup
-    assert 'AgentDockSetup-amd64' in setup and 'AgentDockSetup-arm64' in setup
+    assert 'AgentDock-Workbench-Setup-amd64' in setup and 'AgentDock-Workbench-Setup-arm64' in setup
     mac = text('packaging/macos/build-app.sh')
     for key in ['CFBundleName','CFBundleDisplayName']:
         assert re.search(rf'<key>{key}</key>\s*<string>{PRODUCT}</string>',mac), key
