@@ -357,11 +357,38 @@ func backupNativeMetadataSize(value *backupNativeMetadata) int {
 	}
 	return len(value.Security) + 4
 }
-func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
-	if a == nil || b == nil {
-		return a == b
+
+// canonicalBackupNativeMetadata removes self-relative descriptor padding from
+// integrity records without changing the binary descriptor used for restore.
+// Windows can rebuild equivalent ACLs with different unused bytes, while SDDL
+// remains a stable representation of the DACL and its inheritance controls.
+func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+	if value == nil {
+		return nil, nil
 	}
-	return *a == *b
+	canonical := *value
+	if !strings.HasPrefix(value.Security, backupBinarySecurityPrefix) {
+		return &canonical, nil
+	}
+	security, storage, err := decodeBackupSecurityDescriptor(value.Security, backupNativeMetadataVersion)
+	if err != nil {
+		return nil, err
+	}
+	canonical.Security = security.String()
+	runtime.KeepAlive(storage)
+	if canonical.Security == "" {
+		return nil, errors.New("could not canonicalize backup security descriptor")
+	}
+	return &canonical, nil
+}
+
+func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
+	canonicalA, errA := canonicalBackupNativeMetadata(a)
+	canonicalB, errB := canonicalBackupNativeMetadata(b)
+	if errA != nil || errB != nil || canonicalA == nil || canonicalB == nil {
+		return errA == nil && errB == nil && canonicalA == canonicalB
+	}
+	return *canonicalA == *canonicalB
 }
 
 func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) string {
@@ -371,17 +398,13 @@ func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) stri
 	if actual.Attributes != expected.Attributes {
 		return fmt.Sprintf("attribute mismatch: actual=%#x expected=%#x", actual.Attributes, expected.Attributes)
 	}
-	if actual.Security != expected.Security {
-		a, aStorage, ae := decodeBackupSecurityDescriptor(actual.Security, backupNativeMetadataVersion)
-		b, bStorage, be := decodeBackupSecurityDescriptor(expected.Security, backupNativeMetadataVersion)
-		if ae == nil && be == nil {
-			ac, _, _ := a.Control()
-			bc, _, _ := b.Control()
-			runtime.KeepAlive(aStorage)
-			runtime.KeepAlive(bStorage)
-			return fmt.Sprintf("security descriptor mismatch: actual control=%#x expected control=%#x", ac, bc)
-		}
-		return "security descriptor mismatch"
+	canonicalActual, actualErr := canonicalBackupNativeMetadata(actual)
+	canonicalExpected, expectedErr := canonicalBackupNativeMetadata(expected)
+	if actualErr != nil || expectedErr != nil {
+		return fmt.Sprintf("security descriptor canonicalization failed: actual=%v expected=%v", actualErr, expectedErr)
+	}
+	if canonicalActual.Security != canonicalExpected.Security {
+		return fmt.Sprintf("security descriptor mismatch: actual=%q expected=%q", canonicalActual.Security, canonicalExpected.Security)
 	}
 	return "metadata matches"
 }

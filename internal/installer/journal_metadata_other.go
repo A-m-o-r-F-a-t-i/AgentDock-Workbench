@@ -27,6 +27,9 @@ func applyBackupNativeMetadataVersion(_ string, _ *backupNativeMetadata, version
 	}
 	return nil
 }
-func backupNativeMetadataSize(*backupNativeMetadata) int               { return 0 }
+func backupNativeMetadataSize(*backupNativeMetadata) int { return 0 }
+func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+	return value, nil
+}
 func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool        { return a == b }
 func backupNativeMetadataDifference(a, b *backupNativeMetadata) string { return "metadata mismatch" }

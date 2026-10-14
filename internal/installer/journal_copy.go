@@ -72,6 +72,10 @@ func copyBackupTreeVersion(ctx context.Context, source, destination string, sour
 	var nativeChanges []metadataChange
 	metadataBytes := 0
 	writeRecord := func(writer io.Writer, relative string, mode fs.FileMode, directory bool, size int64, digest string, native *backupNativeMetadata) error {
+		canonicalNative, err := canonicalBackupNativeMetadata(native)
+		if err != nil {
+			return fmt.Errorf("canonicalize backup metadata for %s: %w", relative, err)
+		}
 		record, err := json.Marshal(struct {
 			Path      string                `json:"path"`
 			Mode      uint32                `json:"mode"`
@@ -79,7 +83,7 @@ func copyBackupTreeVersion(ctx context.Context, source, destination string, sour
 			Bytes     int64                 `json:"bytes"`
 			Digest    string                `json:"digest"`
 			Native    *backupNativeMetadata `json:"native,omitempty"`
-		}{filepath.ToSlash(relative), uint32(mode.Perm()), directory, size, digest, native})
+		}{filepath.ToSlash(relative), uint32(mode.Perm()), directory, size, digest, canonicalNative})
 		if err != nil {
 			return err
 		}
