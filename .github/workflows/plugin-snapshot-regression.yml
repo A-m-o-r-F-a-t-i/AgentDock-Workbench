@@ -1,0 +1,104 @@
+name: Plugin snapshot regression
+
+on:
+  push:
+    branches: [fix/20260929-plugin-snapshot-stability]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'internal/snapshot/**'
+      - 'internal/plugin/snapshot*'
+      - 'internal/app/*snapshot*'
+      - 'internal/app/context_revalidation_test.go'
+      - '.github/workflows/plugin-snapshot-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-snapshot-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    name: Snapshot regression (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      BASELINE_COMMIT: 3809da0a4bcf12e8033b9e269ada1c8167fe99ca
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Record exact source and formatting
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          go version
+          files="internal/snapshot/files.go internal/plugin/snapshot.go internal/app/context_snapshots.go internal/app/common_skill_snapshot.go internal/snapshot/clock_regression_test.go internal/snapshot/revalidation_test.go internal/plugin/snapshot_revalidation_test.go internal/app/context_revalidation_test.go"
+          test -z "$(gofmt -l $files)"
+          mkdir -p "$RUNNER_TEMP/snapshot-results"
+          git rev-parse HEAD > "$RUNNER_TEMP/snapshot-results/commit.txt"
+      - name: Prove the same regression fails on unmodified main
+        shell: python
+        run: |
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          baseline = pathlib.Path(os.environ["RUNNER_TEMP"]) / "snapshot-before"
+          subprocess.run(["git", "worktree", "add", "--detach", str(baseline), os.environ["BASELINE_COMMIT"]], check=True)
+          shutil.copyfile("internal/snapshot/clock_regression_test.go", baseline / "internal/snapshot/clock_regression_test.go")
+          result = subprocess.run(["go", "test", "./internal/snapshot", "-run", "^TestUnhealthySourceRevisionIgnoresClock$", "-count=1", "-v", "-timeout=60s"], cwd=baseline, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=180)
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "snapshot-results" / "before.log"
+          output.write_text(result.stdout, encoding="utf-8")
+          print(result.stdout)
+          if result.returncode == 0 or "wall clock changed the source revision" not in result.stdout:
+              raise SystemExit("The unmodified source did not reproduce the expected clock-revision failure")
+      - name: Repeat clock and source-change regressions
+        run: |
+          set -euo pipefail
+          go test -p 2 ./internal/snapshot ./internal/plugin ./internal/app -run 'Test(UnhealthySourceRevisionIgnoresClock|SnapshotRevalidation|PluginSnapshotRevalidation|ContextRevalidation)' -count=5 -timeout=3m -v | tee "$RUNNER_TEMP/snapshot-results/focused.log"
+      - name: Full affected package suites
+        run: |
+          set -euo pipefail
+          go test -p 2 ./internal/snapshot ./internal/plugin ./internal/app ./internal/mcp/client ./internal/tool/plugin ./internal/tool/skill -count=1 -timeout=8m | tee "$RUNNER_TEMP/snapshot-results/packages.log"
+      - name: Snapshot and plugin race detection
+        run: |
+          set -euo pipefail
+          go test -race -p 2 ./internal/snapshot ./internal/plugin -count=1 -timeout=5m | tee "$RUNNER_TEMP/snapshot-results/race.log"
+          go test -race ./internal/app -run '^TestContextRevalidation' -count=3 -timeout=3m | tee "$RUNNER_TEMP/snapshot-results/context-race.log"
+      - name: Vet and build isolated Core
+        run: |
+          set -euo pipefail
+          go vet ./internal/snapshot ./internal/plugin ./internal/app ./internal/mcp/client
+          go build -o "$RUNNER_TEMP/snapshot-results/agentdock-core" ./cmd/agentdock
+      - uses: actions/setup-dotnet@v5
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '8.0.x'
+      - name: Windows desktop pure-policy regression
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          dotnet run --project desktop/windows/control-panel-tests/AgentDock.ControlPanel.Tests.csproj --configuration Release | tee "$RUNNER_TEMP/snapshot-results/desktop.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: snapshot-regression-${{ matrix.os }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/snapshot-results
+          retention-days: 14
+          if-no-files-found: error

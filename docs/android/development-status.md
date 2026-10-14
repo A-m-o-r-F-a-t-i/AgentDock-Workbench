@@ -18,7 +18,7 @@
 | Termux 部署 | 固定 Ed25519 公钥、签名 ARM64 Core 资产、journal、续接/取消、安全解包、schema 快照、健康回退、保留、恢复退避/熔断 | 59 项 test_deployment.py、Core 发布签名测试、桥契约测试 |
 | 项目文件 | SAF 有界 ZIP 导入导出、目录树/预览、Termux 路径探针和创建工程 | ProjectArchivePolicyTest、项目 Fixture |
 | 后台与设置 | WorkManager/FGS/Tile、Wi-Fi/充电约束、通知、主题、密度、Core 输出设置 | GuardianConstraintPolicyTest、适配截图 |
-| 脚本治理 | Android 候选脚本保留共享清单与路径边界；候选验证仅在显式候选或发布任务中运行 | Source and bridge contracts（显式运行） |
+| 脚本治理 | Android 与发布 CI/测试脚本进入共享清单；候选工作流只允许登记后的路径，不允许删除旧条目或扩大跨线路径 | TestScriptGovernanceInventoryCoversWorkspaceScripts、Source and bridge contracts |
 
 ## 代码审查补充
 
@@ -26,9 +26,7 @@
 - OAuth loopback 对错误 `state`、畸形请求头和单连接读取超时只拒绝当前连接并继续等待，空轮询不消耗连接配额；5 分钟回调窗口使用单调时钟，不受设备墙钟跳变影响，也不再约 16 秒提前结束。只有携带匹配 `state` 的显式 OAuth 错误才结束配对；本机 RSA-OAEP 配对统一规范化 IPv4、IPv6 与 localhost Origin。
 - Network Security Config 默认拒绝明文，并与客户端、本机配对策略共同收敛到 `localhost`、`127.0.0.1`、压缩及完整 IPv6 loopback；移除 Manifest 全局明文开关，Actions 静态核对 XML 与允许集合。
 
-## 显式候选与发布验证
-
-Android 候选工作流保留为 `workflow_dispatch` / `workflow_call`，不随普通 PR 自动运行。以下检查仅在明确发起候选或发布任务时执行：
+## 自动化门禁
 
 - Android compileSdk/targetSdk 37，minSdk 26，JDK 17。
 - Lint、Debug/Release-shaped/Test APK 构建及签名核验。
@@ -36,7 +34,7 @@ Android 候选工作流保留为 `workflow_dispatch` / `workflow_call`，不随�
 - 部署测试不少于 59 项，包含 13 个逐阶段中断恢复案例和真实 OpenSSL 签名验证。
 - Android 仪器测试不少于 13 项，全部通过且无跳过。
 - API 26、33、34、35、37 每个模拟器均需 23 张有效 PNG、真实 API 一致且单次运行成功。
-- 候选工作流核对共享脚本清单、Source/bridge 合约及候选证据；这些检查不属于普通 PR 编译门禁。
+- Ubuntu/Windows 通用 Go 检查覆盖共享脚本清单；Ubuntu 还执行完整 Linux 脚本入口回归。
 
 ## 仅真机或外部发布线可验证
 

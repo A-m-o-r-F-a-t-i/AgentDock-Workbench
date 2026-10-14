@@ -9,46 +9,192 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  core:
-    name: Build Core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+  source:
+    name: Resolve immutable validation source
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Check Go formatting
+      - id: identity
         shell: bash
         run: |
           set -euo pipefail
+          commit="$(git rev-parse --verify 'HEAD^{commit}')"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+  go:
+    needs: source
+    name: Go check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.repository_id == '1370391430' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format check
+        shell: bash
+        run: |
           unformatted="$(git ls-files '*.go' | while IFS= read -r file; do gofmt -l "$file"; done)"
-          test -z "$unformatted" || { printf 'Unformatted Go files:\n%s\n' "$unformatted"; exit 1; }
-      - name: Compile Core
+          if [ -n "$unformatted" ]; then
+            printf 'Unformatted Go files:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Repeated parallel conversation audit regression
+        timeout-minutes: 3
+        run: go test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s
+
+      - name: Test
+        # Windows packages spawn Node, PowerShell and desktop fixtures; avoid
+        # starving their bounded handshakes with repository-wide process fan-out.
+        run: go test -p 2 ./... -count=1 -timeout=8m
+
+      - name: Check Windows test tree cleanliness
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [ -n "$untracked" ]; then
+            printf 'Unexpected files created by tests:\n%s\n' "$untracked"
+            exit 1
+          fi
+
+      - name: ACP prompt and steering race regression
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          go test -race ./internal/acp \
+            -run 'Test(StartPromptWaitsForPromptDispatchBeforeSteering|ClaudeSteeringFallbackCancelsOldRunAndStartsObservableTurn|CodexSteeringFallbackCancelsOldRunAndStartsObservableTurn)$' \
+            -count=20 \
+            -timeout=90s
+
+      - name: Built-in discovery and recovery race regression
+        if: runner.os == 'Linux'
+        run: go test -race ./internal/tool/mcp ./internal/app ./internal/mcp -run '^TestBuiltin' -count=3 -timeout=3m
+
+      - name: Race
+        if: runner.os == 'Linux'
+        run: go test -race -p 2 ./internal/activity ./internal/permission ./internal/insertion ./internal/fs/... ./internal/snapshot ./internal/acp ./internal/selfupdate -count=1 -timeout=8m
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
         run: go build ./cmd/agentdock
 
-  windows-desktop:
-    name: Build Windows desktop
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-dotnet@v5
+      - name: Check Linux scripts
+        if: runner.os == 'Linux'
+        run: make test-scripts
+
+      - name: Test macOS scripts
+        if: runner.os == 'macOS'
+        run: make test-scripts-macos
+
+      - name: Check Windows PowerShell installer
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\scripts\test\test-install-windows.ps1 -StaticOnly
+
+      - name: Setup .NET for pure desktop contracts
+        if: runner.os == 'Windows'
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
-      - name: Compile control panel
-        run: dotnet build desktop/windows/control-panel/AgentDock.ControlPanel.csproj --configuration Release
+
+      - name: Desktop pure-policy regression
+        if: runner.os == 'Windows'
+        run: dotnet run --project desktop/windows/control-panel-tests/AgentDock.ControlPanel.Tests.csproj --configuration Release
+
+      - name: Test Windows PowerShell DPAPI round trip
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Security
+
+          $plainText = 'agentdock-dpapi-roundtrip'
+          $entropy = [Text.Encoding]::UTF8.GetBytes('agentdock.startup.v1')
+          $protectedBytes = [System.Security.Cryptography.ProtectedData]::Protect(
+            [Text.Encoding]::UTF8.GetBytes($plainText),
+            $entropy,
+            [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+          )
+          $unprotectedBytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
+            $protectedBytes,
+            $entropy,
+            [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+          )
+          $actual = [Text.Encoding]::UTF8.GetString($unprotectedBytes)
+
+          if ($actual -ne $plainText) {
+            throw "DPAPI round trip mismatch. Expected '$plainText', got '$actual'."
+          }
+
+
+  browser-integration:
+    needs: source
+    if: github.repository_id != '1370391430'
+    name: Native browser integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Xvfb
+        shell: bash
+        run: |
+          if command -v xvfb-run >/dev/null 2>&1 && command -v xauth >/dev/null 2>&1; then
+            exit 0
+          fi
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends xvfb xauth
+
+      - name: Browser integration race
+        shell: bash
+        run: |
+          browser_path="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium-browser || command -v chromium || true)"
+          test -n "$browser_path"
+          xvfb-run -a env AGENTDOCK_BROWSER_EXECUTABLE_PATH="$browser_path" go test -race -tags browser_integration ./internal/tool/browser ./internal/app -count=1 -timeout=3m
+
+
+  container:
+    needs: source
+    if: github.repository_id != '1370391430'
+    name: Container check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+
+      - name: Build and verify images
+        run: ./scripts/test/test-docker-images.sh
