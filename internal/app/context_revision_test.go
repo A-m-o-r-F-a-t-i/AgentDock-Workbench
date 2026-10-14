@@ -28,8 +28,8 @@ func TestContextRevisionTracksStableBusinessFactsOnly(t *testing.T) {
 	if !strings.HasPrefix(revision, "ctxrev_") || len(revision) != len("ctxrev_")+64 {
 		t.Fatalf("invalid revision %q", revision)
 	}
-	if base["delivery"] != "full" || base["unchanged"] != false {
-		t.Fatalf("invalid full delivery marker: %#v", base)
+	if base["delivery"] != nil || base["unchanged"] != nil {
+		t.Fatalf("transport delivery markers leaked into runtime context: %#v", base)
 	}
 
 	timingOnly := maps.Clone(base)
@@ -51,6 +51,15 @@ func TestContextRevisionTracksStableBusinessFactsOnly(t *testing.T) {
 	}
 	if changed["context_revision"] == revision {
 		t.Fatal("changed rules retained the old revision")
+	}
+
+	bundleChanged := maps.Clone(base)
+	bundleChanged["builtin_tool_bundles"] = []any{map[string]any{"name": "system-management", "loaded": true}}
+	if err := attachContextRevision(bundleChanged); err != nil {
+		t.Fatal(err)
+	}
+	if bundleChanged["context_revision"] == revision {
+		t.Fatal("changed built-in tool visibility retained the old revision")
 	}
 }
 

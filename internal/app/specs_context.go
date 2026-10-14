@@ -6,6 +6,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/config"
+	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 )
 
 type contextRequest struct {
@@ -49,8 +50,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["context_diagnostics"] = contextDiagnosticsSchema()
 	output["android_executor"] = androidExecutorStatusSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
-	output["delivery"] = map[string]any{"type": "string", "enum": []string{"full", "reference"}}
-	output["unchanged"] = map[string]any{"type": "boolean"}
+	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
 	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
 		runtimeSchema := maps.Clone(originalRuntime)
 		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
@@ -96,8 +96,14 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 func contextDeliveryPublicOutputSchema(full map[string]any) map[string]any {
 	full = cloneJSONSchemaMap(full)
 	full["additionalProperties"] = true
-	visibleProperties, _ := full["properties"].(map[string]any)
-	visibleProperties = cloneJSONSchemaMap(visibleProperties)
+	fullProperties, _ := full["properties"].(map[string]any)
+	fullProperties = cloneJSONSchemaMap(fullProperties)
+	fullProperties["delivery"] = map[string]any{"const": "full"}
+	fullProperties["unchanged"] = map[string]any{"const": false}
+	full["properties"] = fullProperties
+	visibleProperties := cloneJSONSchemaMap(fullProperties)
+	visibleProperties["delivery"] = map[string]any{"type": "string", "enum": []string{"full", "reference"}}
+	visibleProperties["unchanged"] = map[string]any{"type": "boolean"}
 	visibleProperties["context_diagnostics"] = map[string]any{"type": "object", "additionalProperties": true}
 	referenceProperties := map[string]any{
 		"context_revision": map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"},
@@ -175,6 +181,23 @@ func androidExecutorStatusSchema() map[string]any {
 			"backends": map[string]any{
 				"type": "object", "additionalProperties": false,
 				"properties": map[string]any{"termux_host": capability, "android_shizuku": capability},
+			},
+		},
+	}
+}
+
+func builtinToolBundleIndexSchema() map[string]any {
+	return map[string]any{
+		"type": "array", "maxItems": len(toolcapability.Bundles()),
+		"items": map[string]any{
+			"type":                 "object",
+			"additionalProperties": false,
+			"required":             []string{"name", "description", "loaded", "tool_count"},
+			"properties": map[string]any{
+				"name":        map[string]any{"type": "string"},
+				"description": map[string]any{"type": "string"},
+				"loaded":      map[string]any{"type": "boolean"},
+				"tool_count":  map[string]any{"type": "integer", "minimum": 0},
 			},
 		},
 	}

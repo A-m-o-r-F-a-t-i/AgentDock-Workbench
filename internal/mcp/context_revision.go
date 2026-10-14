@@ -26,8 +26,14 @@ func projectContextReference(ctx context.Context, name string, result any, err e
 	payload := asMap(result)
 	revision, _ := payload["context_revision"].(string)
 	diagnostics := asMap(payload["context_diagnostics"])
-	if known == "" || revision == "" || known != revision || payload["delivery"] != "full" || diagnostics["complete"] != true {
+	if revision == "" || diagnostics["complete"] != true {
 		return result
+	}
+	if known == "" || known != revision {
+		full := maps.Clone(payload)
+		full["delivery"] = "full"
+		full["unchanged"] = false
+		return full
 	}
 
 	reference := map[string]any{

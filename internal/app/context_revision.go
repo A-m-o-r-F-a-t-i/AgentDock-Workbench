@@ -6,10 +6,7 @@ import (
 	"fmt"
 )
 
-const (
-	contextDeliveryFull = "full"
-	contextRevisionKey  = "context_revision"
-)
+const contextRevisionKey = "context_revision"
 
 var contextRevisionFields = []string{
 	"workspace",
@@ -19,6 +16,7 @@ var contextRevisionFields = []string{
 	"skills",
 	"common_skills",
 	"plugins",
+	"builtin_tool_bundles",
 	"dynamic_mcp",
 	"acp",
 	"workflow_templates",
@@ -50,7 +48,5 @@ func attachContextRevision(result Result) error {
 	}
 	digest := sha256.Sum256(encoded)
 	result[contextRevisionKey] = fmt.Sprintf("ctxrev_%x", digest)
-	result["delivery"] = contextDeliveryFull
-	result["unchanged"] = false
 	return nil
 }
