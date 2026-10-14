@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -48,8 +49,24 @@ func (svc *Service) ActivitySessionRunning(id string) bool {
 
 func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest, journal *activity.AppendReservation) <-chan struct{} {
 	done := make(chan struct{})
+	svc.registerTerminalFuture(s)
 	if svc.activity == nil {
-		close(done)
+		svc.activityWG.Add(1)
+		go func() {
+			defer svc.activityWG.Done()
+			defer close(done)
+			select {
+			case <-s.Done:
+				s.PublishTerminal(commandTerminalOutcome(s.ActivitySnapshot(&session.OutputCursor{})), nil)
+			case <-svc.activityCtx.Done():
+				select {
+				case <-s.Done:
+					s.PublishTerminal(commandTerminalOutcome(s.ActivitySnapshot(&session.OutputCursor{})), nil)
+				default:
+					s.PublishTerminal(unconfirmedCommandTerminal(s.ID, "Command was still running when the runtime closed; its final outcome is unknown."), nil)
+				}
+			}
+		}()
 		return done
 	}
 	secrets := append([]string{}, request.AuditSecrets...)
@@ -78,29 +95,33 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 	base := activity.Event{Binding: request.Binding, ToolName: auditTool, SessionID: s.ID, DisplayCommand: request.Cmd, Title: request.Label}
 	execution := s.Summary()
 	base.Runtime, base.Workdir = execution.Runtime, execution.Workdir
-	appendEvent := func(event activity.Event) {
+	appendEvent := func(event activity.Event) (bool, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		var saved activity.Event
 		var err error
 		if journal != nil && (event.Kind == "command.started" || event.Kind == "command.completed") {
-			_, err = journal.Append(ctx, redactor.Event(event))
+			saved, err = journal.Append(ctx, redactor.Event(event))
 		} else {
-			_, err = svc.activity.Append(ctx, redactor.Event(event))
+			saved, err = svc.activity.Append(ctx, redactor.Event(event))
 		}
 		if err != nil {
 			s.SetActivityWarning("Command execution continues; its activity journal is incomplete. Inspect the local activity store.")
 			slog.Warn("record command activity", "session_id", s.ID, "kind", event.Kind, "error", err)
 		}
+		return saved.EventID != "" || saved.Seq != 0, err
 	}
 	started := base
 	started.Kind, started.Status = "command.started", "running"
-	appendEvent(started)
+	_, _ = appendEvent(started)
 	svc.activityMu.Lock()
 	svc.activeCommands[s.ID] = s
 	svc.activityMu.Unlock()
 	svc.activityWG.Add(1)
 	go func() {
-		defer journal.Close()
+		if journal != nil {
+			defer journal.Close()
+		}
 		defer func() { svc.activityMu.Lock(); delete(svc.activeCommands, s.ID); svc.activityMu.Unlock() }()
 		defer svc.activityWG.Done()
 		defer close(done)
@@ -112,8 +133,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 		stdoutUnsafe, stderrUnsafe := false, false
 		tick := time.NewTicker(300 * time.Millisecond)
 		defer tick.Stop()
-		for {
-			snap := s.ActivitySnapshot(&cursor)
+		appendOutput := func(snap session.Snapshot) {
 			stdoutUnsafe = stdoutUnsafe || snap.StdoutTruncated
 			stderrUnsafe = stderrUnsafe || snap.StderrTruncated
 			var out, errout string
@@ -132,29 +152,50 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 				event.ElapsedMS = snap.ElapsedMS
 				event.OutputPreview, event.StderrPreview = out, errout
 				event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
-				appendEvent(event)
+				_, _ = appendEvent(event)
 			}
+		}
+		persistTerminal := func(snap session.Snapshot, outcome session.TerminalOutcome) {
+			event := base
+			event.Kind, event.Status = "command.completed", outcome.Status
+			event.ExitCode, event.CommandOK = outcome.ExitCode, outcome.CommandOK
+			event.TimedOut, event.ElapsedMS = outcome.TimedOut, snap.ElapsedMS
+			event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
+			event.Summary = outcome.Summary
+			persisted, err := appendEvent(event)
+			if !persisted {
+				if err == nil {
+					err = errors.New("command terminal append returned no persisted event")
+				}
+				fallback := unconfirmedCommandTerminal(s.ID, "Command terminal facts could not be persisted; verify the original operation before retrying.")
+				s.PublishTerminal(fallback, fmt.Errorf("persist command terminal fact: %w", err))
+				return
+			}
+			s.PublishTerminal(outcome, nil)
+		}
+		for {
+			snap := s.ActivitySnapshot(&cursor)
+			appendOutput(snap)
 			if snap.Completed {
-				event := base
-				event.Kind, event.Status = "command.completed", snap.Status
-				if !snap.OutcomeUnknown {
-					event.ExitCode, event.CommandOK = &snap.ExitCode, &snap.CommandOK
-				}
-				event.TimedOut, event.ElapsedMS = snap.TimedOut, snap.ElapsedMS
-				event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
-				if snap.Status == "exited" {
-					if snap.CommandOK {
-						event.Status = "success"
-					} else {
-						event.Status = "failed"
-					}
-				}
-				appendEvent(event)
+				persistTerminal(snap, commandTerminalOutcome(snap))
 				return
 			}
 			select {
 			case <-s.Done:
 			case <-tick.C:
+			case <-svc.activityCtx.Done():
+				final := s.ActivitySnapshot(&cursor)
+				if final.Completed {
+					appendOutput(final)
+					persistTerminal(final, commandTerminalOutcome(final))
+				} else {
+					// The activity owner is ending, so flush any final partial line even
+					// though the underlying process did not yield a confirmed exit.
+					final.Completed = true
+					appendOutput(final)
+					persistTerminal(final, unconfirmedCommandTerminal(s.ID, "Command was still running when the runtime closed; its final outcome is unknown."))
+				}
+				return
 			}
 		}
 	}()
