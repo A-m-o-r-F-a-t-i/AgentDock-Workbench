@@ -1,8 +1,19 @@
 package command
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 func (s *Service) Observe(request SessionObserveRequest) (Result, error) {
+	return s.ObserveContext(context.Background(), request)
+}
+
+// ObserveContext cancels only this waiter, never the detached command process.
+func (s *Service) ObserveContext(ctx context.Context, request SessionObserveRequest) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	action := strings.ToLower(strings.TrimSpace(request.Action))
 	switch action {
 	case "list":
@@ -24,7 +35,7 @@ func (s *Service) Observe(request SessionObserveRequest) (Result, error) {
 				map[string]any{"action": action, "required": []string{"session_id"}},
 			)
 		}
-		return s.sessionStatus(request)
+		return s.sessionStatusContext(ctx, request)
 	default:
 		return nil, toolErrorDetails("INVALID_ACTION", "session_observe action must be list or status", "validation", map[string]any{"action": request.Action, "allowed": []string{"list", "status"}})
 	}

@@ -96,6 +96,7 @@ func (b ExecutionScope) Validate() error {
 
 type Event struct {
 	CallMeasurements
+	CommandObservation
 	Request          *Payload         `json:"request,omitempty"`
 	Response         *Payload         `json:"response,omitempty"`
 	OutputSource     *Payload         `json:"output_source,omitempty"`

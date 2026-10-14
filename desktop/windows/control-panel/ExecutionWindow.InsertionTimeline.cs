@@ -27,7 +27,10 @@ public partial class ExecutionWindow
     private void SyncInsertionTimeline()
     {
         var conversation = _selected?.Id ?? "";
-        var desired = InsertionTimeline.Merge(Calls, _insertionStates.GetValueOrDefault(conversation, []), conversation, _taskFilter, CallSearchBox.Text.Trim(), ComboValue(CallStatusCombo), _callView, _activityClock.ServerNow);
+        var fold = _callView == "active" && CallSearchBox.Text.Trim().Length == 0 && ComboValue(CallStatusCombo).Length == 0;
+        var canonical = _callsById.Values.OrderBy(row => row.CreatedSeq).ToArray();
+        var visible = CommandObservationPresentation.Project(canonical, fold);
+        var desired = InsertionTimeline.Merge(visible.Concat(Calls.Where(row => row.IsInsertion)), _insertionStates.GetValueOrDefault(conversation, []), conversation, _taskFilter, CallSearchBox.Text.Trim(), ComboValue(CallStatusCombo), _callView, _activityClock.ServerNow);
         var previous = _updating; _updating = true;
         try
         {

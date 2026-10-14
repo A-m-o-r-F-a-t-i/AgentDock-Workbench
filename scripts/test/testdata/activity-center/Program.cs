@@ -11,17 +11,26 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length != 1 || Directory.Exists(args[0])) throw new ArgumentException("Provide a fresh isolated test directory.");
+        var observationsOnly = args.Length == 2 && args[1] == "--command-observations-only";
+        if ((!observationsOnly && args.Length != 1) || Directory.Exists(args[0])) throw new ArgumentException("Provide a fresh isolated test directory.");
         Directory.CreateDirectory(args[0]);
         var started = Stopwatch.StartNew();
         try
         {
+            if (observationsOnly)
+            {
+                TestCommandObservationRendering(args[0]);
+                File.WriteAllText(Path.Combine(args[0], "result.json"), JsonSerializer.Serialize(new { passed = true, command_observation_window_projection = true, real_templates = true, production_runtime_started = false }));
+                Console.WriteLine("Command observation WPF projection and template regression passed.");
+                return 0;
+            }
             TestTimeline();
             TestPresentation();
             TestPublicDiscoveryAsync().GetAwaiter().GetResult();
             TestParserAsync().GetAwaiter().GetResult();
             TestNetworkAsync(Path.Combine(args[0], "network")).GetAwaiter().GetResult();
             TestRendering(Path.Combine(args[0], "render"));
+            TestCommandObservationRendering(Path.Combine(args[0], "command-observations"));
             TestExecutionParserAsync().GetAwaiter().GetResult();
             TestExecutionRendering(Path.Combine(args[0], "execution-render"));
             var executionScale = TestExecutionLargeLists(Path.Combine(args[0], "execution-scale"));

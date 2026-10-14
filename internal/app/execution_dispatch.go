@@ -673,7 +673,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		decorated := compactExecutionSuccess(r.decorateExecution(result, p), p)
 		completionTransferred = true
 		p.completion = nil
-		if !r.startCommandTerminalSettlement(p, sessionID, completion) {
+		if !r.startCommandTerminalSettlement(p, sessionID, completion, stringArg(result, "status") == "running") {
 			decorated["activity_warning"] = "The command started, but its terminal subscription was unavailable. The root call will settle as unknown."
 		}
 		return decorated, nil
@@ -713,6 +713,7 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 	}
 	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: title, ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ParameterSummary: preparedMCPExecutionSummary(p), ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
 	event.OperationElapsedMS = &event.ElapsedMS
+	event.CommandObservation = r.commandObservation(p, result, err)
 	event.ExecutionElapsedMS, event.WaitElapsedMS = p.state.executionMS, p.state.waitMS
 	if p.spec.Name == "file_edit" {
 		event.FileEdit = r.fileEditDetails(p.args, result, p.state, err)

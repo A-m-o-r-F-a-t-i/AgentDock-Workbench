@@ -286,7 +286,7 @@ public partial class ExecutionWindow : Window
             if (_conversationTitles.TryGetValue(incoming.ConversationId, out var title)) incoming.SourceTitle = title;
         }
         var limit = _following ? 1000 : 10000;
-        while (_callsById.Count > limit) { var removed = _following ? Calls.First(row => !row.IsInsertion) : Calls.Last(row => !row.IsInsertion); Calls.Remove(removed); _callsById.Remove(removed.Id); }
+        while (_callsById.Count > limit) { var removed = _following ? _callsById.Values.MinBy(row => row.CreatedSeq)! : _callsById.Values.MaxBy(row => row.CreatedSeq)!; Calls.Remove(removed); _callsById.Remove(removed.Id); }
         UpdateStopButton();
     }
     private async Task ApplyStreamAsync(ExecutionStreamMessage message, int generation, int epoch)
@@ -296,7 +296,7 @@ public partial class ExecutionWindow : Window
 		else if (message.Kind == "disconnected") { _streamConnected = false; FollowButton.ToolTip = "执行流重连中：" + message.Message; }
         else if (message.Kind == "call")
         {
-            _cursor = Math.Max(_cursor, message.Seq); UpsertCall(message.Value); UpdateEmpty();
+            _cursor = Math.Max(_cursor, message.Seq); UpsertCall(message.Value); SyncInsertionTimeline(); UpdateEmpty();
             if (_following && Calls.Count > 0) CallsList.ScrollIntoView(Calls[^1]);
         }
         else if (message.Kind is "gap" or "warning") Warn(message.Message.Length > 0 ? message.Message : "部分历史记录已不可用。", message.Kind == "gap" ? "activity_retention_gap" : "");

@@ -17,16 +17,20 @@ func TestRunningSessionGuidanceUsesBoundedLongPoll(t *testing.T) {
 	guidance := runtime.executionGuidance("session_observe", nil, executionObservation{
 		binding: activity.Binding{WorkspaceID: "wsp-fixture"},
 	}, result, false)
-	steps, ok := guidance["next_required"].([]map[string]any)
-	if !ok || len(steps) != 1 {
-		t.Fatalf("next_required = %#v", guidance["next_required"])
+	if guidance["next_required"] != nil {
+		t.Fatal("running command demanded mandatory polling")
 	}
-	arguments, _ := steps[0]["arguments"].(map[string]any)
+	continuation, ok := guidance["continuation"].(map[string]any)
+	if !ok || continuation["recommended_action"] != "continue_independent_work" {
+		t.Fatalf("continuation = %#v", guidance["continuation"])
+	}
+	observe := continuation["observe_when_needed"].(map[string]any)
+	arguments, _ := observe["arguments"].(map[string]any)
 	if arguments["action"] != "status" || arguments["session_id"] != "session-fixture" || arguments["wait_ms"] != 5000 {
 		t.Fatalf("observe arguments = %#v", arguments)
 	}
-	text, _ := steps[0]["text"].(string)
-	if !strings.Contains(text, "Do not poll") || !strings.Contains(text, "do not restart") {
+	text, _ := continuation["text"].(string)
+	if !strings.Contains(text, "Continue independent work") || !strings.Contains(text, "do not restart") {
 		t.Fatalf("observe guidance does not suppress tight polling: %q", text)
 	}
 }

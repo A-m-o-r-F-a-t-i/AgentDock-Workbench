@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/commandcompletion"
 	"github.com/uvwt/agentdock/internal/insertion"
 )
 
@@ -105,19 +106,20 @@ type toolResponseKey struct{}
 // ToolResponse is adapter-owned state. Its private call binding is filled only
 // by the external root admission path; callers cannot supply it as tool arguments.
 type ToolResponse struct {
-	auditBinding  activity.Binding
-	auditName     string
-	auditRedactor activity.Redactor
-	auditRecorded bool
-	auditReceived time.Time
-	auditStatus   string
-	mu            sync.Mutex
-	binding       activity.Binding
-	warning       string
-	finished      bool
-	reserved      bool
-	additions     ResponseAdditions
-	transport     insertion.Transport
+	commandCompletion commandCompletionResponse
+	auditBinding      activity.Binding
+	auditName         string
+	auditRedactor     activity.Redactor
+	auditRecorded     bool
+	auditReceived     time.Time
+	auditStatus       string
+	mu                sync.Mutex
+	binding           activity.Binding
+	warning           string
+	finished          bool
+	reserved          bool
+	additions         ResponseAdditions
+	transport         insertion.Transport
 }
 
 // UserResponseAddition is constructed solely from the authenticated local queue,
@@ -136,8 +138,9 @@ type UserResponseAddition struct {
 }
 
 type ResponseAdditions struct {
-	TextBlocks   []string
-	UserMessages []UserResponseAddition
+	TextBlocks         []string
+	UserMessages       []UserResponseAddition
+	CommandCompletions []commandcompletion.Event
 }
 
 // CompletedAdditions permits idempotent envelope reconstruction without claiming
@@ -149,8 +152,9 @@ func (response *ToolResponse) CompletedAdditions() ResponseAdditions {
 	response.mu.Lock()
 	defer response.mu.Unlock()
 	return ResponseAdditions{
-		TextBlocks:   append([]string{}, response.additions.TextBlocks...),
-		UserMessages: append([]UserResponseAddition{}, response.additions.UserMessages...),
+		TextBlocks:         append([]string{}, response.additions.TextBlocks...),
+		UserMessages:       append([]UserResponseAddition{}, response.additions.UserMessages...),
+		CommandCompletions: commandcompletion.Clone(response.commandCompletion.selected),
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 // Validate business content before committing the local queue reservation. The
 // final append contains only locally constructed, JSON-safe strings and numbers.
 func (s *Server) finishResponse(ctx context.Context, name string, arguments map[string]any, pending *app.ToolResponse, original map[string]any) (out map[string]any, returnErr error) {
+	defer s.runtime.AbortCommandCompletionResponse(pending)
 	defer func() {
 		if returnErr != nil {
 			s.runtime.RecordToolResponse(pending, map[string]any{"isError": true, "error": returnErr.Error(), "output_state": "not_stored"})
@@ -50,6 +51,8 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	} else {
 		delete(envelope, "_meta")
 	}
+	s.runtime.PrepareCommandCompletionResponse(ctx, pending, name, arguments, envelope)
+	baseEnvelope := envelope
 	_ = s.runtime.FinishToolResponse(ctx, pending, true)
 	envelope = appendTrustedAdditions(envelope, pending.CompletedAdditions())
 	if !s.uiEnabled() {
@@ -59,6 +62,25 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	if err != nil {
 		return nil, invocationError(ctx, "response_measure", "MCP response measurement failed; do not replay the original tool", err)
 	}
+	if _, err := json.Marshal(envelope); err != nil {
+		return nil, invocationError(ctx, "response_encode", "Final response encoding failed; inspect the original call before retrying", err)
+	}
+	if err := s.runtime.CommitCommandCompletionResponse(ctx, pending); err != nil {
+		// Preserve the actual business outcome when only notification delivery
+		// fails. Uncommitted notifications cannot escape and be replayed later.
+		s.runtime.AbortCommandCompletionResponse(pending)
+		additions := pending.CompletedAdditions()
+		additions.CommandCompletions = nil
+		envelope = appendTrustedAdditions(baseEnvelope, additions)
+		envelope = appendResponseBlocks(envelope, []string{"[AgentDock notice] Command completion notification could not be committed; inspect the original command activity. The business tool must not be replayed."})
+		if !s.uiEnabled() {
+			envelope = filterTextOnlyEnvelope(envelope, name == "mcp_tool_call")
+		}
+		envelope, err = measureContextResponse(ctx, name, envelope)
+		if err != nil {
+			return nil, invocationError(ctx, "response_measure", "Response measurement failed after tool execution", err)
+		}
+	}
 	s.runtime.RecordToolResponse(pending, envelope)
 	return envelope, nil
 }
@@ -66,6 +88,7 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 // Only callers holding adapter-owned ToolResponse state supply additions. Never
 // scan third-party content or its nested result for guidance or marker strings.
 func appendTrustedAdditions(original map[string]any, additions app.ResponseAdditions) map[string]any {
+	original = appendCommandCompletions(original, additions.CommandCompletions)
 	if len(additions.TextBlocks) == 0 && len(additions.UserMessages) == 0 {
 		return original
 	}
