@@ -61,6 +61,7 @@ func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 		server.sdk.AddReceivingMiddleware(server.traceProtocol)
 		runtime.OnDisplaySettingsChanged(server.refreshPresentation)
 		runtime.OnToolAvailabilityChanged(server.refreshToolAvailability)
+		runtime.OnBuiltinToolDirectoryChanged(server.refreshBuiltinToolDirectory)
 		server.refreshPresentation()
 	}
 	server.httpHandler = mcpsdk.NewStreamableHTTPHandler(

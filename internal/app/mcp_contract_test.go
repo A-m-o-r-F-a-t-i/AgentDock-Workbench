@@ -44,6 +44,10 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "workspace")
+			if bundles := actualOutput["properties"].(map[string]any)["builtin_tool_bundles"]; !reflect.DeepEqual(bundles, builtinToolBundleIndexSchema()) {
+				t.Fatalf("built-in tool bundle schema drifted: %#v", bundles)
+			}
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "builtin_tool_bundles")
 			if provider := actualOutput["properties"].(map[string]any)["android_executor"]; !reflect.DeepEqual(provider, androidExecutorStatusSchema()) {
 				t.Fatal("Android provider metadata must use its explicit bounded schema")
 			}
