@@ -152,7 +152,7 @@ func TestLocalContextCatalogRevisionOutputContract(t *testing.T) {
 	if err = json.Unmarshal(encoded, &normalized); err != nil {
 		t.Fatal(err)
 	}
-	schemaBytes, err := json.Marshal(definition.OutputSchema)
+	schemaBytes, err := json.Marshal(definition.ValidationOutputSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

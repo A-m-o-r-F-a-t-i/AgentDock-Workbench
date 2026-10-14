@@ -10,30 +10,40 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-func TestPublicOutputSchemasShareGuidanceOnce(t *testing.T) {
-	count, total := 0, 0
+func TestPublishedToolsOmitExecutionOutputSchemas(t *testing.T) {
+	count, validationTotal := 0, 0
 	for _, spec := range toolSpecs {
 		if !spec.available(config.Config{}) {
 			continue
 		}
 		definition := spec.definition(config.Config{})
-		encoded, err := json.Marshal(definition.OutputSchema)
+		if len(definition.OutputSchema) != 0 {
+			t.Errorf("%s unexpectedly publishes an MCP output schema", spec.Name)
+		}
+		if len(definition.ValidationOutputSchema) == 0 {
+			t.Errorf("%s lost its complete validation output schema", spec.Name)
+			continue
+		}
+		encoded, err := json.Marshal(definition.ValidationOutputSchema)
 		if err != nil {
 			t.Fatal(err)
 		}
 		count++
-		total += len(encoded)
-		if _, err := toolcontract.CompileInputSchema(definition.OutputSchema); err != nil {
-			t.Errorf("%s output schema: %v", spec.Name, err)
+		validationTotal += len(encoded)
+		if _, err := toolcontract.CompileInputSchema(definition.ValidationOutputSchema); err != nil {
+			t.Errorf("%s validation output schema: %v", spec.Name, err)
 		}
 		if bytes.Contains(encoded, []byte(InsertionResponseInstructions)) {
-			t.Errorf("%s repeats the shared insertion policy in its schema", spec.Name)
+			t.Errorf("%s repeats the shared insertion policy in its validation schema", spec.Name)
 		}
 		if n := bytes.Count(encoded, []byte(`"response_additions"`)); n != 1 {
 			t.Errorf("%s defines response_additions %d times, want once", spec.Name, n)
 		}
 	}
-	t.Logf("available_tools=%d output_schema_json_bytes=%d", count, total)
+	t.Logf("available_tools=%d published_output_schema_json_bytes=0 validation_output_schema_json_bytes=%d", count, validationTotal)
+	if validationTotal > 180000 {
+		t.Fatalf("validation output schema budget exceeded: got=%d want<=180000", validationTotal)
+	}
 }
 
 func TestCompactOutputSchemaPreservesSuccessAndApprovalValidation(t *testing.T) {
