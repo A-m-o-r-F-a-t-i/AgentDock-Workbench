@@ -7,6 +7,7 @@ import dev.agentdock.workbench.data.SafProjectStore
 import dev.agentdock.workbench.data.RemoteOAuthPairingManager
 import dev.agentdock.workbench.data.SettingsStore
 import dev.agentdock.workbench.data.WorkbenchRepository
+import dev.agentdock.workbench.data.PrivateCacheCleaner
 import dev.agentdock.workbench.termux.PendingOperationStore
 import dev.agentdock.workbench.termux.LocalCorePairingManager
 import dev.agentdock.workbench.termux.TermuxCommandDispatcher
@@ -29,6 +30,8 @@ class WorkbenchApplication : Application(), Configuration.Provider {
 }
 
 class AppGraph(application: Application) {
+    init { PrivateCacheCleaner.cleanup(application.cacheDir) }
+
     val settings = SettingsStore(application)
     val credentials = CredentialStore(application)
     val phoneExecutor = dev.agentdock.workbench.execution.PhoneExecutor(application, credentials)

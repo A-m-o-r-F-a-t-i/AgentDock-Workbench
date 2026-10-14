@@ -66,6 +66,13 @@ type RegisterInput struct {
 	CreateRoot       bool   `json:"create_root,omitempty"`
 }
 
+type DefaultRoots struct {
+	ArtifactRoot string
+	ScratchRoot  string
+	CacheRoot    string
+	LegacyRoot   string
+}
+
 type registryState struct {
 	SchemaVersion int      `json:"schema_version"`
 	DefaultID     string   `json:"default_workspace_id"`
@@ -73,9 +80,11 @@ type registryState struct {
 }
 
 type Registry struct {
-	home        string
-	storageRoot string
-	mu          sync.Mutex
+	home         string
+	artifactRoot string
+	scratchRoot  string
+	cacheRoot    string
+	mu           sync.Mutex
 }
 
 func HostRuntime() string {
@@ -86,6 +95,10 @@ func HostRuntime() string {
 }
 
 func NewRegistry(home, defaultRoot string) (*Registry, error) {
+	return NewRegistryWithRoots(home, defaultRoot, DefaultRoots{})
+}
+
+func NewRegistryWithRoots(home, defaultRoot string, roots DefaultRoots) (*Registry, error) {
 	if !filepath.IsAbs(home) || !filepath.IsAbs(defaultRoot) {
 		return nil, ErrWorkspaceRequired
 	}
@@ -96,7 +109,28 @@ func NewRegistry(home, defaultRoot string) (*Registry, error) {
 	if err = directoryExists(root); err != nil {
 		return nil, err
 	}
-	registry := &Registry{home: filepath.Clean(home), storageRoot: root}
+	resolve := func(value, fallback string) (string, error) {
+		if strings.TrimSpace(value) == "" {
+			value = fallback
+		}
+		if !filepath.IsAbs(value) {
+			return "", ErrWorkspaceRequired
+		}
+		return canonicalNativePath(value)
+	}
+	artifactRoot, err := resolve(roots.ArtifactRoot, filepath.Join(root, "artifacts"))
+	if err != nil {
+		return nil, err
+	}
+	scratchRoot, err := resolve(roots.ScratchRoot, filepath.Join(root, "scratch"))
+	if err != nil {
+		return nil, err
+	}
+	cacheRoot, err := resolve(roots.CacheRoot, filepath.Join(root, "cache"))
+	if err != nil {
+		return nil, err
+	}
+	registry := &Registry{home: filepath.Clean(home), artifactRoot: artifactRoot, scratchRoot: scratchRoot, cacheRoot: cacheRoot}
 	if err = os.MkdirAll(registry.home, 0700); err != nil {
 		return nil, err
 	}
@@ -111,6 +145,15 @@ func NewRegistry(home, defaultRoot string) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
+	dirty := false
+	if roots.LegacyRoot != "" {
+		var migrated bool
+		migrated, err = registry.migrateLegacyDefault(&state, roots.LegacyRoot, root)
+		if err != nil {
+			return nil, err
+		}
+		dirty = migrated
+	}
 	record, found := findRoot(state, root, HostRuntime(), "")
 	if !found {
 		record, err = registry.makeRecord(RegisterInput{Root: root}, nil)
@@ -118,14 +161,73 @@ func NewRegistry(home, defaultRoot string) (*Registry, error) {
 			return nil, err
 		}
 		state.Records = append(state.Records, record)
+		dirty = true
 	}
-	if state.DefaultID != record.ID || !found {
+	if state.DefaultID != record.ID {
 		state.DefaultID = record.ID
+		dirty = true
+	}
+	if dirty {
 		if err = registry.write(state); err != nil {
 			return nil, err
 		}
 	}
 	return registry, nil
+}
+
+func (r *Registry) migrateLegacyDefault(state *registryState, legacyRoot, currentRoot string) (bool, error) {
+	legacyRoot = strings.TrimSpace(legacyRoot)
+	if legacyRoot == "" || !filepath.IsAbs(legacyRoot) {
+		return false, nil
+	}
+	canonicalLegacyRoot, err := canonicalNativePath(legacyRoot)
+	if err != nil {
+		return false, fmt.Errorf("canonicalize legacy workspace root: %w", err)
+	}
+	legacyRoot = canonicalLegacyRoot
+	if sameNativePath(legacyRoot, currentRoot) {
+		return false, nil
+	}
+	if _, found := findRoot(*state, currentRoot, HostRuntime(), ""); found {
+		return false, nil
+	}
+	for index := range state.Records {
+		record := &state.Records[index]
+		if record.Runtime != HostRuntime() || record.Distribution != "" || !sameNativePath(record.Root, legacyRoot) {
+			continue
+		}
+		legacyArtifact := filepath.Join(legacyRoot, "artifacts", record.ID)
+		legacyScratch := filepath.Join(legacyRoot, "scratch", record.ID)
+		legacyCache := filepath.Join(legacyRoot, "cache")
+		if !sameNativePath(record.ArtifactRoot, legacyArtifact) || !sameNativePath(record.ScratchRoot, legacyScratch) || !sameNativePath(record.CacheRoot, legacyCache) {
+			return false, nil
+		}
+		record.Root = currentRoot
+		record.ArtifactRoot = filepath.Join(r.artifactRoot, record.ID)
+		record.ScratchRoot = filepath.Join(r.scratchRoot, record.ID)
+		record.CacheRoot = r.cacheRoot
+		record.RulesRevision++
+		record.UpdatedAt = time.Now().UTC()
+		if err := validateRecord(*record); err != nil {
+			return false, fmt.Errorf("migrate legacy workspace registry: %w", err)
+		}
+		state.DefaultID = record.ID
+		return true, nil
+	}
+	return false, nil
+}
+
+func sameNativePath(left, right string) bool {
+	left, right = filepath.Clean(left), filepath.Clean(right)
+	if HostRuntime() == "windows" {
+		canonicalLeft, leftErr := canonicalNativePath(left)
+		canonicalRight, rightErr := canonicalNativePath(right)
+		if leftErr == nil && rightErr == nil {
+			left, right = canonicalLeft, canonicalRight
+		}
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func (r *Registry) lock(ctx context.Context) (func(), error) {
@@ -378,13 +480,13 @@ func (r *Registry) makeRecord(input RegisterInput, previous *Record) (Record, er
 		}
 		if previous == nil {
 			if record.ArtifactRoot == "" {
-				record.ArtifactRoot = filepath.Join(r.storageRoot, "artifacts", record.ID)
+				record.ArtifactRoot = filepath.Join(r.artifactRoot, record.ID)
 			}
 			if record.ScratchRoot == "" {
-				record.ScratchRoot = filepath.Join(r.storageRoot, "scratch", record.ID)
+				record.ScratchRoot = filepath.Join(r.scratchRoot, record.ID)
 			}
 			if record.CacheRoot == "" {
-				record.CacheRoot = filepath.Join(r.storageRoot, "cache")
+				record.CacheRoot = r.cacheRoot
 			}
 		}
 	}

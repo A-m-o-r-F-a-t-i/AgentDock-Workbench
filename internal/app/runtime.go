@@ -98,7 +98,12 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	workspaceRegistry, err := workspace.NewRegistry(cfg.AgentDockHome, ws.Root())
+	workspaceRegistry, err := workspace.NewRegistryWithRoots(cfg.AgentDockHome, ws.Root(), workspace.DefaultRoots{
+		ArtifactRoot: cfg.AgentDockArtifactRoot,
+		ScratchRoot:  cfg.AgentDockScratchRoot,
+		CacheRoot:    cfg.AgentDockCacheRoot,
+		LegacyRoot:   cfg.AgentDockLegacyDefaultDir,
+	})
 	if err != nil {
 		return nil, err
 	}

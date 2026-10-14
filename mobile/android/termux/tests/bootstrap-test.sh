@@ -55,14 +55,16 @@ case "$1" in
 esac
 MOCK
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/termux-reload-settings"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/termux-setup-storage"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/openssl"
 printf '#!/usr/bin/env bash\nexit 95\n' >"$tmp/bin/pkg"
 chmod 700 "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
-for scenario in fresh installed dirty-config config-failure install-failure list-failure guest-failure audit-dirty package-unconfigured; do
+for scenario in fresh installed dirty-config config-failure install-failure list-failure guest-failure audit-dirty package-unconfigured storage-missing; do
   export BOOTSTRAP_CASE="$scenario" CASE_DIR="$tmp/$scenario" BOOTSTRAP_SCOPE=host
   export HOME="$CASE_DIR/home" BOOTSTRAP_LOG="$CASE_DIR/commands.log"
   mkdir -p "$HOME/.termux"
+  [[ "$scenario" == storage-missing ]] || mkdir -p "$HOME/storage/shared"
   printf 'allow-external-apps=false\n# existing preference\n' >"$HOME/.termux/termux.properties"
   printf 'custom openssl configuration\n' >"$CASE_DIR/openssl.cnf"
   [[ "$scenario" == fresh ]] || touch "$CASE_DIR/installed"
@@ -78,14 +80,18 @@ for scenario in fresh installed dirty-config config-failure install-failure list
       grep -Fxq 'allow-external-apps=true' "$HOME/.termux/termux.properties"
       grep -Fxq '# existing preference' "$HOME/.termux/termux.properties"
       [[ -x "$HOME/.termux/tasker/agentdock-workbench" ]]
+      [[ -d "$HOME/storage/shared/Documents/AgentDock/Workspaces" ]]
+      [[ -d "$HOME/storage/shared/Documents/AgentDock/Artifacts" ]]
       cmp "$source_root/release-ed25519-public.pem" "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem"
       [[ "$(stat -c '%a' "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem")" == 600 ]]
       grep -Fq 'Termux bridge, Debian PRoot and the Android Core release trust key are ready.' "$CASE_DIR/output"
       if [[ "$scenario" == fresh ]]; then
+        [[ -f "$HOME/.agentdock-workbench/managed-distro-debian" ]]
         timeout 15s bash "$tmp/bundle with spaces/bootstrap.sh" < /dev/null >>"$CASE_DIR/output" 2>&1
         [[ "$(grep -c '^proot install debian$' "$BOOTSTRAP_LOG")" == 1 ]]
         [[ "$(grep -c '^allow-external-apps=' "$HOME/.termux/termux.properties")" == 1 ]]
       else
+        [[ ! -e "$HOME/.agentdock-workbench/managed-distro-debian" ]]
         if grep -q '^proot install' "$BOOTSTRAP_LOG"; then exit 1; fi
       fi
       ;;
@@ -98,4 +104,4 @@ for scenario in fresh installed dirty-config config-failure install-failure list
   esac
   printf 'bootstrap fixture passed: %s\n' "$scenario"
 done
-printf '9 bootstrap scenarios and repeat-install preservation passed; no real package manager invoked.\n'
+printf '10 bootstrap scenarios, public workspace setup and repeat-install preservation passed; no real package manager invoked.\n'

@@ -10,8 +10,8 @@ internal data class ShellSpec(val command: String, val workdir: String, val env:
         env.toSortedMap().forEach { (k, v) -> values.put(k).put(v) }
         return MessageDigest.getInstance("SHA-256").digest(values.toString().toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
-    fun environment(): Array<ByteArray> = (linkedMapOf("PATH" to "/system/bin:/system/xbin", "HOME" to "/",
-        "TMPDIR" to "/data/local/tmp", "LANG" to "C.UTF-8", "TERM" to "xterm-256color") + env)
+    fun environment(tempDir: String): Array<ByteArray> = (linkedMapOf("PATH" to "/system/bin:/system/xbin", "HOME" to "/",
+        "LANG" to "C.UTF-8", "TERM" to "xterm-256color") + env + mapOf("TMPDIR" to tempDir))
         .map { (k, v) -> "$k=$v".toByteArray(Charsets.UTF_8) }.toTypedArray()
 }
 
@@ -19,6 +19,7 @@ internal object ShellProtocol {
     const val VERSION = 1
     const val MAX_REQUEST = 96 * 1024
     const val CHUNK = 16 * 1024
+    const val TEMP_ROOT = "/data/local/tmp/agentdock-workbench"
     val terminal = setOf("exited", "cancelled", "timeout", "not_started")
     fun identity(value: String): String = value.also { require(Regex("session-[a-f0-9]{24}").matches(it)) }
     fun node(value: String): String = value.also { require(it.length in 1..96 && it.none(Char::isISOControl)) }

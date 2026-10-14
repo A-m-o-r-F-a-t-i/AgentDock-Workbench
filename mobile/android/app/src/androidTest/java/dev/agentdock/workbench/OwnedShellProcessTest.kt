@@ -20,13 +20,15 @@ import java.util.UUID
 class OwnedShellProcessTest {
     private lateinit var registry: OwnedShellRegistry
     private lateinit var root: File
+    private lateinit var tempRoot: File
     private val node = "emulator-native-contract"
     private val id = "session-" + "a".repeat(24)
     @Before fun setup() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         root = File(context.cacheDir, "shell-${UUID.randomUUID()}").apply { mkdirs() }
+        tempRoot = File(root, "managed-tmp")
         NativeCommand.initialize(context.applicationInfo.nativeLibraryDir)
-        registry = OwnedShellRegistry(Process.myUid())
+        registry = OwnedShellRegistry(Process.myUid(), tempRoot)
     }
     @After fun cleanup() { registry.shutdown(); root.deleteRecursively() }
     private fun request(action: String = "observe", identity: String = id) = JSONObject().put("action", action).put("operation_id", identity)
@@ -100,6 +102,16 @@ class OwnedShellProcessTest {
             .put("workdir", root.absolutePath + "/missing").put("env", JSONObject()).put("timeout_ms", 1000).put("tty", false))
         registry.control(node, req)
         assertEquals("not_started", terminal().getString("state"))
+    }
+    @Test fun privateTempDirectoryIsForcedAndRemovedAfterExit() {
+        start("mkdir -p \"\$TMPDIR/nested\"; printf data >\"\$TMPDIR/nested/file\"; printf '%s' \"\$TMPDIR\"")
+        val result = terminal()
+        val path = result.getString("all_stdout")
+        val expectedRoot = tempRoot.canonicalFile.absolutePath + File.separator
+        val diagnostic = "path=$path expectedRoot=$expectedRoot exit=${result.optInt("exit_code", -1)} stderr=${result.optString("all_stderr").trim()}"
+        assertTrue(diagnostic, path.startsWith(expectedRoot))
+        assertEquals(diagnostic, 0, result.getInt("exit_code"))
+        assertFalse(diagnostic, File(path).exists())
     }
     @Test fun outputOverflowIsExplicitAndBounded() {
         // A fixed fixture tests the executor budget independently of differences

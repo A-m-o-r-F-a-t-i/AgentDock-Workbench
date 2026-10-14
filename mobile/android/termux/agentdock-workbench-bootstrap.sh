@@ -25,6 +25,16 @@ audit="$(dpkg --audit)"
 for package in proot-distro curl jq coreutils util-linux procps openssl-tool tar python; do
   [ "$(dpkg-query -W -f='${Status}' "$package")" = 'install ok installed' ] || { printf 'Package is not configured: %s\n' "$package" >&2; exit 1; }
 done
+if [ ! -d "$HOME/storage/shared" ] && command -v termux-setup-storage >/dev/null 2>&1; then
+  termux-setup-storage || true
+fi
+[ -d "$HOME/storage/shared" ] || {
+  printf '%s\n' 'Shared storage is unavailable. Run termux-setup-storage, grant access, then rerun bootstrap.' >&2
+  exit 1
+}
+WORKSPACE="$HOME/storage/shared/Documents/AgentDock/Workspaces"
+ARTIFACTS="$HOME/storage/shared/Documents/AgentDock/Artifacts"
+mkdir -p "$WORKSPACE" "$ARTIFACTS"
 mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
 install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
@@ -47,6 +57,7 @@ if ! installed_containers="$(proot-distro list --quiet)"; then
 fi
 if ! printf '%s\n' "$installed_containers" | grep -Fxq 'debian'; then
   proot-distro install debian
+  : >"$HOME/.agentdock-workbench/managed-distro-debian"
 fi
 # Variables below must expand inside Debian, not in the Termux host shell.
 # shellcheck disable=SC2016
@@ -64,5 +75,7 @@ proot-distro login debian -- /bin/sh -lc '
   apt-get clean
 '
 printf '%s\n' 'Termux bridge, Debian PRoot and the Android Core release trust key are ready.'
+printf 'User workspace: %s\n' "$WORKSPACE"
+printf 'User artifacts: %s\n' "$ARTIFACTS"
 printf '%s\n' 'Return to AgentDock Workbench, grant RUN_COMMAND, then run Probe/Bootstrap.'
 printf '%s\n' 'Use Install & Update to install the signed ARM64 Core release.'

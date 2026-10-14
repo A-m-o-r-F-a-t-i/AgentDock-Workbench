@@ -42,12 +42,17 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
     var baseDelay by rememberSaveable { mutableStateOf("30") }
     var maxDelay by rememberSaveable { mutableStateOf("900") }
     var failures by rememberSaveable { mutableStateOf("3") }
+    var workspaceRoot by rememberSaveable { mutableStateOf("/data/data/com.termux/files/home/storage/shared/Documents/AgentDock/Workspaces") }
     var adoptedPath by rememberSaveable { mutableStateOf("") }
     var targetOperation by rememberSaveable { mutableStateOf("") }
     var confirmation by remember { mutableStateOf<DeploymentConfirmation?>(null) }
     val status = state.operations.firstOrNull { it.operation in setOf("probe", "status") && it.resultJson.isNotBlank() }
         ?.let { runCatching { JSONObject(it.resultJson) }.getOrNull() }
     val cleanup = state.operations.firstOrNull { it.operation == "cleanup_preview" && it.phase == "succeeded" }
+        ?.let { runCatching { JSONObject(it.resultJson) }.getOrNull() }
+    val migration = state.operations.firstOrNull { it.operation == "workspace_migration_preview" && it.phase == "succeeded" }
+        ?.let { runCatching { JSONObject(it.resultJson) }.getOrNull() }
+    val uninstall = state.operations.firstOrNull { it.operation == "uninstall_preview" && it.phase == "succeeded" }
         ?.let { runCatching { JSONObject(it.resultJson) }.getOrNull() }
     val enabled = !state.actionBusy
     fun offer(title: String, message: String, operation: String, arguments: JSONObject = JSONObject()) {
@@ -99,6 +104,11 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                     Text("Core 版本：${installedVersion.ifBlank { "未安装" }}")
                     Text("运行意图：${status.optString("desired_state", "未知")} · 身份：${status.optString("process_identity", "未知")}")
                     Text("已验证健康：${status.optBoolean("healthy")} · 受信公钥存在：${status.optBoolean("manifest_trust_ready")}")
+                    status.optJSONObject("workspace")?.let { workspace ->
+                        Text("公共工作区：${workspace.optString("path", "未配置")}")
+                        Text("用户可访问：${workspace.optBoolean("user_accessible")} · 当前可用：${workspace.optBoolean("available")}")
+                        if (workspace.optBoolean("legacy_private_pending")) Text("检测到旧私有工作区，请在下方预览并迁移。")
+                    }
                     if (installedVersion.isBlank()) {
                         Text("当前手机尚未安装受管 Core。使用下方官方签名源安装并启动后，任务、活动与调用页面才能读取本机数据。")
                     }
@@ -113,19 +123,24 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                 DeploymentInput("本机端口（1024–65535）", port) { port = it.take(5) }
                 TechnicalDetails("高级配置") {
                     DeploymentInput("PRoot 发行版", distro) { distro = it.take(32) }
+                    DeploymentInput("共享工作区（Termux 绝对路径）", workspaceRoot) { workspaceRoot = it.take(2048) }
+                    Text("工作区必须位于 Termux 共享存储，可由系统文件管理器直接访问。运行数据、对话索引、凭据和日志继续保留在私有目录。")
                     DeploymentInput("首次恢复等待（秒）", baseDelay) { baseDelay = it.take(4) }
                     DeploymentInput("最长恢复等待（秒）", maxDelay) { maxDelay = it.take(4) }
                     DeploymentInput("连续恢复失败上限", failures) { failures = it.take(2) }
                 }
                 Button(onClick = {
                     val number = port.toIntOrNull(); val base = baseDelay.toIntOrNull(); val maximum = maxDelay.toIntOrNull(); val count = failures.toIntOrNull()
-                    if (number !in 1024..65535 || base !in 15..300 || maximum == null || base == null || maximum !in base..3600 || count !in 1..10 ||
+                    val sharedWorkspace = workspaceRoot.startsWith("/storage/emulated/0/") ||
+                        workspaceRoot.startsWith("/data/data/com.termux/files/home/storage/shared/")
+                    if (number !in 1024..65535 || base !in 15..300 || maximum == null || base == null || maximum !in base..3600 || count !in 1..10 || !sharedWorkspace ||
                         !Regex("[a-z][a-z0-9_-]{0,31}").matches(distro) || nodeName.isBlank()) {
-                        model.showNotice("请检查端口、发行版与恢复策略范围。")
+                        model.showNotice("请检查端口、发行版、共享工作区与恢复策略范围。")
                     } else {
                         val node = JSONObject().put("port", number).put("distro", distro).put("node_name", nodeName)
-                            .put("recovery_base_seconds", base).put("recovery_max_seconds", maximum).put("recovery_max_failures", count)
-                        offer("保存节点配置", "仅在受管节点已停止时写入。连接页面的 Origin 不会被隐式改写，请在改变端口后核对连接设置。", "configure", JSONObject().put("node", node))
+                            .put("workspace_root", workspaceRoot).put("recovery_base_seconds", base)
+                            .put("recovery_max_seconds", maximum).put("recovery_max_failures", count)
+                        offer("保存节点配置", "仅在受管节点已停止时写入。工作区只允许共享存储路径；改变工作区不会自动合并现有文件。连接页面的 Origin 不会被隐式改写。", "configure", JSONObject().put("node", node))
                     }
                 }, enabled = enabled) { Text("保存停止节点配置") }
                 DeploymentRow {
@@ -182,14 +197,44 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
             DeploymentSection("现有节点与清理") {
                 DeploymentInput("已有受管节点目录", adoptedPath) { adoptedPath = it.take(2048) }
                 OutlinedButton(onClick = { offer("纳入已有受管节点", "只接受 Termux home 下具有 node.json 的兼容目录，核对已有进程身份后建立引用。未描述的旧目录不会被自动迁移或替换。", "adopt", JSONObject().put("existing_root", adoptedPath).put("confirm_adopt", true)) }, enabled = enabled && adoptedPath.startsWith('/')) { Text("确认接管目录引用") }
+                Text("工作区迁移", style = MaterialTheme.typography.titleSmall)
+                Text("新版默认工作区位于共享存储。检测到旧私有工作区时，先停止 Core，再经过复制、摘要校验和发布后删除私有副本。公共目录已有文件时不会自动合并。")
                 DeploymentRow {
-                    TextButton(onClick = { model.runTermux("cleanup_preview") }, enabled = enabled) { Text("预览旧版本清理") }
+                    TextButton(onClick = { model.runTermux("workspace_migration_preview") }, enabled = enabled) { Text("预览旧工作区迁移") }
+                    TextButton(onClick = {
+                        val digest = migration?.optString("preview_digest").orEmpty()
+                        offer("迁移旧私有工作区", "把旧私有工作区完整复制到用户可访问的共享目录，校验一致后删除私有副本。公共目标已有内容或 Core 正在运行时停止执行。",
+                            "workspace_migrate", JSONObject().put("confirm_migration", true).put("preview_digest", digest))
+                    }, enabled = enabled && migration?.let {
+                        it.optBoolean("legacy_present") && it.optBoolean("target_empty") &&
+                            it.optString("preview_digest").isNotBlank()
+                    } == true) { Text("确认校验迁移") }
+                }
+                migration?.let {
+                    Text("旧目录：${it.optString("legacy_path", "无")}\n公共目录：${it.optString("target_path", "未配置")}\n待迁移：${it.optBoolean("legacy_present")} · 目标为空：${it.optBoolean("target_empty")}\n受管旧布局：${it.optBoolean("managed_layout")} · 独立迁移制品：${it.optLong("artifact_bytes")} 字节 · 丢弃临时数据：${it.optLong("discarded_transient_bytes")} 字节")
+                }
+                Text("存储清理", style = MaterialTheme.typography.titleSmall)
+                DeploymentRow {
+                    TextButton(onClick = { model.runTermux("cleanup_preview") }, enabled = enabled) { Text("预览受管文件清理") }
                     TextButton(onClick = {
                         val digest = cleanup?.optString("preview_digest").orEmpty()
-                        offer("清理预览中的旧文件", "仅清理不再被当前版本、健康回退点或未完成事务引用的受管版本和备份。工程、身份及隔离数据保留。", "cleanup", JSONObject().put("confirm_cleanup", true).put("preview_digest", digest))
+                        offer("清理预览中的受管文件", "清理无恢复引用的旧版本与备份、超过保留期的终态记录、诊断、私有临时文件，以及七天以上且仍停留在切换前阶段的废弃安装事务。公共工作区、身份、隔离数据和维护中的事务保留。", "cleanup", JSONObject().put("confirm_cleanup", true).put("preview_digest", digest))
                     }, enabled = enabled && !cleanup?.optString("preview_digest").isNullOrBlank()) { Text("确认预览清理") }
                 }
-                cleanup?.let { Text("旧版本：${it.optJSONArray("versions") ?: "[]"}\n旧备份：${it.optJSONArray("backups") ?: "[]"}") }
+                cleanup?.let { Text("旧版本：${it.optJSONArray("versions") ?: "[]"}\n旧备份：${it.optJSONArray("backups") ?: "[]"}\n废弃安装事务：${it.optJSONArray("abandoned_transactions") ?: "[]"}") }
+                Text("完整卸载私有环境", style = MaterialTheme.typography.titleSmall)
+                Text("该操作停止 Core，并删除 AgentDock 私有运行数据、桥接脚本及由本应用创建的 PRoot。共享工作区、公共制品与 Termux 公共依赖继续保留，随后可从系统设置卸载 APK。")
+                DeploymentRow {
+                    TextButton(onClick = { model.runTermux("uninstall_preview") }, enabled = enabled) { Text("预览完整卸载") }
+                    TextButton(onClick = {
+                        val digest = uninstall?.optString("preview_digest").orEmpty()
+                        offer("完整卸载私有运行环境", "此操作会停止节点并删除 AgentDock 私有 Core、对话与任务数据、日志、备份、桥接脚本，以及明确标记为 AgentDock 创建的 PRoot。公共工作区、制品和共享 Termux 软件包保持不变。",
+                            "uninstall", JSONObject().put("confirm_uninstall", true).put("preview_digest", digest))
+                    }, enabled = enabled && !uninstall?.optString("preview_digest").isNullOrBlank()) { Text("确认完整卸载") }
+                }
+                uninstall?.let {
+                    Text("保留工作区：${it.optString("workspace_path", "未配置")}\n保留制品：${it.optString("artifact_path", "未配置")}\n将删除自有 PRoot：${it.optString("managed_distro").ifBlank { "否" }} · 保留共享 Termux 依赖：${it.optBoolean("termux_packages_preserved")}")
+                }
             }
         }
         item { Text("操作回执", style = MaterialTheme.typography.titleLarge) }

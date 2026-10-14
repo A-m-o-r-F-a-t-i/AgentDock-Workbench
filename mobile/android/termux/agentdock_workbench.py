@@ -39,14 +39,25 @@ METADATA_DOWNLOAD_TIMEOUT_SECONDS = 30
 ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS = 600
 DOWNLOAD_PROCESS_GRACE_SECONDS = 15
 RANGE_REJECTED = {33, 36}
+MAX_TERMINAL_JOURNALS = 32
+TERMINAL_JOURNAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
+ABANDONED_TRANSACTION_RETENTION_SECONDS = 7 * 24 * 60 * 60
+DIAGNOSTIC_RETENTION_SECONDS = 7 * 24 * 60 * 60
+MAX_DIAGNOSTICS = 8
+TEMP_RETENTION_SECONDS = 24 * 60 * 60
+WORKSPACE_RUNTIME_RETENTION_SECONDS = 7 * 24 * 60 * 60
+CORE_LOG_LIMIT = 8 * 1024 * 1024
+PUBLIC_WORKSPACE_PARTS = ("storage", "shared", "Documents", "AgentDock", "Workspaces")
+PUBLIC_ARTIFACT_PARTS = ("storage", "shared", "Documents", "AgentDock", "Artifacts")
+SAFE_ABANDONED_PHASES = {"created", "manifest", "download", "verify", "prepared"}
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 NONCE = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
-READ_ONLY = {"probe", "status", "operation_query", "logs", "diagnostic_preview", "cleanup_preview"}
-OPERATIONS = READ_ONLY | {"bootstrap", "pair_local_core", "install", "update", "resume", "cancel_operation", "adopt", "configure", "start", "stop", "restart", "repair", "guardian_check", "rollback", "export_diagnostics", "path_probe", "project_create", "cleanup"}
+READ_ONLY = {"probe", "status", "operation_query", "logs", "diagnostic_preview", "cleanup_preview", "workspace_migration_preview", "uninstall_preview"}
+OPERATIONS = READ_ONLY | {"bootstrap", "pair_local_core", "install", "update", "resume", "cancel_operation", "adopt", "configure", "start", "stop", "restart", "repair", "guardian_check", "rollback", "export_diagnostics", "path_probe", "project_create", "cleanup", "workspace_migrate", "uninstall"}
 TERMINAL = {"succeeded", "failed", "rolled_back", "cancelled"}
 SECRET_KEYS = {"token", "bearer", "password", "secret", "credential", "credentials", "authorization", "cookie"}
-DEFAULT_CONFIG = {"schema_version": 1, "port": 8765, "distro": "debian", "node_name": "AgentDock Workbench", "recovery_base_seconds": 30, "recovery_max_seconds": 900, "recovery_max_failures": 3}
+DEFAULT_CONFIG = {"schema_version": 1, "port": 8765, "distro": "debian", "node_name": "AgentDock Workbench", "workspace_root": "", "recovery_base_seconds": 30, "recovery_max_seconds": 900, "recovery_max_failures": 3}
 
 class BridgeError(Exception):
     def __init__(self, code: str, message: str, retryable: bool = False):
@@ -128,6 +139,77 @@ def inside(path: Path, root: Path, *, exists: bool = False) -> Path:
     check(result != root and root in result.parents, "unsafe_path", "路径超出已授权根目录")
     return result
 
+def shared_storage_root(home: Path) -> Path:
+    shared_link = home.joinpath(*PUBLIC_WORKSPACE_PARTS[:2])
+    check(shared_link.exists() and shared_link.is_dir(), "workspace_unavailable",
+          "Termux 共享存储尚未授权；请先运行 termux-setup-storage")
+    try:
+        shared = shared_link.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise BridgeError("workspace_unavailable", "Termux 共享存储无法安全解析；请重新授权共享存储") from error
+    return shared
+
+def public_managed_directory(home: Path, candidate: Path, label: str, *, create: bool = False) -> Path:
+    shared = shared_storage_root(home)
+    check(candidate.is_absolute() and len(str(candidate)) <= 2048, "invalid_request",
+          f"{label}必须是共享存储中的绝对路径")
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise BridgeError("unsafe_path", f"{label}路径无法安全解析") from error
+    check(resolved != shared and shared in resolved.parents, "unsafe_path", f"{label}必须位于用户可访问的 Termux 共享存储内")
+    if create:
+        candidate.mkdir(parents=True, exist_ok=True)
+        resolved = candidate.resolve(strict=True)
+    if resolved.exists():
+        check(resolved.is_dir(), "unsafe_path", f"{label}路径必须是普通目录")
+    return resolved
+
+def public_workspace_root(home: Path, config: dict, *, create: bool = False) -> Path:
+    """Resolve a user-visible workspace below Termux shared storage."""
+    raw = str(config.get("workspace_root", "")).strip()
+    candidate = Path(raw) if raw else home.joinpath(*PUBLIC_WORKSPACE_PARTS)
+    return public_managed_directory(home, candidate, "工作区", create=create)
+
+def public_artifact_root(home: Path, *, create: bool = False) -> Path:
+    return public_managed_directory(home, home.joinpath(*PUBLIC_ARTIFACT_PARTS), "制品目录", create=create)
+
+def public_roots(home: Path, config: dict, *, create: bool = False) -> tuple[Path, Path]:
+    workspace = public_workspace_root(home, config, create=False)
+    artifacts = public_artifact_root(home, create=False)
+    check(workspace != artifacts and workspace not in artifacts.parents and artifacts not in workspace.parents,
+          "workspace_conflict", "工作区与制品目录不能相同或相互嵌套")
+    if create:
+        workspace = public_workspace_root(home, config, create=True)
+        artifacts = public_artifact_root(home, create=True)
+        check(workspace != artifacts and workspace not in artifacts.parents and artifacts not in workspace.parents,
+              "workspace_conflict", "工作区与制品目录不能相同或相互嵌套")
+    return workspace, artifacts
+
+def deployment_home() -> Path:
+    if os.environ.get("AGENTDOCK_WORKBENCH_TEST_MODE") == "1":
+        raw = os.environ.get("AGENTDOCK_WORKBENCH_TEST_HOME", "")
+        check(raw and Path(raw).is_absolute(), "invalid_request", "测试部署目录必须是绝对路径")
+        return Path(raw).resolve(strict=True)
+    return Path.home().resolve(strict=True)
+
+def managed_latest_mtime(path: Path, maximum: int = 4096) -> float | None:
+    """Return the newest managed-tree mtime; preserve links or oversized trees."""
+    newest, seen, pending = path.lstat().st_mtime, 0, [path]
+    while pending:
+        current = pending.pop()
+        if current.is_symlink():
+            return None
+        newest = max(newest, current.lstat().st_mtime)
+        if not current.is_dir():
+            continue
+        for child in current.iterdir():
+            seen += 1
+            if seen > maximum:
+                return None
+            pending.append(child)
+    return newest
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -201,6 +283,53 @@ def tree_digest(root: Path) -> str:
         directories.sort()
         for name in sorted(directories + files):
             path = Path(directory) / name
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                item = [relative, "link", os.readlink(path)]
+            elif path.is_file():
+                item = [relative, "file", path.stat().st_mode & 0o777, path.stat().st_size, sha256(path)]
+            else:
+                item = [relative, "directory"]
+            digest.update(json.dumps(item, ensure_ascii=False, separators=(",", ":")).encode())
+            digest.update(b"\n")
+    return digest.hexdigest()
+
+def tree_size_ignoring(root: Path, ignored_relative_paths: set[str]) -> int:
+    total = count = 0
+    if not root.exists():
+        return 0
+    for directory, directories, files in os.walk(root, followlinks=False):
+        current = Path(directory)
+        directories[:] = [name for name in directories
+                           if (current / name).relative_to(root).as_posix() not in ignored_relative_paths]
+        files = [name for name in files
+                 if (current / name).relative_to(root).as_posix() not in ignored_relative_paths]
+        for name in directories + files:
+            path = current / name
+            count += 1
+            check(count <= MAX_ENTRIES, "size_limit", "工作区迁移文件数量超过上限")
+            if path.is_symlink():
+                check(not os.path.isabs(os.readlink(path)), "unsafe_path", "工作区迁移拒绝绝对符号链接")
+                inside(path, root)
+            elif path.is_file():
+                total += path.stat().st_size
+                check(total <= MAX_BACKUP, "size_limit", "工作区迁移数据超过 1 GiB")
+            else:
+                check(path.is_dir(), "unsafe_path", "工作区迁移包含特殊文件")
+    return total
+
+def tree_digest_ignoring(root: Path, ignored_relative_paths: set[str]) -> str:
+    tree_size_ignoring(root, ignored_relative_paths)
+    digest = hashlib.sha256()
+    for directory, directories, files in os.walk(root, followlinks=False):
+        current = Path(directory)
+        directories[:] = [name for name in directories
+                           if (current / name).relative_to(root).as_posix() not in ignored_relative_paths]
+        files = [name for name in files
+                 if (current / name).relative_to(root).as_posix() not in ignored_relative_paths]
+        directories.sort()
+        for name in sorted(directories + files):
+            path = current / name
             relative = path.relative_to(root).as_posix()
             if path.is_symlink():
                 item = [relative, "link", os.readlink(path)]
@@ -381,6 +510,7 @@ class NodeBackend:
                     probe.bind(("127.0.0.1", self.config["port"]))
                 except OSError as error:
                     raise BridgeError("port_in_use", "端口已被占用；未终止其他服务") from error
+        workspace, _ = public_roots(deployment_home(), self.config, create=True)
         log = self.root / "logs/core.log"
         check(not log.is_symlink(), "unsafe_path", "受管日志链接无效")
         log.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -393,7 +523,7 @@ class NodeBackend:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline and child.poll() is None:
             if self.health(expected_version):
-                marker = self.root / "workspace" / (".wb-health-" + secrets.token_hex(12))
+                marker = workspace / (".wb-health-" + secrets.token_hex(12))
                 descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 try:
                     with os.fdopen(descriptor, "wb") as output:
@@ -458,7 +588,11 @@ def core_launch_command(config: dict) -> str:
     # The validated node.json port is authoritative; ignore legacy port files.
     port = Deployment.validate_config(config)["port"]
     return ('export AGENTDOCK_HOME=/opt/agentdock-workbench/data; '
-            'export AGENTDOCK_DEFAULT_DIR=/opt/agentdock-workbench/workspace; '
+            'export AGENTDOCK_DEFAULT_DIR=/workspace; '
+            'export AGENTDOCK_LEGACY_DEFAULT_DIR=/opt/agentdock-workbench/workspace; '
+            'export AGENTDOCK_ARTIFACT_ROOT=/artifacts; '
+            'export AGENTDOCK_SCRATCH_ROOT=/opt/agentdock-workbench/workspace-runtime/scratch; '
+            'export AGENTDOCK_CACHE_ROOT=/opt/agentdock-workbench/workspace-runtime/cache; '
             f'export AGENTDOCK_HOST=127.0.0.1; export AGENTDOCK_PORT={port}; '
             'export AGENTDOCK_AUTH_TOKEN="$(cat /opt/agentdock-workbench/auth-token)"; '
             'export AGENTDOCK_MCP_APPS_ENABLED=false; '
@@ -468,6 +602,7 @@ def core_launch_command(config: dict) -> str:
 def launch_owned(root: Path) -> None:
     root = root.resolve(strict=True)
     config = Deployment.validate_config(read_json(root / "node.json", DEFAULT_CONFIG))
+    workspace, artifacts = public_roots(deployment_home(), config, create=True)
     check(read_text(root / "desired-state", "stopped") == "running", "user_stopped", "停止意图已生效")
     backend = NodeBackend(root, config)
     backend.bearer()
@@ -477,7 +612,7 @@ def launch_owned(root: Path) -> None:
     atomic_bytes(root / "core.pid", str(pid).encode())
     atomic_bytes(root / "core.identity", stamp.encode())
     command = core_launch_command(config)
-    os.execvp("proot-distro", ["proot-distro", "login", config["distro"], "--bind", f"{root}:/opt/agentdock-workbench", "--", "/bin/sh", "-lc", command])
+    os.execvp("proot-distro", ["proot-distro", "login", config["distro"], "--bind", f"{root}:/opt/agentdock-workbench", "--bind", f"{workspace}:/workspace", "--bind", f"{artifacts}:/artifacts", "--", "/bin/sh", "-lc", command])
 
 class Deployment:
     def __init__(self, home: Path, backend_factory: Callable = NodeBackend, clock: Callable[[], float] = time.time, fault: Callable[[str], None] = lambda _: None):
@@ -489,7 +624,7 @@ class Deployment:
         self.config = self.validate_config(read_json(self.root / "node.json", DEFAULT_CONFIG))
         self.backend_factory, self.clock, self.fault = backend_factory, clock, fault
         self.backend = backend_factory(self.root, self.config)
-        for name in ("versions", "data", "workspace", "logs", "transactions", "backups", "quarantine"):
+        for name in ("versions", "data", "logs", "transactions", "backups", "quarantine", "tmp", "workspace-runtime"):
             check(not (self.root / name).is_symlink(), "unsafe_path", "受管目录链接需要先明确迁移")
 
     @staticmethod
@@ -500,14 +635,27 @@ class Deployment:
         check(type(result["port"]) is int and 1024 <= result["port"] <= 65535, "invalid_request", "端口范围为 1024–65535")
         check(isinstance(result["distro"], str) and re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", result["distro"]) is not None, "invalid_request", "PRoot 发行版标识无效")
         check(isinstance(result["node_name"], str) and 0 < len(result["node_name"]) <= 80, "invalid_request", "节点名称无效")
+        check(isinstance(result["workspace_root"], str) and len(result["workspace_root"]) <= 2048
+              and (not result["workspace_root"] or Path(result["workspace_root"]).is_absolute()),
+              "invalid_request", "工作区须为空或共享存储中的绝对路径")
         check(type(result["recovery_base_seconds"]) is int and 15 <= result["recovery_base_seconds"] <= 300, "invalid_request", "恢复初始退避须为 15–300 秒")
         check(type(result["recovery_max_seconds"]) is int and result["recovery_base_seconds"] <= result["recovery_max_seconds"] <= 3600, "invalid_request", "恢复退避上限无效")
         check(type(result["recovery_max_failures"]) is int and 1 <= result["recovery_max_failures"] <= 10, "invalid_request", "连续失败上限须为 1–10")
         return result
 
-    def initialize(self) -> None:
-        for name in ("versions", "workspace", "logs", "transactions", "backups", "quarantine"):
+    def workspace_root(self, create: bool = False) -> Path:
+        workspace, _ = public_roots(self.home, self.config, create=create)
+        return workspace
+
+    def legacy_workspace(self) -> Path:
+        return self.root / "workspace"
+
+    def initialize(self, automatic_cleanup: bool = True, ensure_workspace: bool = True) -> None:
+        for name in ("versions", "logs", "transactions", "backups", "quarantine", "tmp",
+                     "workspace-runtime/scratch", "workspace-runtime/cache"):
             (self.root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+        if ensure_workspace:
+            self.workspace_root(create=True)
         # Missing data can be an intentional restore publication window.
         # Do not alter that evidence before resume/cancel examines the journal.
         pending = any(record.get("kind") == "deployment" and record.get("status") not in TERMINAL
@@ -516,6 +664,8 @@ class Deployment:
             (self.root / "data").mkdir(mode=0o700, parents=True, exist_ok=True)
         if not (self.root / "node.json").exists():
             atomic_json(self.root / "node.json", self.config)
+        if automatic_cleanup:
+            self.automatic_cleanup(False)
 
     @contextlib.contextmanager
     def lock(self):
@@ -581,6 +731,93 @@ class Deployment:
     def set_desired(self, value: str) -> None:
         atomic_bytes(self.root / "desired-state", value.encode())
 
+    def workspace_status(self) -> dict:
+        legacy = self.legacy_workspace()
+        legacy_pending = legacy.is_dir() and not legacy.is_symlink() and any(legacy.iterdir())
+        try:
+            workspace = self.workspace_root(create=False)
+            return {"path": str(workspace), "available": workspace.is_dir(), "user_accessible": True,
+                    "legacy_private_pending": legacy_pending}
+        except BridgeError as error:
+            return {"path": str(self.home.joinpath(*PUBLIC_WORKSPACE_PARTS)), "available": False,
+                    "user_accessible": True, "legacy_private_pending": legacy_pending, "error_code": error.code,
+                    "message": redact(str(error))}
+
+    def rotate_logs(self) -> dict:
+        logs = self.root / "logs"
+        logs.mkdir(mode=0o700, parents=True, exist_ok=True)
+        current, previous = logs / "core.log", logs / "core.previous.log"
+        if not current.exists():
+            return {"rotated": False, "current_bytes": 0}
+        check(not current.is_symlink() and current.is_file() and not previous.is_symlink(),
+              "unsafe_path", "受管日志文件类型无效")
+        size = current.stat().st_size
+        if size <= CORE_LOG_LIMIT:
+            return {"rotated": False, "current_bytes": size}
+        with current.open("rb") as source:
+            source.seek(max(0, size - CORE_LOG_LIMIT))
+            retained = source.read(CORE_LOG_LIMIT)
+        atomic_bytes(previous, retained)
+        with current.open("r+b") as output:
+            output.truncate(0)
+            output.flush()
+            os.fsync(output.fileno())
+        return {"rotated": True, "current_bytes": 0, "previous_bytes": len(retained)}
+
+    @staticmethod
+    def _remove_managed_entry(path: Path, parent: Path) -> None:
+        check(path.parent == parent and path.name not in ("", ".", ".."), "unsafe_path", "清理目标超出受管目录")
+        if path.is_symlink() or path.is_file():
+            path.unlink(missing_ok=True)
+        elif path.is_dir():
+            shutil.rmtree(path)
+
+    def automatic_cleanup(self, preview: bool = True) -> dict:
+        now = self.clock()
+        active = read_text(self.root / "active-operation")
+        records = sorted(self.journal_records(), key=lambda pair: pair[1].get("updated_at", 0), reverse=True)
+        terminal = [(path, value) for path, value in records if value.get("status") in TERMINAL]
+        terminal_paths = [path.parent for index, (path, value) in enumerate(terminal)
+                          if path.parent.name != active and (index >= MAX_TERMINAL_JOURNALS
+                          or now - float(value.get("updated_at", 0)) >= TERMINAL_JOURNAL_RETENTION_SECONDS)]
+        logs = self.root / "logs"
+        diagnostics = sorted([path for path in (list(logs.glob("diagnostics-*.json")) if logs.is_dir() else [])
+                              if path.is_file() and not path.is_symlink()], key=lambda path: path.stat().st_mtime, reverse=True)
+        wall_now = time.time()
+        diagnostic_paths = [path for index, path in enumerate(diagnostics)
+                            if index >= MAX_DIAGNOSTICS or wall_now - path.stat().st_mtime >= DIAGNOSTIC_RETENTION_SECONDS]
+        temporary = self.root / "tmp"
+        temp_paths = [path for path in (list(temporary.iterdir()) if temporary.is_dir() else [])
+                      if wall_now - path.lstat().st_mtime >= TEMP_RETENTION_SECONDS]
+        runtime_paths = []
+        runtime_skipped = 0
+        runtime_root = self.root / "workspace-runtime"
+        for category in ("scratch", "cache"):
+            parent = runtime_root / category
+            candidates = sorted(list(parent.iterdir()) if parent.is_dir() else [], key=lambda path: path.lstat().st_mtime)
+            runtime_skipped += max(0, len(candidates) - 256)
+            for path in candidates[:256]:
+                latest = managed_latest_mtime(path)
+                if latest is not None and wall_now - latest >= WORKSPACE_RUNTIME_RETENTION_SECONDS:
+                    runtime_paths.append((category, path))
+        result = {"terminal_transactions": sorted(path.name for path in terminal_paths),
+                  "diagnostics": sorted(path.name for path in diagnostic_paths),
+                  "temporary": sorted(path.name for path in temp_paths),
+                  "workspace_runtime": sorted(category + "/" + path.name for category, path in runtime_paths),
+                  "workspace_runtime_skipped": runtime_skipped,
+                  "preview": preview}
+        if not preview:
+            for path in terminal_paths:
+                self._remove_managed_entry(path, self.root / "transactions")
+            for path in diagnostic_paths:
+                self._remove_managed_entry(path, logs)
+            for path in temp_paths:
+                self._remove_managed_entry(path, temporary)
+            for category, path in runtime_paths:
+                self._remove_managed_entry(path, runtime_root / category)
+            result["log_rotation"] = self.rotate_logs()
+        return result
+
     def current_version(self) -> str:
         return self.metadata(self.pointer("current")).get("version", "")
 
@@ -597,6 +834,7 @@ class Deployment:
                 "message": "节点身份和管理鉴权已验证" if healthy else "节点状态待核对" if error else "没有健康的受管 Core",
                 "data": {"version": version, "desired_state": self.desired(), "healthy": healthy, "process_identity": "verified" if owned else "unknown" if error else "absent", "active_operation_id": active, "node": self.config,
                          "environment": self.backend.environment(), "recovery": read_json(self.root / "recovery.json", {}),
+                         "workspace": self.workspace_status(),
                          "manifest_trust_ready": (self.state / "trust/release-ed25519-public.pem").is_file(), "observed_at": self.clock()}}
 
     def journal_path(self, identity: str) -> Path:
@@ -620,10 +858,13 @@ class Deployment:
         records = self.journal_records()
         if len(records) < MAX_JOURNALS:
             return
+        self.automatic_cleanup(False)
+        records = self.journal_records()
+        if len(records) < MAX_JOURNALS:
+            return
         terminal = [(path, value) for path, value in records if value.get("status") in TERMINAL]
         for path, _ in sorted(terminal, key=lambda pair: pair[1].get("updated_at", 0))[:len(records) - MAX_JOURNALS + 1]:
-            for name in ("journal.json", "manifest.json", "manifest.sig", "core.tar.gz.partial"):
-                (path.parent / name).unlink(missing_ok=True)
+            self._remove_managed_entry(path.parent, self.root / "transactions")
         check(len(self.journal_records()) < MAX_JOURNALS, "capacity", "未决操作达到上限；请先查询和核对原操作")
 
     def save(self, journal: dict, phase: str | None = None, **changes) -> None:
@@ -936,13 +1177,214 @@ class Deployment:
             atomic_json(self.root / "health-proof.json", {"version_directory": current, "binary_sha256": self.metadata(current)["binary_sha256"], "verified_at": self.clock()})
         return {"status": "healthy", "message": "当前版本已恢复，未安装或更新版本"}
 
+    def legacy_workspace_layout(self) -> dict:
+        registry = read_json(self.root / "data/workspaces.json", {})
+        if not isinstance(registry, dict) or registry.get("schema_version") != 1:
+            return {"managed": False, "workspace_id": "", "ignored_paths": []}
+        records = registry.get("workspaces")
+        if not isinstance(records, list) or len(records) > 128:
+            return {"managed": False, "workspace_id": "", "ignored_paths": []}
+        legacy_root, current_root = "/opt/agentdock-workbench/workspace", "/workspace"
+        for record in records:
+            if not isinstance(record, dict) or record.get("runtime") != "unix" or record.get("root") not in (legacy_root, current_root):
+                continue
+            identity = str(record.get("workspace_id", ""))
+            if re.fullmatch(r"wsp_[a-f0-9]{16}", identity) is None:
+                continue
+            old_layout = (record.get("root") == legacy_root and
+                          record.get("artifact_root") == f"{legacy_root}/artifacts/{identity}" and
+                          record.get("scratch_root") == f"{legacy_root}/scratch/{identity}" and
+                          record.get("cache_root") == f"{legacy_root}/cache")
+            new_layout = (record.get("root") == current_root and
+                          record.get("artifact_root") == f"/artifacts/{identity}" and
+                          record.get("scratch_root") == f"/opt/agentdock-workbench/workspace-runtime/scratch/{identity}" and
+                          record.get("cache_root") == "/opt/agentdock-workbench/workspace-runtime/cache")
+            if old_layout or new_layout:
+                return {"managed": True, "workspace_id": identity,
+                        "ignored_paths": ["cache", "scratch", f"artifacts/{identity}"]}
+        return {"managed": False, "workspace_id": "", "ignored_paths": []}
+
+    def workspace_migration_preview(self) -> dict:
+        target = self.workspace_root(create=False)
+        legacy = self.legacy_workspace()
+        check(not legacy.is_symlink(), "unsafe_path", "旧私有工作区不能是符号链接")
+        legacy_present = legacy.is_dir() and any(legacy.iterdir())
+        target_empty = not target.exists() or target.is_dir() and not any(target.iterdir())
+        layout = self.legacy_workspace_layout() if legacy_present else {"managed": False, "workspace_id": "", "ignored_paths": []}
+        ignored = set(layout["ignored_paths"])
+        artifact_source = legacy / "artifacts" / layout["workspace_id"] if layout["managed"] else None
+        if artifact_source is not None and (artifact_source.exists() or artifact_source.is_symlink()):
+            check(artifact_source.is_dir() and not artifact_source.is_symlink(), "unsafe_path", "旧制品目录类型无效")
+        artifact_present = artifact_source is not None and artifact_source.is_dir()
+        artifact_container = legacy / "artifacts"
+        if artifact_present and artifact_container.is_dir() and not artifact_container.is_symlink():
+            other_artifacts = [path for path in artifact_container.iterdir() if path.name != layout["workspace_id"]]
+            if not other_artifacts:
+                ignored.discard(f"artifacts/{layout['workspace_id']}")
+                ignored.add("artifacts")
+        artifact_target = public_artifact_root(self.home, create=False) / layout["workspace_id"] if layout["managed"] else None
+        if artifact_target is not None and (artifact_target.exists() or artifact_target.is_symlink()):
+            check(artifact_target.is_dir() and not artifact_target.is_symlink(), "unsafe_path", "公共制品目标类型无效")
+        artifact_target_empty = artifact_target is None or not artifact_target.exists() or artifact_target.is_dir() and not any(artifact_target.iterdir())
+        transient_bytes = 0
+        if layout["managed"]:
+            transient_bytes = tree_size(legacy / "scratch") + tree_size(legacy / "cache")
+        return {"legacy_path": str(legacy), "target_path": str(target), "legacy_present": legacy_present,
+                "legacy_bytes": tree_size(legacy) if legacy_present else 0,
+                "legacy_digest": tree_digest(legacy) if legacy_present else "",
+                "workspace_bytes": tree_size_ignoring(legacy, ignored) if legacy_present else 0,
+                "workspace_digest": tree_digest_ignoring(legacy, ignored) if legacy_present else "",
+                "managed_layout": layout["managed"], "workspace_id": layout["workspace_id"],
+                "ignored_paths": sorted(ignored), "discarded_transient_bytes": transient_bytes,
+                "artifact_present": artifact_present,
+                "artifact_bytes": tree_size(artifact_source) if artifact_present else 0,
+                "artifact_digest": tree_digest(artifact_source) if artifact_present else "",
+                "artifact_target_path": str(artifact_target) if artifact_target is not None else "",
+                "artifact_target_empty": artifact_target_empty,
+                "target_empty": target_empty, "workspace_preserved": True, "artifacts_preserved": True}
+
+    def migrate_workspace(self, identity: str, payload: dict) -> dict:
+        preview = self.workspace_migration_preview()
+        expected = hashlib.sha256(json_bytes(preview)).hexdigest()
+        check(payload.get("confirm_migration") is True and secrets.compare_digest(expected, str(payload.get("preview_digest", ""))),
+              "preview_changed", "工作区迁移预览已变化，请重新确认")
+        check(self.backend.owned_pid() is None, "node_running", "迁移工作区前须停止 Core")
+        legacy = self.legacy_workspace()
+        target = self.workspace_root(create=True)
+        if not preview["legacy_present"]:
+            if legacy.is_dir() and not any(legacy.iterdir()):
+                legacy.rmdir()
+            return {"status": "ok", "message": "没有需要迁移的旧私有工作区", "data": preview}
+        check(preview["target_empty"], "workspace_conflict", "公共工作区已有文件，未合并或覆盖")
+        check(preview["artifact_target_empty"], "workspace_conflict", "公共制品目标已有文件，未合并或覆盖")
+        stage = target.parent / (".agentdock-workspace-migration-" + identity)
+        artifact_source = legacy / "artifacts" / preview["workspace_id"] if preview["artifact_present"] else None
+        artifact_target = Path(preview["artifact_target_path"]) if preview["artifact_present"] else None
+        artifact_stage = artifact_target.parent / (".agentdock-artifact-migration-" + identity) if artifact_target is not None else None
+        check(not stage.exists() and not stage.is_symlink(), "workspace_conflict", "公共工作区迁移暂存目录已存在")
+        if artifact_stage is not None:
+            public_artifact_root(self.home, create=True)
+            check(not artifact_stage.exists() and not artifact_stage.is_symlink(), "workspace_conflict", "公共制品迁移暂存目录已存在")
+        ignored = set(preview["ignored_paths"])
+        published: list[tuple[Path, str]] = []
+        committed = False
+        try:
+            def ignore_managed(directory: str, names: list[str]) -> set[str]:
+                current = Path(directory)
+                return {name for name in names if (current / name).relative_to(legacy).as_posix() in ignored}
+            shutil.copytree(legacy, stage, symlinks=True, ignore=ignore_managed if ignored else None)
+            check(tree_digest(stage) == preview["workspace_digest"], "verification_failed", "公共工作区复制校验失败；旧工作区保持不变")
+            if artifact_stage is not None and artifact_source is not None:
+                shutil.copytree(artifact_source, artifact_stage, symlinks=True)
+                check(tree_digest(artifact_stage) == preview["artifact_digest"], "verification_failed", "公共制品复制校验失败；旧工作区保持不变")
+            if target.exists():
+                check(target.is_dir() and not any(target.iterdir()), "workspace_conflict", "公共工作区在迁移期间发生变化")
+                target.rmdir()
+            os.replace(stage, target)
+            published.append((target, preview["workspace_digest"]))
+            check(tree_digest(target) == preview["workspace_digest"], "verification_failed", "公共工作区发布后校验失败；旧工作区保持不变")
+            if artifact_stage is not None and artifact_target is not None:
+                if artifact_target.exists():
+                    check(artifact_target.is_dir() and not any(artifact_target.iterdir()), "workspace_conflict", "公共制品目录在迁移期间发生变化")
+                    artifact_target.rmdir()
+                os.replace(artifact_stage, artifact_target)
+                published.append((artifact_target, preview["artifact_digest"]))
+                check(tree_digest(artifact_target) == preview["artifact_digest"], "verification_failed", "公共制品发布后校验失败；旧工作区保持不变")
+            check(tree_digest(legacy) == preview["legacy_digest"], "preview_changed", "旧私有工作区在迁移期间发生变化；已撤销公共副本")
+            atomic_json(self.root / "workspace-migration.json", {"schema_version": 1, "target": str(target),
+                        "digest": preview["workspace_digest"], "artifact_target": preview["artifact_target_path"],
+                        "artifact_digest": preview["artifact_digest"], "discarded_transient_bytes": preview["discarded_transient_bytes"],
+                        "migrated_at": self.clock()})
+            committed = True
+            legacy_retained = False
+            try:
+                shutil.rmtree(legacy)
+            except OSError:
+                legacy_retained = True
+        except Exception:
+            if not committed:
+                for published_path, digest in reversed(published):
+                    if published_path.is_dir() and not published_path.is_symlink() and tree_digest(published_path) == digest:
+                        shutil.rmtree(published_path)
+            raise
+        finally:
+            if stage.exists() and not stage.is_symlink():
+                shutil.rmtree(stage)
+            if artifact_stage is not None and artifact_stage.exists() and not artifact_stage.is_symlink():
+                shutil.rmtree(artifact_stage)
+        return {"status": "ok", "message": "旧私有工作区已校验迁移到用户可访问目录",
+                "data": {"target_path": str(target), "bytes": preview["workspace_bytes"],
+                         "artifact_target_path": preview["artifact_target_path"], "artifact_bytes": preview["artifact_bytes"],
+                         "discarded_transient_bytes": preview["discarded_transient_bytes"], "legacy_retained": legacy_retained,
+                         "workspace_preserved": True, "artifacts_preserved": True}}
+
+    def uninstall_preview(self) -> dict:
+        workspace = self.workspace_status()
+        try:
+            artifacts = str(public_artifact_root(self.home, create=False))
+        except BridgeError:
+            artifacts = str(self.home.joinpath(*PUBLIC_ARTIFACT_PARTS))
+        tasker = self.home / ".termux" / "tasker"
+        bridge_names = ("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py")
+        marker = self.state / ("managed-distro-" + self.config["distro"])
+        default_root = self.state / "node"
+        return {"private_runtime_exists": self.state.exists() or self.root.exists(),
+                "private_root": str(self.root), "adopted_private_root": self.root != default_root,
+                "bridge_files": sorted(name for name in bridge_names if (tasker / name).exists() or (tasker / name).is_symlink()),
+                "managed_distro": self.config["distro"] if marker.is_file() and not marker.is_symlink() else "",
+                "workspace_path": workspace.get("path", ""), "workspace_preserved": True,
+                "artifact_path": artifacts, "artifacts_preserved": True,
+                "termux_packages_preserved": True, "shared_storage_preserved": True}
+
+    def uninstall(self, payload: dict) -> dict:
+        preview = self.uninstall_preview()
+        expected = hashlib.sha256(json_bytes(preview)).hexdigest()
+        check(payload.get("confirm_uninstall") is True and secrets.compare_digest(expected, str(payload.get("preview_digest", ""))),
+              "preview_changed", "完整卸载预览已变化，请重新确认")
+        self.backend.stop()
+        marker = self.state / ("managed-distro-" + self.config["distro"])
+        distro_removed = False
+        if marker.is_file() and not marker.is_symlink():
+            if os.environ.get("AGENTDOCK_WORKBENCH_TEST_MODE") == "1":
+                distro_removed = True
+            else:
+                listed = subprocess.run(["proot-distro", "list", "--quiet"], capture_output=True, text=True, timeout=20, close_fds=True)
+                check(listed.returncode == 0, "uninstall_failed", "无法确认受管 PRoot 状态；私有文件尚未删除")
+                if self.config["distro"] in listed.stdout.splitlines():
+                    removed = subprocess.run(["proot-distro", "remove", self.config["distro"]], capture_output=True, timeout=180, close_fds=True)
+                    check(removed.returncode == 0, "uninstall_failed", "受管 PRoot 删除失败；私有文件尚未删除")
+                    distro_removed = True
+        default_root = self.state / "node"
+        if self.root != default_root and self.root.exists():
+            check(not self.root.is_symlink() and self.home in self.root.parents, "unsafe_path", "接管节点不在 Termux 私有目录内")
+            shutil.rmtree(self.root)
+        if self.state.exists():
+            check(not self.state.is_symlink(), "unsafe_path", "产品私有目录类型无效")
+            shutil.rmtree(self.state)
+        tasker = self.home / ".termux" / "tasker"
+        for name in ("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py"):
+            path = tasker / name
+            if path.exists() or path.is_symlink():
+                path.unlink()
+        return {"status": "ok", "message": "AgentDock 私有运行环境已卸载，公共工作区、制品和共享 Termux 依赖已保留",
+                "data": {"distro_removed": distro_removed, "workspace_path": preview["workspace_path"],
+                         "artifact_path": preview["artifact_path"], "workspace_preserved": True,
+                         "artifacts_preserved": True, "termux_packages_preserved": True}}
+
     def cleanup(self, preview: bool = True) -> dict:
+        records = self.journal_records()
+        now = self.clock()
+        abandoned = [(path, record) for path, record in records
+                     if record.get("kind") == "deployment" and record.get("status") == "requires_user_action"
+                     and record.get("phase") in SAFE_ABANDONED_PHASES
+                     and now - float(record.get("updated_at", 0)) >= ABANDONED_TRANSACTION_RETENTION_SECONDS]
+        abandoned_ids = {path.parent.name for path, _ in abandoned}
         protected = {self.pointer("current"), self.pointer("previous")}
         fallback = read_json(self.root / "fallback.json", {})
         protected.add(fallback.get("version_directory", ""))
         backups = {fallback.get("backup", "")}
-        for _, record in self.journal_records():
-            if record.get("status") not in TERMINAL:
+        for path, record in records:
+            if record.get("status") not in TERMINAL and path.parent.name not in abandoned_ids:
                 protected.update((record.get("source", ""), record.get("target", "")))
                 backups.update((record.get("backup", ""), record.get("restore_backup", "")))
         versions_dir, backups_dir = self.root / "versions", self.root / "backups"
@@ -951,12 +1393,24 @@ class Deployment:
             if path.is_dir() and not path.is_symlink() and not path.name.startswith(".") and path.name not in protected and (path / ".workbench-release.json").is_file():
                 eligible.append(path)
         old_backups = [path for path in (list(backups_dir.iterdir()) if backups_dir.is_dir() else []) if path.is_dir() and not path.is_symlink() and path.name not in backups and (path / ".snapshot-complete.json").is_file()]
-        check(len(eligible) + len(old_backups) <= 256, "capacity", "清理对象超过上限；未执行")
-        result = {"versions": [path.name for path in eligible], "backups": [path.name for path in old_backups], "preview": preview,
-                  "preserved": ["current", "verified fallback", "unfinished transactions", "quarantined data", "user projects", "identity"]}
+        check(len(eligible) + len(old_backups) + len(abandoned) <= 256, "capacity", "清理对象超过上限；未执行")
+        result = {"versions": sorted(path.name for path in eligible), "backups": sorted(path.name for path in old_backups),
+                  "abandoned_transactions": sorted(abandoned_ids), "lifecycle": self.automatic_cleanup(True), "preview": preview,
+                  "preserved": ["current", "verified fallback", "unfinished maintenance", "quarantined data", "public workspace", "identity"]}
         if not preview:
-            for path in eligible + old_backups:
-                shutil.rmtree(path)
+            result["lifecycle"] = self.automatic_cleanup(False)
+            for path in eligible:
+                self._remove_managed_entry(path, versions_dir)
+            for path in old_backups:
+                self._remove_managed_entry(path, backups_dir)
+            active = read_text(self.root / "active-operation")
+            for path, _ in abandoned:
+                stage = versions_dir / (".stage-" + path.parent.name)
+                if stage.exists() or stage.is_symlink():
+                    self._remove_managed_entry(stage, versions_dir)
+                self._remove_managed_entry(path.parent, self.root / "transactions")
+                if active == path.parent.name:
+                    (self.root / "active-operation").unlink(missing_ok=True)
         return result
 
     def logs(self, payload: dict) -> dict:
@@ -1005,6 +1459,7 @@ class Deployment:
             "probe": set(), "status": set(), "bootstrap": set(), "start": set(), "stop": set(), "restart": set(),
             "pair_local_core": {"key_id", "algorithm", "public_key_der"},
             "guardian_check": set(), "diagnostic_preview": set(), "cleanup_preview": set(), "export_diagnostics": set(),
+            "workspace_migration_preview": set(), "uninstall_preview": set(),
             "logs": {"log", "offset", "search"}, "operation_query": {"target_operation_id"},
             "configure": {"node"}, "adopt": {"existing_root", "confirm_adopt"},
             "install": {"apk_version", "manifest_url", "manifest_signature_url", "start_after_install"},
@@ -1013,6 +1468,8 @@ class Deployment:
             "cancel_operation": {"target_operation_id", "confirm_cancel"},
             "repair": {"confirm_reset"}, "rollback": {"confirm_data_restore", "start_after_install"},
             "cleanup": {"confirm_cleanup", "preview_digest"},
+            "workspace_migrate": {"confirm_migration", "preview_digest"},
+            "uninstall": {"confirm_uninstall", "preview_digest"},
             "path_probe": {"termux_path", "confirm_path"},
             "project_create": {"termux_path", "confirm_path", "name"},
         }
@@ -1033,14 +1490,26 @@ class Deployment:
                 preview = self.cleanup(True)
                 preview["preview_digest"] = hashlib.sha256(json_bytes(preview)).hexdigest()
                 return {"status": "ok", "message": "仅预览可安全清理的受管对象", "data": preview}
+            if operation == "workspace_migration_preview":
+                preview = self.workspace_migration_preview()
+                preview["preview_digest"] = hashlib.sha256(json_bytes(preview)).hexdigest()
+                return {"status": "ok", "message": "仅预览旧私有工作区到公共目录的迁移", "data": preview}
+            if operation == "uninstall_preview":
+                preview = self.uninstall_preview()
+                preview["preview_digest"] = hashlib.sha256(json_bytes(preview)).hexdigest()
+                return {"status": "ok", "message": "仅预览私有运行环境卸载；公共工作区始终保留", "data": preview}
             if operation == "diagnostic_preview":
                 return {"status": "ok", "message": "诊断只包含节点状态和有界脱敏日志，不含身份或工程", "data": {"categories": ["version", "desired state", "environment", "redacted Core log"], "excludes": ["credentials", "OAuth state", "project files"]}}
             return self.status()
+        if operation == "uninstall":
+            with self.lock():
+                return self.uninstall(payload)
         if operation == "stop":
             self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
             self.set_desired("stopped")
         with self.lock():
-            self.initialize()
+            self.initialize(automatic_cleanup=operation not in {"cleanup", "workspace_migrate"},
+                            ensure_workspace=operation not in {"stop", "cleanup", "configure"})
             if operation in ("install", "update", "rollback"):
                 if operation == "rollback":
                     check(payload.get("confirm_data_restore") is True, "confirmation_required", "回退会恢复一致性数据快照，必须明确确认")
@@ -1093,6 +1562,12 @@ class Deployment:
         if operation == "stop":
             self.backend.stop()
             return {"status": "stopped", "message": "停止意图已落盘，受管进程已停止；未修改守护开关"}
+        if operation == "cleanup":
+            check(payload.get("confirm_cleanup") is True, "confirmation_required", "清理前必须预览并确认")
+            preview = self.cleanup(True)
+            expected = hashlib.sha256(json_bytes(preview)).hexdigest()
+            check(secrets.compare_digest(expected, str(payload.get("preview_digest", ""))), "preview_changed", "清理预览已变化，请重新确认；未执行删除")
+            return {"status": "ok", "message": "已清理无恢复引用的旧版本、备份、废弃事务、日志和临时文件", "data": self.cleanup(False)}
         self.ensure_no_active()
         if operation == "bootstrap":
             value = self.backend.environment()
@@ -1133,9 +1608,11 @@ class Deployment:
                              "sealed_value": base64.b64encode(result.stdout).decode("ascii")}}
         if operation == "configure":
             check(self.backend.owned_pid() is None, "node_running", "节点运行时不修改运行配置，请先停止")
-            self.config = self.validate_config(payload.get("node", {}))
-            atomic_json(self.root / "node.json", self.config)
-            self.backend = self.backend_factory(self.root, self.config)
+            candidate = self.validate_config(payload.get("node", {}))
+            public_roots(self.home, candidate, create=True)
+            self.config = candidate
+            atomic_json(self.root / "node.json", candidate)
+            self.backend = self.backend_factory(self.root, candidate)
             return {"status": "ok", "message": "节点配置已保存；未启动 Core", "data": self.config}
         if operation in ("start", "restart"):
             self.set_desired("running")
@@ -1156,12 +1633,8 @@ class Deployment:
             atomic_bytes(self.state / "adopted-root", str(candidate).encode())
             return {"status": "adopted", "message": "只建立受管目录引用，未替换程序、配置或身份",
                     "data": {"desired_state": read_text(candidate / "desired-state", "stopped")}}
-        if operation == "cleanup":
-            check(payload.get("confirm_cleanup") is True, "confirmation_required", "清理前必须预览并确认")
-            preview = self.cleanup(True)
-            expected = hashlib.sha256(json_bytes(preview)).hexdigest()
-            check(secrets.compare_digest(expected, str(payload.get("preview_digest", ""))), "preview_changed", "清理预览已变化，请重新确认；未执行删除")
-            return {"status": "ok", "message": "仅清理无恢复引用的受管旧版本和备份", "data": self.cleanup(False)}
+        if operation == "workspace_migrate":
+            return self.migrate_workspace(identity, payload)
         if operation == "export_diagnostics":
             out = self.root / "logs" / ("diagnostics-" + identity + ".json")
             value = {"schema_version": 1, "status": self.status(), "logs": self.logs({})["data"], "excludes": ["credentials", "OAuth", "projects"]}

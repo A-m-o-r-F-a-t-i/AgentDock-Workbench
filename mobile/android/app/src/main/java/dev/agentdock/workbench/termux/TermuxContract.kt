@@ -32,6 +32,7 @@ object TermuxContract {
         "probe", "bootstrap", "pair_local_core", "install", "adopt", "status", "start", "stop", "restart",
         "repair", "guardian_check", "update", "rollback", "export_diagnostics",
         "resume", "cancel_operation", "operation_query", "configure", "logs",
-        "diagnostic_preview", "cleanup_preview", "cleanup", "path_probe", "project_create"
+        "diagnostic_preview", "cleanup_preview", "cleanup", "workspace_migration_preview", "workspace_migrate",
+        "uninstall_preview", "uninstall", "path_probe", "project_create"
     )
 }
