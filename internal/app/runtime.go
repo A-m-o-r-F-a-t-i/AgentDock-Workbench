@@ -12,6 +12,7 @@ import (
 	acpruntime "github.com/uvwt/agentdock/internal/acp"
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/androidbridge"
+	"github.com/uvwt/agentdock/internal/commandcompletion"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	"github.com/uvwt/agentdock/internal/evolution"
@@ -48,6 +49,7 @@ type Runtime struct {
 	executionMaintenanceDone chan struct{}
 	executionInstance        string
 	insertions               *insertion.Store
+	commandCompletions       *commandcompletion.Store
 	capabilityManager        *mcpclient.Manager
 	capabilityUpdates        capabilityUpdates
 	builtinToolBundles       builtinToolBundleSessions
@@ -178,6 +180,10 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		_ = mcpClients.Close()
 		return nil, fmt.Errorf("initialize insertion queue: %w", err)
 	}
+	commandCompletions, err := commandcompletion.New(filepath.Join(cfg.AgentDockHome, "execution", "command-completions"), nil)
+	if err != nil {
+		return nil, fmt.Errorf("initialize command completions: %w", err)
+	}
 	commandCtx, commandCancel := context.WithCancel(context.Background())
 	commandSettlementCtx, commandSettlementCancel := context.WithCancel(context.Background())
 	defer func() {
@@ -189,7 +195,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 	runtime := &Runtime{
 		pluginStore: pluginStore, contextSnapshots: newContextSnapshots(cfg),
 		display:           config.NewDisplayPreferences(cfg.AgentDockHome, cfg.MCPAppsEnabled),
-		executionInstance: instance, insertions: insertions, capabilityManager: mcpClients,
+		executionInstance: instance, insertions: insertions, commandCompletions: commandCompletions, capabilityManager: mcpClients,
 		conversations: conversations, permissions: permissions, tasks: tasks,
 		activeCalls: map[string]*liveExecution{}, pendingCalls: map[string]*preparedExecution{},
 		workspaceRegistry: workspaceRegistry, workspaceTools: toolworkspace.New(workspaceRegistry),

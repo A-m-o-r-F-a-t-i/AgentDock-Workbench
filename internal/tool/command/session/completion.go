@@ -9,13 +9,14 @@ import (
 // TerminalOutcome is the immutable terminal fact published after command
 // completion has been durably recorded by the command activity owner.
 type TerminalOutcome struct {
-	SessionID   string
-	Status      string
-	ExitCode    *int
-	CommandOK   *bool
-	TimedOut    bool
-	Summary     string
-	CompletedAt time.Time
+	ActivityEventID string
+	SessionID       string
+	Status          string
+	ExitCode        *int
+	CommandOK       *bool
+	TimedOut        bool
+	Summary         string
+	CompletedAt     time.Time
 }
 
 // TerminalFuture lets independent observers share one command terminal result.

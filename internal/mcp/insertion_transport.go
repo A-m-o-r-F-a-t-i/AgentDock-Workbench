@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/uvwt/agentdock/internal/app"
+	"github.com/uvwt/agentdock/internal/commandcompletion"
 	"github.com/uvwt/agentdock/internal/insertion"
 	"github.com/uvwt/agentdock/internal/requesttrace"
 )
@@ -53,8 +54,12 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 	private := pending.CompletedAdditions()
 	if guidance := asMap(asMap(copy["structuredContent"])["agentdock_guidance"]); guidance != nil {
 		delete(guidance, "response_additions")
+		delete(guidance, "command_completions")
 	}
 	privateText := map[string]bool{}
+	if text := commandcompletion.Text(private.CommandCompletions); text != "" {
+		privateText[text] = true
+	}
 	for _, text := range private.TextBlocks {
 		privateText[text] = true
 	}
@@ -68,6 +73,7 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 	copy["content"] = blocks
 	projected, err := guardedProjection(project, copy)
 	if err != nil {
+		s.runtime.RecordCommandCompletionDeliveryFailure(pending)
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "outer_projection_failed")
 		return invocationFailure(original, invocationError(ctx, "host_projection", "Outer projection failed after tool execution; do not replay tool", errors.Join(err, failure)))
 	}
@@ -80,19 +86,23 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 	}
 	if err != nil {
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "outer_projection_failed")
+		s.runtime.RecordCommandCompletionDeliveryFailure(pending)
 		return invocationFailure(original, invocationError(ctx, "host_projection", "Outer projection is invalid; do not replay tool", errors.Join(err, failure)))
 	}
 	if err = s.runtime.RecordInsertionHostReceipt(ctx, pending, false); err != nil {
+		s.runtime.RecordCommandCompletionDeliveryFailure(pending)
 		return invocationFailure(final, invocationError(ctx, "host_receipt", "Outer forwarding receipt was not persisted; original tool already ran", err))
 	}
 	if commit == nil {
 		return final, nil
 	}
 	if err = guardedCommit(commit, ctx, final); err != nil {
+		s.runtime.RecordCommandCompletionDeliveryFailure(pending)
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "context_commit_failed")
 		return invocationFailure(final, invocationError(ctx, "host_context_commit", "Outer context commit unconfirmed; original tool must not be replayed", errors.Join(err, failure)))
 	}
 	if err = s.runtime.RecordInsertionHostReceipt(ctx, pending, true); err != nil {
+		s.runtime.RecordCommandCompletionDeliveryFailure(pending)
 		return invocationFailure(final, invocationError(ctx, "host_acknowledgement", "Context committed but acknowledgement storage failed; do not replay tool", err))
 	}
 	return final, nil
@@ -139,6 +149,7 @@ func projectedResponse(original, projected map[string]any, additions app.Respons
 		ownedGuidance = map[string]any{}
 	}
 	delete(ownedGuidance, "response_additions")
+	delete(ownedGuidance, "command_completions")
 	final["structuredContent"] = structured
 	failed, _ := original["isError"].(bool)
 	final["isError"] = failed
@@ -148,6 +159,9 @@ func projectedResponse(original, projected map[string]any, additions app.Respons
 	// Reconstruct the private additions once, even for the identity projector.
 	// Exact owned copies are removed; lookalike third-party values stay data.
 	ownedText := map[string]bool{}
+	if text := commandcompletion.Text(additions.CommandCompletions); text != "" {
+		ownedText[text] = true
+	}
 	for _, text := range additions.TextBlocks {
 		ownedText[text] = true
 	}

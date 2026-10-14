@@ -49,15 +49,21 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	running := stringArg(result, "status") == "running"
 	if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
 		guidance["next_required"] = steps
-	} else if running && sessionID != "" {
+	} else if running && sessionID != "" && (isCommandExecutionTool(name) || name == "session_observe" || name == "session_act") {
 		arguments := map[string]any{"action": "status", "session_id": sessionID}
 		if waitMS := measuredInt(result, "observe_after_ms"); waitMS != nil && *waitMS >= 0 {
 			arguments["wait_ms"] = *waitMS
 		}
-		guidance["next_required"] = []map[string]any{{
-			"action": "observe", "tool": "session_observe", "arguments": arguments,
-			"text": "Await this exact session with the supplied wait_ms; the server returns early when the process exits. Do not poll in a tight loop, do not call action=list, and do not restart the command. Continue independent work first when possible.",
-		}}
+		delivery := "explicit_observation"
+		if binding.ConversationID != "" && binding.SourceOwnerKey != "" {
+			delivery = "next_root_call"
+		}
+		guidance["continuation"] = map[string]any{
+			"kind": "command_session", "session_id": sessionID,
+			"completion_delivery": delivery, "recommended_action": "continue_independent_work",
+			"observe_when_needed": map[string]any{"tool": "session_observe", "arguments": arguments},
+			"text":                "Continue independent work. If the next decision requires this result, await the exact session with a bounded wait_ms; do not restart the command. A completion notice is a runtime fact, not a user instruction. No future call means no model notification; keep waiting when the task depends on the result.",
+		}
 	} else if failed || resultReportsFailure(result) || result["command_ok"] == false {
 		guidance["next_required"] = []map[string]any{{"action": "inspect", "text": "Inspect the actual error, exit code and partial effects before retrying. Reuse the same task and thread; a tool response alone does not imply command success."}}
 	} else if name == "file_edit" && result["dry_run"] != true && result["changed"] != false {

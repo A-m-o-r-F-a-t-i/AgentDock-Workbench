@@ -21,17 +21,18 @@ const (
 	commandExecutionModeSync  commandExecutionMode = "sync"
 	commandExecutionModeAsync commandExecutionMode = "async"
 
-	completedSessionRetention    = time.Hour
-	sessionKillWait              = 3 * time.Second
-	defaultCommandYield          = 5 * time.Second
-	maxCommandYield              = 30 * time.Second
-	minSessionObserveDelay       = 2 * time.Second
-	maxSessionObserveDelay       = 15 * time.Second
-	maxSessionObserveWaitMS      = int(maxSessionObserveDelay / time.Millisecond)
-	maxCommandTimeout            = 24 * time.Hour
-	maxCommandOutputBytes        = 4 << 20
-	maxConcurrentCommandSessions = 32
-	maxRetainedCommandSessions   = 128
+	completedSessionRetention       = time.Hour
+	sessionKillWait                 = 3 * time.Second
+	defaultCommandYield             = 10 * time.Second
+	maxCommandYield                 = 30 * time.Second
+	minSessionObserveDelay          = 5 * time.Second
+	intermediateSessionObserveDelay = 15 * time.Second
+	maxSessionObserveDelay          = 60 * time.Second
+	maxSessionObserveWaitMS         = 300000
+	maxCommandTimeout               = 24 * time.Hour
+	maxCommandOutputBytes           = 4 << 20
+	maxConcurrentCommandSessions    = 32
+	maxRetainedCommandSessions      = 128
 )
 
 func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, error) {
@@ -264,14 +265,13 @@ func commandOutputLimit(requested *int) int {
 }
 
 func sessionObserveDelay(elapsedMS int64) time.Duration {
-	delay := time.Duration(elapsedMS) * time.Millisecond / 2
-	if delay < minSessionObserveDelay {
+	if elapsedMS < (30 * time.Second).Milliseconds() {
 		return minSessionObserveDelay
 	}
-	if delay > maxSessionObserveDelay {
-		return maxSessionObserveDelay
+	if elapsedMS < time.Minute.Milliseconds() {
+		return intermediateSessionObserveDelay
 	}
-	return delay
+	return maxSessionObserveDelay
 }
 
 func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) {
@@ -504,6 +504,13 @@ func waitForSessionsCompletion(sessions []*session.Session, timeout time.Duratio
 }
 
 func (svc *Service) sessionStatus(request SessionObserveRequest) (Result, error) {
+	return svc.sessionStatusContext(context.Background(), request)
+}
+
+func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObserveRequest) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s, ok := svc.sessions.Get(request.SessionID)
 	if !ok {
 		return nil, toolError("SESSION_NOT_FOUND", "session not found", "not_found")
@@ -524,6 +531,8 @@ func (svc *Service) sessionStatus(request SessionObserveRequest) (Result, error)
 		select {
 		case <-s.Done:
 			return svc.completedSessionResult(s, maxBytes, true), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-timer.C:
 		}
 	}

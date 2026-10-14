@@ -670,7 +670,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		decorated := compactExecutionSuccess(r.decorateExecution(result, p), p)
 		completionTransferred = true
 		p.completion = nil
-		if !r.startCommandTerminalSettlement(p, sessionID, completion) {
+		if !r.startCommandTerminalSettlement(p, sessionID, completion, stringArg(result, "status") == "running") {
 			decorated["activity_warning"] = "The command started, but its terminal subscription was unavailable. The root call will settle as unknown."
 		}
 		return decorated, nil
