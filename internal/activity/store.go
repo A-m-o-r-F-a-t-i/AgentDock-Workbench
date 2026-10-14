@@ -771,6 +771,10 @@ func scanEvents(path string, visit func(Event) bool, warning *bool) error {
 	}
 	defer f.Close()
 	reader := bufio.NewReaderSize(f, MaxEventBytes+1)
+	// The callback receives a value snapshot. Reuse only the outer decode
+	// container, clearing it before each record so nested values remain owned
+	// by their original event and omitted fields never inherit prior data.
+	var event Event
 	for {
 		line, readErr := reader.ReadSlice('\n')
 		if len(line) > MaxEventBytes || errors.Is(readErr, bufio.ErrBufferFull) {
@@ -791,12 +795,12 @@ func scanEvents(path string, visit func(Event) bool, warning *bool) error {
 			continue
 		}
 		if len(bytes.TrimSpace(line)) > 0 {
-			var e Event
-			if json.Unmarshal(line, &e) != nil || e.SchemaVersion != SchemaVersion || e.Seq == 0 || e.Binding.Validate() != nil || !validKind(e.Kind) {
+			event = Event{}
+			if json.Unmarshal(line, &event) != nil || event.SchemaVersion != SchemaVersion || event.Seq == 0 || event.Binding.Validate() != nil || !validKind(event.Kind) {
 				if warning != nil {
 					*warning = true
 				}
-			} else if !visit(e) {
+			} else if !visit(event) {
 				return nil
 			}
 		}
