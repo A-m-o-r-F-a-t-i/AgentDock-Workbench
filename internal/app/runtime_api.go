@@ -8,6 +8,7 @@ import (
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/externalagent"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	toolplugin "github.com/uvwt/agentdock/internal/tool/plugin"
 	toolskill "github.com/uvwt/agentdock/internal/tool/skill"
@@ -24,8 +25,19 @@ func (r *Runtime) RuntimeStatus() Result {
 	if r.androidExecutor != nil {
 		android = r.androidExecutor.Status()
 	}
+	localEndpoint, _ := externalagent.LocalEndpoint(r.cfg.Host, r.cfg.Port)
+	publicEndpoint := ""
+	if strings.TrimSpace(r.cfg.OAuthServerURL) != "" {
+		publicEndpoint, _ = externalagent.PublicEndpoint(r.cfg.OAuthServerURL)
+	}
+	externalAgentAccess := externalagent.Describe(
+		localEndpoint,
+		publicEndpoint,
+		externalagent.AuthModeForRuntime(r.cfg.OAuthEnabled, r.cfg.AuthRequired()),
+	)
 	return Result{
 		"android_executor":      android,
+		"external_agent_access": externalAgentAccess,
 		"ok":                    true,
 		"source":                runtimeAPISource,
 		"service":               config.ServerName,

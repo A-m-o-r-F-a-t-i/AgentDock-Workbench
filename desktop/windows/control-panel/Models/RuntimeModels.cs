@@ -168,7 +168,8 @@ public sealed record RuntimeSnapshot(
     NexusDeviceStatus Nexus,
     bool NexusConnected,
     DateTimeOffset CheckedAt,
-    NativeTunnelStatus? Tailscale = null);
+    NativeTunnelStatus? Tailscale = null,
+    string ExternalAgentAuthMode = "bearer");
 
 public sealed class CapabilityInventory
 {

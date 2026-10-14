@@ -35,7 +35,7 @@ func (s *Session) ActivitySnapshot(cursor *OutputCursor) Snapshot {
 	return Snapshot{
 		Binding: s.activityBinding, ActivityWarning: s.activityWarning, SessionID: s.ID,
 		Status: status, Stdout: out, Stderr: errout, ElapsedMS: finished.Sub(s.StartedAt).Milliseconds(),
-		TimedOut: s.TimedOut, Terminal: s.Terminal, Completed: s.completed, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
+		TimedOut: s.TimedOut, Terminal: s.Terminal, Completed: s.completed, CompletedAt: s.FinishedAt, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
 		CommandOK:            s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		TerminationRequested: s.terminationRequested,
 		StdoutTotalBytes:     s.stdoutTotalBytes, StderrTotalBytes: s.stderrTotalBytes,

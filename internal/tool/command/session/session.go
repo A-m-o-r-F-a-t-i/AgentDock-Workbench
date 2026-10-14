@@ -51,9 +51,11 @@ type Session struct {
 	outcomeUnknown       bool
 	externalKillMu       sync.Mutex
 
-	runner   commandRunner
-	killOnce sync.Once
-	killErr  error
+	runner       commandRunner
+	killOnce     sync.Once
+	killErr      error
+	terminalOnce sync.Once
+	terminal     *terminalFuture
 
 	mu                 sync.Mutex
 	completed          bool
@@ -93,6 +95,7 @@ type Snapshot struct {
 	StdoutTruncated      bool
 	StderrTruncated      bool
 	Completed            bool
+	CompletedAt          time.Time
 	OutcomeUnknown       bool
 	ExitCode             int
 	CommandOK            bool
@@ -589,7 +592,7 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 		StdoutOutputLines: countLines(stdout), StderrOutputLines: countLines(stderr),
 		StdoutTruncated: maxBytes > 0 && stdoutAvailable > maxBytes,
 		StderrTruncated: maxBytes > 0 && stderrAvailable > maxBytes,
-		Completed:       s.completed, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
+		Completed:       s.completed, CompletedAt: s.FinishedAt, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
 		CommandOK: s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		Runtime:   s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
 	}

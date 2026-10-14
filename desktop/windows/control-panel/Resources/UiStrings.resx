@@ -951,12 +951,15 @@ Update now?</value>
   <data name="ExternalAgentSetupPrompt" xml:space="preserve"><value>Agent setup prompt</value></data>
   <data name="CopyEndpoint" xml:space="preserve"><value>Copy endpoint</value></data>
   <data name="CopyConfiguration" xml:space="preserve"><value>Copy configuration</value></data>
-  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>Generated configuration contains no credentials. OAuth is preferred. Clients without OAuth should keep the existing Bearer credential in an environment variable or secret manager. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply.</value></data>
+  <data name="ExternalAgentSecurityNote" xml:space="preserve"><value>Generated configuration contains no actual credential. OAuth uses client discovery; Bearer configurations reference AGENTDOCK_MCP_BEARER. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply.</value></data>
   <data name="ExternalAgentInvalidEndpoint" xml:space="preserve"><value>A valid AgentDock HTTP(S) MCP endpoint ending in /mcp is required.</value></data>
   <data name="ExternalAgentEndpointUnavailable" xml:space="preserve"><value>The AgentDock MCP endpoint is unavailable. Start Core or refresh the runtime status.</value></data>
-  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>Ready · OAuth discovery and existing AgentDock permission controls apply.</value></data>
+  <data name="ExternalAgentEndpointReady" xml:space="preserve"><value>Ready · the generated configuration matches the current AgentDock authentication and permission controls.</value></data>
   <data name="ExternalAgentEndpointCopied" xml:space="preserve"><value>MCP endpoint copied.</value></data>
   <data name="ExternalAgentConfigurationCopied" xml:space="preserve"><value>Agent configuration copied.</value></data>
   <data name="ExternalAgentCopyFailed" xml:space="preserve"><value>Copy failed: {0}</value></data>
-  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>Connect to AgentDock Workbench through the Streamable HTTP MCP server at {0}. Register it as &quot;agentdock&quot; and prefer OAuth discovery. After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files.</value></data>
+  <data name="ExternalAgentSetupPromptTemplate" xml:space="preserve"><value>Connect to AgentDock Workbench through the Streamable HTTP MCP server at {0}. Register it as &quot;agentdock&quot;. {1} After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files.</value></data>
+  <data name="ExternalAgentAuthPromptOAuth" xml:space="preserve"><value>Use the server OAuth discovery flow and complete interactive authorization when requested.</value></data>
+  <data name="ExternalAgentAuthPromptBearer" xml:space="preserve"><value>Read the existing AgentDock bearer credential from a secret store or the AGENTDOCK_MCP_BEARER environment variable; never embed it in prompts or source files.</value></data>
+  <data name="ExternalAgentAuthPromptNone" xml:space="preserve"><value>No authentication is required for this loopback endpoint.</value></data>
 </root>

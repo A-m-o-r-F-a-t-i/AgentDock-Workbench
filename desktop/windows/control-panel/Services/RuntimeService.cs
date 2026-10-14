@@ -104,9 +104,14 @@ public sealed partial class RuntimeService : IDisposable
 
         var localOrigin = $"http://127.0.0.1:{settings.Port}";
         var localMcpUrl = localOrigin + "/mcp";
+        var serverUrlPath = Path.Combine(RuntimeRoot, "server-url.txt");
+        var oauthOrigin = ReadText(serverUrlPath).Trim();
+        var externalAgentAuthMode = !string.IsNullOrWhiteSpace(oauthOrigin)
+            ? "oauth"
+            : File.Exists(Path.Combine(RuntimeRoot, "auth-token.dpapi")) ? "bearer" : "none";
         var publicOrigin = ReadFirstNonEmpty(
             Path.Combine(RuntimeRoot, "quick-tunnel-url.txt"),
-            Path.Combine(RuntimeRoot, "server-url.txt"));
+            serverUrlPath);
         if (string.IsNullOrWhiteSpace(publicOrigin))
         {
             publicOrigin = manifest.PublicUrl;
@@ -167,7 +172,8 @@ public sealed partial class RuntimeService : IDisposable
             nexus,
             nexusConnected,
             DateTimeOffset.Now,
-            tailscale);
+            tailscale,
+            externalAgentAuthMode);
     }
 
     public string ReadBearerToken() => ReadProtectedText(Path.Combine(RuntimeRoot, "auth-token.dpapi"), AuthEntropy);

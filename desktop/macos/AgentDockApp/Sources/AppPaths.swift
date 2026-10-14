@@ -60,6 +60,7 @@ struct ServiceConfiguration: Equatable {
     let host: String
     let port: Int
     let publicURL: String?
+    let oauthEnabled: Bool
     let authToken: String
     let oauthPassword: String
     let logLevel: String
@@ -85,6 +86,10 @@ struct ServiceConfiguration: Equatable {
     var publicMCPURL: URL? {
         guard let publicURL, !publicURL.isEmpty else { return nil }
         return URL(string: publicURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/mcp")
+    }
+
+    var authRequired: Bool {
+        oauthEnabled || !authToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func normalizedHost(_ value: String) -> String {
@@ -117,6 +122,7 @@ struct ServiceConfiguration: Equatable {
         let host = values["AGENTDOCK_HOST"] ?? "127.0.0.1"
         guard let port = Int(values["AGENTDOCK_PORT"] ?? "8765"), (1...65535).contains(port) else { return nil }
         let publicURL = values["AGENTDOCK_SERVER_URL"].flatMap { $0.isEmpty ? nil : $0 }
+        let oauthEnabled = parseBool(values["AGENTDOCK_OAUTH_ENABLED"])
         let acpEnabled = parseBool(values["AGENTDOCK_ACP_ENABLED"])
         guard var acpProfiles = try? ACPDesktopConfiguration.decodeProfiles(values["AGENTDOCK_ACP_PROFILES_JSON"]) else {
             return nil
@@ -148,6 +154,7 @@ struct ServiceConfiguration: Equatable {
             host: host,
             port: port,
             publicURL: publicURL,
+            oauthEnabled: oauthEnabled,
             authToken: values["AGENTDOCK_AUTH_TOKEN"] ?? "",
             oauthPassword: values["AGENTDOCK_OAUTH_PASSWORD"] ?? "",
             logLevel: normalizedLogLevel(values["AGENTDOCK_LOG_LEVEL"] ?? "info"),

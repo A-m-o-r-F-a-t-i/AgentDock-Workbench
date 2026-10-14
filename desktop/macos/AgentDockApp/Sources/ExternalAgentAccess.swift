@@ -12,6 +12,12 @@ enum ExternalAgentEndpointSource: Int, CaseIterable {
     case publicAccess
 }
 
+enum ExternalAgentAuthMode: String, Equatable {
+    case oauth
+    case bearer
+    case none
+}
+
 enum ExternalAgentAccessError: Error, Equatable {
     case invalidEndpoint
     case invalidPromptTemplate
@@ -19,6 +25,12 @@ enum ExternalAgentAccessError: Error, Equatable {
 
 enum ExternalAgentAccess {
     static let serverName = "agentdock"
+    static let bearerEnvironmentVariable = "AGENTDOCK_MCP_BEARER"
+
+    static func authMode(oauthEnabled: Bool, authRequired: Bool) -> ExternalAgentAuthMode {
+        if oauthEnabled { return .oauth }
+        return authRequired ? .bearer : .none
+    }
 
     static func normalizedEndpoint(_ value: String?) -> String? {
         guard let value else { return nil }
@@ -50,7 +62,9 @@ enum ExternalAgentAccess {
     static func configuration(
         for client: ExternalAgentClientKind,
         endpoint: String,
-        agentSetupPromptTemplate: String
+        authMode: ExternalAgentAuthMode,
+        agentSetupPromptTemplate: String,
+        authenticationInstruction: String
     ) throws -> String {
         guard let endpoint = normalizedEndpoint(endpoint) else {
             throw ExternalAgentAccessError.invalidEndpoint
@@ -58,41 +72,80 @@ enum ExternalAgentAccess {
 
         switch client {
         case .codex:
-            return """
-            # Codex CLI (user configuration)
-            codex mcp add \(serverName) --url "\(endpoint)"
-            codex mcp login \(serverName)
-
-            # Equivalent ~/.codex/config.toml entry
-            [mcp_servers.\(serverName)]
-            url = "\(endpoint)"
-            auth = "oauth"
-            """
+            return codexConfiguration(endpoint: endpoint, authMode: authMode)
         case .claudeCode:
-            return """
-            claude mcp add --scope user --transport http \(serverName) "\(endpoint)"
-
-            # Start Claude Code, run /mcp, select "\(serverName)", then choose Authenticate.
-            """
+            return try claudeCodeConfiguration(endpoint: endpoint, authMode: authMode)
         case .genericMCP:
-            let object: [String: Any] = [
-                "mcpServers": [
-                    serverName: [
-                        "type": "http",
-                        "url": endpoint,
-                    ],
-                ],
-            ]
-            let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
-            guard let text = String(data: data, encoding: .utf8) else {
-                throw ExternalAgentAccessError.invalidEndpoint
-            }
-            return text
+            return try mcpJSONConfiguration(endpoint: endpoint, authMode: authMode)
         case .agentSetupPrompt:
-            guard agentSetupPromptTemplate.contains("%@") else {
+            guard agentSetupPromptTemplate.components(separatedBy: "%@").count >= 3,
+                  !authenticationInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ExternalAgentAccessError.invalidPromptTemplate
             }
-            return String(format: agentSetupPromptTemplate, locale: Locale.current, arguments: [endpoint])
+            return String(
+                format: agentSetupPromptTemplate,
+                locale: Locale.current,
+                arguments: [endpoint, authenticationInstruction]
+            )
         }
+    }
+
+    private static func codexConfiguration(endpoint: String, authMode: ExternalAgentAuthMode) -> String {
+        var lines = [
+            "# Codex CLI (user configuration)",
+            "codex mcp add \(serverName) --url \"\(endpoint)\"",
+        ]
+        if authMode == .oauth {
+            lines.append("codex mcp login \(serverName)")
+        }
+        lines.append(contentsOf: [
+            "",
+            "# Equivalent ~/.codex/config.toml entry",
+            "[mcp_servers.\(serverName)]",
+            "url = \"\(endpoint)\"",
+        ])
+        if authMode == .bearer {
+            lines.append("bearer_token_env_var = \"\(bearerEnvironmentVariable)\"")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func claudeCodeConfiguration(
+        endpoint: String,
+        authMode: ExternalAgentAuthMode
+    ) throws -> String {
+        if authMode == .bearer {
+            return try mcpJSONConfiguration(endpoint: endpoint, authMode: authMode)
+        }
+        let command = "claude mcp add --scope user --transport http \(serverName) \"\(endpoint)\""
+        if authMode == .oauth {
+            return command + "\n\n# Start Claude Code, run /mcp, select \"\(serverName)\", then choose Authenticate."
+        }
+        return command
+    }
+
+    private static func mcpJSONConfiguration(
+        endpoint: String,
+        authMode: ExternalAgentAuthMode
+    ) throws -> String {
+        var server: [String: Any] = [
+            "type": "http",
+            "url": endpoint,
+        ]
+        if authMode == .bearer {
+            server["headers"] = [
+                "Authorization": "Bearer ${\(bearerEnvironmentVariable)}",
+            ]
+        }
+        let object: [String: Any] = [
+            "mcpServers": [
+                serverName: server,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw ExternalAgentAccessError.invalidEndpoint
+        }
+        return text
     }
 }
