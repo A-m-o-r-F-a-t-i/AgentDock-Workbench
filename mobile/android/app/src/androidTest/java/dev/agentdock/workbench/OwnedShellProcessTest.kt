@@ -107,8 +107,11 @@ class OwnedShellProcessTest {
         start("mkdir -p \"\$TMPDIR/nested\"; printf data >\"\$TMPDIR/nested/file\"; printf '%s' \"\$TMPDIR\"")
         val result = terminal()
         val path = result.getString("all_stdout")
-        assertTrue(path, path.startsWith(tempRoot.absolutePath + File.separator))
-        assertFalse("temporary directory survived a terminal process: $path", File(path).exists())
+        val expectedRoot = tempRoot.canonicalFile.absolutePath + File.separator
+        val diagnostic = "path=$path expectedRoot=$expectedRoot exit=${result.optInt("exit_code", -1)} stderr=${result.optString("all_stderr").trim()}"
+        assertTrue(diagnostic, path.startsWith(expectedRoot))
+        assertEquals(diagnostic, 0, result.getInt("exit_code"))
+        assertFalse(diagnostic, File(path).exists())
     }
     @Test fun outputOverflowIsExplicitAndBounded() {
         // A fixed fixture tests the executor budget independently of differences
