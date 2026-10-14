@@ -27,13 +27,10 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	properties["binding_updated"] = map[string]any{"type": "boolean"}
 	properties["output_policy"] = map[string]any{"type": "object", "additionalProperties": true, "description": "Budget for declared ordinary text fields, separate from control metadata and complete rules. Includes actual storage/continuation state when shortened."}
 	properties["agentdock_guidance"] = responseGuidanceSchema(properties["agentdock_guidance"])
-	// Publish shared metadata once at the visible root. The success alternative
-	// references that same contract, preserving its required-field validation.
-	successProperties := maps.Clone(properties)
-	for _, name := range []string{"agentdock_guidance", "permission", "workspace_target", "conversation_state", "output_policy"} {
-		successProperties[name] = map[string]any{"$ref": "#/properties/" + name}
-	}
-	success["properties"] = successProperties
+	// Reuse business fields as well as execution metadata. The visible union
+	// widens these three fields for approval responses, so success retains their
+	// original constraints instead of referencing the widened alternatives.
+	success["properties"] = schemaPropertyReferences(properties, "status", "executed", "approval")
 	pending := map[string]any{"type": "object", "properties": map[string]any{
 		"status": map[string]any{"const": "pending_approval"}, "executed": map[string]any{"const": false},
 		"approval_id": map[string]any{"type": "string", "pattern": "^approval_[a-f0-9]{32}$"},

@@ -96,11 +96,23 @@ func compactPublicExecutionDescriptions(properties map[string]any) {
 
 func compactPublicToolDescriptions(name string, properties map[string]any) {
 	switch name {
+	case "agentdock_context":
+		setSchemaDescription(properties, "workdir", "Existing workspace directory; omit to inherit the conversation workspace. Complete context coordinates binding; running sessions stay unchanged.")
+		setSchemaDescription(properties, "known_context_revision", "Revision of complete context held by the caller; matching, revalidated context may return a compact reference. Omit after context loss.")
 	case "file_edit":
 		setSchemaDescription(properties, "path", "Source file or directory path for the selected action.")
 		setSchemaDescription(properties, "new_path", "Destination path for move.")
 		setSchemaDescription(properties, "patch", "Structured envelope: *** Begin Patch; repeat *** Add File: <path>, *** Delete File: <path>, or *** Update File: <path>; use @@ [<optional context line>] and optional *** End of File; finish with *** End Patch.")
 		setSchemaDescription(properties, "workdir", "Working directory for patch paths.")
+	case "mcp_tool_search":
+		setSchemaDescription(properties, "query", "Dynamic MCP capability query. Call known host tools directly.")
+		setSchemaDescription(properties, "server", "Server name from agentdock_context.")
+		setSchemaDescription(properties, "limit", "Maximum matches; default 10.")
+	case "mcp_tool_list":
+		setSchemaDescription(properties, "server", "Enabled server; lists all visible tool names and descriptions.")
+	case "mcp_tool_inspect":
+		setSchemaDescription(properties, "name", "Dynamic MCP name: server:tool.")
+		setSchemaDescription(properties, "names", "server:tool or server:* selectors; may mix services.")
 	case "mcp_manage":
 		setSchemaDescription(properties, "header_env", "HTTP header name to host environment variable name.")
 		setSchemaDescription(properties, "env_from_env", "Child environment variable name to host environment variable name.")
@@ -108,6 +120,18 @@ func compactPublicToolDescriptions(name string, properties map[string]any) {
 		setSchemaDescription(properties, "scope", "Override scope: runtime or persistent.")
 		setSchemaDescription(properties, "expected_revision", "Current server revision for compare-and-swap.")
 		setSchemaDescription(properties, "timeout_ms", "Request timeout in milliseconds.")
+		// The patch exposes the same management fields. Reuse their public
+		// descriptions without changing the capability-owned validation schema.
+		if patch, ok := properties["patch"].(map[string]any); ok {
+			patchProperties, _ := patch["properties"].(map[string]any)
+			for field := range patchProperties {
+				if property, ok := properties[field].(map[string]any); ok {
+					if description, ok := property["description"].(string); ok {
+						setSchemaDescription(patchProperties, field, description)
+					}
+				}
+			}
+		}
 	case "task_manage":
 		setSchemaDescription(properties, "action", "Task action. create/resume/set_current changes continuation; ordinary tools inherit it.")
 		setSchemaDescription(properties, "next_action", "Concrete next action saved by a checkpoint.")
