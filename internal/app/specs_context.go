@@ -6,6 +6,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/config"
+	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 )
 
 type contextRequest struct {
@@ -43,6 +44,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
 	output["android_executor"] = androidExecutorStatusSchema()
+	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
 	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
 		runtimeSchema := maps.Clone(originalRuntime)
 		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
@@ -134,6 +136,23 @@ func androidExecutorStatusSchema() map[string]any {
 			"backends": map[string]any{
 				"type": "object", "additionalProperties": false,
 				"properties": map[string]any{"termux_host": capability, "android_shizuku": capability},
+			},
+		},
+	}
+}
+
+func builtinToolBundleIndexSchema() map[string]any {
+	return map[string]any{
+		"type": "array", "maxItems": len(toolcapability.Bundles()),
+		"items": map[string]any{
+			"type":                 "object",
+			"additionalProperties": false,
+			"required":             []string{"name", "description", "loaded", "tool_count"},
+			"properties": map[string]any{
+				"name":        map[string]any{"type": "string"},
+				"description": map[string]any{"type": "string"},
+				"loaded":      map[string]any{"type": "boolean"},
+				"tool_count":  map[string]any{"type": "integer", "minimum": 0},
 			},
 		},
 	}

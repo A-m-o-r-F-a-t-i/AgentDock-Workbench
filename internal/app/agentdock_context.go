@@ -105,6 +105,8 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		)
 	}
 	if !nexusLocalOnly {
+		contextResult.BuiltinToolBundles = r.builtinToolBundleItems(ctx)
+		contextResult.Rules = append(contextResult.Rules, "builtin_tool_bundles 列出当前对话可按需加载的低频内置工具包。需要尚未加载的工具时，调用 capability_load 一次并刷新宿主 tools/list；加载只改变当前对话目录，不执行包内操作、不启用插件，也不改变权限。")
 		// runtime 只保留模型操作主机所需的稳定环境事实；Nexus Bridge 已通过 Hello 持有这些节点事实，
 		// 私有 context.local 不重复传输，避免两个来源长期漂移。
 		build := buildinfo.Current()
@@ -211,19 +213,20 @@ func (r *Runtime) agentDockContextTool(ctx context.Context, args map[string]any)
 }
 
 type capabilityContext struct {
-	Workspace         *workspace.Record           `json:"workspace,omitempty"`
-	Tasks             *taskstate.TaskIndex        `json:"tasks,omitempty"`
-	InstructionFiles  *agentinstructions.Snapshot `json:"instruction_files,omitempty"`
-	Runtime           *capabilityRuntimeContext   `json:"runtime,omitempty"`
-	Skills            []capabilitySkillItem       `json:"skills"`
-	CommonSkills      *capabilityCommonSkillIndex `json:"common_skills,omitempty"`
-	Plugins           []capabilityPluginItem      `json:"plugins,omitempty"`
-	DynamicMCP        []capabilityDynamicMCPItem  `json:"dynamic_mcp"`
-	ACP               *capabilityACPContext       `json:"acp,omitempty"`
-	WorkflowTemplates []capabilityTemplateItem    `json:"workflow_templates"`
-	Recall            *capabilityRecallContext    `json:"recall,omitempty"`
-	Rules             []string                    `json:"rules"`
-	Warnings          []capabilityWarning         `json:"warnings,omitempty"`
+	Workspace          *workspace.Record                 `json:"workspace,omitempty"`
+	Tasks              *taskstate.TaskIndex              `json:"tasks,omitempty"`
+	InstructionFiles   *agentinstructions.Snapshot       `json:"instruction_files,omitempty"`
+	Runtime            *capabilityRuntimeContext         `json:"runtime,omitempty"`
+	BuiltinToolBundles []capabilityBuiltinToolBundleItem `json:"builtin_tool_bundles,omitempty"`
+	Skills             []capabilitySkillItem             `json:"skills"`
+	CommonSkills       *capabilityCommonSkillIndex       `json:"common_skills,omitempty"`
+	Plugins            []capabilityPluginItem            `json:"plugins,omitempty"`
+	DynamicMCP         []capabilityDynamicMCPItem        `json:"dynamic_mcp"`
+	ACP                *capabilityACPContext             `json:"acp,omitempty"`
+	WorkflowTemplates  []capabilityTemplateItem          `json:"workflow_templates"`
+	Recall             *capabilityRecallContext          `json:"recall,omitempty"`
+	Rules              []string                          `json:"rules"`
+	Warnings           []capabilityWarning               `json:"warnings,omitempty"`
 }
 
 type capabilityRuntimeContext struct {

@@ -17,6 +17,7 @@ type outputContractCoverageEntry struct {
 // outputSchema，新增工具但忘记补真实结果契约测试时，门禁仍会直接失败。
 var outputContractCoverageInventory = map[string]outputContractCoverageEntry{
 	"agentdock_context": {Variants: []string{"success"}},
+	"capability_load":   {Variants: []string{"list", "load"}},
 	"insertion_ack":     {Variants: []string{"success"}},
 	"workspace_context": {Variants: []string{"success"}},
 	"read_file":         {Variants: []string{"success"}},

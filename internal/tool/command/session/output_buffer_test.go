@@ -57,6 +57,23 @@ func TestFullOutputBufferAppendDoesNotAllocate(t *testing.T) {
 	}
 }
 
+func TestOutputBufferClampsConfiguredLimitAndGrowth(t *testing.T) {
+	buffer := outputBuffer{limitBytes: int(^uint(0) >> 1)}
+	if got := buffer.limit(); got != maxSessionOutputBytes {
+		t.Fatalf("clamped limit = %d, want %d", got, maxSessionOutputBytes)
+	}
+	first := make([]byte, maxSessionOutputBytes-1)
+	if n, dropped := buffer.append(first); n != len(first) || dropped != 0 {
+		t.Fatalf("first append = %d/%d", n, dropped)
+	}
+	if n, dropped := buffer.append([]byte("xy")); n != 2 || dropped != 1 {
+		t.Fatalf("bounded append = %d/%d", n, dropped)
+	}
+	if buffer.Len() != maxSessionOutputBytes || len(buffer.data) > maxSessionOutputBytes {
+		t.Fatalf("buffer size/capacity = %d/%d", buffer.Len(), len(buffer.data))
+	}
+}
+
 func BenchmarkSessionOutputWriterFullBufferAppend(b *testing.B) {
 	s := &Session{}
 	writer := sessionOutputWriter{session: s}
