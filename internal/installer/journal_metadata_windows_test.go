@@ -75,6 +75,24 @@ func TestWindowsSnapshotDoesNotRequireForeignOwnerAssignment(t *testing.T) {
 	if err = j.Snapshot(source); err != nil {
 		t.Fatalf("snapshot of a readable file with a foreign owner failed: %v", err)
 	}
+	if len(j.Backups) != 1 {
+		t.Fatalf("unexpected backup count: %d", len(j.Backups))
+	}
+	backupMetadata, err := readBackupNativeMetadataVersion(j.Backups[0].Backup, backupNativeMetadataOwnerVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupDescriptor, err := windows.SecurityDescriptorFromString(backupMetadata.Security)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupOwner, _, err := backupDescriptor.Owner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backupOwner == nil || !backupOwner.Equals(current.User.Sid) {
+		t.Fatalf("snapshot assigned the foreign source owner: source=%v backup=%v current=%v", owner, backupOwner, current.User.Sid)
+	}
 }
 
 func TestWindowsCurrentBackupMetadataUsesBinarySecurityDescriptor(t *testing.T) {

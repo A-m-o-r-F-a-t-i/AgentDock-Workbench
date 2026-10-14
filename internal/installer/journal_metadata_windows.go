@@ -17,9 +17,10 @@ const backupNativeMetadataVersion = 3
 const backupNativeMetadataDACLVersion = 2
 const backupNativeMetadataOwnerVersion = 1
 const backupBinarySecurityPrefix = "base64-self-relative:"
+const backupSecurityDescriptorHeaderSize = 20
 const nativeFileEAInformation = 7
 const nativeFileStreamInformation = 7
-const backupDACLControlMask = windows.SE_DACL_AUTO_INHERIT_REQ | windows.SE_DACL_AUTO_INHERITED | windows.SE_DACL_PROTECTED
+const backupDACLControlMask = windows.SE_DACL_PRESENT | windows.SE_DACL_DEFAULTED | windows.SE_DACL_AUTO_INHERIT_REQ | windows.SE_DACL_AUTO_INHERITED | windows.SE_DACL_PROTECTED
 const backupSettableAttributes = windows.FILE_ATTRIBUTE_READONLY | windows.FILE_ATTRIBUTE_HIDDEN | windows.FILE_ATTRIBUTE_SYSTEM | windows.FILE_ATTRIBUTE_ARCHIVE | windows.FILE_ATTRIBUTE_TEMPORARY | windows.FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
 
 type backupNativeMetadata struct {
@@ -205,21 +206,24 @@ func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadat
 	if err := applyBackupAttributes(name, metadata.Attributes); err != nil {
 		return fmt.Errorf("restore backup attributes: %w", err)
 	}
+	var identityStorage []uint64
 	if version != backupNativeMetadataOwnerVersion {
-		security, err = backupSecurityWithTargetIdentity(path, security)
+		security, identityStorage, err = backupSecurityWithTargetIdentity(path, security)
 		if err != nil {
-			return err
+			return fmt.Errorf("combine DACL metadata with backup target identity: %w", err)
 		}
 	}
+	defer runtime.KeepAlive(identityStorage)
 	length := int(security.Length())
 	if length < 20 || length > 65536 {
 		return errors.New("invalid backup security descriptor size")
 	}
 	// BackupWrite preserves inherited ACEs byte-for-byte, unlike ordinary ACL
-	// setters that recompute them from the private staging parent. Version 2
-	// combines the recorded DACL with the new target's already-assigned owner
-	// and group, so the stream never attempts to assign a foreign SID. Version 1
-	// remains readable for interrupted 1.1.7-1.1.9 journals.
+	// setters that recompute them from the private staging parent. Versions 2
+	// and 3 combine the recorded DACL with the staging object's existing owner
+	// and group in a directly constructed self-relative descriptor. Version 1
+	// remains readable for interrupted 1.1.7-1.1.9 journals and may restore its
+	// recorded owner and group.
 	handle, err := windows.CreateFile(name, windows.WRITE_DAC|windows.WRITE_OWNER|windows.READ_CONTROL, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
 		return fmt.Errorf("open backup security target: %w", err)
@@ -254,44 +258,90 @@ func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadat
 	return nil
 }
 
-func backupSecurityWithTargetIdentity(path string, daclSecurity *windows.SECURITY_DESCRIPTOR) (*windows.SECURITY_DESCRIPTOR, error) {
+func backupSecurityWithTargetIdentity(path string, daclSecurity *windows.SECURITY_DESCRIPTOR) (*windows.SECURITY_DESCRIPTOR, []uint64, error) {
 	identity, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("read backup target owner and group: %w", err)
 	}
 	owner, ownerDefaulted, err := identity.Owner()
-	if err != nil || owner == nil {
-		return nil, errors.Join(errors.New("backup target has no owner"), err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read backup target owner: %w", err)
+	}
+	if owner == nil || !owner.IsValid() || owner.Len() <= 0 {
+		return nil, nil, errors.New("backup target has no valid owner")
 	}
 	group, groupDefaulted, err := identity.Group()
-	if err != nil || group == nil {
-		return nil, errors.Join(errors.New("backup target has no group"), err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read backup target group: %w", err)
+	}
+	if group == nil || !group.IsValid() || group.Len() <= 0 {
+		return nil, nil, errors.New("backup target has no valid group")
 	}
 	dacl, daclDefaulted, err := daclSecurity.DACL()
-	if err != nil || dacl == nil {
-		return nil, errors.Join(errors.New("backup metadata has no DACL"), err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read backup metadata DACL: %w", err)
+	}
+	if dacl == nil {
+		return nil, nil, errors.New("backup metadata has no DACL")
 	}
 	control, _, err := daclSecurity.Control()
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("read backup metadata DACL control: %w", err)
 	}
-	absolute, err := windows.NewSecurityDescriptor()
-	if err != nil {
-		return nil, err
+
+	ownerLength := owner.Len()
+	groupLength := group.Len()
+	daclHeader := unsafe.Slice((*byte)(unsafe.Pointer(dacl)), 8)
+	daclLength := int(binary.LittleEndian.Uint16(daclHeader[2:4]))
+	if daclLength < 8 {
+		return nil, nil, fmt.Errorf("invalid backup DACL size %d", daclLength)
 	}
-	if err := absolute.SetOwner(owner, ownerDefaulted); err != nil {
-		return nil, err
+	ownerOffset := alignBackupSecurityOffset(backupSecurityDescriptorHeaderSize)
+	groupOffset := alignBackupSecurityOffset(ownerOffset + ownerLength)
+	daclOffset := alignBackupSecurityOffset(groupOffset + groupLength)
+	totalLength := daclOffset + daclLength
+	if totalLength < daclOffset || totalLength > 65536 {
+		return nil, nil, fmt.Errorf("combined backup security descriptor is too large: %d", totalLength)
 	}
-	if err := absolute.SetGroup(group, groupDefaulted); err != nil {
-		return nil, err
+
+	storage := make([]uint64, (totalLength+7)/8)
+	buffer := unsafe.Slice((*byte)(unsafe.Pointer(&storage[0])), totalLength)
+	buffer[0] = 1 // SECURITY_DESCRIPTOR_REVISION
+	combinedControl := windows.SECURITY_DESCRIPTOR_CONTROL(windows.SE_SELF_RELATIVE | windows.SE_DACL_PRESENT)
+	combinedControl |= control & backupDACLControlMask
+	if ownerDefaulted {
+		combinedControl |= windows.SE_OWNER_DEFAULTED
 	}
-	if err := absolute.SetDACL(dacl, true, daclDefaulted); err != nil {
-		return nil, err
+	if groupDefaulted {
+		combinedControl |= windows.SE_GROUP_DEFAULTED
 	}
-	if err := absolute.SetControl(backupDACLControlMask, control&backupDACLControlMask); err != nil {
-		return nil, err
+	if daclDefaulted {
+		combinedControl |= windows.SE_DACL_DEFAULTED
+	} else {
+		combinedControl &^= windows.SE_DACL_DEFAULTED
 	}
-	return absolute.ToSelfRelative()
+	binary.LittleEndian.PutUint16(buffer[2:4], uint16(combinedControl))
+	binary.LittleEndian.PutUint32(buffer[4:8], uint32(ownerOffset))
+	binary.LittleEndian.PutUint32(buffer[8:12], uint32(groupOffset))
+	binary.LittleEndian.PutUint32(buffer[16:20], uint32(daclOffset))
+	copy(buffer[ownerOffset:ownerOffset+ownerLength], unsafe.Slice((*byte)(unsafe.Pointer(owner)), ownerLength))
+	copy(buffer[groupOffset:groupOffset+groupLength], unsafe.Slice((*byte)(unsafe.Pointer(group)), groupLength))
+	copy(buffer[daclOffset:daclOffset+daclLength], unsafe.Slice((*byte)(unsafe.Pointer(dacl)), daclLength))
+	runtime.KeepAlive(identity)
+	runtime.KeepAlive(daclSecurity)
+
+	combined := (*windows.SECURITY_DESCRIPTOR)(unsafe.Pointer(&storage[0]))
+	if !combined.IsValid() {
+		return nil, nil, errors.New("constructed backup security descriptor is invalid")
+	}
+	if length := int(combined.Length()); length != totalLength {
+		return nil, nil, fmt.Errorf("constructed backup security descriptor length mismatch: actual=%d expected=%d", length, totalLength)
+	}
+	return combined, storage, nil
+}
+
+func alignBackupSecurityOffset(value int) int {
+	return (value + 3) &^ 3
 }
 
 func applyBackupAttributes(name *uint16, attributes uint32) error {
