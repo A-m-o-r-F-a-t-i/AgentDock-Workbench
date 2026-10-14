@@ -99,6 +99,24 @@ def run_tool(tool: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def verified_certificate_digest(output: str) -> str:
+    """Return the single signer certificate from supported apksigner formats."""
+    signer_counts = re.findall(r"(?im)^Number of signers:\s*(\d+)\s*$", output)
+    if signer_counts and (len(signer_counts) != 1 or signer_counts[0] != "1"):
+        raise RuntimeError("Android release APK must have exactly one signer")
+    certificates = {
+        value.lower()
+        for value in re.findall(
+            r"(?im)^(?:Signer #\d+|V\d+(?:\.\d+)? Signer):?\s+certificate SHA-256 digest:\s*([0-9a-f]{64})\s*$",
+            output,
+        )
+    }
+    numbered_signers = set(re.findall(r"(?im)^Signer #(\d+)\b", output))
+    if len(numbered_signers) > 1 or len(certificates) != 1:
+        raise RuntimeError("Android release APK must have exactly one signer")
+    return next(iter(certificates))
+
+
 def sign_candidate(
     inputs: Path,
     output: Path,
@@ -169,10 +187,7 @@ def sign_candidate(
             str(aligned),
         )
         verification = run_tool(apksigner, "verify", "--verbose", "--print-certs", str(signed)).stdout
-        certificates = re.findall(r"Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]{64})", verification)
-        if len(certificates) != 1:
-            raise RuntimeError("Android release APK must have exactly one signer")
-        actual_certificate = certificates[0].lower()
+        actual_certificate = verified_certificate_digest(verification)
         if actual_certificate != expected_certificate:
             raise RuntimeError("Android release certificate fingerprint mismatch")
         os.replace(signed, public_path)

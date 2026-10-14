@@ -111,6 +111,10 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn('Native Windows ARM64 install and uninstall',recovery)
         self.assertIn('replace_published:',recovery)
         self.assertIn('--replace-published',recovery)
+        self.assertIn('REPLACE_PUBLISHED:',recovery)
+        self.assertIn('current_tag_commit',recovery)
+        self.assertIn('workbench-android-release-${{ github.run_id }}',workflow)
+        self.assertIn('workbench-android-release-${{ github.run_id }}',recovery)
     def setUp(self):
         super().setUp()
         for arch in ['amd64','arm64']:
@@ -243,13 +247,29 @@ class PublicationGate(unittest.TestCase):
         self.asset={'id':456,'name':path.name,'size':path.stat().st_size,'digest':'sha256:'+release.digest(path),'state':'uploaded'}
         self.record={'id':123,'tag_name':self.tag,'target_commitish':self.commit,'draft':True,'prerelease':False,'immutable':False,'name':'AgentDock Workbench 1.1.7','assets':[self.asset],'html_url':'https://github.com/example/release'}
         self.commands=[];self.lookup=[]
+        self.remote_tag_ref=self.commit;self.remote_tag_commit=self.commit;self.pending_tag_commit=None
         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
         self.latest=self.stable
         for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_installers',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
             mock.start();self.addCleanup(mock.stop)
     def fake_command(self,*args):
         self.commands.append(args)
-        if args[:2]==('git','ls-remote'):return self.commit+'\trefs/tags/'+self.tag
+        if args[:2]==('git','ls-remote'):
+            if self.remote_tag_ref is None:return ''
+            lines=[self.remote_tag_ref+'\trefs/tags/'+self.tag]
+            if self.remote_tag_commit!=self.remote_tag_ref:lines.append(self.remote_tag_commit+'\trefs/tags/'+self.tag+'^{}')
+            return '\n'.join(lines)
+        if args[:2]==('git','tag'):
+            self.pending_tag_commit=args[-1]
+            return ''
+        if args[:2]==('git','push'):
+            lease=next((value for value in args if value.startswith('--force-with-lease=')),None)
+            if lease is not None:
+                self.assertEqual(lease,f'--force-with-lease=refs/tags/{self.tag}:{self.remote_tag_ref}')
+            self.assertIsNotNone(self.pending_tag_commit)
+            self.remote_tag_ref=self.pending_tag_commit
+            self.remote_tag_commit=self.pending_tag_commit
+            return ''
         if args[:4]==('gh','api','--method','POST'):
             if args[4]==f'repos/{release.REPOSITORY}/releases':
                 self.record['assets']=[];return json.dumps(self.record)
@@ -322,6 +342,40 @@ class PublicationGate(unittest.TestCase):
         self.assertFalse(self.record['draft']);self.assertTrue(self.record['prerelease'])
         self.assertEqual(self.record['target_commitish'],self.commit)
         self.assertEqual(self.record['assets'],[self.asset]);self.assertEqual(self.latest['id'],99)
+    def test_explicit_replacement_retargets_tag_with_lease_and_removes_obsolete_asset(self):
+        previous='b'*40
+        self.remote_tag_ref='c'*40;self.remote_tag_commit=previous
+        self.record['target_commitish']=previous;self.record['draft']=False;self.record['prerelease']=True
+        obsolete=dict(self.asset,id=457,name='legacy-test-signed.apk')
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64),obsolete]
+        with patch.object(release,'obsolete_public_installers',return_value={obsolete['name']}):
+            self.publish(True,True)
+        tag_push=[args for args in self.commands if args[:2]==('git','push')]
+        self.assertEqual(len(tag_push),1)
+        self.assertIn(f'--force-with-lease=refs/tags/{self.tag}:'+'c'*40,tag_push[0])
+        self.assertEqual(self.remote_tag_commit,self.commit)
+        self.assertEqual([args[3] for args in self.mutations()],['PATCH','DELETE','DELETE','POST','PATCH'])
+        self.assertEqual(self.record['assets'],[self.asset])
+        self.assertEqual(self.record['target_commitish'],self.commit)
+        self.assertEqual(self.latest['id'],99)
+    def test_replacement_rejects_tag_that_does_not_match_release_target_before_mutation(self):
+        self.remote_tag_ref='c'*40;self.remote_tag_commit='b'*40
+        self.record['target_commitish']='d'*40;self.record['draft']=False;self.record['prerelease']=True
+        with self.assertRaisesRegex(RuntimeError,'target does not match the remote tag'):
+            self.publish(True,True)
+        self.assertEqual(self.mutations(),[])
+        self.assertFalse(self.record['draft'])
+    def test_replacement_resumes_after_draft_target_changed_before_tag_push(self):
+        previous='b'*40
+        self.remote_tag_ref='c'*40;self.remote_tag_commit=previous
+        self.record['target_commitish']=self.commit;self.record['draft']=True;self.record['prerelease']=True
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(True,True)
+        self.assertEqual(len([args for args in self.commands if args[:2]==('git','push')]),1)
+        self.assertEqual(self.remote_tag_commit,self.commit)
+        self.assertEqual([args[3] for args in self.mutations()],['DELETE','POST','PATCH'])
+        self.assertFalse(self.record['draft'])
+        self.assertEqual(self.record['target_commitish'],self.commit)
     def test_explicit_published_prerelease_promotion_reconciles_assets_and_becomes_latest(self):
         self.record['draft']=False;self.record['prerelease']=True
         self.record['name']='AgentDock Workbench 1.1.7 Pre-release'
