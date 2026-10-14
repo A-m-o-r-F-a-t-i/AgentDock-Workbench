@@ -63,9 +63,18 @@ func TestWorkspaceRoutingAllKindsAndExplicitExternalTarget(t *testing.T) {
 	}
 }
 
+func canonicalRegistryTestDir(t *testing.T) string {
+	t.Helper()
+	path, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestWorkspaceRegistryUsesSeparateDefaultRoots(t *testing.T) {
-	home, root := t.TempDir(), t.TempDir()
-	artifact, scratch, cache := filepath.Join(t.TempDir(), "artifacts"), filepath.Join(t.TempDir(), "scratch"), filepath.Join(t.TempDir(), "cache")
+	home, root := t.TempDir(), canonicalRegistryTestDir(t)
+	artifact, scratch, cache := filepath.Join(canonicalRegistryTestDir(t), "artifacts"), filepath.Join(canonicalRegistryTestDir(t), "scratch"), filepath.Join(canonicalRegistryTestDir(t), "cache")
 	registry, err := NewRegistryWithRoots(home, root, DefaultRoots{ArtifactRoot: artifact, ScratchRoot: scratch, CacheRoot: cache})
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +90,7 @@ func TestWorkspaceRegistryUsesSeparateDefaultRoots(t *testing.T) {
 }
 
 func TestWorkspaceRegistryMigratesLegacyDefaultWithoutChangingIdentity(t *testing.T) {
-	home, legacyRoot, currentRoot := t.TempDir(), t.TempDir(), t.TempDir()
+	home, legacyRoot, currentRoot := t.TempDir(), canonicalRegistryTestDir(t), canonicalRegistryTestDir(t)
 	legacy, err := NewRegistry(home, legacyRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +99,7 @@ func TestWorkspaceRegistryMigratesLegacyDefaultWithoutChangingIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, scratch, cache := filepath.Join(t.TempDir(), "artifacts"), filepath.Join(t.TempDir(), "scratch"), filepath.Join(t.TempDir(), "cache")
+	artifact, scratch, cache := filepath.Join(canonicalRegistryTestDir(t), "artifacts"), filepath.Join(canonicalRegistryTestDir(t), "scratch"), filepath.Join(canonicalRegistryTestDir(t), "cache")
 	migrated, err := NewRegistryWithRoots(home, currentRoot, DefaultRoots{
 		ArtifactRoot: artifact,
 		ScratchRoot:  scratch,
