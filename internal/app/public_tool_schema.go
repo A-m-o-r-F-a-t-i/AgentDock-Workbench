@@ -21,6 +21,13 @@ func completeToolContract(name string, contract ToolContract) ToolContract {
 	return contract
 }
 
+// publishedToolOutputSchema intentionally omits outputSchema from the public
+// MCP directory. AgentDock structuredContent combines the capability result
+// with a server-owned execution envelope and a pending-approval alternative;
+// publishing only one layer would advertise a false result contract. The full
+// executable contract remains available as ToolDefinition.ValidationOutputSchema.
+func publishedToolOutputSchema(_ map[string]any) map[string]any { return nil }
+
 var executionOverrideTools = map[string]bool{
 	"exec_command":        true,
 	"file_edit":           true,

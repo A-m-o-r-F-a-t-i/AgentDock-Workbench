@@ -392,11 +392,13 @@ func toolDescriptors(definitions []ToolDefinition, mcpAppsEnabled bool) []map[st
 	descriptors := make([]map[string]any, 0, len(definitions))
 	for _, def := range definitions {
 		descriptor := map[string]any{
-			"name":         def.Name,
-			"title":        def.Title,
-			"description":  def.Description,
-			"inputSchema":  def.InputSchema,
-			"outputSchema": def.OutputSchema,
+			"name":        def.Name,
+			"title":       def.Title,
+			"description": def.Description,
+			"inputSchema": def.InputSchema,
+		}
+		if len(def.OutputSchema) > 0 {
+			descriptor["outputSchema"] = def.OutputSchema
 		}
 		if def.Annotations != nil {
 			descriptor["annotations"] = map[string]any{

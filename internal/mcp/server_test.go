@@ -90,7 +90,7 @@ func TestOpenAIFileMetadataMatchesDeclaredSchemas(t *testing.T) {
 			}
 		}
 
-		outputProps, _ := def.OutputSchema["properties"].(map[string]any)
+		outputProps, _ := def.ValidationOutputSchema["properties"].(map[string]any)
 		for _, path := range def.FileResultRewritePaths {
 			if _, ok := outputProps[path]; !ok {
 				t.Fatalf("%s file output path %q missing from output schema", def.Name, path)
@@ -111,9 +111,8 @@ func TestToolDescriptorsUseConfigAwareTaskManageSchema(t *testing.T) {
 	if _, ok := withoutProps["template_id"]; ok {
 		t.Fatal("task_manage descriptor should hide Nexus-only fields without Nexus")
 	}
-	withoutOutputProps := withoutNexus["outputSchema"].(map[string]any)["properties"].(map[string]any)
-	if _, ok := withoutOutputProps["guidance_context"]; ok {
-		t.Fatal("task_manage descriptor should hide Nexus-only output fields without Nexus")
+	if _, ok := withoutNexus["outputSchema"]; ok {
+		t.Fatal("task_manage descriptor should omit the server-owned execution result contract")
 	}
 
 	withNexus := toolDescriptorsForConfig(t, []string{"task_manage"}, config.Config{NexusEndpoint: "http://127.0.0.1:18777"})[0]
@@ -121,9 +120,8 @@ func TestToolDescriptorsUseConfigAwareTaskManageSchema(t *testing.T) {
 	if _, ok := withProps["template_id"]; !ok {
 		t.Fatal("task_manage descriptor should expose Nexus fields with Nexus")
 	}
-	withOutputProps := withNexus["outputSchema"].(map[string]any)["properties"].(map[string]any)
-	if _, ok := withOutputProps["guidance_context"]; !ok {
-		t.Fatal("task_manage descriptor should expose Nexus output fields with Nexus")
+	if _, ok := withNexus["outputSchema"]; ok {
+		t.Fatal("task_manage descriptor should omit the server-owned execution result contract")
 	}
 }
 

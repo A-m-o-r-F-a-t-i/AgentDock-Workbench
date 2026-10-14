@@ -12,8 +12,9 @@ type outputContractCoverageEntry struct {
 	IntegrationOnly bool
 }
 
-// 这里登记公开 MCP 工具已经被真实 outputSchema 校验覆盖的成功路径。
-// ToolDefinitions 是公开工具定义的单一事实源，tools/list 从同一 registry 派生；新增工具但忘记补契约测试时，门禁会直接失败。
+// 这里登记公开 MCP 工具已经被完整内部输出契约校验覆盖的成功路径。
+// ToolDefinitions 是公开工具定义的单一事实源；即使 tools/list 省略
+// outputSchema，新增工具但忘记补真实结果契约测试时，门禁仍会直接失败。
 var outputContractCoverageInventory = map[string]outputContractCoverageEntry{
 	"agentdock_context": {Variants: []string{"success"}},
 	"insertion_ack":     {Variants: []string{"success"}},
@@ -87,8 +88,8 @@ func outputContractCoverageFindings(definitions []ToolDefinition, inventory map[
 	findings := make([]string, 0)
 	for _, definition := range definitions {
 		known[definition.Name] = definition
-		if len(definition.OutputSchema) == 0 {
-			findings = append(findings, definition.Name+": missing outputSchema")
+		if len(definition.ValidationOutputSchema) == 0 {
+			findings = append(findings, definition.Name+": missing validation output schema")
 		}
 		entry, ok := inventory[definition.Name]
 		if !ok {

@@ -53,7 +53,13 @@ type ToolDefinition struct {
 	FileArgRewritePaths    []string
 	FileResultRewritePaths []string
 	InputSchema            map[string]any
-	OutputSchema           map[string]any
+	// OutputSchema is the optional model-facing MCP output contract. AgentDock
+	// omits it because structured results include a server-owned execution
+	// envelope in addition to the capability business result.
+	OutputSchema map[string]any
+	// ValidationOutputSchema is the complete internal result contract: business
+	// output plus the AgentDock execution envelope and approval alternative.
+	ValidationOutputSchema map[string]any
 	Annotations            *ToolAnnotations
 }
 
@@ -100,7 +106,8 @@ func (s ToolSpec) definition(cfg config.Config) ToolDefinition {
 		FileArgRewritePaths:    append([]string(nil), s.FileArgRewritePaths...),
 		FileResultRewritePaths: append([]string(nil), s.FileResultRewritePaths...),
 		InputSchema:            contract.PublicInputSchema,
-		OutputSchema:           executionOutputSchema(contract.PublicOutputSchema),
+		OutputSchema:           publishedToolOutputSchema(contract.PublicOutputSchema),
+		ValidationOutputSchema: executionOutputSchema(contract.ValidationOutputSchema),
 		Annotations:            annotations,
 	}
 }
@@ -156,6 +163,9 @@ func compileAvailableToolContracts(cfg config.Config) ([]string, map[string]*too
 		}
 		if len(contract.ValidationOutputSchema) == 0 {
 			return nil, nil, fmt.Errorf("tool %s has no output schema", spec.Name)
+		}
+		if _, err := toolcontract.CompileInputSchema(executionOutputSchema(contract.ValidationOutputSchema)); err != nil {
+			return nil, nil, fmt.Errorf("compile %s validation output schema: %w", spec.Name, err)
 		}
 		validator, err := compileBuiltInInputValidator(contract.ValidationInputSchema)
 		if err != nil {

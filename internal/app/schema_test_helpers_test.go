@@ -12,6 +12,14 @@ func testOutputSchema(name string) map[string]any {
 	return testOutputSchemaForConfig(name, fullContractTestConfig)
 }
 
+func testPublishedOutputSchema(name string) map[string]any {
+	definition, ok := toolDefinitionForConfig(name, fullContractTestConfig)
+	if !ok {
+		return nil
+	}
+	return definition.OutputSchema
+}
+
 func testInputSchemaForConfig(name string, cfg config.Config) map[string]any {
 	definition, ok := toolDefinitionForConfig(name, cfg)
 	if !ok {
@@ -25,5 +33,5 @@ func testOutputSchemaForConfig(name string, cfg config.Config) map[string]any {
 	if !ok {
 		return nil
 	}
-	return definition.OutputSchema
+	return definition.ValidationOutputSchema
 }
