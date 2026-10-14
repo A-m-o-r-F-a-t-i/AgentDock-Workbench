@@ -14,6 +14,10 @@ func responseGuidanceSchema(original any) map[string]any {
 		properties = map[string]any{}
 	}
 	text := func() map[string]any { return map[string]any{"type": "string", "minLength": 1} }
+	// Full terminal facts are validated by commandcompletion before persistence;
+	// keep the shared guidance shape compact rather than repeating that contract.
+	properties["command_completions"] = map[string]any{"type": "array", "maxItems": 8, "items": map[string]any{"type": "object"}}
+	properties["continuation"] = map[string]any{"type": "object"}
 	properties["response_additions"] = map[string]any{"type": "array", "items": map[string]any{
 		"type": "object", "additionalProperties": false,
 		"required": []string{"type", "version", "insertion_id", "sequence", "conversation_id", "text"},

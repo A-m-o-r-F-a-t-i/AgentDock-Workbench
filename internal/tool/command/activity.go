@@ -95,7 +95,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 	base := activity.Event{Binding: request.Binding, ToolName: auditTool, SessionID: s.ID, DisplayCommand: request.Cmd, Title: request.Label}
 	execution := s.Summary()
 	base.Runtime, base.Workdir = execution.Runtime, execution.Workdir
-	appendEvent := func(event activity.Event) (bool, error) {
+	appendEvent := func(event activity.Event) (activity.Event, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		var saved activity.Event
@@ -109,7 +109,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 			s.SetActivityWarning("Command execution continues; its activity journal is incomplete. Inspect the local activity store.")
 			slog.Warn("record command activity", "session_id", s.ID, "kind", event.Kind, "error", err)
 		}
-		return saved.EventID != "" || saved.Seq != 0, err
+		return saved, err
 	}
 	started := base
 	started.Kind, started.Status = "command.started", "running"
@@ -163,7 +163,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 			event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
 			event.Summary = outcome.Summary
 			persisted, err := appendEvent(event)
-			if !persisted {
+			if persisted.EventID == "" && persisted.Seq == 0 {
 				if err == nil {
 					err = errors.New("command terminal append returned no persisted event")
 				}
@@ -171,6 +171,7 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 				s.PublishTerminal(fallback, fmt.Errorf("persist command terminal fact: %w", err))
 				return
 			}
+			outcome.ActivityEventID = persisted.EventID
 			s.PublishTerminal(outcome, nil)
 		}
 		for {

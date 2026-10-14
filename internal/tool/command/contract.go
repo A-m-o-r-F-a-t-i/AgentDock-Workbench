@@ -29,7 +29,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["env"] = map[string]any{"type": "object", "description": "Explicit command environment values. These override the selected managed Skill environment, except reserved runtime values such as SKILL_DATA_DIR.", "additionalProperties": map[string]any{"type": "string"}}
 		props["timeout_ms"] = boundedIntProp("Timeout in milliseconds. Must be positive and is capped at 86400000.", 1, 86400000)
 		props["execution_mode"] = map[string]any{"type": "string", "description": "Execution mode. Defaults to auto: wait up to yield_time_ms, then return a running session. Use sync when the next action requires final exit status. async returns a session immediately.", "enum": []string{"auto", "sync", "async"}}
-		props["yield_time_ms"] = boundedIntProp("Foreground wait threshold for execution_mode=auto. Defaults to 5000 and is capped at 30000 milliseconds.", 0, 30000)
+		props["yield_time_ms"] = boundedIntProp("Foreground wait threshold for execution_mode=auto. Defaults to 10000 and is capped at 30000 milliseconds.", 0, 30000)
 		props["max_output_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 65536 and is capped at 4194304.", 1, MaxOutputBytes)
 		props["stdin"] = stringProp("Initial stdin.")
 		props["tty"] = boolProp("Keep stdin open.")
@@ -46,7 +46,7 @@ func InputSchema(name string) (map[string]any, bool) {
 			"description": "Exact session id returned by exec_command; required only for status.",
 		}
 		props["max_output_bytes"] = boundedIntProp("Maximum stdout/stderr bytes for status. Defaults to 65536 and is capped at 4194304. Invalid for list.", 1, MaxOutputBytes)
-		props["wait_ms"] = boundedIntProp("Maximum time to wait for session completion before returning running status. Omit for adaptive backoff, or use the prior observe_after_ms value. Zero returns immediately. Invalid for list.", 0, MaxSessionObserveWaitMS)
+		props["wait_ms"] = boundedIntProp("Wait for command completion only when needed for the next decision. Omit for adaptive 5/15/60 second waits; up to 300000 ms. Completion or request cancellation returns early. Zero reads immediately. Invalid for list.", 0, MaxSessionObserveWaitMS)
 		return sessionObserveInputSchema(props), true
 	case ToolSessionAct:
 		props["action"] = map[string]any{"type": "string", "description": "Mutating session action.", "enum": []string{"write", "kill", "kill_all"}}

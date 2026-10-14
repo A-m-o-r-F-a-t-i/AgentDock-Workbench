@@ -22,6 +22,7 @@ type FileChange struct {
 	StatsKnown bool   `json:"stats_known"`
 }
 type ExecutionCall struct {
+	CommandObservation
 	Request           *Payload   `json:"request,omitempty"`
 	Response          *Payload   `json:"response,omitempty"`
 	OutputSource      *Payload   `json:"output_source,omitempty"`

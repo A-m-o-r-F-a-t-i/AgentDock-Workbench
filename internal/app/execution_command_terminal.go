@@ -32,7 +32,8 @@ func (g *SettlementGuard) Settle(fn func() error) error {
 // optional approval. The Session future is published only after command.completed
 // has been persisted, so a successful wait never needs to query the projection.
 type TerminalSettlement struct {
-	guard SettlementGuard
+	guard    SettlementGuard
+	deferred bool
 
 	runtime        *Runtime
 	future         session.TerminalFuture
@@ -50,9 +51,10 @@ type TerminalSettlement struct {
 	waitMS         *int64
 }
 
-func (r *Runtime) startCommandTerminalSettlement(p *preparedExecution, sessionID string, completion *activity.AppendReservation) bool {
+func (r *Runtime) startCommandTerminalSettlement(p *preparedExecution, sessionID string, completion *activity.AppendReservation, deferred bool) bool {
 	future, found := commandTerminalSource(r.command).TakeTerminalFuture(sessionID)
 	settlement := &TerminalSettlement{
+		deferred:       deferred,
 		runtime:        r,
 		future:         future,
 		completion:     completion,
@@ -97,6 +99,9 @@ func (s *TerminalSettlement) settle(ctx context.Context) error {
 	if waitErr != nil {
 		outcome = normalizeUnknownTerminalOutcome(s.sessionID, outcome, waitErr)
 		rootPersistErr = s.persistUnknownRoot(outcome)
+	}
+	if waitErr == nil && s.deferred {
+		s.runtime.enqueueCommandCompletion(s.binding, outcome)
 	}
 
 	var approvalErr error
