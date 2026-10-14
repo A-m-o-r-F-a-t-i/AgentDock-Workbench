@@ -1,20 +1,25 @@
 package installer
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/windows"
 	"io"
 	"runtime"
+	"strings"
 	"unicode/utf16"
 	"unsafe"
 )
 
-const backupNativeMetadataVersion = 2
+const backupNativeMetadataVersion = 3
+const backupNativeMetadataDACLVersion = 2
 const backupNativeMetadataOwnerVersion = 1
+const backupBinarySecurityPrefix = "base64-self-relative:"
 const nativeFileEAInformation = 7
 const nativeFileStreamInformation = 7
+const backupDACLControlMask = windows.SE_DACL_AUTO_INHERIT_REQ | windows.SE_DACL_AUTO_INHERITED | windows.SE_DACL_PROTECTED
 const backupSettableAttributes = windows.FILE_ATTRIBUTE_READONLY | windows.FILE_ATTRIBUTE_HIDDEN | windows.FILE_ATTRIBUTE_SYSTEM | windows.FILE_ATTRIBUTE_ARCHIVE | windows.FILE_ATTRIBUTE_TEMPORARY | windows.FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
 
 type backupNativeMetadata struct {
@@ -29,14 +34,14 @@ func readBackupNativeMetadata(path string) (*backupNativeMetadata, error) {
 }
 
 func backupNativeMetadataSupported(version int) bool {
-	return version == backupNativeMetadataOwnerVersion || version == backupNativeMetadataVersion
+	return version == backupNativeMetadataOwnerVersion || version == backupNativeMetadataDACLVersion || version == backupNativeMetadataVersion
 }
 
 func backupSecurityInformation(version int) (windows.SECURITY_INFORMATION, error) {
 	switch version {
 	case backupNativeMetadataOwnerVersion:
 		return windows.OWNER_SECURITY_INFORMATION | windows.GROUP_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION, nil
-	case backupNativeMetadataVersion:
+	case backupNativeMetadataDACLVersion, backupNativeMetadataVersion:
 		return windows.DACL_SECURITY_INFORMATION, nil
 	default:
 		return 0, fmt.Errorf("unsupported Windows backup metadata version %d", version)
@@ -115,11 +120,63 @@ func readBackupNativeMetadataVersion(path string, version int) (*backupNativeMet
 	if err != nil {
 		return nil, err
 	}
-	encoded := security.String()
-	if encoded == "" || len(encoded) > 65536 {
+	var encoded string
+	if version == backupNativeMetadataVersion {
+		encoded, err = encodeBackupSecurityDescriptor(security)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		encoded = security.String()
+	}
+	if encoded == "" || len(encoded) > 128<<10 {
 		return nil, errors.New("unsupported security descriptor size")
 	}
 	return &backupNativeMetadata{Security: encoded, Attributes: attributes & backupSettableAttributes}, nil
+}
+
+func encodeBackupSecurityDescriptor(security *windows.SECURITY_DESCRIPTOR) (string, error) {
+	if security == nil || !security.IsValid() {
+		return "", errors.New("invalid backup security descriptor")
+	}
+	length := int(security.Length())
+	if length < 20 || length > 65536 {
+		return "", errors.New("unsupported security descriptor size")
+	}
+	control, _, err := security.Control()
+	if err != nil || control&windows.SE_SELF_RELATIVE == 0 {
+		return "", errors.Join(errors.New("backup security descriptor is not self-relative"), err)
+	}
+	raw := unsafe.Slice((*byte)(unsafe.Pointer(security)), length)
+	encoded := backupBinarySecurityPrefix + base64.RawStdEncoding.EncodeToString(raw)
+	runtime.KeepAlive(security)
+	return encoded, nil
+}
+
+func decodeBackupSecurityDescriptor(encoded string, version int) (*windows.SECURITY_DESCRIPTOR, []uint64, error) {
+	if version != backupNativeMetadataVersion || !strings.HasPrefix(encoded, backupBinarySecurityPrefix) {
+		security, err := windows.SecurityDescriptorFromString(encoded)
+		return security, nil, err
+	}
+	raw, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(encoded, backupBinarySecurityPrefix))
+	if err != nil || len(raw) < 20 || len(raw) > 65536 {
+		return nil, nil, errors.Join(errors.New("invalid encoded backup security descriptor"), err)
+	}
+	storage := make([]uint64, (len(raw)+7)/8)
+	buffer := unsafe.Slice((*byte)(unsafe.Pointer(&storage[0])), len(storage)*8)
+	copy(buffer, raw)
+	security := (*windows.SECURITY_DESCRIPTOR)(unsafe.Pointer(&storage[0]))
+	if !security.IsValid() || int(security.Length()) != len(raw) {
+		return nil, nil, errors.New("invalid binary backup security descriptor")
+	}
+	control, _, err := security.Control()
+	if err != nil || control&windows.SE_SELF_RELATIVE == 0 {
+		return nil, nil, errors.Join(errors.New("binary backup security descriptor is not self-relative"), err)
+	}
+	if _, _, err := security.DACL(); err != nil {
+		return nil, nil, fmt.Errorf("binary backup security descriptor has no DACL: %w", err)
+	}
+	return security, storage, nil
 }
 
 func applyBackupNativeMetadata(path string, metadata *backupNativeMetadata) (resultErr error) {
@@ -133,10 +190,11 @@ func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadat
 	if !backupNativeMetadataSupported(version) {
 		return fmt.Errorf("unsupported Windows backup metadata version %d", version)
 	}
-	security, err := windows.SecurityDescriptorFromString(metadata.Security)
+	security, securityStorage, err := decodeBackupSecurityDescriptor(metadata.Security, version)
 	if err != nil {
 		return err
 	}
+	defer runtime.KeepAlive(securityStorage)
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return err
@@ -147,7 +205,7 @@ func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadat
 	if err := applyBackupAttributes(name, metadata.Attributes); err != nil {
 		return fmt.Errorf("restore backup attributes: %w", err)
 	}
-	if version == backupNativeMetadataVersion {
+	if version != backupNativeMetadataOwnerVersion {
 		security, err = backupSecurityWithTargetIdentity(path, security)
 		if err != nil {
 			return err
@@ -177,7 +235,8 @@ func applyBackupNativeMetadataVersion(path string, metadata *backupNativeMetadat
 	var context uintptr
 	defer func() {
 		if context != 0 {
-			ok, _, failure := writeBackupSecurity.Call(uintptr(handle), 0, 0, 0, 1, 1, uintptr(unsafe.Pointer(&context)))
+			var ignored uint32
+			ok, _, failure := writeBackupSecurity.Call(uintptr(handle), 0, 0, uintptr(unsafe.Pointer(&ignored)), 1, 0, uintptr(unsafe.Pointer(&context)))
 			if ok == 0 {
 				resultErr = errors.Join(resultErr, fmt.Errorf("release backup restoration context: %w", failure))
 			}
@@ -200,20 +259,39 @@ func backupSecurityWithTargetIdentity(path string, daclSecurity *windows.SECURIT
 	if err != nil {
 		return nil, err
 	}
-	owner, _, err := identity.Owner()
+	owner, ownerDefaulted, err := identity.Owner()
 	if err != nil || owner == nil {
 		return nil, errors.Join(errors.New("backup target has no owner"), err)
 	}
-	group, _, err := identity.Group()
+	group, groupDefaulted, err := identity.Group()
 	if err != nil || group == nil {
 		return nil, errors.Join(errors.New("backup target has no group"), err)
 	}
-	combined := "O:" + owner.String() + "G:" + group.String() + daclSecurity.String()
-	security, err := windows.SecurityDescriptorFromString(combined)
+	dacl, daclDefaulted, err := daclSecurity.DACL()
+	if err != nil || dacl == nil {
+		return nil, errors.Join(errors.New("backup metadata has no DACL"), err)
+	}
+	control, _, err := daclSecurity.Control()
 	if err != nil {
 		return nil, err
 	}
-	return security, nil
+	absolute, err := windows.NewSecurityDescriptor()
+	if err != nil {
+		return nil, err
+	}
+	if err := absolute.SetOwner(owner, ownerDefaulted); err != nil {
+		return nil, err
+	}
+	if err := absolute.SetGroup(group, groupDefaulted); err != nil {
+		return nil, err
+	}
+	if err := absolute.SetDACL(dacl, true, daclDefaulted); err != nil {
+		return nil, err
+	}
+	if err := absolute.SetControl(backupDACLControlMask, control&backupDACLControlMask); err != nil {
+		return nil, err
+	}
+	return absolute.ToSelfRelative()
 }
 
 func applyBackupAttributes(name *uint16, attributes uint32) error {
@@ -244,11 +322,13 @@ func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) stri
 		return fmt.Sprintf("attribute mismatch: actual=%#x expected=%#x", actual.Attributes, expected.Attributes)
 	}
 	if actual.Security != expected.Security {
-		a, ae := windows.SecurityDescriptorFromString(actual.Security)
-		b, be := windows.SecurityDescriptorFromString(expected.Security)
+		a, aStorage, ae := decodeBackupSecurityDescriptor(actual.Security, backupNativeMetadataVersion)
+		b, bStorage, be := decodeBackupSecurityDescriptor(expected.Security, backupNativeMetadataVersion)
 		if ae == nil && be == nil {
 			ac, _, _ := a.Control()
 			bc, _, _ := b.Control()
+			runtime.KeepAlive(aStorage)
+			runtime.KeepAlive(bStorage)
 			return fmt.Sprintf("security descriptor mismatch: actual control=%#x expected control=%#x", ac, bc)
 		}
 		return "security descriptor mismatch"
