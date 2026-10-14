@@ -99,6 +99,7 @@ func contextResponseOptions(ctx context.Context, meta map[string]any) (context.C
 }
 
 func responseEnvelope(ctx context.Context, name string, result any, err error) map[string]any {
+	result = projectContextReference(ctx, name, result, err)
 	envelope := toolEnvelope(name, result, err)
 	if responseTextMode(ctx, name) != responseTextSummary {
 		return envelope
@@ -107,6 +108,13 @@ func responseEnvelope(ctx context.Context, name string, result any, err error) m
 		return compactToolEnvelopeText(name, envelope)
 	}
 	payload := asMap(result)
+	if payload["delivery"] == "reference" {
+		summary, _ := json.Marshal(map[string]any{
+			"message":          "Context revision is unchanged. Reuse the complete context already held by the caller; this response is a compact reference.",
+			"context_revision": payload["context_revision"],
+		})
+		return map[string]any{"isError": false, "structuredContent": result, "content": []map[string]any{{"type": "text", "text": string(summary)}}}
+	}
 	count := func(key string) int {
 		value := reflect.ValueOf(payload[key])
 		if value.IsValid() && value.Kind() == reflect.Slice {

@@ -9,7 +9,8 @@ import (
 )
 
 type contextRequest struct {
-	Workdir string `json:"workdir,omitempty"`
+	Workdir              string `json:"workdir,omitempty"`
+	KnownContextRevision string `json:"known_context_revision,omitempty"`
 }
 
 func contextToolSpecs() []ToolSpec {
@@ -37,12 +38,19 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 		"type": "string", "maxLength": 4096,
 		"description": "Existing host workspace directory. Omit or use an empty string to inherit this conversation's workspace, falling back to the device default only when unbound. A complete response coordinates subsequent conversation binding in this call; running sessions and device defaults remain unchanged.",
 	}
+	input["known_context_revision"] = map[string]any{
+		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
+		"description": "context_revision from a complete response already held by the caller. A matching revision permits a compact reference only after the server fully reloads, revalidates, and coordinates the current context. Omit when the complete context may be absent.",
+	}
 	contract.ValidationInputSchema["properties"] = input
 	contract.ValidationOutputSchema = maps.Clone(contract.ValidationOutputSchema)
 	output := maps.Clone(contract.ValidationOutputSchema["properties"].(map[string]any))
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
 	output["android_executor"] = androidExecutorStatusSchema()
+	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
+	output["delivery"] = map[string]any{"type": "string", "enum": []string{"full", "reference"}}
+	output["unchanged"] = map[string]any{"type": "boolean"}
 	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
 		runtimeSchema := maps.Clone(originalRuntime)
 		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
@@ -80,7 +88,40 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 		}
 	}
 	contract.ValidationOutputSchema["properties"] = output
-	return newToolContract(name, contract.ValidationInputSchema, contract.ValidationOutputSchema), true
+	result := newToolContract(name, contract.ValidationInputSchema, contract.ValidationOutputSchema)
+	result.PublicOutputSchema = contextDeliveryPublicOutputSchema(result.PublicOutputSchema)
+	return result, true
+}
+
+func contextDeliveryPublicOutputSchema(full map[string]any) map[string]any {
+	full = cloneJSONSchemaMap(full)
+	full["additionalProperties"] = true
+	visibleProperties, _ := full["properties"].(map[string]any)
+	visibleProperties = cloneJSONSchemaMap(visibleProperties)
+	visibleProperties["context_diagnostics"] = map[string]any{"type": "object", "additionalProperties": true}
+	referenceProperties := map[string]any{
+		"context_revision": map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"},
+		"delivery":         map[string]any{"const": "reference"},
+		"unchanged":        map[string]any{"const": true},
+		"context_diagnostics": map[string]any{
+			"type": "object", "additionalProperties": true,
+			"required": []string{"complete", "binding_status"},
+			"properties": map[string]any{
+				"complete":            map[string]any{"const": true},
+				"components_complete": map[string]any{"type": "boolean"},
+				"binding_status":      map[string]any{"type": "string"},
+			},
+		},
+	}
+	reference := map[string]any{
+		"type": "object", "additionalProperties": true,
+		"required":   []string{"context_revision", "delivery", "unchanged", "context_diagnostics"},
+		"properties": referenceProperties,
+	}
+	return map[string]any{
+		"type": "object", "properties": visibleProperties,
+		"anyOf": []any{full, reference},
+	}
 }
 
 func instructionFilesSchema() map[string]any {

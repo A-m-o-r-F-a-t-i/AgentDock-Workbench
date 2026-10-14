@@ -127,6 +127,7 @@ func (s *Server) Invoke(ctx context.Context, name string, arguments map[string]a
 	if traceErr != nil {
 		return nil, traceErr
 	}
+	ctx = withContextRevisionRequest(ctx, name, arguments)
 	ctx, response := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, response, false)
 	result, err := s.runtime.Call(ctx, name, arguments)
@@ -253,6 +254,7 @@ func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.Call
 			return nil, &sdkjsonrpc.Error{Code: sdkjsonrpc.CodeInvalidParams, Message: "tool arguments must be a JSON object"}
 		}
 	}
+	ctx = withContextRevisionRequest(ctx, name, arguments)
 	ctx, pendingResponse := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, pendingResponse, false)
 	slog.Info("tool started", "tool", name, "request_id", requesttrace.ID(ctx))

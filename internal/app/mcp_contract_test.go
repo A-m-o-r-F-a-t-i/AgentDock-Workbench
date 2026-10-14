@@ -43,10 +43,14 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			// Standalone AgentDock adds only optional local context fields. Compare
 			// every remaining field against the unchanged shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
+			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "instruction_files")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "workspace")
+			for _, field := range []string{"context_revision", "delivery", "unchanged"} {
+				actualOutput = withoutLocalContextProperty(t, actualOutput, field)
+			}
 			if provider := actualOutput["properties"].(map[string]any)["android_executor"]; !reflect.DeepEqual(provider, androidExecutorStatusSchema()) {
 				t.Fatal("Android provider metadata must use its explicit bounded schema")
 			}
