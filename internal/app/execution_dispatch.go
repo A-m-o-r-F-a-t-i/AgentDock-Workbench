@@ -14,6 +14,7 @@ import (
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	"github.com/uvwt/agentdock/internal/permission"
 	"github.com/uvwt/agentdock/internal/requesttrace"
+	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"github.com/uvwt/agentdock/internal/workspace"
@@ -147,6 +148,9 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 	}
 	if rejection, _ := ctx.Value(rejectedExecutionKey{}).(string); rejection != "" {
 		return fail(toolError("INVALID_ARGUMENT", rejection, "validation"))
+	}
+	if err = r.requireBuiltinToolVisible(ctx, spec.Name); err != nil {
+		return fail(err)
 	}
 	if err = r.validateToolArguments(spec.Name, original); err != nil {
 		return fail(err)
@@ -332,7 +336,7 @@ func (r *Runtime) executionError(err error, state executionObservation) error {
 	if state.binding.ConversationID != "" {
 		copy.Details["conversation_id"] = state.binding.ConversationID
 	}
-	if toolErr.Category != "validation" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err) {
+	if toolErr.Category != "validation" || toolErr.Code == "TOOL_BUNDLE_REQUIRED" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err) {
 		copy.Details["agentdock_guidance"] = r.executionErrorGuidance(state, err)
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -425,6 +429,10 @@ func (r *Runtime) executionScope(p *preparedExecution) string {
 func (r *Runtime) executionFacts(name string, args map[string]any, state executionObservation) permission.Facts {
 	f := permission.Facts{Binding: state.binding, Tool: name, Action: stringArg(args, "action")}
 	switch name {
+	case toolcapability.ToolLoad:
+		// Revealing already-available built-ins changes only this conversation's
+		// directory projection. The revealed tools keep their own permissions.
+		f.ReadOnly = true
 	case "insertion_ack":
 		// A receipt cannot change tasks, commands, permissions or user text.
 		f.ReadOnly = true

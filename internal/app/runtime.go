@@ -50,6 +50,7 @@ type Runtime struct {
 	insertions               *insertion.Store
 	capabilityManager        *mcpclient.Manager
 	capabilityUpdates        capabilityUpdates
+	builtinToolBundles       builtinToolBundleSessions
 	conversations            *activity.ConversationRegistry
 	permissions              *permission.Store
 	tasks                    *taskstate.Store

@@ -44,6 +44,9 @@ func (s *Server) observeDiscovery(next mcpsdk.MethodHandler) mcpsdk.MethodHandle
 		_, err := s.runtime.ObserveInternal(activity.WithDiagnostic(ctx), method, "协议发现 · "+method, func(observed context.Context) (app.Result, error) {
 			var err error
 			result, err = next(observed, method, request)
+			if err == nil && method == "tools/list" {
+				result = s.filterBuiltinToolDirectory(observed, result)
+			}
 			summary := app.Result{}
 			if listed, ok := result.(*mcpsdk.ListToolsResult); ok {
 				summary["count"] = fmt.Sprint(len(listed.Tools))

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 )
 
 func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing.T) {
@@ -53,6 +54,7 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 		args map[string]any
 	}{
 		{"agentdock_context", map[string]any{}},
+		{toolcapability.ToolLoad, map[string]any{"action": toolcapability.ActionLoad, "name": toolcapability.BundleSystemManagement}},
 		{"mcp_manage", map[string]any{"action": "add", "name": "fixture", "description": "Isolated routing recovery fixture", "transport": "streamable_http", "url": server.URL}},
 		{"mcp_tool_list", map[string]any{"server": "fixture"}},
 		{"mcp_tool_inspect", map[string]any{"names": []string{"fixture:exec_command"}}},
