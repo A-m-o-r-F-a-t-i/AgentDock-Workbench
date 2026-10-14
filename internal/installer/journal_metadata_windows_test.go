@@ -1,6 +1,8 @@
 package installer
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"golang.org/x/sys/windows"
 	"os"
@@ -124,6 +126,52 @@ func TestWindowsCurrentBackupMetadataUsesBinarySecurityDescriptor(t *testing.T) 
 	metadata.Security = backupBinarySecurityPrefix + "invalid"
 	if err := applyBackupNativeMetadata(path, metadata); err == nil || !strings.Contains(err.Error(), "encoded backup security descriptor") {
 		t.Fatalf("malformed binary descriptor was accepted: %v", err)
+	}
+}
+
+func TestWindowsBackupMetadataCanonicalizationIgnoresACLSlack(t *testing.T) {
+	nativeBackupTest(t)
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte("settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := readBackupNativeMetadata(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(metadata.Security, backupBinarySecurityPrefix))
+	if err != nil || len(raw) < 20 {
+		t.Fatalf("decode current metadata: %v", err)
+	}
+	daclOffset := int(binary.LittleEndian.Uint32(raw[16:20]))
+	if daclOffset < 20 || daclOffset+8 > len(raw) {
+		t.Fatalf("invalid DACL offset %d for %d bytes", daclOffset, len(raw))
+	}
+	aclSize := int(binary.LittleEndian.Uint16(raw[daclOffset+2 : daclOffset+4]))
+	if daclOffset+aclSize != len(raw) || aclSize > 0xffff-4 {
+		t.Fatalf("unexpected DACL layout: offset=%d size=%d total=%d", daclOffset, aclSize, len(raw))
+	}
+	padded := append(append([]byte(nil), raw...), 0xaa, 0xbb, 0xcc, 0xdd)
+	binary.LittleEndian.PutUint16(padded[daclOffset+2:daclOffset+4], uint16(aclSize+4))
+	paddedMetadata := *metadata
+	paddedMetadata.Security = backupBinarySecurityPrefix + base64.RawStdEncoding.EncodeToString(padded)
+
+	if metadata.Security == paddedMetadata.Security {
+		t.Fatal("fixture did not change the binary descriptor")
+	}
+	if !equalBackupNativeMetadata(metadata, &paddedMetadata) {
+		t.Fatalf("ACL slack changed semantic metadata: %s", backupNativeMetadataDifference(metadata, &paddedMetadata))
+	}
+	canonical, err := canonicalBackupNativeMetadata(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalPadded, err := canonicalBackupNativeMetadata(&paddedMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *canonical != *canonicalPadded {
+		t.Fatalf("canonical metadata changed with ACL slack: %#v %#v", canonical, canonicalPadded)
 	}
 }
 
