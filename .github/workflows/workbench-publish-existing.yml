@@ -105,11 +105,17 @@ jobs:
           go-version-file: verified-source/go.mod
           cache-dependency-path: verified-source/go.sum
           cache: true
-      - name: Verify existing tag still matches the tested source
+      - name: Verify existing tag state before publication
+        env:
+          REPLACE_PUBLISHED: ${{ inputs.replace_published || false }}
         run: |
           set -euo pipefail
           test "$(git -C verified-source rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(git -C verified-source rev-list -n 1 "refs/tags/v$PRODUCT_VERSION")" = "$SOURCE_SHA"
+          current_tag_commit="$(git -C verified-source rev-list -n 1 "refs/tags/v$PRODUCT_VERSION")"
+          [[ "$current_tag_commit" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$REPLACE_PUBLISHED" != true ]]; then
+            test "$current_tag_commit" = "$SOURCE_SHA"
+          fi
       - uses: actions/download-artifact@v8
         with:
           github-token: ${{ github.token }}
