@@ -176,8 +176,16 @@ func NewRegistryWithRoots(home, defaultRoot string, roots DefaultRoots) (*Regist
 }
 
 func (r *Registry) migrateLegacyDefault(state *registryState, legacyRoot, currentRoot string) (bool, error) {
-	legacyRoot = filepath.Clean(strings.TrimSpace(legacyRoot))
-	if legacyRoot == "" || !filepath.IsAbs(legacyRoot) || sameNativePath(legacyRoot, currentRoot) {
+	legacyRoot = strings.TrimSpace(legacyRoot)
+	if legacyRoot == "" || !filepath.IsAbs(legacyRoot) {
+		return false, nil
+	}
+	canonicalLegacyRoot, err := canonicalNativePath(legacyRoot)
+	if err != nil {
+		return false, fmt.Errorf("canonicalize legacy workspace root: %w", err)
+	}
+	legacyRoot = canonicalLegacyRoot
+	if sameNativePath(legacyRoot, currentRoot) {
 		return false, nil
 	}
 	if _, found := findRoot(*state, currentRoot, HostRuntime(), ""); found {

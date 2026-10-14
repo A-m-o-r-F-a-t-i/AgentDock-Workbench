@@ -74,9 +74,9 @@ func TestWorkspaceRegistryUsesSeparateDefaultRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.Root != root || record.ArtifactRoot != filepath.Join(artifact, record.ID) ||
-		record.ScratchRoot != filepath.Join(scratch, record.ID) || record.CacheRoot != cache {
-		t.Fatalf("separate roots were not preserved: %+v", record)
+	if !sameNativePath(record.Root, root) || !sameNativePath(record.ArtifactRoot, filepath.Join(artifact, record.ID)) ||
+		!sameNativePath(record.ScratchRoot, filepath.Join(scratch, record.ID)) || !sameNativePath(record.CacheRoot, cache) {
+		t.Fatalf("separate roots were not preserved: expected root=%q artifact=%q scratch=%q cache=%q actual=%+v", root, artifact, scratch, cache, record)
 	}
 }
 
@@ -104,11 +104,12 @@ func TestWorkspaceRegistryMigratesLegacyDefaultWithoutChangingIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.ID != previous.ID || current.Root != currentRoot || current.RulesRevision != previous.RulesRevision+1 {
+	if current.ID != previous.ID || !sameNativePath(current.Root, currentRoot) || current.RulesRevision != previous.RulesRevision+1 {
 		t.Fatalf("legacy workspace identity was not migrated in place: previous=%+v current=%+v", previous, current)
 	}
-	if current.ArtifactRoot != filepath.Join(artifact, current.ID) || current.ScratchRoot != filepath.Join(scratch, current.ID) || current.CacheRoot != cache {
-		t.Fatalf("migrated workspace roots are incorrect: %+v", current)
+	if !sameNativePath(current.ArtifactRoot, filepath.Join(artifact, current.ID)) ||
+		!sameNativePath(current.ScratchRoot, filepath.Join(scratch, current.ID)) || !sameNativePath(current.CacheRoot, cache) {
+		t.Fatalf("migrated workspace roots are incorrect: expected artifact=%q scratch=%q cache=%q actual=%+v", artifact, scratch, cache, current)
 	}
 	records, defaultID, err := migrated.List(context.Background())
 	if err != nil {
