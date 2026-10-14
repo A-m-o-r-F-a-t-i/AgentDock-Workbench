@@ -27,7 +27,7 @@ out="$(request bootstrap op_boot req_boot "$nonce")"
 jq -e '.status=="pending_manifest" or .status=="requires_user_action" or .status=="ok"' <<<"$out" >/dev/null
 
 out="$(request install op_install req_install "$nonce" '{"apk_version":"1.1.9","start_after_install":false}')"
-jq -e '.status=="requires_user_action" and .error_code=="bundled_core_missing"' <<<"$out" >/dev/null
+jq -e '.status=="requires_user_action" and .data.failure_code=="bundled_core_missing"' <<<"$out" >/dev/null
 [ ! -e "$AGENTDOCK_WORKBENCH_TEST_HOME/.agentdock-workbench/node/current" ]
 request cancel_operation op_cancel req_cancel "$nonce" '{"target_operation_id":"op_install","confirm_cancel":true}' >/dev/null
 
