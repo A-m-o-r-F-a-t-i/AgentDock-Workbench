@@ -220,6 +220,11 @@ func (r *Registry) migrateLegacyDefault(state *registryState, legacyRoot, curren
 func sameNativePath(left, right string) bool {
 	left, right = filepath.Clean(left), filepath.Clean(right)
 	if HostRuntime() == "windows" {
+		canonicalLeft, leftErr := canonicalNativePath(left)
+		canonicalRight, rightErr := canonicalNativePath(right)
+		if leftErr == nil && rightErr == nil {
+			left, right = canonicalLeft, canonicalRight
+		}
 		return strings.EqualFold(left, right)
 	}
 	return left == right

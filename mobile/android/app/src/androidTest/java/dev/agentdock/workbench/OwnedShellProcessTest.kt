@@ -104,7 +104,7 @@ class OwnedShellProcessTest {
         assertEquals("not_started", terminal().getString("state"))
     }
     @Test fun privateTempDirectoryIsForcedAndRemovedAfterExit() {
-        start("printf '%s' \"\$TMPDIR\"")
+        start("mkdir -p \"\$TMPDIR/nested\"; printf data >\"\$TMPDIR/nested/file\"; printf '%s' \"\$TMPDIR\"")
         val result = terminal()
         val path = result.getString("all_stdout")
         assertTrue(path, path.startsWith(tempRoot.absolutePath + File.separator))

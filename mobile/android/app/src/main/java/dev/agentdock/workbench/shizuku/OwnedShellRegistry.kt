@@ -4,9 +4,14 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+
+private const val TEMP_CLEANUP_ATTEMPTS = 20
+private const val TEMP_CLEANUP_RETRY_MS = 25L
+private val TEMP_CLEANUP_FAILURE = "AgentDock private temporary directory cleanup failed\n".toByteArray(Charsets.UTF_8)
 
 /** Short control calls; each admitted process has its own independent supervisor. */
 internal class OwnedShellRegistry(private val uid: Int, private val tempRoot: File = File(ShellProtocol.TEMP_ROOT)) {
@@ -220,15 +225,30 @@ private class OwnedJob(private val spec: ShellSpec, private val budget: AtomicIn
             }
         }
     }
-    private fun cleanupTemporaryDirectory() = runCatching {
-        require(!Files.isSymbolicLink(tempDirectory.toPath()))
-        tempDirectory.deleteRecursively()
+    private fun deleteTemporaryTree(target: File): Boolean {
+        val path = target.toPath()
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return true
+        if (Files.isSymbolicLink(path)) return target.delete()
+        if (target.isDirectory) {
+            val children = target.listFiles() ?: return false
+            for (child in children) if (!deleteTemporaryTree(child)) return false
+        }
+        return target.delete() || !Files.exists(path, LinkOption.NOFOLLOW_LINKS)
+    }
+    private fun cleanupTemporaryDirectory(): Boolean {
+        repeat(TEMP_CLEANUP_ATTEMPTS) { attempt ->
+            val removed = runCatching { deleteTemporaryTree(tempDirectory) }.getOrDefault(false)
+            if (removed && !Files.exists(tempDirectory.toPath(), LinkOption.NOFOLLOW_LINKS)) return true
+            if (attempt + 1 < TEMP_CLEANUP_ATTEMPTS) Thread.sleep(TEMP_CLEANUP_RETRY_MS)
+        }
+        return !Files.exists(tempDirectory.toPath(), LinkOption.NOFOLLOW_LINKS)
     }
     @Synchronized private fun complete(value: String, exit: Int) {
         if (finished) return
-        cleanupTemporaryDirectory()
+        val cleanupFailed = !cleanupTemporaryDirectory()
+        if (cleanupFailed) append(2, TEMP_CLEANUP_FAILURE)
         state = value
-        code = exit
+        code = if (cleanupFailed && exit == 0) 1 else exit
         finished = true
         finishedAt = System.nanoTime()
     }
