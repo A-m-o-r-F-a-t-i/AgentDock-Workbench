@@ -15,13 +15,16 @@ import (
 )
 
 type journalRestoreEntry struct {
-	Original   string `json:"original"`
-	Backup     string `json:"backup,omitempty"`
-	Digest     string `json:"digest,omitempty"`
-	Existed    bool   `json:"existed"`
-	Stage      string `json:"stage"`
-	Phase      string `json:"phase"`
-	HadCurrent bool   `json:"had_current"`
+	Original              string `json:"original"`
+	Backup                string `json:"backup,omitempty"`
+	Digest                string `json:"digest,omitempty"`
+	NativeVersion         int    `json:"native_metadata_version,omitempty"`
+	PreparedDigest        string `json:"prepared_digest,omitempty"`
+	PreparedNativeVersion int    `json:"prepared_native_metadata_version,omitempty"`
+	Existed               bool   `json:"existed"`
+	Stage                 string `json:"stage"`
+	Phase                 string `json:"phase"`
+	HadCurrent            bool   `json:"had_current"`
 }
 
 func restorePathKey(path string) string {
@@ -85,14 +88,14 @@ func (j *rollbackJournal) restoreTargets() ([]journalRestoreEntry, error) {
 	}
 	for i := len(j.Backups) - 1; i >= 0; i-- {
 		backup := j.Backups[i]
-		if backup.Existed && backup.NativeVersion != backupNativeMetadataVersion {
-			return nil, errors.New("backup does not contain this platform's supported metadata; preserve it for version-matched recovery")
+		if backup.Existed && !backupNativeMetadataSupported(backup.NativeVersion) {
+			return nil, fmt.Errorf("backup uses unsupported native metadata version %d; preserve it for version-matched recovery", backup.NativeVersion)
 		}
 		if seen[restorePathKey(backup.Original)] {
 			return nil, fmt.Errorf("duplicate restore target: %s", backup.Original)
 		}
 		seen[restorePathKey(backup.Original)] = true
-		targets = append(targets, journalRestoreEntry{Original: filepath.Clean(backup.Original), Backup: backup.Backup, Digest: backup.Digest, Existed: backup.Existed})
+		targets = append(targets, journalRestoreEntry{Original: filepath.Clean(backup.Original), Backup: backup.Backup, Digest: backup.Digest, NativeVersion: backup.NativeVersion, Existed: backup.Existed})
 	}
 	for _, target := range targets {
 		if err := validateRestorePath(target.Original); err != nil {
@@ -102,7 +105,7 @@ func (j *rollbackJournal) restoreTargets() ([]journalRestoreEntry, error) {
 			return nil, errors.New("restore target overlaps its recovery journal")
 		}
 		if target.Existed {
-			if !restoreWithin(target.Backup, j.Dir) || target.Backup == j.Dir || !filepath.IsAbs(target.Backup) {
+			if !restoreWithin(target.Backup, j.Dir) || restorePathKey(target.Backup) == restorePathKey(j.Dir) || !filepath.IsAbs(target.Backup) {
 				return nil, errors.New("backup is outside its transaction directory")
 			}
 			if len(target.Digest) != 64 {
@@ -147,12 +150,94 @@ func (j *rollbackJournal) updateRestore(index int, entry journalRestoreEntry) er
 	return j.commit(next)
 }
 
+func normalizeRestoreEntry(entry *journalRestoreEntry, target journalRestoreEntry) (bool, error) {
+	changed := false
+	if entry.NativeVersion != target.NativeVersion {
+		// Restore entries written before this field was added inherit the version
+		// from the immutable backup record in the same journal.
+		if entry.NativeVersion == 0 && target.NativeVersion != 0 {
+			entry.NativeVersion = target.NativeVersion
+			changed = true
+		} else {
+			return false, errors.New("restore entry native metadata version does not match the backup journal")
+		}
+	}
+	if !entry.Existed {
+		return changed, nil
+	}
+	if !backupNativeMetadataSupported(entry.NativeVersion) {
+		return false, fmt.Errorf("unsupported restore entry native metadata version %d", entry.NativeVersion)
+	}
+	if entry.Phase == "preparing" {
+		// Preparation is not committed until phase and projected integrity fields
+		// are published together. Any files left by a crash are recopied below.
+		if entry.PreparedDigest != "" || entry.PreparedNativeVersion != 0 {
+			entry.PreparedDigest = ""
+			entry.PreparedNativeVersion = 0
+			changed = true
+		}
+		return changed, nil
+	}
+	if entry.PreparedDigest == "" && entry.PreparedNativeVersion == 0 {
+		// Older installers copied preparation data without changing metadata
+		// versions, so its integrity identity is the source backup identity.
+		entry.PreparedDigest = entry.Digest
+		entry.PreparedNativeVersion = entry.NativeVersion
+		changed = true
+	} else if entry.PreparedDigest == "" {
+		return false, errors.New("restore entry has no prepared integrity digest")
+	}
+	if len(entry.PreparedDigest) != 64 {
+		return false, errors.New("restore entry has an invalid prepared integrity digest")
+	}
+	if !backupNativeMetadataSupported(entry.PreparedNativeVersion) {
+		return false, fmt.Errorf("unsupported prepared native metadata version %d", entry.PreparedNativeVersion)
+	}
+	return changed, nil
+}
+
+func (j *rollbackJournal) migrateLegacyBackups(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	next := j.nextState()
+	changed := false
+	for i, backup := range next.Backups {
+		// Versions 1.1.0-1.1.6 persisted byte copies without an integrity
+		// digest or native-metadata version. Bind those retained bytes to the
+		// current platform format before any original target is moved.
+		if !backup.Existed || backup.NativeVersion != 0 || backup.Digest != "" {
+			continue
+		}
+		if !filepath.IsAbs(backup.Backup) || restorePathKey(backup.Backup) == restorePathKey(j.Dir) || !restoreWithin(backup.Backup, j.Dir) {
+			return errors.New("legacy backup is outside its transaction directory")
+		}
+		if err := validateRestorePath(backup.Backup); err != nil {
+			return fmt.Errorf("validate legacy backup %s: %w", backup.Backup, err)
+		}
+		digest, _, err := copyBackupTreeVersion(ctx, backup.Backup, "", backupNativeMetadataVersion, backupNativeMetadataVersion)
+		if err != nil {
+			return fmt.Errorf("bind legacy backup integrity %s: %w", backup.Backup, err)
+		}
+		next.Backups[i].Digest = digest
+		next.Backups[i].NativeVersion = backupNativeMetadataVersion
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return j.commit(next)
+}
+
 func (j *rollbackJournal) prepareRestore(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if j.RestoreStatus != "" && j.RestoreStatus != "preparing" && j.RestoreStatus != "prepared" {
 		return errors.New("unsupported recovery journal status")
+	}
+	if err := j.migrateLegacyBackups(ctx); err != nil {
+		return fmt.Errorf("migrate legacy recovery journal: %w", err)
 	}
 	targets, err := j.restoreTargets()
 	if err != nil {
@@ -209,6 +294,10 @@ func (j *rollbackJournal) prepareRestore(ctx context.Context) error {
 		if entry.Original != target.Original || entry.Backup != target.Backup || entry.Digest != target.Digest || entry.Existed != target.Existed {
 			return errors.New("restore entry does not match the backup journal")
 		}
+		normalized, err := normalizeRestoreEntry(&entry, target)
+		if err != nil {
+			return err
+		}
 		if err := j.validateStage(entry); err != nil {
 			return err
 		}
@@ -217,15 +306,20 @@ func (j *rollbackJournal) prepareRestore(ctx context.Context) error {
 		default:
 			return fmt.Errorf("unsupported recovery phase %q", entry.Phase)
 		}
+		if normalized {
+			if err := j.updateRestore(i, entry); err != nil {
+				return err
+			}
+		}
 		if entry.Phase != "preparing" {
 			// A prepared copy may have changed since a previous process exited.
 			// Verify it before this attempt moves any still-current target.
 			if entry.Existed && (entry.Phase == "prepared" || entry.Phase == "moving_current" || entry.Phase == "current_saved") {
-				digest, err := copyBackupTree(ctx, filepath.Join(entry.Stage, "prepared"), "")
+				digest, _, err := copyBackupTreeVersion(ctx, filepath.Join(entry.Stage, "prepared"), "", entry.PreparedNativeVersion, entry.PreparedNativeVersion)
 				if err != nil {
 					return fmt.Errorf("verify retained preparation: %w", err)
 				}
-				if digest != entry.Digest {
+				if digest != entry.PreparedDigest {
 					return errors.New("retained preparation failed integrity verification")
 				}
 			}
@@ -243,17 +337,19 @@ func (j *rollbackJournal) prepareRestore(ctx context.Context) error {
 			if err := os.RemoveAll(prepared); err != nil {
 				return err
 			}
-			digest, err := copyBackupTree(ctx, entry.Backup, prepared)
+			sourceDigest, preparedDigest, err := copyBackupTreeVersion(ctx, entry.Backup, prepared, entry.NativeVersion, backupNativeMetadataVersion)
 			if err != nil {
 				return fmt.Errorf("prepare %s: %w", entry.Original, err)
 			}
-			if digest != entry.Digest {
+			if sourceDigest != entry.Digest {
 				return fmt.Errorf("backup integrity mismatch: %s", entry.Backup)
 			}
-			verified, err := copyBackupTree(ctx, prepared, "")
-			if err != nil || verified != entry.Digest {
+			verified, _, err := copyBackupTreeVersion(ctx, prepared, "", backupNativeMetadataVersion, backupNativeMetadataVersion)
+			if err != nil || verified != preparedDigest {
 				return fmt.Errorf("prepared backup verification failed for %s: %w", entry.Original, errors.Join(err, errors.New("digest mismatch")))
 			}
+			entry.PreparedDigest = preparedDigest
+			entry.PreparedNativeVersion = backupNativeMetadataVersion
 		}
 		entry.Phase = "prepared"
 		if err := j.updateRestore(i, entry); err != nil {
@@ -348,11 +444,11 @@ func (j *rollbackJournal) advanceRestore(ctx context.Context, index int, move fu
 					return err
 				}
 			}
-			digest, err := copyBackupTree(ctx, entry.Original, "")
+			digest, _, err := copyBackupTreeVersion(ctx, entry.Original, "", entry.PreparedNativeVersion, entry.PreparedNativeVersion)
 			if err != nil {
 				return err
 			}
-			if digest != entry.Digest {
+			if digest != entry.PreparedDigest {
 				return errors.New("restored target did not pass integrity verification")
 			}
 		} else if current {
