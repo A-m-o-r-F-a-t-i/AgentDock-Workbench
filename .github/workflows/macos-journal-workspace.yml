@@ -1,0 +1,53 @@
+name: macOS Journal and Workspace Regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - internal/activity/**
+      - internal/workspace/**
+      - go.mod
+      - go.sum
+      - .github/workflows/macos-journal-workspace.yml
+  push:
+    branches: [main]
+    paths:
+      - internal/activity/**
+      - internal/workspace/**
+      - go.mod
+      - go.sum
+      - .github/workflows/macos-journal-workspace.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-journal-workspace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native journal and workspace (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15-intel, macos-15]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Native journal replay, corruption and cancellation contracts
+        run: go test -p 1 ./internal/activity -count=1 -timeout=8m
+      - name: Repeat the unchanged 100k-event cold-query contract
+        run: go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m
+      - name: Native path aliases, independent roots and stable migration identity
+        run: go test -p 1 ./internal/workspace -count=3 -v -timeout=3m
+      - name: Static analysis
+        run: go vet ./internal/activity ./internal/workspace
