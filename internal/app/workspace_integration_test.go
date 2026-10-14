@@ -186,7 +186,8 @@ func TestTypedForeignToolFailureAndGuidanceIsolation(t *testing.T) {
 	r := newRuntimeValidationTestRuntime(t)
 	ctx := context.Background()
 	_, id := workspaceTask(t, r)
-	if _, err := r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixture", "description": "Isolated target fixture", "transport": "streamable_http", "url": "http://127.0.0.1:1/mcp", "enabled": true}); err != nil {
+	fixture := newExecutionMCPFixture(t, "foreign", map[string]any{"type": "object"}, map[string]any{"readOnlyHint": false})
+	if _, err := r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixture", "description": "Isolated target fixture", "transport": "streamable_http", "url": fixture.server.URL, "enabled": true}); err != nil {
 		t.Fatal(err)
 	}
 	foreign := &struct {
@@ -225,6 +226,9 @@ func TestTypedForeignToolFailureAndGuidanceIsolation(t *testing.T) {
 	data, _ := json.Marshal(page)
 	if strings.Contains(string(data), "not-for-the-journal") {
 		t.Fatal("tool output credentials leaked to the activity journal")
+	}
+	if fixture.calls.Load() != 0 {
+		t.Fatalf("custom handler unexpectedly dispatched remote MCP call %d times", fixture.calls.Load())
 	}
 	// 1.1.6 retains actual business output inside the response payload. A
 	// foreign guidance field remains nested data and never becomes an event,

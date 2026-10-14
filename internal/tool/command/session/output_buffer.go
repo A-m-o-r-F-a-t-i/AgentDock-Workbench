@@ -22,7 +22,7 @@ type outputBuffer struct {
 
 func (b *outputBuffer) limit() int {
 	if b.limitBytes > 0 {
-		return b.limitBytes
+		return min(b.limitBytes, maxSessionOutputBytes)
 	}
 	return maxSessionOutputBytes
 }
@@ -45,7 +45,7 @@ func (b *outputBuffer) append(data []byte) (int, int) {
 	}
 	limit := b.limit()
 	if n >= limit {
-		dropped := b.size + n - limit
+		dropped := n - (limit - b.size)
 		if len(b.data) < limit {
 			b.data = make([]byte, limit)
 		}
@@ -54,9 +54,15 @@ func (b *outputBuffer) append(data []byte) (int, int) {
 		return n, dropped
 	}
 
-	retained := min(b.size+n, limit)
+	available := limit - b.size
+	dropped := 0
+	retained := limit
+	if n > available {
+		dropped = n - available
+	} else {
+		retained = b.size + n
+	}
 	b.ensureCapacity(retained)
-	dropped := max(0, b.size+n-limit)
 	if dropped > 0 {
 		b.start = (b.start + dropped) % len(b.data)
 		b.size -= dropped
@@ -79,7 +85,12 @@ func (b *outputBuffer) ensureCapacity(required int) {
 		next = required
 	}
 	for next < required {
-		next = min(next*2, limit)
+		remaining := limit - next
+		if next >= remaining {
+			next = limit
+		} else {
+			next += next
+		}
 	}
 	grown := make([]byte, next)
 	b.copyRange(grown, 0, b.size)

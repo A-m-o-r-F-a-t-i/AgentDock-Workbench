@@ -33,8 +33,11 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 		if !reflect.DeepEqual(base.PublicInputSchema, definition.InputSchema) {
 			t.Fatalf("%s public input contract drifted from its projection", name)
 		}
-		if !reflect.DeepEqual(executionOutputSchema(base.PublicOutputSchema), definition.OutputSchema) {
-			t.Fatalf("%s execution output extension drifted", name)
+		if len(definition.OutputSchema) != 0 {
+			t.Fatalf("%s unexpectedly publishes an MCP output schema", name)
+		}
+		if !reflect.DeepEqual(executionOutputSchema(base.ValidationOutputSchema), definition.ValidationOutputSchema) {
+			t.Fatalf("%s complete validation output extension drifted", name)
 		}
 		if name == mcpcontract.ToolAgentDockContext {
 			// Standalone AgentDock adds only optional local context fields. Compare
@@ -42,10 +45,16 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
 			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
 			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
+			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "instruction_files")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "workspace")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_revision")
+			if bundles := actualOutput["properties"].(map[string]any)["builtin_tool_bundles"]; !reflect.DeepEqual(bundles, builtinToolBundleIndexSchema()) {
+				t.Fatalf("built-in tool bundle schema drifted: %#v", bundles)
+			}
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "builtin_tool_bundles")
 			if provider := actualOutput["properties"].(map[string]any)["android_executor"]; !reflect.DeepEqual(provider, androidExecutorStatusSchema()) {
 				t.Fatal("Android provider metadata must use its explicit bounded schema")
 			}

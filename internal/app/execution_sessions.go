@@ -70,14 +70,8 @@ func (r *Runtime) revalidatePrepared(ctx context.Context, p *preparedExecution) 
 	if err := r.checkConversationGate(ctx, p.state.binding.ConversationID); err != nil {
 		return err
 	}
-	if p.mcpTarget != "" {
-		current, err := r.dynamicMCP.PermissionTargetFingerprint(ctx, stringArg(p.args, "name"))
-		if err != nil {
-			return err
-		}
-		if current != p.mcpTarget {
-			return errors.New("MCP target configuration changed after request preparation")
-		}
+	if err := r.validatePreparedMCPExecution(ctx, p); err != nil {
+		return err
 	}
 	if p.state.selected == nil {
 		return nil

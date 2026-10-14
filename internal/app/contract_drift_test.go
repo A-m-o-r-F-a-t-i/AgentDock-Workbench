@@ -52,8 +52,14 @@ func TestAllToolDefinitionsHaveStrictCompilableInputContracts(t *testing.T) {
 		if _, err := toolcontract.CompileInputSchema(contract.ValidationOutputSchema); err != nil {
 			t.Fatalf("compile %s validation output schema: %v", definition.Name, err)
 		}
-		if len(definition.OutputSchema) == 0 {
-			t.Fatalf("%s output schema is empty", definition.Name)
+		if len(definition.OutputSchema) != 0 {
+			t.Fatalf("%s unexpectedly publishes an MCP output schema", definition.Name)
+		}
+		if len(definition.ValidationOutputSchema) == 0 {
+			t.Fatalf("%s validation output schema is empty", definition.Name)
+		}
+		if _, err := toolcontract.CompileInputSchema(definition.ValidationOutputSchema); err != nil {
+			t.Fatalf("compile %s complete validation output schema: %v", definition.Name, err)
 		}
 	}
 }

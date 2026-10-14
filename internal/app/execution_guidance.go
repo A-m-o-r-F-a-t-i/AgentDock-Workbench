@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
@@ -140,6 +141,15 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 func (r *Runtime) executionErrorGuidance(state executionObservation, err error) map[string]any {
 	guidance := r.executionGuidance("", nil, state, nil, true)
 	var routeErr *ToolError
+	if errors.As(err, &routeErr) && routeErr.Code == "TOOL_BUNDLE_REQUIRED" {
+		bundle := stringArg(routeErr.Details, "bundle")
+		guidance["next_required"] = []map[string]any{{
+			"action": "load_builtin_bundle", "tool": toolcapability.ToolLoad,
+			"arguments": map[string]any{"action": toolcapability.ActionLoad, "name": bundle},
+			"text":      "Load this conversation-scoped built-in bundle, refresh tools/list, then retry the required business tool once. No bundled action ran.",
+		}}
+		return guidance
+	}
 	if !toolmcp.IsBuiltinDiscoveryError(err) || !errors.As(err, &routeErr) {
 		return guidance
 	}

@@ -107,6 +107,9 @@ func (r *Runtime) RuntimeConversationLifecycle(ctx context.Context, id, action s
 		}
 	}
 	r.executionMu.Unlock()
+	if action == "terminate" {
+		r.clearBuiltinToolBundles(id)
+	}
 	stopped := 0
 	for callID := range calls {
 		result, stopErr := r.RuntimeCallStop(ctx, callID)

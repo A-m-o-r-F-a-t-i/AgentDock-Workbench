@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +14,10 @@ func setTestUserHome(t *testing.T, home string) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("AGENTDOCK_HOME", "")
 	t.Setenv("AGENTDOCK_DEFAULT_DIR", "")
+	t.Setenv("AGENTDOCK_LEGACY_DEFAULT_DIR", "")
+	t.Setenv("AGENTDOCK_ARTIFACT_ROOT", "")
+	t.Setenv("AGENTDOCK_SCRATCH_ROOT", "")
+	t.Setenv("AGENTDOCK_CACHE_ROOT", "")
 }
 
 func TestNormalizeDefaultsToUserDirectories(t *testing.T) {
@@ -148,6 +153,32 @@ func TestFromEnvUsesExplicitAgentDockDirectories(t *testing.T) {
 	}
 }
 
+func TestFromEnvUsesSeparateWorkspaceStorageRoots(t *testing.T) {
+	profile := t.TempDir()
+	setTestUserHome(t, profile)
+	artifact := filepath.Join(t.TempDir(), "artifacts")
+	scratch := filepath.Join(t.TempDir(), "scratch")
+	cache := filepath.Join(t.TempDir(), "cache")
+	legacy := filepath.Join(t.TempDir(), "removed-workspace")
+	t.Setenv("AGENTDOCK_ARTIFACT_ROOT", artifact)
+	t.Setenv("AGENTDOCK_SCRATCH_ROOT", scratch)
+	t.Setenv("AGENTDOCK_CACHE_ROOT", cache)
+	t.Setenv("AGENTDOCK_LEGACY_DEFAULT_DIR", legacy)
+	cfg, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AgentDockArtifactRoot != artifact || cfg.AgentDockScratchRoot != scratch || cfg.AgentDockCacheRoot != cache || cfg.AgentDockLegacyDefaultDir != legacy {
+		t.Fatalf("separate workspace roots were not retained: %#v", cfg)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy workspace path must remain read-only and absent, err=%v", err)
+	}
+}
+
 func TestFromEnvRejectsRelativeAgentDockDirectories(t *testing.T) {
 	setTestUserHome(t, t.TempDir())
 	for _, test := range []struct {
@@ -157,6 +188,10 @@ func TestFromEnvRejectsRelativeAgentDockDirectories(t *testing.T) {
 	}{
 		{name: "home", key: "AGENTDOCK_HOME", want: "AgentDockHome"},
 		{name: "default directory", key: "AGENTDOCK_DEFAULT_DIR", want: "AgentDockDefaultDir"},
+		{name: "legacy default directory", key: "AGENTDOCK_LEGACY_DEFAULT_DIR", want: "AgentDockLegacyDefaultDir"},
+		{name: "artifact root", key: "AGENTDOCK_ARTIFACT_ROOT", want: "AgentDockArtifactRoot"},
+		{name: "scratch root", key: "AGENTDOCK_SCRATCH_ROOT", want: "AgentDockScratchRoot"},
+		{name: "cache root", key: "AGENTDOCK_CACHE_ROOT", want: "AgentDockCacheRoot"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("AGENTDOCK_HOME", "")

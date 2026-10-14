@@ -35,6 +35,12 @@ class ShizukuProtocolTest {
         assertEquals(first.fingerprint(), other.fingerprint())
         assertNotEquals(first.fingerprint(), ShellProtocol.spec(spec().put("command", "pwd")).fingerprint())
     }
+    @Test fun managedTempDirectoryCannotBeOverriddenByCallerEnvironment() {
+        val value = ShellProtocol.spec(spec().put("env", JSONObject().put("TMPDIR", "/caller/tmp")))
+        val environment = value.environment("/data/local/tmp/agentdock-workbench/session-" + "c".repeat(24))
+            .map { String(it, Charsets.UTF_8) }.associate { entry -> entry.substringBefore('=') to entry.substringAfter('=') }
+        assertEquals("/data/local/tmp/agentdock-workbench/session-" + "c".repeat(24), environment["TMPDIR"])
+    }
     @Test fun malformedInputCannotConsumeAnAcknowledgement() {
         assertThrows(IllegalArgumentException::class.java) { ShellProtocol.inputs(JSONObject("""{"input":[{"sequence":1,"data":"%%%"}]}""")) }
         assertThrows(IllegalArgumentException::class.java) { ShellProtocol.inputs(JSONObject("""{"input":[{"sequence":0,"data":"YQ=="}]}""")) }

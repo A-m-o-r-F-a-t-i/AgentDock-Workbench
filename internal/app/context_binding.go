@@ -85,6 +85,9 @@ func (r *Runtime) finalizeContextBinding(ctx context.Context, p *preparedExecuti
 		diagnostics["binding_status"] = "unattributed"
 		diagnostics["complete"] = true
 		result["binding_warning"] = "Host conversation metadata is unavailable; this result is request-local. Use explicit paths for subsequent calls. No conversation binding was inferred."
+		if err := attachContextRevision(result); err != nil {
+			return fail("CONTEXT_REVISION_FAILED", "Context revision could not be computed.", "runtime", err)
+		}
 		return nil
 	}
 	next := activity.ConversationState{ActiveTaskID: scope.TaskID, ActiveTaskThreadID: scope.ThreadID, WorkspaceID: selected.ID}
@@ -101,5 +104,8 @@ func (r *Runtime) finalizeContextBinding(ctx context.Context, p *preparedExecuti
 		diagnostics["binding_status"] = "updated"
 	}
 	diagnostics["complete"] = true
+	if err := attachContextRevision(result); err != nil {
+		return fail("CONTEXT_REVISION_FAILED", "Context revision could not be computed.", "runtime", err)
+	}
 	return nil
 }

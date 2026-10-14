@@ -159,6 +159,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 	case ToolCall:
 		props["name"] = stringProp("Qualified MCP tool name.")
 		props["result"] = objectProp("Raw upstream MCP tools/call result, including content and structuredContent when supplied.")
+		props["executed"] = boolProp("Whether the upstream tools/call request was dispatched.")
 		props["mcp_catalog"] = toolcontract.OutputObject(catalogSchemaProperties())
 	default:
 		return nil, false

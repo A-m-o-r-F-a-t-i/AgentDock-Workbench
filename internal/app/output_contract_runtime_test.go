@@ -68,6 +68,7 @@ func TestRuntimeOutputContractDefaultToolSuccessPaths(t *testing.T) {
 		args map[string]any
 	}{
 		{name: "agentdock_context", args: map[string]any{}},
+		{name: "capability_load", args: map[string]any{"action": "list"}},
 		{name: "read_file", args: map[string]any{"path": "contract.txt"}},
 		{name: "list_dir", args: map[string]any{"path": "."}},
 		{name: "search_text", args: map[string]any{"path": ".", "query": "contract-marker"}},

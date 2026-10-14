@@ -6,7 +6,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 export AGENTDOCK_WORKBENCH_TEST_MODE=1
 export AGENTDOCK_WORKBENCH_TEST_HOME="$tmp/home"
-mkdir -p "$AGENTDOCK_WORKBENCH_TEST_HOME"
+mkdir -p "$AGENTDOCK_WORKBENCH_TEST_HOME/storage/shared"
 
 request() {
   local op="$1" oid="$2" rid="$3" nonce="$4" extra="${5-}"
