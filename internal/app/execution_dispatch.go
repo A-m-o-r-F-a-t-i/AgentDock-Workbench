@@ -563,7 +563,12 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		return r.finishPrepared(p, Result{"executed": false}, reserveErr, "failed")
 	}
 	p.completion = completion
-	defer completion.Close()
+	completionTransferred := false
+	defer func() {
+		if !completionTransferred {
+			completion.Close()
+		}
+	}()
 	defer func() {
 		if recover() != nil {
 			failure := toolError("TOOL_PANIC", "The tool terminated unexpectedly. Inspect its side-effect state before retrying.", "runtime")
@@ -634,17 +639,22 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		result = r.filterSessionList(ctx, result, p.state.binding)
 	}
 	if isCommandExecutionTool(p.spec.Name) && err == nil && stringArg(result, "session_id") != "" {
+		sessionID := stringArg(result, "session_id")
 		phase := activity.Event{Binding: state.binding, Kind: "call.phases", ToolName: p.spec.Name}
 		phase.ExecutionElapsedMS, phase.WaitElapsedMS = &executionMS, &waitMS
 		if auditErr := r.appendExecution(phase); auditErr != nil {
 			result["activity_warning"] = "Command returned but dispatch phase measurements could not be persisted."
 		}
-		// Command activity owns stdout/stderr and completion, including asynchronous
-		// exit. Do not produce a second success event when the process is still running.
-		if p.approvalID != "" {
-			r.watchApprovalCommand(p.approvalID, state.binding.CallID, stringArg(result, "session_id"))
+		// Command activity owns stdout/stderr and publishes one terminal Future only
+		// after command.completed has made the root call terminal. Transfer the
+		// reserved fallback completion to the event-driven settlement owner.
+		decorated := compactExecutionSuccess(r.decorateExecution(result, p), p)
+		completionTransferred = true
+		p.completion = nil
+		if !r.startCommandTerminalSettlement(p, sessionID, completion) {
+			decorated["activity_warning"] = "The command started, but its terminal subscription was unavailable. The root call will settle as unknown."
 		}
-		return compactExecutionSuccess(r.decorateExecution(result, p), p), nil
+		return decorated, nil
 	}
 	status := "succeeded"
 	if err != nil || resultReportsFailure(result) {
@@ -740,28 +750,6 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.state, result, false)
 	decorated["binding_quality"] = p.state.binding.BindingQuality
 	return r.applyToolOutputPolicy(p, decorated)
-}
-func (r *Runtime) watchApprovalCommand(approvalID, callID, sessionID string) {
-	go func() {
-		tick := time.NewTicker(300 * time.Millisecond)
-		defer tick.Stop()
-		for {
-			call, err := r.activity.Call(context.Background(), callID)
-			if err == nil && activity.CallTerminal(call.Status) {
-				status := call.Status
-				if status == "partial" {
-					status = "failed"
-				}
-				_, _ = r.permissions.Settle(context.Background(), approvalID, status, call.Summary)
-				return
-			}
-			select {
-			case <-r.commandCtx.Done():
-				return
-			case <-tick.C:
-			}
-		}
-	}()
 }
 
 type rejectedExecutionKey struct{}

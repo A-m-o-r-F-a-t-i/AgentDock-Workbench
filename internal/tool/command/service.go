@@ -28,6 +28,8 @@ type CommandContext func() (context.Context, error)
 
 type Service struct {
 	android        *androidbridge.Broker
+	activityCtx    context.Context
+	activityCancel context.CancelFunc
 	activityMu     sync.Mutex
 	activeCommands map[string]*session.Session
 	activity       *activity.Store
@@ -38,14 +40,31 @@ type Service struct {
 	sessions       *session.Store
 	resolveSkill   SkillResolver
 	commandContext CommandContext
+	terminalMu     sync.Mutex
+	terminals      map[string]session.TerminalFuture
 }
 
 func New(configProvider ConfigProvider, ws *workspace.Workspace, envs *envstore.Store, resolveSkill SkillResolver, commandContext CommandContext) *Service {
+	activityCtx, activityCancel := context.WithCancel(context.Background())
 	return &Service{
-		activeCommands: map[string]*session.Session{},
-		config:         configProvider, ws: ws, envs: envs, sessions: session.NewStore(),
+		activityCtx: activityCtx, activityCancel: activityCancel,
+		activeCommands: map[string]*session.Session{}, terminals: map[string]session.TerminalFuture{},
+		config: configProvider, ws: ws, envs: envs, sessions: session.NewStore(),
 		resolveSkill: resolveSkill, commandContext: commandContext,
 	}
+}
+
+// TakeTerminalFuture transfers the registered Session future to the root-call
+// settlement owner. The Future itself remains reusable by observers that
+// already hold it.
+func (s *Service) TakeTerminalFuture(id string) (session.TerminalFuture, bool) {
+	s.terminalMu.Lock()
+	defer s.terminalMu.Unlock()
+	future, ok := s.terminals[id]
+	if ok {
+		delete(s.terminals, id)
+	}
+	return future, ok
 }
 
 func (s *Service) CommandEnv(skillName string, extra map[string]string) ([]string, error) {
