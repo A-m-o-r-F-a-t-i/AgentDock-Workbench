@@ -21,6 +21,7 @@ const (
 	structuredSnapshotTTL          = 15 * time.Minute
 	structuredSnapshotMaxBytes     = 16 << 20
 	structuredSnapshotCacheBytes   = 64 << 20
+	structuredCursorCacheEntries   = 4096
 )
 
 type structuredOutputSnapshot struct {
@@ -35,12 +36,14 @@ type structuredOutputSnapshot struct {
 	SourceState    string
 	SourceReason   string
 	SourceComplete bool
+	OversizedItems bool
 }
 
 type structuredOutputCursor struct {
 	SnapshotID string
 	PathIndex  int
 	ItemIndex  int
+	CreatedAt  time.Time
 	ExpiresAt  time.Time
 }
 
@@ -137,19 +140,26 @@ func integerArgument(value any) int {
 }
 
 func structuredArgumentsHash(args map[string]any) (string, error) {
-	filtered := make(map[string]any, len(args))
-	for key, value := range args {
-		if key == "cursor" || key == "max_response_bytes" {
-			continue
-		}
-		filtered[key] = value
-	}
+	filtered := structuredSelectorArguments(args)
 	encoded, err := json.Marshal(filtered)
 	if err != nil {
 		return "", err
 	}
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:]), nil
+}
+
+func structuredSelectorArguments(args map[string]any) map[string]any {
+	filtered := make(map[string]any, len(args))
+	for key, value := range args {
+		switch key {
+		case "cursor", "max_response_bytes", "task_id", "thread_id", "step_id", "workspace_id", "retry_of_call_id", "activity_label":
+			continue
+		default:
+			filtered[key] = value
+		}
+	}
+	return filtered
 }
 
 func randomStructuredID(prefix string) (string, error) {
@@ -183,6 +193,11 @@ func sourceResultComplete(result Result) (bool, string) {
 	for _, key := range []string{"truncated", "partial", "stdout_truncated", "stderr_truncated"} {
 		if result[key] == true {
 			return false, "The source operation returned a bounded or partial result before model-facing pagination."
+		}
+	}
+	if diagnostics, ok := result["context_diagnostics"].(map[string]any); ok {
+		if complete, exists := diagnostics["complete"].(bool); exists && !complete {
+			return false, "AgentDock context generation was incomplete before model-facing pagination."
 		}
 	}
 	if complete, exists := result["complete"].(bool); exists && !complete {
@@ -314,6 +329,10 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	page, next, returned, minimumBytes, oversized := buildStructuredPage(full, paths, position, businessBudget, hardBusinessBudget)
 	hasMore := structuredPageHasMore(full, paths, next)
 	deliveryIncomplete := hasMore || oversized != nil
+	if oversized != nil {
+		snapshot.OversizedItems = true
+		r.markStructuredSnapshotOversized(snapshot.ID)
+	}
 	meta := map[string]any{
 		"truncated":             deliveryIncomplete || position.PathIndex != 0 || position.ItemIndex != 0,
 		"budget_bytes":          budget,
@@ -332,6 +351,9 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	if snapshot.SourceReason != "" {
 		meta["source_reason"] = snapshot.SourceReason
 	}
+	if snapshot.OversizedItems {
+		meta["oversized_items_omitted"] = true
+	}
 	if minimumBytes > 0 {
 		meta["minimum_response_bytes"] = minimumBytes + structuredExecutionEnvelopeReserve(p.spec.Name)
 	}
@@ -349,7 +371,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	}
 	page["structured_output"] = meta
 	if p.spec.Name == "agentdock_context" {
-		setContextDeliveryComplete(page, !deliveryIncomplete)
+		setContextDeliveryComplete(page, !deliveryIncomplete && !snapshot.OversizedItems)
 	}
 	for range 3 {
 		marshaled, marshalErr := json.Marshal(page)
@@ -456,10 +478,27 @@ func (r *Runtime) newStructuredCursor(snapshotID string, position structuredPage
 	if snapshot == nil || now.After(snapshot.ExpiresAt) {
 		return "", fmt.Errorf("structured result snapshot expired")
 	}
+	for cursorID, existing := range r.structuredCursors {
+		if existing.SnapshotID == snapshotID && existing.PathIndex == position.PathIndex && existing.ItemIndex == position.ItemIndex {
+			return cursorID, nil
+		}
+	}
+	r.pruneStructuredCursorCapacityLocked(structuredCursorCacheEntries - 1)
 	r.structuredCursors[id] = structuredOutputCursor{
-		SnapshotID: snapshotID, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex, ExpiresAt: snapshot.ExpiresAt,
+		SnapshotID: snapshotID, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex, CreatedAt: now, ExpiresAt: snapshot.ExpiresAt,
 	}
 	return id, nil
+}
+
+func (r *Runtime) markStructuredSnapshotOversized(snapshotID string) {
+	if snapshotID == "" {
+		return
+	}
+	r.structuredOutputMu.Lock()
+	defer r.structuredOutputMu.Unlock()
+	if snapshot := r.structuredSnapshots[snapshotID]; snapshot != nil {
+		snapshot.OversizedItems = true
+	}
 }
 
 func (r *Runtime) pruneStructuredOutputLocked(now time.Time) {
@@ -482,25 +521,51 @@ func (r *Runtime) pruneStructuredOutputLocked(now time.Time) {
 			delete(r.structuredCursors, id)
 		}
 	}
-	if r.structuredSnapshotBytes <= structuredSnapshotCacheBytes {
+	if r.structuredSnapshotBytes > structuredSnapshotCacheBytes {
+		type candidate struct {
+			id      string
+			created time.Time
+		}
+		ordered := make([]candidate, 0, len(r.structuredSnapshots))
+		for id, snapshot := range r.structuredSnapshots {
+			ordered = append(ordered, candidate{id: id, created: snapshot.CreatedAt})
+		}
+		sort.Slice(ordered, func(i, j int) bool { return ordered[i].created.Before(ordered[j].created) })
+		for _, item := range ordered {
+			if r.structuredSnapshotBytes <= structuredSnapshotCacheBytes {
+				break
+			}
+			if snapshot := r.structuredSnapshots[item.id]; snapshot != nil {
+				removeSnapshot(item.id, snapshot)
+			}
+		}
+	}
+	r.pruneStructuredCursorCapacityLocked(structuredCursorCacheEntries)
+}
+
+func (r *Runtime) pruneStructuredCursorCapacityLocked(limit int) {
+	if limit < 0 {
+		limit = 0
+	}
+	if len(r.structuredCursors) <= limit {
 		return
 	}
-	type candidate struct {
+	type cursorCandidate struct {
 		id      string
 		created time.Time
 	}
-	ordered := make([]candidate, 0, len(r.structuredSnapshots))
-	for id, snapshot := range r.structuredSnapshots {
-		ordered = append(ordered, candidate{id: id, created: snapshot.CreatedAt})
+	cursors := make([]cursorCandidate, 0, len(r.structuredCursors))
+	for id, cursor := range r.structuredCursors {
+		cursors = append(cursors, cursorCandidate{id: id, created: cursor.CreatedAt})
 	}
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].created.Before(ordered[j].created) })
-	for _, item := range ordered {
-		if r.structuredSnapshotBytes <= structuredSnapshotCacheBytes {
-			break
+	sort.Slice(cursors, func(i, j int) bool {
+		if cursors[i].created.Equal(cursors[j].created) {
+			return cursors[i].id < cursors[j].id
 		}
-		if snapshot := r.structuredSnapshots[item.id]; snapshot != nil {
-			removeSnapshot(item.id, snapshot)
-		}
+		return cursors[i].created.Before(cursors[j].created)
+	})
+	for _, item := range cursors[:len(cursors)-limit] {
+		delete(r.structuredCursors, item.id)
 	}
 }
 

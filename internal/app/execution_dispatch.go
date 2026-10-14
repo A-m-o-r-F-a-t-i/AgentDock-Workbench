@@ -753,7 +753,7 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 		decorated["approval_id"] = p.approvalID
 	}
 	decorated["permission"] = p.decision
-	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.state, projected, false)
+	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.args, p.state, projected, false)
 	decorated["binding_quality"] = p.state.binding.BindingQuality
 	return r.applyToolOutputPolicy(p, decorated)
 }

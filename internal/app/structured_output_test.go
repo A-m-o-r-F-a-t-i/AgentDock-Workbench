@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
@@ -50,8 +51,8 @@ func TestStructuredOutputPagesRetainedResultWithoutReexecution(t *testing.T) {
 		t.Fatalf("first page continuation guidance = %#v", guidance["next_required"])
 	}
 	stepArguments, _ := steps[0]["arguments"].(map[string]any)
-	if stepArguments["cursor"] != result["next_cursor"] {
-		t.Fatalf("continuation cursor = %#v, want %#v", stepArguments["cursor"], result["next_cursor"])
+	if stepArguments["cursor"] != result["next_cursor"] || stepArguments["query"] != "needle" || integerArgument(stepArguments["max_response_bytes"]) != 4096 {
+		t.Fatalf("continuation arguments = %#v", stepArguments)
 	}
 
 	// Change the handler result after the first page. Cursor continuation must use
@@ -130,6 +131,21 @@ func TestStructuredSnapshotBindingUsesCommittedContextScope(t *testing.T) {
 	binding := structuredSnapshotBinding(p, result)
 	if binding.ConversationID != "conv-context" || binding.TaskID != "task-new" || binding.ThreadID != "thread-new" || binding.WorkspaceID != "workspace-new" {
 		t.Fatalf("snapshot binding = %#v", binding)
+	}
+}
+
+func TestSourceResultCompleteUsesContextDiagnostics(t *testing.T) {
+	complete, reason := sourceResultComplete(Result{
+		"context_diagnostics": map[string]any{"complete": false},
+	})
+	if complete || !strings.Contains(reason, "context generation was incomplete") {
+		t.Fatalf("source completeness = %v, reason = %q", complete, reason)
+	}
+	complete, reason = sourceResultComplete(Result{
+		"context_diagnostics": map[string]any{"complete": true},
+	})
+	if !complete || reason != "" {
+		t.Fatalf("complete context source = %v, reason = %q", complete, reason)
 	}
 }
 
@@ -284,14 +300,20 @@ func TestStructuredOutputGuidanceRequiresExactContinuation(t *testing.T) {
 			"minimum_response_bytes": 32768,
 		},
 	}
-	guidance := r.executionGuidance("search_text", executionObservation{}, result, false)
+	guidance := r.executionGuidance("search_text", map[string]any{
+		"path": ".", "query": "needle", "max_response_bytes": 4096,
+		"task_id": "inherited-task", "activity_label": "ignored",
+	}, executionObservation{}, result, false)
 	steps, ok := guidance["next_required"].([]map[string]any)
 	if !ok || len(steps) != 1 {
 		t.Fatalf("next_required = %#v", guidance["next_required"])
 	}
 	arguments, _ := steps[0]["arguments"].(map[string]any)
-	if steps[0]["action"] != "continue_structured_output" || steps[0]["tool"] != "search_text" || arguments["cursor"] != "scur_test" || arguments["max_response_bytes"] != 32768 {
+	if steps[0]["action"] != "continue_structured_output" || steps[0]["tool"] != "search_text" || arguments["cursor"] != "scur_test" || arguments["max_response_bytes"] != 32768 || arguments["path"] != "." || arguments["query"] != "needle" {
 		t.Fatalf("continuation guidance = %#v", steps[0])
+	}
+	if _, exists := arguments["task_id"]; exists {
+		t.Fatalf("continuation leaked inherited execution metadata: %#v", arguments)
 	}
 }
 
@@ -328,7 +350,7 @@ func TestStructuredOutputOversizedItemRequiresActivitySourceRead(t *testing.T) {
 	if cursor, _ := page["next_cursor"].(string); cursor != "" {
 		t.Fatalf("single oversized item unexpectedly returned cursor %q", cursor)
 	}
-	guidance := r.executionGuidance("agentdock_context", p.state, page, false)
+	guidance := r.executionGuidance("agentdock_context", p.args, p.state, page, false)
 	steps, ok := guidance["next_required"].([]map[string]any)
 	if !ok || len(steps) != 1 {
 		t.Fatalf("oversized next_required = %#v", guidance["next_required"])
@@ -336,6 +358,82 @@ func TestStructuredOutputOversizedItemRequiresActivitySourceRead(t *testing.T) {
 	arguments, _ := steps[0]["arguments"].(map[string]any)
 	if steps[0]["action"] != "read_structured_source" || steps[0]["tool"] != "read_file" || arguments["path"] != source || arguments["offset"] != 0 {
 		t.Fatalf("oversized follow-up = %#v", steps[0])
+	}
+	if meta["oversized_items_omitted"] != true {
+		t.Fatalf("oversized omission flag = %#v", meta)
+	}
+
+	page = r.applyStructuredOutputPolicy(p, Result{
+		"workspace_id": "workspace-oversized",
+		"rules":        []any{strings.Repeat("oversized-rule-", 6000)},
+		"skills":       []any{map[string]any{"name": "after-oversized", "description": "must remain pageable"}},
+		"context_diagnostics": map[string]any{
+			"complete": true, "components_complete": true, "binding_status": "updated",
+		},
+	})
+	cursor, _ := page["next_cursor"].(string)
+	if cursor == "" {
+		t.Fatal("oversized item hid later pageable collections")
+	}
+	next := &preparedExecution{
+		spec:  ToolSpec{Name: "agentdock_context"},
+		args:  map[string]any{"cursor": cursor, "max_response_bytes": toolcontract.StructuredResponseMaxBytes},
+		state: executionObservation{binding: binding},
+	}
+	full, resume, err := r.resumeStructuredOutput(ctx, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.structuredResume = resume
+	finalPage := r.applyStructuredOutputPolicy(next, full)
+	if skills := structuredPathItems(finalPage, structuredOutputPath{"skills"}); len(skills) != 1 {
+		t.Fatalf("later pageable collection = %#v", skills)
+	}
+	finalDiagnostics, _ := finalPage["context_diagnostics"].(map[string]any)
+	if finalDiagnostics["complete"] != false {
+		t.Fatalf("context with an omitted oversized item marked complete: %#v", finalDiagnostics)
+	}
+	if finalCursor, _ := finalPage["next_cursor"].(string); finalCursor != "" {
+		t.Fatalf("final context page returned another cursor %q", finalCursor)
+	}
+	finalMeta, _ := finalPage["structured_output"].(map[string]any)
+	if finalMeta["oversized_items_omitted"] != true || finalMeta["source"] == nil {
+		t.Fatalf("final oversized source metadata = %#v", finalMeta)
+	}
+}
+
+func TestStructuredCursorCacheIsBoundedAndDeduplicated(t *testing.T) {
+	r := executionTestRuntime(t)
+	now := time.Now()
+	snapshot, err := r.storeStructuredSnapshot(&structuredOutputSnapshot{
+		Tool: "list_dir", ArgumentsHash: "selectors", Encoded: []byte(`{"entries":[]}`),
+		CreatedAt: now, ExpiresAt: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	position := structuredPageState{PathIndex: 0, ItemIndex: 1}
+	first, err := r.newStructuredCursor(snapshot.ID, position)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := r.newStructuredCursor(snapshot.ID, position)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("duplicate cursor position produced %q and %q", first, second)
+	}
+	for index := 0; index < structuredCursorCacheEntries+64; index++ {
+		if _, err := r.newStructuredCursor(snapshot.ID, structuredPageState{PathIndex: 1, ItemIndex: index}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.structuredOutputMu.Lock()
+	count := len(r.structuredCursors)
+	r.structuredOutputMu.Unlock()
+	if count > structuredCursorCacheEntries {
+		t.Fatalf("cursor cache size = %d, want <= %d", count, structuredCursorCacheEntries)
 	}
 }
 

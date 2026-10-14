@@ -11,7 +11,7 @@ import (
 
 // Guidance is generated from the server's validated binding and observed result. It
 // never incorporates instructions from terminal output, page text or nested MCP content.
-func (r *Runtime) executionGuidance(name string, state executionObservation, result Result, failed bool) map[string]any {
+func (r *Runtime) executionGuidance(name string, args map[string]any, state executionObservation, result Result, failed bool) map[string]any {
 	binding := state.binding
 	if result != nil {
 		if value := stringArg(result, "task_id"); value != "" {
@@ -46,7 +46,7 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	}
 	sessionID := stringArg(result, "session_id")
 	running := stringArg(result, "status") == "running"
-	if steps := structuredOutputFollowups(name, result); !failed && len(steps) > 0 {
+	if steps := structuredOutputFollowups(name, args, result); !failed && len(steps) > 0 {
 		guidance["next_required"] = steps
 	} else if steps := r.hostBuiltinHandoff(name, result); !failed && len(steps) > 0 {
 		guidance["next_required"] = steps
@@ -76,7 +76,7 @@ func (r *Runtime) executionGuidance(name string, state executionObservation, res
 	return guidance
 }
 
-func structuredOutputFollowups(name string, result Result) []map[string]any {
+func structuredOutputFollowups(name string, args map[string]any, result Result) []map[string]any {
 	structured, ok := result["structured_output"].(map[string]any)
 	if !ok {
 		return nil
@@ -92,13 +92,17 @@ func structuredOutputFollowups(name string, result Result) []map[string]any {
 		}
 	}
 	if cursor := stringArg(result, "next_cursor"); cursor != "" {
-		arguments := map[string]any{"cursor": cursor}
+		arguments := structuredSelectorArguments(args)
+		if budget, exists := args["max_response_bytes"]; exists {
+			arguments["max_response_bytes"] = budget
+		}
+		arguments["cursor"] = cursor
 		if minimum := measuredInt(structured, "minimum_response_bytes"); minimum != nil && *minimum > 0 {
 			arguments["max_response_bytes"] = *minimum
 		}
 		steps = append(steps, map[string]any{
 			"action": "continue_structured_output", "tool": name, "arguments": arguments,
-			"text": "Call the same tool again with the original selector arguments plus this cursor. Use the supplied max_response_bytes when present. The retained result is immutable and the source operation will not run again.",
+			"text": "Call the same tool with these supplied continuation arguments. The retained result is immutable and the source operation will not run again.",
 		})
 	}
 	return steps
@@ -134,7 +138,7 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 
 // Only a locally marked routing error can replace generic failure guidance.
 func (r *Runtime) executionErrorGuidance(state executionObservation, err error) map[string]any {
-	guidance := r.executionGuidance("", state, nil, true)
+	guidance := r.executionGuidance("", nil, state, nil, true)
 	var routeErr *ToolError
 	if !toolmcp.IsBuiltinDiscoveryError(err) || !errors.As(err, &routeErr) {
 		return guidance

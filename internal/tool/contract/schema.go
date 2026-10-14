@@ -81,19 +81,17 @@ func OpenObject(description string) map[string]any {
 	}
 }
 
-// StructuredPagingInput adds shared model-facing structured result controls.
-// The cursor is server-issued and bound to a retained result, so continuing a
-// page does not re-run the original read-only operation.
+// StructuredPagingInput adds compact shared controls. Detailed continuation
+// semantics are returned only when pagination is actually required.
 func StructuredPagingInput(properties map[string]any) {
 	properties["cursor"] = map[string]any{
 		"type": "string", "maxLength": 2048,
-		"description": "Opaque continuation cursor returned by this tool. Repeat the original selectors and pass this cursor to read the next retained page without re-running the source operation.",
 	}
-	properties["max_response_bytes"] = BoundedInteger(
-		"Model-facing response budget in bytes. Omit for the tool default; larger values are capped at 65536.",
-		StructuredResponseMinBytes,
-		StructuredResponseMaxBytes,
-	)
+	properties["max_response_bytes"] = map[string]any{
+		"type":    "integer",
+		"minimum": StructuredResponseMinBytes,
+		"maximum": StructuredResponseMaxBytes,
+	}
 }
 
 // StructuredPagingOutput documents sparse paging metadata. These fields are
