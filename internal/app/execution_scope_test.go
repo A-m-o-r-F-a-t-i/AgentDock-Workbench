@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -232,7 +233,9 @@ func TestExecutionMissingMetadataNeverMintsGlobalConversation(t *testing.T) {
 func TestExecutionApprovalExpiresWhenMCPDestinationChanges(t *testing.T) {
 	r := executionTestRuntime(t)
 	ctx := scopeHost("fixed-mcp")
-	if _, err := r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixed", "description": "Isolated approved target", "transport": "streamable_http", "url": "http://127.0.0.1:1/original", "enabled": true}); err != nil {
+	original := newExecutionMCPFixture(t, "write", executionMCPWriteSchema(), map[string]any{"readOnlyHint": false})
+	changed := newExecutionMCPFixture(t, "write", executionMCPWriteSchema(), map[string]any{"readOnlyHint": false})
+	if _, err := r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixed", "description": "Isolated approved target", "transport": "streamable_http", "url": original.server.URL, "enabled": true}); err != nil {
 		t.Fatal(err)
 	}
 	result, err := r.Call(ctx, "mcp_tool_call", map[string]any{"name": "fixed:write", "arguments": map[string]any{"value": "original"}})
@@ -242,19 +245,32 @@ func TestExecutionApprovalExpiresWhenMCPDestinationChanges(t *testing.T) {
 	if _, err = r.RuntimeMCPManage(ctx, map[string]any{"action": "remove", "name": "fixed"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixed", "description": "Isolated approved target", "transport": "streamable_http", "url": "http://127.0.0.1:1/changed", "enabled": true}); err != nil {
+	if _, err = r.RuntimeMCPManage(ctx, map[string]any{"action": "add", "name": "fixed", "description": "Isolated approved target", "transport": "streamable_http", "url": changed.server.URL, "enabled": true}); err != nil {
 		t.Fatal(err)
 	}
 	decision, err := r.RuntimeApprovalDecision(context.Background(), stringArg(result, "approval_id"), "approve", false)
 	if err != nil || decision["dispatched"] != false {
 		t.Fatalf("changed target was dispatched: %+v %v", decision, err)
 	}
+	if decision["code"] != "MCP_TOOL_CHANGED_AFTER_APPROVAL" || decision["executed"] != false || decision["retryable"] != false || decision["next_action"] != "inspect_tool_again" {
+		t.Fatalf("changed target did not return fixed-call diagnostics: %+v", decision)
+	}
 	call, err := r.activity.Call(ctx, stringArg(result, "call_id"))
 	if err != nil || call.Status != "cancelled" {
 		t.Fatalf("old pending call not cancelled: %+v %v", call, err)
 	}
+	payload, err := r.activity.ReadCallPayload(context.Background(), call.CallID, "response", 0, 32768)
+	var recorded struct {
+		Result map[string]any `json:"result"`
+	}
+	if err != nil || json.Unmarshal([]byte(payload.Text), &recorded) != nil || recorded.Result["executed"] != false || recorded.Result["code"] != "MCP_TOOL_CHANGED_AFTER_APPROVAL" {
+		t.Fatalf("cancelled call did not persist non-dispatch response: %q %v", payload.Text, err)
+	}
 	child, err := r.activity.Calls(ctx, activity.CallQuery{ParentCallID: call.CallID})
 	if err != nil || len(child.Calls) != 0 {
 		t.Fatalf("changed target was dispatched: %+v %v", child, err)
+	}
+	if original.calls.Load() != 0 || changed.calls.Load() != 0 {
+		t.Fatalf("remote tools/call occurred: original=%d changed=%d", original.calls.Load(), changed.calls.Load())
 	}
 }

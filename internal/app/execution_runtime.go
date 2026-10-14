@@ -596,12 +596,29 @@ func (r *Runtime) runtimeApprovalDecision(ctx context.Context, id, action string
 		actor = permission.ReviewerAuto
 	}
 	p := r.pendingCalls[id]
-	cancelPending := func(reason string) (Result, error) {
+	cancelPending := func(reason string, failure error) (Result, error) {
 		settled, settleErr := r.permissions.SettleReviewed(ctx, id, "expired", reason, actor)
 		delete(r.pendingCalls, id)
+		result := Result{"approval": settled, "dispatched": false, "executed": false}
+		var toolErr *ToolError
+		if errors.As(failure, &toolErr) {
+			result["code"] = toolErr.Code
+			result["retryable"] = toolErr.Retryable
+			result["message"] = toolErr.Message
+			for key, value := range toolErr.Details {
+				if _, reserved := result[key]; !reserved {
+					result[key] = value
+				}
+			}
+		}
+		redactor := r.executionRedactor(nil)
+		if p != nil {
+			redactor = r.executionRedactor(p.args)
+		}
 		r.executionMu.Unlock()
-		_ = r.appendExecution(activity.Event{Binding: a.Binding, Kind: "call.completed", ToolName: a.Tool, ApprovalID: id, Status: "cancelled", Summary: reason})
-		return Result{"approval": settled, "dispatched": false}, settleErr
+		r.recordExecutionPayload(a.Binding, a.Tool, "response", map[string]any{"result": result, "isError": true}, redactor)
+		_ = r.appendExecution(activity.Event{Binding: a.Binding, Kind: "call.completed", ToolName: a.Tool, ApprovalID: id, Status: "cancelled", ErrorCode: stringArg(result, "code"), Summary: reason})
+		return result, settleErr
 	}
 	if action == "reject" {
 		summary := "用户拒绝，原操作未执行。"
@@ -615,27 +632,27 @@ func (r *Runtime) runtimeApprovalDecision(ctx context.Context, id, action string
 		delete(r.pendingCalls, id)
 		r.executionMu.Unlock()
 		_ = r.appendExecution(activity.Event{Binding: a.Binding, Kind: "call.completed", ToolName: a.Tool, ApprovalID: id, Status: "cancelled", Summary: summary})
-		return Result{"approval": settled, "dispatched": false}, settleErr
+		return Result{"approval": settled, "dispatched": false, "executed": false}, settleErr
 	}
 	if p == nil {
-		return cancelPending("原始固定请求不在当前服务中，不能安全恢复，未自动执行。")
+		return cancelPending("原始固定请求不在当前服务中，不能安全恢复，未自动执行。", nil)
 	}
 	if p.state.selected != nil {
 		current, lookupErr := r.workspaceRegistry.Select(ctx, p.state.selected.ID, "")
 		if lookupErr != nil || current.RulesRevision != p.state.selected.RulesRevision {
-			return cancelPending("工作区规则已变化，原批准失效，操作未执行。")
+			return cancelPending("工作区规则已变化，原批准失效，操作未执行。", nil)
 		}
 	}
 	if err = r.revalidatePrepared(ctx, p); err != nil {
-		return cancelPending(err.Error())
+		return cancelPending(err.Error(), err)
 	}
 	if err = r.executionAdmissionLocked(ctx, p.state.binding, p.spec.Name, stringArg(p.args, "action"), p.state.binding.CallID); err != nil {
-		return cancelPending(err.Error())
+		return cancelPending(err.Error(), err)
 	}
 	a, claimed, claimErr := r.permissions.ClaimReviewed(ctx, id, allowWorkspace, reviewer)
 	if claimErr != nil {
 		if errors.Is(claimErr, permission.ErrApprovalExpired) {
-			return cancelPending("审批已过期或权限策略已变化，原操作未执行。")
+			return cancelPending("审批已过期或权限策略已变化，原操作未执行。", nil)
 		}
 		r.executionMu.Unlock()
 		return nil, claimErr

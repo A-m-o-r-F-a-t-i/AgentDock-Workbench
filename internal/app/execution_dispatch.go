@@ -11,7 +11,6 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/config"
-	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	"github.com/uvwt/agentdock/internal/permission"
 	"github.com/uvwt/agentdock/internal/requesttrace"
 	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
@@ -37,7 +36,7 @@ type preparedExecution struct {
 	approvalRequestedAt time.Time
 	executionStartedAt  time.Time
 	sessionIDs          []string
-	mcpTarget           string
+	mcpCall             *toolmcp.PreparedCall
 	outputPolicy        config.ToolOutputSettings
 	completion          *activity.AppendReservation
 }
@@ -231,8 +230,19 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		return fail(toolErrorDetails("PERMISSION_DENIED", decision.Reason, "permission", map[string]any{"rule_id": decision.RuleID, "mode": decision.Mode, "permission": decision, "executed": false}))
 	}
 	if spec.Name == "mcp_tool_call" {
-		prepared.mcpTarget, err = r.dynamicMCP.PermissionTargetFingerprint(ctx, stringArg(args, "name"))
+		// Catalog discovery may start a third-party transport. Do not hold the
+		// global execution lock while preparing the fixed request.
+		r.executionMu.Unlock()
+		err = r.prepareMCPExecution(ctx, prepared)
 		if err != nil {
+			return fail(err)
+		}
+		r.executionMu.Lock()
+		if err = r.executionAdmissionLocked(ctx, state.binding, spec.Name, stringArg(args, "action"), callID); err != nil {
+			r.executionMu.Unlock()
+			return fail(err)
+		}
+		if err = r.revalidatePermission(ctx, prepared); err != nil {
 			r.executionMu.Unlock()
 			return fail(err)
 		}
@@ -262,7 +272,7 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		}
 		prepared.approvalID = approval.ID
 		r.pendingCalls[approval.ID] = prepared
-		err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "call.pending", Status: "pending_approval", ToolName: spec.Name, Title: description, ApprovalID: approval.ID, RuleID: decision.RuleID, PermissionMode: decision.Mode, Summary: decision.Reason})
+		err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "call.pending", Status: "pending_approval", ToolName: spec.Name, Title: description, ApprovalID: approval.ID, RuleID: decision.RuleID, PermissionMode: decision.Mode, ParameterSummary: preparedMCPExecutionSummary(prepared), Summary: decision.Reason})
 		if err != nil {
 			delete(r.pendingCalls, approval.ID)
 			_, _ = r.permissions.Settle(ctx, approval.ID, "expired", "执行日志不可写，原操作未派发。")
@@ -423,6 +433,9 @@ func (r *Runtime) executionScope(p *preparedExecution) string {
 	}
 	if p.spec.Name == "mcp_tool_call" {
 		scope += "\n第三方 MCP 的内部副作用由该服务实现，未将其注释当作可信只读授权。"
+		if summary := preparedMCPExecutionSummary(p); summary != "" {
+			scope += "\n固定 MCP 调用快照：" + summary
+		}
 	}
 	return scope
 }
@@ -589,10 +602,8 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	if p.decision.Settings.Profile.Restricted() {
 		ctx = toolfile.WithRestrictedFileTools(ctx)
 	}
-	if p.mcpTarget != "" {
-		ctx = mcpclient.WithApprovedToolTarget(ctx, p.mcpTarget)
-	}
-	started := activity.Event{Binding: state.binding, Kind: "call.started", Status: "running", ToolName: p.spec.Name, Title: r.describeExecution(p.spec.Name, p.args, state), ApprovalID: p.approvalID, RuleID: p.decision.RuleID, PermissionMode: p.decision.Mode}
+	ctx = bindPreparedMCPExecution(ctx, p)
+	started := activity.Event{Binding: state.binding, Kind: "call.started", Status: "running", ToolName: p.spec.Name, Title: r.describeExecution(p.spec.Name, p.args, state), ApprovalID: p.approvalID, RuleID: p.decision.RuleID, PermissionMode: p.decision.Mode, ParameterSummary: preparedMCPExecutionSummary(p)}
 	if err := ctx.Err(); err != nil {
 		return r.finishPrepared(p, nil, err, "cancelled")
 	}
@@ -697,7 +708,7 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 			}
 		}
 	}
-	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: title, ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
+	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: title, ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ParameterSummary: preparedMCPExecutionSummary(p), ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
 	event.OperationElapsedMS = &event.ElapsedMS
 	event.ExecutionElapsedMS, event.WaitElapsedMS = p.state.executionMS, p.state.waitMS
 	if p.spec.Name == "file_edit" {
