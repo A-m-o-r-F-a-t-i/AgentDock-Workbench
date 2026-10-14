@@ -4,3 +4,4 @@ go.sum text eol=lf
 *.sh text eol=lf
 *.bash text eol=lf
 .gitattributes text eol=lf
+mobile/android/termux/agentdock-workbench text eol=lf

@@ -27,6 +27,10 @@ type Config struct {
 	ContextTimeoutMS             int
 	AgentDockHome                string
 	AgentDockDefaultDir          string
+	AgentDockLegacyDefaultDir    string
+	AgentDockArtifactRoot        string
+	AgentDockScratchRoot         string
+	AgentDockCacheRoot           string
 	CommandEnvFromEnv            map[string]string
 	WindowsCommandShell          string
 	Host                         string
@@ -155,6 +159,10 @@ func FromEnv() (Config, error) {
 		ContextTimeoutMS:             contextTimeoutMS,
 		AgentDockHome:                strings.TrimSpace(os.Getenv("AGENTDOCK_HOME")),
 		AgentDockDefaultDir:          strings.TrimSpace(os.Getenv("AGENTDOCK_DEFAULT_DIR")),
+		AgentDockLegacyDefaultDir:    strings.TrimSpace(os.Getenv("AGENTDOCK_LEGACY_DEFAULT_DIR")),
+		AgentDockArtifactRoot:        strings.TrimSpace(os.Getenv("AGENTDOCK_ARTIFACT_ROOT")),
+		AgentDockScratchRoot:         strings.TrimSpace(os.Getenv("AGENTDOCK_SCRATCH_ROOT")),
+		AgentDockCacheRoot:           strings.TrimSpace(os.Getenv("AGENTDOCK_CACHE_ROOT")),
 		CommandEnvFromEnv:            commandEnvFromEnv,
 		WindowsCommandShell:          windowsCommandShell,
 		Host:                         getenv("AGENTDOCK_HOST", "127.0.0.1"),
@@ -197,19 +205,32 @@ func (c *Config) Normalize() error {
 		c.AgentDockDefaultDir = filepath.Join(home, "AgentDock")
 	}
 	paths := []struct {
-		label string
-		value *string
+		label    string
+		value    *string
+		private  bool
+		optional bool
+		prepare  bool
 	}{
-		{label: "AgentDockHome", value: &c.AgentDockHome},
-		{label: "AgentDockDefaultDir", value: &c.AgentDockDefaultDir},
+		{label: "AgentDockHome", value: &c.AgentDockHome, private: true, prepare: true},
+		{label: "AgentDockDefaultDir", value: &c.AgentDockDefaultDir, prepare: true},
+		{label: "AgentDockLegacyDefaultDir", value: &c.AgentDockLegacyDefaultDir, optional: true},
+		{label: "AgentDockArtifactRoot", value: &c.AgentDockArtifactRoot, optional: true, prepare: true},
+		{label: "AgentDockScratchRoot", value: &c.AgentDockScratchRoot, private: true, optional: true, prepare: true},
+		{label: "AgentDockCacheRoot", value: &c.AgentDockCacheRoot, private: true, optional: true, prepare: true},
 	}
 	for _, path := range paths {
-		cleaned := filepath.Clean(strings.TrimSpace(*path.value))
+		raw := strings.TrimSpace(*path.value)
+		if raw == "" && path.optional {
+			continue
+		}
+		cleaned := filepath.Clean(raw)
 		if !filepath.IsAbs(cleaned) {
 			return fmt.Errorf("%s must resolve to an absolute path: %s", path.label, cleaned)
 		}
-		if err := prepareDirectory(cleaned, path.label == "AgentDockHome"); err != nil {
-			return fmt.Errorf("prepare %s %s: %w", path.label, cleaned, err)
+		if path.prepare {
+			if err := prepareDirectory(cleaned, path.private); err != nil {
+				return fmt.Errorf("prepare %s %s: %w", path.label, cleaned, err)
+			}
 		}
 		*path.value = cleaned
 	}

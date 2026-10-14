@@ -2,17 +2,41 @@ package dev.agentdock.workbench.shizuku
 
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.nio.file.Files
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Short control calls; each admitted process has its own independent supervisor. */
-internal class OwnedShellRegistry(private val uid: Int) {
+internal class OwnedShellRegistry(private val uid: Int, private val tempRoot: File = File(ShellProtocol.TEMP_ROOT)) {
     private val jobs = linkedMapOf<String, OwnedJob>()
     private val seen = hashSetOf<String>()
     private val budget = AtomicInteger()
     private var closing = false
     val instance: String = UUID.randomUUID().toString()
+
+    init { cleanupStaleTemporaryDirectories() }
+
+    private fun prepareTemporaryDirectory(identity: String): File {
+        if (tempRoot.exists()) require(tempRoot.isDirectory && !Files.isSymbolicLink(tempRoot.toPath())) { "unsafe_temp_root" }
+        else require(tempRoot.mkdirs()) { "temp_root_unavailable" }
+        val root = tempRoot.canonicalFile
+        val target = File(root, identity)
+        require(target.parentFile == root) { "unsafe_temp_path" }
+        require(!target.exists() && !Files.isSymbolicLink(target.toPath())) { "temp_path_in_use" }
+        require(target.mkdir()) { "temp_create_failed" }
+        return target
+    }
+
+    private fun cleanupStaleTemporaryDirectories() {
+        if (!tempRoot.exists()) return
+        require(tempRoot.isDirectory && !Files.isSymbolicLink(tempRoot.toPath())) { "unsafe_temp_root" }
+        val cutoff = System.currentTimeMillis() - TEMP_RETENTION_MS
+        tempRoot.listFiles().orEmpty().filter {
+            it.name.matches(Regex("session-[a-f0-9]{24}")) && it.isDirectory && !Files.isSymbolicLink(it.toPath()) && it.lastModified() < cutoff
+        }.forEach { it.deleteRecursively() }
+    }
 
     @Synchronized fun control(nodeId: String, request: JSONObject): JSONObject {
         ShellProtocol.node(nodeId)
@@ -35,7 +59,7 @@ internal class OwnedShellRegistry(private val uid: Int) {
                 val stale = jobs.filterValues { it.reapable() && it.finishedAt > 0 && System.nanoTime() - it.finishedAt > 3600_000_000_000L }.keys.toList()
                 stale.forEach { jobs.remove(it)?.discardOutput() }
                 require(jobs.size < 128 && seen.size < 8192 && jobs.values.count { !it.finished } < 4) { "capacity" }
-                val job = OwnedJob(spec, budget)
+                val job = OwnedJob(spec, budget, prepareTemporaryDirectory(id))
                 seen.add(key)
                 jobs[key] = job // Reserve identity before any code can run.
                 if (request.getBoolean("cancel")) job.cancel()
@@ -53,10 +77,14 @@ internal class OwnedShellRegistry(private val uid: Int) {
         pending.forEach { it.await(((deadline - System.nanoTime()) / 1_000_000L).coerceAtLeast(1)) }
     }
 
-    companion object { const val OUTPUT_LIMIT = 4 * 1024 * 1024; const val TOTAL_OUTPUT_LIMIT = 16 * 1024 * 1024 }
+    companion object {
+        const val OUTPUT_LIMIT = 4 * 1024 * 1024
+        const val TOTAL_OUTPUT_LIMIT = 16 * 1024 * 1024
+        const val TEMP_RETENTION_MS = 24 * 60 * 60 * 1000L
+    }
 }
 
-private class OwnedJob(private val spec: ShellSpec, private val budget: AtomicInteger) {
+private class OwnedJob(private val spec: ShellSpec, private val budget: AtomicInteger, private val tempDirectory: File) {
     val fingerprint = spec.fingerprint()
     private val out = ByteArrayOutputStream()
     private val err = ByteArrayOutputStream()
@@ -133,7 +161,7 @@ private class OwnedJob(private val spec: ShellSpec, private val budget: AtomicIn
         try {
             if (synchronized(this) { cancelRequested }) { complete("cancelled", -1); return }
             if (System.nanoTime() >= deadline) { complete("timeout", -1); return }
-            handle = NativeCommand.spawn(spec.command.toByteArray(Charsets.UTF_8), spec.workdir.toByteArray(Charsets.UTF_8), spec.environment(), spec.tty)
+            handle = NativeCommand.spawn(spec.command.toByteArray(Charsets.UTF_8), spec.workdir.toByteArray(Charsets.UTF_8), spec.environment(tempDirectory.absolutePath), spec.tty)
             synchronized(this) { state = "running" }
             var inputClosed = false
             var observedExit = NativeCommand.RUNNING
@@ -181,9 +209,27 @@ private class OwnedJob(private val spec: ShellSpec, private val budget: AtomicIn
                     }
                 }
                 // I/O failure cannot confirm how much input reached the command.
-                synchronized(this) { state = "unknown"; finished = reaped; if (reaped) finishedAt = System.nanoTime() }
+                if (reaped) cleanupTemporaryDirectory()
+                synchronized(this) {
+                    if (!finished) {
+                        state = "unknown"
+                        finished = reaped
+                        if (reaped) finishedAt = System.nanoTime()
+                    }
+                }
             }
         }
     }
-    @Synchronized private fun complete(value: String, exit: Int) { state = value; code = exit; finished = true; finishedAt = System.nanoTime() }
+    private fun cleanupTemporaryDirectory() = runCatching {
+        require(!Files.isSymbolicLink(tempDirectory.toPath()))
+        tempDirectory.deleteRecursively()
+    }
+    @Synchronized private fun complete(value: String, exit: Int) {
+        if (finished) return
+        cleanupTemporaryDirectory()
+        state = value
+        code = exit
+        finished = true
+        finishedAt = System.nanoTime()
+    }
 }

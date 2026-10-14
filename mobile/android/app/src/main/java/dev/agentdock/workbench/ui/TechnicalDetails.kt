@@ -29,5 +29,6 @@ internal fun userStatus(value: String): String = when (value.lowercase()) {
 internal fun userOperation(value: String): String = when (value) {
     "probe", "status" -> "检测运行环境"; "install", "bootstrap" -> "准备运行环境"; "start" -> "启动节点"; "stop" -> "停止节点"
     "restart" -> "重启节点"; "update" -> "更新节点"; "repair" -> "修复环境"; "pair_local_core" -> "连接本机节点"
-    "export_diagnostics" -> "生成诊断包"; "operation_query" -> "查询原操作"; else -> value
+    "export_diagnostics" -> "生成诊断包"; "operation_query" -> "查询原操作"; "cleanup_preview", "cleanup" -> "清理受管文件"
+    "workspace_migration_preview", "workspace_migrate" -> "迁移公共工作区"; "uninstall_preview", "uninstall" -> "卸载私有环境"; else -> value
 }

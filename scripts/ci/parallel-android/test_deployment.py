@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -68,19 +69,27 @@ class DeploymentTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='wb07-deployment-')
         self.home = Path(self.tmp.name)
+        self.previous_test_mode = os.environ.get('AGENTDOCK_WORKBENCH_TEST_MODE')
+        os.environ['AGENTDOCK_WORKBENCH_TEST_MODE'] = '1'
+        (self.home / 'storage/shared').mkdir(parents=True)
         self.state = {'assets': {}, 'running': False, 'starts': [], 'fail_versions': set()}
         self.now = [1000.0]
         self.manager = self.make()
         self.manager.initialize()
+        self.workspace = self.manager.workspace_root()
         m.atomic_bytes(self.manager.root / 'auth-token', b'1' * 64)
         self.private_key = self.home / 'test-release-key.pem'
         key = self.manager.state / 'trust/release-ed25519-public.pem'
         key.parent.mkdir(parents=True)
         subprocess.run(['openssl', 'genpkey', '-algorithm', 'ED25519', '-out', str(self.private_key)], check=True, capture_output=True)
         subprocess.run(['openssl', 'pkey', '-in', str(self.private_key), '-pubout', '-out', str(key)], check=True, capture_output=True)
-        (self.manager.root / 'workspace/project.txt').write_text('user project')
+        (self.workspace / 'project.txt').write_text('user project')
         (self.manager.root / 'data/config.txt').write_text('preserve settings')
     def tearDown(self):
+        if self.previous_test_mode is None:
+            os.environ.pop('AGENTDOCK_WORKBENCH_TEST_MODE', None)
+        else:
+            os.environ['AGENTDOCK_WORKBENCH_TEST_MODE'] = self.previous_test_mode
         self.tmp.cleanup()
     def make(self, fault=lambda _: None):
         return m.Deployment(self.home, lambda root, config: FakeBackend(root, config, self.state), lambda: self.now[0], fault)
@@ -125,6 +134,12 @@ class DeploymentTest(unittest.TestCase):
             manager.dispatch('probe', 'probe', {})
             manager.dispatch('status', 'status', {})
             self.assertEqual([], list(Path(empty).iterdir()))
+    def test_stop_remains_available_when_shared_storage_is_unavailable(self):
+        isolated = self.home / 'stop-without-shared'; isolated.mkdir()
+        manager = m.Deployment(isolated, lambda root, config: FakeBackend(root, config, self.state), lambda: self.now[0])
+        result = manager.dispatch('stop', 'stop_without_shared', {})
+        self.assertEqual('stopped', result['status'])
+        self.assertEqual('stopped', (manager.root / 'desired-state').read_text())
     def test_missing_trust_downloads_nothing(self):
         (self.manager.state / 'trust/release-ed25519-public.pem').unlink()
         result = self.manager.dispatch('install', 'install_missing', self.release())
@@ -140,7 +155,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual('ok', repeat['status']); self.assertEqual(starts, len(self.state['starts']))
         query = self.manager.dispatch('operation_query', 'read_once', {'target_operation_id': 'install_once'})
         self.assertEqual('succeeded', query['data']['status'])
-        self.assertEqual('user project', (self.manager.root / 'workspace/project.txt').read_text())
+        self.assertEqual('user project', (self.workspace / 'project.txt').read_text())
         self.assertEqual('1' * 64, (self.manager.root / 'auth-token').read_text())
     def test_same_operation_different_payload_rejected(self):
         payload = self.release()
@@ -380,6 +395,158 @@ class DeploymentTest(unittest.TestCase):
         result = self.manager.dispatch('cleanup', 'clean_good', {'confirm_cleanup': True, 'preview_digest': preview['data']['preview_digest']})
         self.assertEqual('ok', result['status'])
 
+    def test_default_workspace_is_public_and_private_state_has_no_workspace(self):
+        self.assertEqual(self.home / 'storage/shared/Documents/AgentDock/Workspaces', self.workspace)
+        self.assertTrue(self.workspace.is_dir())
+        self.assertFalse((self.manager.root / 'workspace').exists())
+        command = m.core_launch_command(self.manager.config)
+        self.assertIn('AGENTDOCK_DEFAULT_DIR=/workspace;', command)
+        self.assertIn('AGENTDOCK_LEGACY_DEFAULT_DIR=/opt/agentdock-workbench/workspace;', command)
+        self.assertIn('AGENTDOCK_ARTIFACT_ROOT=/artifacts;', command)
+        self.assertIn('AGENTDOCK_SCRATCH_ROOT=/opt/agentdock-workbench/workspace-runtime/scratch;', command)
+        self.assertIn('AGENTDOCK_CACHE_ROOT=/opt/agentdock-workbench/workspace-runtime/cache;', command)
+        self.assertNotIn('AGENTDOCK_DEFAULT_DIR=/opt/agentdock-workbench/workspace;', command)
+
+    def test_config_rejects_private_workspace_and_accepts_shared_workspace(self):
+        rejected = self.manager.dispatch('configure', 'private_workspace', {
+            'node': {'workspace_root': str(self.home / 'private-workspace')},
+        })
+        self.assertEqual('failed', rejected['status'])
+        artifacts = self.home / 'storage/shared/Documents/AgentDock/Artifacts'
+        overlapping = self.manager.dispatch('configure', 'overlapping_workspace', {
+            'node': {'workspace_root': str(artifacts)},
+        })
+        self.assertEqual('failed', overlapping['status'])
+        custom = self.home / 'storage/shared/Documents/AgentDock/Custom'
+        accepted = self.manager.dispatch('configure', 'public_workspace', {
+            'node': {'workspace_root': str(custom)},
+        })
+        self.assertEqual('ok', accepted['status'])
+        self.assertEqual(custom.resolve(), self.make().workspace_root())
+        self.assertTrue(custom.is_dir())
+
+    def test_configure_can_repair_an_inaccessible_current_workspace(self):
+        self.manager.config['workspace_root'] = str(self.home / 'private-invalid')
+        replacement = self.home / 'storage/shared/Documents/AgentDock/Repaired'
+        result = self.manager.dispatch('configure', 'repair_workspace_config', {
+            'node': {'workspace_root': str(replacement)},
+        })
+        self.assertEqual('ok', result['status'])
+        self.assertEqual(replacement.resolve(), self.manager.workspace_root())
+
+    def test_legacy_private_workspace_requires_preview_and_verified_migration(self):
+        (self.workspace / 'project.txt').unlink()
+        legacy = self.manager.legacy_workspace(); legacy.mkdir()
+        (legacy / 'source').mkdir(); (legacy / 'source/main.txt').write_text('preserved project')
+        preview = self.manager.dispatch('workspace_migration_preview', 'migration_preview', {})
+        self.assertTrue(preview['data']['legacy_present'])
+        rejected = self.manager.dispatch('workspace_migrate', 'migration_wrong', {
+            'confirm_migration': True, 'preview_digest': 'wrong',
+        })
+        self.assertEqual('failed', rejected['status'])
+        result = self.manager.dispatch('workspace_migrate', 'migration_confirmed', {
+            'confirm_migration': True, 'preview_digest': preview['data']['preview_digest'],
+        })
+        self.assertEqual('ok', result['status'])
+        self.assertEqual('preserved project', (self.workspace / 'source/main.txt').read_text())
+        self.assertFalse(legacy.exists())
+
+    def test_managed_legacy_workspace_separates_artifacts_and_discards_transient_data(self):
+        (self.workspace / 'project.txt').unlink()
+        identity = 'wsp_' + 'a' * 16
+        legacy = self.manager.legacy_workspace(); legacy.mkdir()
+        (legacy / 'source').mkdir(); (legacy / 'source/main.txt').write_text('project source')
+        (legacy / 'artifacts' / identity).mkdir(parents=True)
+        (legacy / 'artifacts' / identity / 'firmware.bin').write_bytes(b'firmware')
+        (legacy / 'scratch' / identity).mkdir(parents=True)
+        (legacy / 'scratch' / identity / 'temporary.log').write_text('temporary')
+        (legacy / 'cache').mkdir(); (legacy / 'cache/index').write_text('cache')
+        m.atomic_json(self.manager.root / 'data/workspaces.json', {
+            'schema_version': 1,
+            'default_workspace_id': identity,
+            'workspaces': [{
+                'workspace_id': identity, 'runtime': 'unix', 'root': '/opt/agentdock-workbench/workspace',
+                'artifact_root': f'/opt/agentdock-workbench/workspace/artifacts/{identity}',
+                'scratch_root': f'/opt/agentdock-workbench/workspace/scratch/{identity}',
+                'cache_root': '/opt/agentdock-workbench/workspace/cache',
+            }],
+        })
+        preview = self.manager.dispatch('workspace_migration_preview', 'managed_migration_preview', {})
+        self.assertTrue(preview['data']['managed_layout'])
+        self.assertTrue(preview['data']['artifact_present'])
+        self.assertGreater(preview['data']['discarded_transient_bytes'], 0)
+        result = self.manager.dispatch('workspace_migrate', 'managed_migration', {
+            'confirm_migration': True, 'preview_digest': preview['data']['preview_digest'],
+        })
+        self.assertEqual('ok', result['status'])
+        self.assertEqual('project source', (self.workspace / 'source/main.txt').read_text())
+        self.assertFalse((self.workspace / 'scratch').exists())
+        self.assertFalse((self.workspace / 'cache').exists())
+        self.assertFalse((self.workspace / 'artifacts').exists())
+        artifact_target = self.home / 'storage/shared/Documents/AgentDock/Artifacts' / identity
+        self.assertEqual(b'firmware', (artifact_target / 'firmware.bin').read_bytes())
+        self.assertFalse(legacy.exists())
+
+    def test_automatic_cleanup_removes_old_private_files_and_rotates_log(self):
+        self.now[0] = m.TERMINAL_JOURNAL_RETENTION_SECONDS + 1000
+        transaction = self.manager.root / 'transactions/terminal-old'; transaction.mkdir()
+        m.atomic_json(transaction / 'journal.json', {'status': 'succeeded', 'updated_at': 0})
+        diagnostic = self.manager.root / 'logs/diagnostics-old.json'; diagnostic.write_text('{}')
+        temporary = self.manager.root / 'tmp/stale'; temporary.mkdir(); (temporary / 'part').write_text('x')
+        scratch = self.manager.root / 'workspace-runtime/scratch/old-task'; scratch.mkdir(); (scratch / 'probe.log').write_text('x')
+        cache = self.manager.root / 'workspace-runtime/cache/old-entry'; cache.write_text('x')
+        old = time.time() - max(m.DIAGNOSTIC_RETENTION_SECONDS, m.TEMP_RETENTION_SECONDS) - 10
+        for path in (diagnostic, temporary / 'part', temporary, scratch / 'probe.log', scratch, cache):
+            os.utime(path, (old, old))
+        log = self.manager.root / 'logs/core.log'; log.write_bytes(b'a' * 128)
+        with patch.object(m, 'CORE_LOG_LIMIT', 64):
+            result = self.manager.automatic_cleanup(False)
+        self.assertFalse(transaction.exists()); self.assertFalse(diagnostic.exists()); self.assertFalse(temporary.exists())
+        self.assertFalse(scratch.exists()); self.assertFalse(cache.exists())
+        self.assertEqual(b'', log.read_bytes())
+        self.assertEqual(b'a' * 64, (self.manager.root / 'logs/core.previous.log').read_bytes())
+        self.assertTrue(result['log_rotation']['rotated'])
+
+    def test_automatic_cleanup_batches_excess_runtime_entries_without_blocking_startup(self):
+        parent = self.manager.root / 'workspace-runtime/scratch'
+        for index in range(257):
+            (parent / f'task-{index:03d}').mkdir()
+        result = self.manager.automatic_cleanup(True)
+        self.assertEqual(1, result['workspace_runtime_skipped'])
+        self.assertEqual([], result['workspace_runtime'])
+
+    def test_cleanup_reclaims_only_old_pre_switch_failed_install(self):
+        self.now[0] = m.ABANDONED_TRANSACTION_RETENTION_SECONDS + 1000
+        abandoned = self.manager.root / 'transactions/abandoned'; abandoned.mkdir()
+        m.atomic_json(abandoned / 'journal.json', {'kind': 'deployment', 'operation_id': 'abandoned',
+            'operation': 'update', 'phase': 'download', 'status': 'requires_user_action', 'updated_at': 0})
+        (abandoned / 'core.tar.gz.partial').write_bytes(b'partial')
+        preview = self.manager.dispatch('cleanup_preview', 'abandoned_preview', {})
+        self.assertIn('abandoned', preview['data']['abandoned_transactions'])
+        result = self.manager.dispatch('cleanup', 'abandoned_cleanup', {
+            'confirm_cleanup': True, 'preview_digest': preview['data']['preview_digest'],
+        })
+        self.assertEqual('ok', result['status'])
+        self.assertFalse(abandoned.exists())
+
+    def test_full_uninstall_removes_private_runtime_and_preserves_public_workspace(self):
+        tasker = self.home / '.termux/tasker'; tasker.mkdir(parents=True)
+        for name in ('agentdock-workbench', 'agentdock_workbench.py', 'agentdock_host_executor.py'):
+            (tasker / name).write_text('managed')
+        (self.manager.state / 'managed-distro-debian').write_text('')
+        preview = self.manager.dispatch('uninstall_preview', 'uninstall_preview', {})
+        self.assertTrue(preview['data']['workspace_preserved'])
+        self.assertTrue(preview['data']['artifacts_preserved'])
+        result = self.manager.dispatch('uninstall', 'uninstall_confirmed', {
+            'confirm_uninstall': True, 'preview_digest': preview['data']['preview_digest'],
+        })
+        self.assertEqual('ok', result['status'])
+        self.assertTrue(result['data']['distro_removed'])
+        self.assertFalse(self.manager.state.exists())
+        self.assertTrue((self.workspace / 'project.txt').is_file())
+        self.assertEqual(self.home / 'storage/shared/Documents/AgentDock/Artifacts', Path(result['data']['artifact_path']))
+        self.assertEqual([], [path.name for path in tasker.iterdir()])
+
     def test_identical_artifact_with_new_id_preserves_distinct_fallback(self):
         self.seed(); payload = self.release()
         self.manager.dispatch('update', 'upgrade', payload)
@@ -520,7 +687,7 @@ def restore_phase_case(explicit, phase):
         self.assertEqual('rolled_back', result['status'])
         self.assertEqual('1.1.7', self.manager.current_version())
         self.assertEqual('preserve settings', (self.manager.root / 'data/config.txt').read_text())
-        self.assertEqual('user project', (self.manager.root / 'workspace/project.txt').read_text())
+        self.assertEqual('user project', (self.workspace / 'project.txt').read_text())
         starts = len(self.state['starts'])
         self.make().dispatch('resume', 'repeat_restore', {'target_operation_id': identity})
         self.assertEqual(starts, len(self.state['starts']))
@@ -546,7 +713,7 @@ def phase_case(phase):
         self.assertIn(result['status'], {'updated', 'ok'})
         self.assertEqual('1.1.8', self.manager.current_version())
         self.assertEqual('preserve settings', (self.manager.root / 'data/config.txt').read_text())
-        self.assertEqual('user project', (self.manager.root / 'workspace/project.txt').read_text())
+        self.assertEqual('user project', (self.workspace / 'project.txt').read_text())
         self.assertEqual('succeeded', self.manager.query('crash_case')['status'])
     return test
 for phase in ('created','manifest','download','verify','prepared','stop','backup','switch','pointer-published','start','health','commit','complete'):
@@ -560,4 +727,4 @@ if __name__ == '__main__':
     output.write_text(json.dumps({'scope':'synthetic filesystem and injected process backend; real OpenSSL signature checks',
         'tests': result.testsRun, 'failures':len(result.failures), 'errors':len(result.errors), 'skipped':len(result.skipped),
         'production_installed':False, 'source_sha':os.environ.get('GITHUB_SHA','unknown')}, indent=2) + '\n')
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 62 and not result.skipped else 1)
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun >= 72 and not result.skipped else 1)

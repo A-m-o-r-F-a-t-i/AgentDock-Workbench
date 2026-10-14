@@ -63,6 +63,62 @@ func TestWorkspaceRoutingAllKindsAndExplicitExternalTarget(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRegistryUsesSeparateDefaultRoots(t *testing.T) {
+	home, root := t.TempDir(), t.TempDir()
+	artifact, scratch, cache := filepath.Join(t.TempDir(), "artifacts"), filepath.Join(t.TempDir(), "scratch"), filepath.Join(t.TempDir(), "cache")
+	registry, err := NewRegistryWithRoots(home, root, DefaultRoots{ArtifactRoot: artifact, ScratchRoot: scratch, CacheRoot: cache})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := registry.Select(context.Background(), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Root != root || record.ArtifactRoot != filepath.Join(artifact, record.ID) ||
+		record.ScratchRoot != filepath.Join(scratch, record.ID) || record.CacheRoot != cache {
+		t.Fatalf("separate roots were not preserved: %+v", record)
+	}
+}
+
+func TestWorkspaceRegistryMigratesLegacyDefaultWithoutChangingIdentity(t *testing.T) {
+	home, legacyRoot, currentRoot := t.TempDir(), t.TempDir(), t.TempDir()
+	legacy, err := NewRegistry(home, legacyRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, err := legacy.Select(context.Background(), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, scratch, cache := filepath.Join(t.TempDir(), "artifacts"), filepath.Join(t.TempDir(), "scratch"), filepath.Join(t.TempDir(), "cache")
+	migrated, err := NewRegistryWithRoots(home, currentRoot, DefaultRoots{
+		ArtifactRoot: artifact,
+		ScratchRoot:  scratch,
+		CacheRoot:    cache,
+		LegacyRoot:   legacyRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := migrated.Select(context.Background(), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ID != previous.ID || current.Root != currentRoot || current.RulesRevision != previous.RulesRevision+1 {
+		t.Fatalf("legacy workspace identity was not migrated in place: previous=%+v current=%+v", previous, current)
+	}
+	if current.ArtifactRoot != filepath.Join(artifact, current.ID) || current.ScratchRoot != filepath.Join(scratch, current.ID) || current.CacheRoot != cache {
+		t.Fatalf("migrated workspace roots are incorrect: %+v", current)
+	}
+	records, defaultID, err := migrated.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || defaultID != previous.ID {
+		t.Fatalf("migration created duplicate workspace records: records=%+v default=%s", records, defaultID)
+	}
+}
+
 func TestWorkspaceRejectsTraversalAndNoImplicitCWD(t *testing.T) {
 	_, record := registryFixture(t)
 	for _, request := range []TargetRequest{{Path: "../outside.txt"}, {Path: filepath.Join(t.TempDir(), "elsewhere.txt")}, {Kind: "artifact", Path: "file.exe"}, {Kind: "scratch", TaskID: "../escape"}, {Kind: "artifact", TaskID: "tsk_safe", Path: "../other-task/file"}} {
