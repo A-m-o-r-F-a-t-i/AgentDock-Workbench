@@ -5,6 +5,7 @@ import (
 	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unsafe"
@@ -76,6 +77,38 @@ func TestWindowsSnapshotDoesNotRequireForeignOwnerAssignment(t *testing.T) {
 	}
 }
 
+func TestWindowsCurrentBackupMetadataUsesBinarySecurityDescriptor(t *testing.T) {
+	nativeBackupTest(t)
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte("settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := readBackupNativeMetadata(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(metadata.Security, backupBinarySecurityPrefix) {
+		t.Fatalf("current metadata does not use the binary descriptor format: %q", metadata.Security)
+	}
+	decoded, storage, err := decodeBackupSecurityDescriptor(metadata.Security, backupNativeMetadataVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.String() != expected.String() {
+		t.Fatalf("binary descriptor changed the DACL: expected=%q actual=%q", expected.String(), decoded.String())
+	}
+	runtime.KeepAlive(storage)
+
+	metadata.Security = backupBinarySecurityPrefix + "invalid"
+	if err := applyBackupNativeMetadata(path, metadata); err == nil || !strings.Contains(err.Error(), "encoded backup security descriptor") {
+		t.Fatalf("malformed binary descriptor was accepted: %v", err)
+	}
+}
+
 func TestWindowsBackupPreservesDACLAndAttributes(t *testing.T) {
 	nativeBackupTest(t)
 	token, err := windows.GetCurrentProcessToken().GetTokenUser()
@@ -98,7 +131,14 @@ func TestWindowsBackupPreservesDACLAndAttributes(t *testing.T) {
 				t.Fatal(err)
 			}
 			if protected {
-				metadata.Security = "D:P(A;;FA;;;" + token.User.Sid.String() + ")(A;;FR;;;BU)"
+				descriptor, err := windows.SecurityDescriptorFromString("D:P(A;;FA;;;" + token.User.Sid.String() + ")(A;;FR;;;BU)")
+				if err != nil {
+					t.Fatal(err)
+				}
+				metadata.Security, err = encodeBackupSecurityDescriptor(descriptor)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			metadata.Attributes = windows.FILE_ATTRIBUTE_HIDDEN | windows.FILE_ATTRIBUTE_READONLY | windows.FILE_ATTRIBUTE_ARCHIVE
 			if err = applyBackupNativeMetadata(source, metadata); err != nil {
@@ -193,12 +233,50 @@ func TestWindowsRecoveryProjectsVersionOneBackupToCurrentMetadata(t *testing.T) 
 	if beforeOwner == nil || afterOwner == nil || !beforeOwner.Equals(afterOwner) {
 		t.Fatalf("projection changed target owner: before=%v after=%v", beforeOwner, afterOwner)
 	}
+	beforeGroup, _, _ := beforeDescriptor.Group()
+	afterGroup, _, _ := afterDescriptor.Group()
+	if beforeGroup == nil || afterGroup == nil || !beforeGroup.Equals(afterGroup) {
+		t.Fatalf("projection changed target group: before=%v after=%v", beforeGroup, afterGroup)
+	}
 	entry := journal.RestoreEntries[0]
 	if entry.NativeVersion != backupNativeMetadataOwnerVersion || entry.PreparedNativeVersion != backupNativeMetadataVersion || len(entry.PreparedDigest) != 64 {
 		t.Fatalf("version-one backup was not projected to current metadata: %+v", entry)
 	}
 }
 
+func TestWindowsRecoveryProjectsVersionTwoBackupToBinaryMetadata(t *testing.T) {
+	nativeBackupTest(t)
+	root := t.TempDir()
+	original := filepath.Join(root, "application")
+	if err := os.Mkdir(original, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(original, "settings.json")
+	if err := os.WriteFile(source, []byte("version-two"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	expected, err := readBackupNativeMetadata(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal := newJournal(filepath.Join(root, "state"), "version-two-projection")
+	snapshotWindowsBackupVersion(t, journal, original, backupNativeMetadataDACLVersion)
+	if err := os.WriteFile(source, []byte("changed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.Restore(t.Context(), Request{}); err != nil {
+		t.Fatal(err)
+	}
+	assertJournalFile(t, source, "version-two")
+	actual, err := readBackupNativeMetadata(source)
+	if err != nil || !equalBackupNativeMetadata(actual, expected) {
+		t.Fatalf("version-two projection changed metadata: %s %v", backupNativeMetadataDifference(actual, expected), err)
+	}
+	entry := journal.RestoreEntries[0]
+	if entry.NativeVersion != backupNativeMetadataDACLVersion || entry.PreparedNativeVersion != backupNativeMetadataVersion || len(entry.PreparedDigest) != 64 {
+		t.Fatalf("version-two backup was not projected to binary metadata: %+v", entry)
+	}
+}
 func TestWindowsRecoveryResumesVersionOnePreparedJournal(t *testing.T) {
 	nativeBackupTest(t)
 	root := t.TempDir()
@@ -365,7 +443,12 @@ func TestWindowsBackupPreservesLegacyAndAutomaticInheritanceModes(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			descriptor, err := windows.SecurityDescriptorFromString(metadata.Security)
+			decoded, storage, err := decodeBackupSecurityDescriptor(metadata.Security, backupNativeMetadataVersion)
+			if err != nil {
+				t.Fatal(err)
+			}
+			descriptor, err := decoded.ToAbsolute()
+			runtime.KeepAlive(storage)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -377,7 +460,14 @@ func TestWindowsBackupPreservesLegacyAndAutomaticInheritanceModes(t *testing.T) 
 			if err = descriptor.SetControl(flags, value); err != nil {
 				t.Fatal(err)
 			}
-			metadata.Security = descriptor.String()
+			relative, err := descriptor.ToSelfRelative()
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata.Security, err = encodeBackupSecurityDescriptor(relative)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if err = applyBackupNativeMetadata(source, metadata); err != nil {
 				t.Fatal(err)
 			}
@@ -385,11 +475,12 @@ func TestWindowsBackupPreservesLegacyAndAutomaticInheritanceModes(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			parsed, err := windows.SecurityDescriptorFromString(expected.Security)
+			parsed, parsedStorage, err := decodeBackupSecurityDescriptor(expected.Security, backupNativeMetadataVersion)
 			if err != nil {
 				t.Fatal(err)
 			}
 			control, _, err := parsed.Control()
+			runtime.KeepAlive(parsedStorage)
 			if err != nil || (control&flags != 0) != automatic {
 				t.Fatalf("fixture did not establish requested native mode: %#x %v", control, err)
 			}
