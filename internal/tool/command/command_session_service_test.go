@@ -261,8 +261,16 @@ func TestListSessionsKeepsCompletedResultAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repeated sessionStatus() error = %v", err)
 	}
-	if repeated["status"] != "exited" || repeated["stdout"] != "" || repeated["command_ok"] != true {
+	if repeated["status"] != "exited" || repeated["command_ok"] != true {
 		t.Fatalf("repeated completed result = %#v", repeated)
+	}
+	for _, field := range []string{"stdout", "stderr"} {
+		if _, exists := repeated[field]; exists {
+			t.Fatalf("consumed completed result should omit %s: %#v", field, repeated)
+		}
+	}
+	if repeated["displayed_bytes"] != 0 || repeated["total_output_bytes"] != len("completed-output") || repeated["source_complete"] != true {
+		t.Fatalf("consumed result lost source integrity: %#v", repeated)
 	}
 }
 
