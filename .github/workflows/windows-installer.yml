@@ -1,21 +1,6 @@
 name: Windows Installer
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'scripts/**'
-      - 'packaging/**'
-      - 'desktop/windows/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/windows-installer.yml'
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       test_tag:

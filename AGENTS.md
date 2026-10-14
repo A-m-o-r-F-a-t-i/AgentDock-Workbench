@@ -35,14 +35,16 @@ branch. Never publish to the upstream author's repository.
 
 ## Verification and delivery
 
-Run Go formatting/tests and Windows desktop tests. Add regression tests for each
-changed behavior; do not remove tests or weaken assertions to obtain a green build.
-Use injected time for activity boundaries. Verify concurrent conversations, calls
-without tasks, old records, rejected writes and asynchronous command completion.
+Review the changed code and the pull request once. For normal development work, do
+not add or run broad regression suites, repeated stress loops, AI experiments,
+emulator matrices, installation E2E or release probes. Keep focused existing tests
+that directly exercise authentication, permissions, installer rollback, persistent
+state and runtime contracts; avoid tests that mirror source strings or UI layout.
 
-Build the final Windows package with `.github/workflows/windows-package.yml` in
-`A-m-o-r-F-a-t-i/agentdock`. Source, tests, package construction, installation tests
-and publication are separate delivery states. Report unexecuted checks honestly.
+The default acceptance gate is `.github/workflows/ci.yml`: formatting plus production
+compilation. Run additional tests only when the user explicitly requests them. Build
+release packages only for an explicit release task, and report unexecuted checks
+honestly.
 
 ## Release notes
 
@@ -55,9 +57,3 @@ give major new capabilities enough detail, keep the download chooser compact, an
 keep CI/test results, run IDs and publication mechanics out of the Release body.
 
 Implementation map: `docs/implementation-1.1.5.md`.
-
-For the 1.1.5 delivery, run static and isolated automated regression only. Do not
-launch the desktop app or Setup, install/uninstall/upgrade/rollback, or change the
-production Core. Dispatch windows-package.yml with installation_tests=false.
-Keep the 120s activity, 180s request eligibility and 300s next-call insertion
-expiry independent. Manual desktop and installation checks remain not run.

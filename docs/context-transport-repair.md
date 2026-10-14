@@ -54,7 +54,7 @@ python scripts/diagnostics/probe-context.py --endpoint https://NODE/mcp --token-
 
 新增测试覆盖请求 ID 格式和并发、不同对话隔离、Activity 读回、HTTP 写入失败/取消/panic、协议错误阶段、完整规则保留、协商拒绝、超过 1 MiB 的结构化上下文、SDK 实际编码大小、宿主回调 panic、插入回执以及外部 Python 探针连接真实隔离 HTTP Server。Windows 模型测试只运行纯模型项目，不启动桌面程序或安装器。
 
-专属 Actions 工作流 `context-transport.yml` 验证 Linux amd64、Linux arm64 与 Windows。所有集成测试使用临时状态目录和随机回环端口，不接管生产服务。测试执行状态以对应提交的实际运行结果为准。
+该修复当时通过专属 Actions 工作流 `context-transport.yml` 验证 Linux amd64、Linux arm64 与 Windows；所有集成测试使用临时状态目录和随机回环端口，不接管生产服务。该一次性工作流现已移除，普通 PR 只执行主 CI 编译，相关跨平台回归需显式发起。历史结果仍以当时对应提交的实际日志和 Actions 记录为准。
 
 ## 已执行的本地验证
 

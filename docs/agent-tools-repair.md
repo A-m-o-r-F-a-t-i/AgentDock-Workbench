@@ -48,7 +48,7 @@ go test -p 2 ./internal/tool/command/... -run '^TestAgentTools' -count=3 -timeou
 /storage/emulated/0/Termux/AgentDock/Artifacts/context-transport/tsk_0b2a4a426d540914/
 ```
 
-现有 `context-transport.yml` 增加命令回归、完整命令包、Linux race 与 vet，沿用 Windows、Linux amd64、Linux arm64 三平台矩阵及 Windows 纯模型测试。完整包和 CI 的执行状态以本轮实际日志、精确提交对应的 Actions 结果为准，不沿用上一轮提交的绿色结果。
+当时的专属 `context-transport.yml` 曾执行命令回归、完整命令包、Linux race 与 vet，并覆盖 Windows、Linux amd64、Linux arm64 三平台矩阵及 Windows 纯模型测试。该一次性工作流现已移除；后续普通 PR 只执行主 CI 编译，相关回归仅在明确要求或发布任务中运行。历史结果仍以当时精确提交对应的日志和 Actions 记录为准。
 
 ## 边界
 

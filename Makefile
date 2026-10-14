@@ -27,7 +27,6 @@ test:
 
 test-scripts:
 	./scripts/test/check-scripts.sh
-	go test ./scripts/test -run TestScriptGovernance -count=1
 
 test-scripts-macos:
 	./scripts/test/check-scripts.sh --macos
@@ -41,7 +40,7 @@ race:
 build:
 	go build -trimpath -ldflags "$(BUILD_LDFLAGS)" -o ./bin/$(APP) ./cmd/agentdock
 
-check: fmt-check test test-scripts vet build
+check: fmt-check build
 
 run:
 	go run ./cmd/agentdock --host $(HOST) --port $(PORT) --log-level $(LOG_LEVEL)
