@@ -13,4 +13,5 @@
   <ItemGroup><Compile Include="../control-panel/Models/ConversationStartTime.cs" Link="ConversationStartTime.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Services/FileExplorerReveal.cs" Link="FileExplorerReveal.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../control-panel/Models/ExternalAgentAccess.cs" Link="ExternalAgentAccess.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../control-panel/Models/CommandObservationPresentation.cs" Link="CommandObservationPresentation.cs"/></ItemGroup>
 </Project>

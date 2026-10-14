@@ -87,7 +87,7 @@ func compactPublicExecutionDescriptions(properties map[string]any) {
 	setSchemaDescription(properties, "target_kind", "Workspace target kind for this call.")
 	setSchemaDescription(properties, "external_path", "Absolute one-call path when target_kind=external.")
 	setSchemaDescription(properties, "backend", "Execution backend. Android backends require a ready paired provider and never fall back.")
-	setSchemaDescription(properties, "execution_mode", "auto waits briefly then returns a session; sync waits for exit; async returns immediately.")
+	setSchemaDescription(properties, "execution_mode", "auto waits up to 10s then returns a session; sync waits for exit; async returns immediately.")
 	setSchemaDescription(properties, "skill", "Installed Skill name or exact reference; explicit workdir takes priority.")
 	setSchemaDescription(properties, "skill_env", "Optional isolated Skill environment.")
 	setSchemaDescription(properties, "skill_ref", "Exact Skill reference from AgentDock context; uses its resolved root and managed environment.")

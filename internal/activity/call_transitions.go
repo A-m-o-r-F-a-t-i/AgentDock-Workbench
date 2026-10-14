@@ -69,6 +69,7 @@ func (p *callProjection) applyCallBinding(call *ExecutionCall, event Event, id s
 
 // Runtime facts do not independently advance the call lifecycle.
 func applyCallExecutionFacts(call *ExecutionCall, event Event) {
+	applyCommandObservation(call, event)
 	if event.ParameterSummary != "" {
 		call.ParameterSummary = event.ParameterSummary
 	}

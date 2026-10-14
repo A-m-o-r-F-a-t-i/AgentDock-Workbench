@@ -28,7 +28,10 @@
               <Style.Triggers><DataTrigger Binding="{Binding Status}" Value="failed"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/></DataTrigger><DataTrigger Binding="{Binding NeedsApproval}" Value="True"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/></DataTrigger></Style.Triggers>
             </Style></TextBlock.Style>
           </TextBlock>
-          <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center" Margin="7,0,14,0"/>
+          <DockPanel Grid.Column="1" Margin="7,0,14,0" VerticalAlignment="Center">
+            <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
+            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
+          </DockPanel>
 		  <ContentControl Grid.Column="2" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>
           <TextBlock Grid.Column="3" Text="{Binding Duration}" Style="{StaticResource MutedText}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,8,0" ToolTip="{Binding TimingDetails}"/>
           <TextBlock Grid.Column="4" Width="78" Text="{Binding When}" Style="{StaticResource MutedText}" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" Visibility="{Binding ShowTimestamps, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVisibility}}"/>
@@ -37,7 +40,10 @@
       <DataTemplate x:Key="DetailedCallRowTemplate">
         <Grid Height="{StaticResource ExecutionRowHeight}" Margin="6,0">
 		  <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="112"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="56"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center" Margin="8,0"/>
+          <DockPanel Margin="8,0" VerticalAlignment="Center">
+            <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
+            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
+          </DockPanel>
 		  <ContentControl Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>
           <TextBlock Grid.Column="2" Width="84" Text="{Binding Started}" FontSize="12" VerticalAlignment="Center" Visibility="{Binding ShowTimestamps, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVisibility}}"/>
           <TextBlock Grid.Column="3" Text="{Binding State}" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding State}" VerticalAlignment="Center"/>
