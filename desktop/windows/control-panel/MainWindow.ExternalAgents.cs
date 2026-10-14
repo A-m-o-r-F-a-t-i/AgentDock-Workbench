@@ -112,11 +112,20 @@ public partial class MainWindow
                 return;
             }
 
+            var authMode = ExternalAgentAccess.ParseAuthMode(_snapshot?.ExternalAgentAuthMode);
+            var authenticationInstruction = authMode switch
+            {
+                ExternalAgentAuthMode.OAuth => UiText.Get("ExternalAgentAuthPromptOAuth"),
+                ExternalAgentAuthMode.None => UiText.Get("ExternalAgentAuthPromptNone"),
+                _ => UiText.Get("ExternalAgentAuthPromptBearer"),
+            };
             ExternalAgentEndpointTextBox.Text = endpoint;
             ExternalAgentConfigurationTextBox.Text = ExternalAgentAccess.BuildConfiguration(
                 SelectedExternalAgentClient(),
                 endpoint,
-                UiText.Get("ExternalAgentSetupPromptTemplate"));
+                authMode,
+                UiText.Get("ExternalAgentSetupPromptTemplate"),
+                authenticationInstruction);
             CopyExternalAgentEndpointButton.IsEnabled = true;
             CopyExternalAgentConfigurationButton.IsEnabled = true;
             SetExternalAgentStatus(UiText.Get("ExternalAgentEndpointReady"), isError: false);

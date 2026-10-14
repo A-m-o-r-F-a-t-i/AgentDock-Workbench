@@ -129,7 +129,7 @@ final class ExternalAgentAccessWindowController: NSWindowController, NSWindowDel
         actionSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         actionSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let actionRow = horizontalStack([copyConfigurationButton, refreshButton, actionSpacer])
-        let securityNote = wrappedLabel(L10n.text("Generated configuration contains no credentials. OAuth is preferred. Clients without OAuth should keep the existing Bearer credential in an environment variable or secret manager. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply."))
+        let securityNote = wrappedLabel(L10n.text("Generated configuration contains no actual credential. OAuth uses client discovery; Bearer configurations reference AGENTDOCK_MCP_BEARER. AgentDock permissions, approvals, workspace boundaries, and activity records continue to apply."))
         securityNote.textColor = .secondaryLabelColor
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.lineBreakMode = .byWordWrapping
@@ -207,14 +207,30 @@ final class ExternalAgentAccessWindowController: NSWindowController, NSWindowDel
 
         endpointField.stringValue = endpoint
         let client = ExternalAgentClientKind(rawValue: clientPopup.indexOfSelectedItem) ?? .codex
+        let runtimeConfiguration = serviceStatus.configuration
+        let authMode = ExternalAgentAccess.authMode(
+            oauthEnabled: runtimeConfiguration?.oauthEnabled == true,
+            authRequired: runtimeConfiguration?.authRequired == true
+        )
+        let authenticationInstruction: String
+        switch authMode {
+        case .oauth:
+            authenticationInstruction = L10n.text("Use the server OAuth discovery flow and complete interactive authorization when requested.")
+        case .bearer:
+            authenticationInstruction = L10n.text("Read the existing AgentDock bearer credential from a secret store or the AGENTDOCK_MCP_BEARER environment variable; never embed it in prompts or source files.")
+        case .none:
+            authenticationInstruction = L10n.text("No authentication is required for this loopback endpoint.")
+        }
         do {
             configurationTextView.string = try ExternalAgentAccess.configuration(
                 for: client,
                 endpoint: endpoint,
-                agentSetupPromptTemplate: L10n.text("Connect to AgentDock Workbench through the Streamable HTTP MCP server at %@. Register it as \"agentdock\" and prefer OAuth discovery. After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files."))
+                authMode: authMode,
+                agentSetupPromptTemplate: L10n.text("Connect to AgentDock Workbench through the Streamable HTTP MCP server at %@. Register it as \"agentdock\". %@ After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files."),
+                authenticationInstruction: authenticationInstruction)
             copyEndpointButton.isEnabled = true
             copyConfigurationButton.isEnabled = true
-            setStatus(L10n.text("Ready · OAuth discovery and existing AgentDock permission controls apply."), isError: false)
+            setStatus(L10n.text("Ready · the generated configuration matches the current AgentDock authentication and permission controls."), isError: false)
         } catch {
             configurationTextView.string = L10n.text("A valid AgentDock HTTP(S) MCP endpoint ending in /mcp is required.")
             copyEndpointButton.isEnabled = false
