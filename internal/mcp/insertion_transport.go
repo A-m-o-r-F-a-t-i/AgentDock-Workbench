@@ -34,6 +34,7 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 		return invocationFailure(nil, invocationError(ctx, "host_validation", "context commit callback requires negotiated acknowledgement", nil))
 	}
 	ctx = app.WithInsertionTransport(ctx, host)
+	ctx = withContextRevisionRequest(ctx, name, args)
 	ctx, pending := app.BeginToolResponse(ctx)
 	defer s.runtime.FinishToolResponse(ctx, pending, false)
 	result, toolErr := s.runtime.Call(ctx, name, args)

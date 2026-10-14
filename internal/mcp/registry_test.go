@@ -114,8 +114,8 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	for _, key := range []string{"conversation_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "retry_of_call_id"} {
 		delete(businessProps, key)
 	}
-	if len(businessProps) != 1 || inputProps["workdir"] == nil {
-		t.Fatalf("agentdock_context should expose only the optional request-local workdir selector: %#v", inputProps)
+	if len(businessProps) != 2 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil {
+		t.Fatalf("agentdock_context should expose only workdir and known_context_revision: %#v", inputProps)
 	}
 	if required, _ := inputSchema("agentdock_context")["required"].([]string); len(required) != 0 {
 		t.Fatalf("agentdock_context must still accept empty arguments: %#v", required)
@@ -125,7 +125,7 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	if !ok {
 		t.Fatal("agentdock_context output schema properties missing")
 	}
-	for _, name := range []string{"runtime", "skills", "dynamic_mcp", "acp", "workflow_templates", "recall", "rules", "warnings", "instruction_files"} {
+	for _, name := range []string{"runtime", "skills", "dynamic_mcp", "acp", "workflow_templates", "recall", "rules", "warnings", "instruction_files", "context_revision"} {
 		if _, ok := outputProps[name]; !ok {
 			t.Fatalf("agentdock_context output schema missing %q: %#v", name, outputProps)
 		}
@@ -140,7 +140,7 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	success := alternatives[0].(map[string]any)
 	required, ok := success["required"].([]string)
 	if !ok || !reflect.DeepEqual(required, []string{"runtime", "skills", "dynamic_mcp", "workflow_templates", "rules"}) {
-		t.Fatalf("agentdock_context output schema required = %#v", output["required"])
+		t.Fatalf("agentdock_context output schema required = %#v", success["required"])
 	}
 }
 

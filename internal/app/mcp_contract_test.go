@@ -43,10 +43,12 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			// Standalone AgentDock adds only optional local context fields. Compare
 			// every remaining field against the unchanged shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
+			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "instruction_files")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "workspace")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_revision")
 			if bundles := actualOutput["properties"].(map[string]any)["builtin_tool_bundles"]; !reflect.DeepEqual(bundles, builtinToolBundleIndexSchema()) {
 				t.Fatalf("built-in tool bundle schema drifted: %#v", bundles)
 			}
