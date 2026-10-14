@@ -79,7 +79,7 @@ func TestWindowsInstallerWorkflowHasAlwaysPresentPullRequestGate(t *testing.T) {
 		"timeout-minutes: 30",
 		"name: Upgrade v${{ matrix.baseline }} release Setup",
 		"- '1.1.0'",
-		"- '1.1.9'",
+		"- '1.1.8'",
 		"test-windows-release-setup-upgrade.ps1",
 		"windows-history-current-setup",
 		"name: Windows Installer gate",
