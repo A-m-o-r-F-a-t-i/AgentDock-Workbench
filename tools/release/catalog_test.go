@@ -9,24 +9,28 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
+func TestReleaseCatalogPublishesOnlyInstallersAndRuntimeAttachments(t *testing.T) {
 	catalog := ReleaseCatalog()
+	androidCoreStem := "AgentDock-Workbench-" + buildinfo.Version + "-Android-Core-arm64"
 	expected := map[string]bool{
-		"AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk": false,
-		"AgentDock-macos-universal.dmg":                                         false,
-		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":               false,
-		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":               false,
-		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":            false,
-		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm":           false,
-		"AgentDockSetup-amd64.exe":                                              false,
-		"AgentDockSetup-arm64.exe":                                              false,
+		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":   false,
+		androidCoreStem + ".tar.gz":                                   false,
+		androidCoreStem + ".manifest.json":                            false,
+		androidCoreStem + ".manifest.sig":                             false,
+		"AgentDock-macos-universal.dmg":                               false,
+		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":     false,
+		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":     false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":  false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm": false,
+		"AgentDockSetup-amd64.exe":                                    false,
+		"AgentDockSetup-arm64.exe":                                    false,
 	}
 	for _, artifact := range catalog {
 		if !artifact.PublicContract {
 			continue
 		}
 		if strings.HasSuffix(artifact.Name, ".sha256") || artifact.Kind == "checksum" || artifact.Kind == "bootstrap" || artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update" {
-			t.Fatalf("non-installer exposed as public Release contract: %+v", artifact)
+			t.Fatalf("internal-only artifact exposed as public Release contract: %+v", artifact)
 		}
 		if _, ok := expected[artifact.Name]; !ok {
 			t.Fatalf("unexpected public Release installer: %s", artifact.Name)
@@ -36,6 +40,38 @@ func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
 	for name, seen := range expected {
 		if !seen {
 			t.Fatalf("public Release installer missing: %s", name)
+		}
+	}
+}
+
+func TestReleaseCatalogUsesStableAndroidReleaseIdentities(t *testing.T) {
+	stableAPK := "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk"
+	legacyAPK := "AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk"
+	androidCoreStem := "AgentDock-Workbench-" + buildinfo.Version + "-Android-Core-arm64"
+	expected := map[string]bool{
+		stableAPK:                                 false,
+		stableAPK + ".sha256":                     false,
+		androidCoreStem + ".tar.gz":               false,
+		androidCoreStem + ".tar.gz.sha256":        false,
+		androidCoreStem + ".manifest.json":        false,
+		androidCoreStem + ".manifest.json.sha256": false,
+		androidCoreStem + ".manifest.sig":         false,
+		androidCoreStem + ".manifest.sig.sha256":  false,
+	}
+	for _, artifact := range ReleaseCatalog() {
+		if artifact.Name == legacyAPK || artifact.Name == legacyAPK+".sha256" {
+			t.Fatalf("historical test-signed APK remains in the release catalog: %s", artifact.Name)
+		}
+		if _, ok := expected[artifact.Name]; ok {
+			if !artifact.Required {
+				t.Fatalf("Android release artifact is optional: %+v", artifact)
+			}
+			expected[artifact.Name] = true
+		}
+	}
+	for name, seen := range expected {
+		if !seen {
+			t.Fatalf("Android release artifact missing: %s", name)
 		}
 	}
 }

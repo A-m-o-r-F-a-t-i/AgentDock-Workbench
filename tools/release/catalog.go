@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/uvwt/agentdock/internal/buildinfo"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-// Artifact 描述完整验证目录中的跨平台资产。PublicContract 仅标记公开 Release 中面向用户的安装包。
-// 内部归档、安装脚本、清单和 checksum 可继续用于构建与验收，但不作为公开下载项。
+// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 中的安装包
+// 及 Android 运行时交付附件；内部归档、安装脚本和 checksum 仅用于构建与验收。
 type Artifact struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
@@ -53,8 +54,12 @@ func verifyDist(dir string, stdout io.Writer) error {
 }
 
 func ReleaseCatalog() []Artifact {
-	archives := []Artifact{
-		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
+	androidCoreStem := "AgentDock-Workbench-" + buildinfo.Version + "-Android-Core-arm64"
+	payloads := []Artifact{
+		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: androidCoreStem + ".tar.gz", Kind: "android-runtime", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: androidCoreStem + ".manifest.json", Kind: "deployment-manifest", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: androidCoreStem + ".manifest.sig", Kind: "deployment-signature", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
 		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true},
 		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true},
 		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true},
@@ -75,8 +80,8 @@ func ReleaseCatalog() []Artifact {
 		{Name: "install.ps1", Kind: "bootstrap", Platform: "windows", Required: true},
 	}
 	var catalog []Artifact
-	catalog = append(catalog, archives...)
-	for _, artifact := range archives {
+	catalog = append(catalog, payloads...)
+	for _, artifact := range payloads {
 		catalog = append(catalog, Artifact{
 			Name:     artifact.Name + ".sha256",
 			Kind:     "checksum",
