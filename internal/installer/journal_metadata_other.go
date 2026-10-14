@@ -28,8 +28,27 @@ func applyBackupNativeMetadataVersion(_ string, _ *backupNativeMetadata, version
 	return nil
 }
 func backupNativeMetadataSize(*backupNativeMetadata) int { return 0 }
-func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+func canonicalBackupNativeMetadataVersion(value *backupNativeMetadata, version int) (*backupNativeMetadata, error) {
+	if !backupNativeMetadataSupported(version) {
+		return nil, fmt.Errorf("unsupported backup metadata version %d", version)
+	}
 	return value, nil
 }
-func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool        { return a == b }
-func backupNativeMetadataDifference(a, b *backupNativeMetadata) string { return "metadata mismatch" }
+func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+	return canonicalBackupNativeMetadataVersion(value, backupNativeMetadataVersion)
+}
+func equalBackupNativeMetadataVersion(a, b *backupNativeMetadata, version int) bool {
+	return backupNativeMetadataSupported(version) && a == b
+}
+func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
+	return equalBackupNativeMetadataVersion(a, b, backupNativeMetadataVersion)
+}
+func backupNativeMetadataDifferenceVersion(a, b *backupNativeMetadata, version int) string {
+	if !backupNativeMetadataSupported(version) {
+		return fmt.Sprintf("unsupported backup metadata version %d", version)
+	}
+	return "metadata mismatch"
+}
+func backupNativeMetadataDifference(a, b *backupNativeMetadata) string {
+	return backupNativeMetadataDifferenceVersion(a, b, backupNativeMetadataVersion)
+}

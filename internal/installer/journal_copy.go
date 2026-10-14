@@ -71,8 +71,8 @@ func copyBackupTreeVersion(ctx context.Context, source, destination string, sour
 	}
 	var nativeChanges []metadataChange
 	metadataBytes := 0
-	writeRecord := func(writer io.Writer, relative string, mode fs.FileMode, directory bool, size int64, digest string, native *backupNativeMetadata) error {
-		canonicalNative, err := canonicalBackupNativeMetadata(native)
+	writeRecord := func(writer io.Writer, relative string, mode fs.FileMode, directory bool, size int64, digest string, native *backupNativeMetadata, nativeVersion int) error {
+		canonicalNative, err := canonicalBackupNativeMetadataVersion(native, nativeVersion)
 		if err != nil {
 			return fmt.Errorf("canonicalize backup metadata for %s: %w", relative, err)
 		}
@@ -157,11 +157,11 @@ func copyBackupTreeVersion(ctx context.Context, source, destination string, sour
 			bytes += size
 		}
 		// JSON escapes path separators/control characters unambiguously.
-		if err := writeRecord(sourceHash, relative, info.Mode(), info.IsDir(), size, digest, sourceNative); err != nil {
+		if err := writeRecord(sourceHash, relative, info.Mode(), info.IsDir(), size, digest, sourceNative, sourceNativeVersion); err != nil {
 			return err
 		}
 		if destination != "" {
-			if err := writeRecord(destinationHash, relative, info.Mode(), info.IsDir(), size, digest, destinationNative); err != nil {
+			if err := writeRecord(destinationHash, relative, info.Mode(), info.IsDir(), size, digest, destinationNative, destinationNativeVersion); err != nil {
 				return err
 			}
 		}
@@ -189,8 +189,8 @@ func copyBackupTreeVersion(ctx context.Context, source, destination string, sour
 	}
 	for _, change := range nativeChanges {
 		actual, err := readBackupNativeMetadataVersion(change.path, destinationNativeVersion)
-		if err != nil || !equalBackupNativeMetadata(actual, change.metadata) {
-			return "", "", fmt.Errorf("native backup metadata was not preserved: %s: %w", change.path, errors.Join(err, errors.New(backupNativeMetadataDifference(actual, change.metadata))))
+		if err != nil || !equalBackupNativeMetadataVersion(actual, change.metadata, destinationNativeVersion) {
+			return "", "", fmt.Errorf("native backup metadata was not preserved: %s: %w", change.path, errors.Join(err, errors.New(backupNativeMetadataDifferenceVersion(actual, change.metadata, destinationNativeVersion))))
 		}
 	}
 	destinationDigest := ""
