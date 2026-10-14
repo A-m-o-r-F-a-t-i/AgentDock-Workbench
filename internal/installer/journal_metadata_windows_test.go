@@ -92,8 +92,27 @@ func TestWindowsSnapshotDoesNotRequireForeignOwnerAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if backupOwner == nil || !backupOwner.Equals(current.User.Sid) {
-		t.Fatalf("snapshot assigned the foreign source owner: source=%v backup=%v current=%v", owner, backupOwner, current.User.Sid)
+	if backupOwner == nil || backupOwner.Equals(owner) {
+		t.Fatalf("snapshot assigned the foreign source owner: source=%v backup=%v", owner, backupOwner)
+	}
+	controlPath := filepath.Join(filepath.Dir(j.Backups[0].Backup), "owner-control")
+	if err = os.WriteFile(controlPath, []byte("control"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	controlMetadata, err := readBackupNativeMetadataVersion(controlPath, backupNativeMetadataOwnerVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controlDescriptor, err := windows.SecurityDescriptorFromString(controlMetadata.Security)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controlOwner, _, err := controlDescriptor.Owner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if controlOwner == nil || !backupOwner.Equals(controlOwner) {
+		t.Fatalf("snapshot changed the staging identity: backup=%v sibling=%v current=%v", backupOwner, controlOwner, current.User.Sid)
 	}
 }
 
@@ -172,6 +191,63 @@ func TestWindowsBackupMetadataCanonicalizationIgnoresACLSlack(t *testing.T) {
 	}
 	if *canonical != *canonicalPadded {
 		t.Fatalf("canonical metadata changed with ACL slack: %#v %#v", canonical, canonicalPadded)
+	}
+}
+
+func TestWindowsBackupMetadataCanonicalizationIgnoresIncidentalIdentity(t *testing.T) {
+	nativeBackupTest(t)
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte("settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := readBackupNativeMetadata(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, decodedStorage, err := decodeBackupSecurityDescriptor(metadata.Security, backupNativeMetadataVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	daclOnly, daclStorage, err := backupDACLOnlySecurityDescriptor(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	daclEncoded, err := encodeBackupSecurityDescriptor(daclOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withIdentity, identityStorage, err := backupSecurityWithTargetIdentity(path, decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identityEncoded, err := encodeBackupSecurityDescriptor(withIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.KeepAlive(identityStorage)
+	runtime.KeepAlive(daclStorage)
+	runtime.KeepAlive(decodedStorage)
+	if daclEncoded == identityEncoded {
+		t.Fatal("fixture did not add incidental owner and group fields")
+	}
+
+	daclMetadata := *metadata
+	daclMetadata.Security = daclEncoded
+	identityMetadata := *metadata
+	identityMetadata.Security = identityEncoded
+	canonicalDACL, err := canonicalBackupNativeMetadata(&daclMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalIdentity, err := canonicalBackupNativeMetadata(&identityMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(canonicalIdentity.Security, "O:") || strings.Contains(canonicalIdentity.Security, "G:") {
+		t.Fatalf("canonical metadata retained incidental identity: %q", canonicalIdentity.Security)
+	}
+	if *canonicalDACL != *canonicalIdentity || !equalBackupNativeMetadata(&daclMetadata, &identityMetadata) {
+		t.Fatalf("incidental identity changed semantic metadata: %s", backupNativeMetadataDifference(&daclMetadata, &identityMetadata))
 	}
 }
 

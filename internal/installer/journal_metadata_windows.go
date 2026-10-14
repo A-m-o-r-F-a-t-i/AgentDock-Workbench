@@ -358,10 +358,11 @@ func backupNativeMetadataSize(value *backupNativeMetadata) int {
 	return len(value.Security) + 4
 }
 
-// canonicalBackupNativeMetadata removes self-relative descriptor padding from
-// integrity records without changing the binary descriptor used for restore.
-// Windows can rebuild equivalent ACLs with different unused bytes, while SDDL
-// remains a stable representation of the DACL and its inheritance controls.
+// canonicalBackupNativeMetadata projects current binary metadata to the DACL
+// that the backup contract actually preserves. GetNamedSecurityInfo may return
+// incidental owner/group fields even when only DACL information was requested,
+// and equivalent ACLs may contain different unused bytes. A minimal DACL-only
+// descriptor removes both sources of instability without changing restore data.
 func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
 	if value == nil {
 		return nil, nil
@@ -374,12 +375,65 @@ func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMe
 	if err != nil {
 		return nil, err
 	}
-	canonical.Security = security.String()
+	daclOnly, daclStorage, err := backupDACLOnlySecurityDescriptor(security)
+	if err != nil {
+		return nil, err
+	}
+	canonical.Security = daclOnly.String()
+	runtime.KeepAlive(daclStorage)
 	runtime.KeepAlive(storage)
 	if canonical.Security == "" {
-		return nil, errors.New("could not canonicalize backup security descriptor")
+		return nil, errors.New("could not canonicalize backup DACL")
 	}
 	return &canonical, nil
+}
+
+func backupDACLOnlySecurityDescriptor(security *windows.SECURITY_DESCRIPTOR) (*windows.SECURITY_DESCRIPTOR, []uint64, error) {
+	dacl, daclDefaulted, err := security.DACL()
+	if err != nil {
+		return nil, nil, fmt.Errorf("read backup metadata DACL: %w", err)
+	}
+	if dacl == nil {
+		return nil, nil, errors.New("backup metadata has no DACL")
+	}
+	control, _, err := security.Control()
+	if err != nil {
+		return nil, nil, fmt.Errorf("read backup metadata DACL control: %w", err)
+	}
+	daclHeader := unsafe.Slice((*byte)(unsafe.Pointer(dacl)), 8)
+	daclLength := int(binary.LittleEndian.Uint16(daclHeader[2:4]))
+	if daclLength < 8 {
+		return nil, nil, fmt.Errorf("invalid backup DACL size %d", daclLength)
+	}
+	daclOffset := alignBackupSecurityOffset(backupSecurityDescriptorHeaderSize)
+	totalLength := daclOffset + daclLength
+	if totalLength < daclOffset || totalLength > 65536 {
+		return nil, nil, fmt.Errorf("canonical backup DACL descriptor is too large: %d", totalLength)
+	}
+
+	storage := make([]uint64, (totalLength+7)/8)
+	buffer := unsafe.Slice((*byte)(unsafe.Pointer(&storage[0])), totalLength)
+	buffer[0] = 1 // SECURITY_DESCRIPTOR_REVISION
+	canonicalControl := windows.SECURITY_DESCRIPTOR_CONTROL(windows.SE_SELF_RELATIVE | windows.SE_DACL_PRESENT)
+	canonicalControl |= control & backupDACLControlMask
+	if daclDefaulted {
+		canonicalControl |= windows.SE_DACL_DEFAULTED
+	} else {
+		canonicalControl &^= windows.SE_DACL_DEFAULTED
+	}
+	binary.LittleEndian.PutUint16(buffer[2:4], uint16(canonicalControl))
+	binary.LittleEndian.PutUint32(buffer[16:20], uint32(daclOffset))
+	copy(buffer[daclOffset:daclOffset+daclLength], unsafe.Slice((*byte)(unsafe.Pointer(dacl)), daclLength))
+	runtime.KeepAlive(security)
+
+	canonical := (*windows.SECURITY_DESCRIPTOR)(unsafe.Pointer(&storage[0]))
+	if !canonical.IsValid() {
+		return nil, nil, errors.New("constructed canonical backup DACL descriptor is invalid")
+	}
+	if length := int(canonical.Length()); length != totalLength {
+		return nil, nil, fmt.Errorf("canonical backup DACL descriptor length mismatch: actual=%d expected=%d", length, totalLength)
+	}
+	return canonical, storage, nil
 }
 
 func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
