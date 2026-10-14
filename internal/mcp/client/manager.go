@@ -43,6 +43,7 @@ type ExternalServerProvider func(context.Context) (map[string]ServerConfig, erro
 
 type serverState struct {
 	catalogGeneration uint64
+	clientGeneration  uint64
 	snapshot          atomic.Pointer[indexSnapshot]
 	discovered        bool
 	indexRevision     uint64
@@ -529,70 +530,11 @@ func (m *Manager) InspectTool(ctx context.Context, qualifiedName string) (string
 }
 
 func (m *Manager) Call(ctx context.Context, qualifiedName string, arguments map[string]any) (map[string]any, error) {
-	if err := m.syncRegistryContext(ctx); err != nil {
-		return nil, err
-	}
-	server, name, err := splitQualifiedToolName(qualifiedName)
-	if err != nil {
-		return nil, newError("MCP_TOOL_NAME_INVALID", err.Error(), false, map[string]any{"tool": qualifiedName}, err)
-	}
-	cfg, state, unlockState, err := m.lockServerContext(ctx, server)
+	prepared, err := m.PrepareCall(ctx, qualifiedName, arguments)
 	if err != nil {
 		return nil, err
 	}
-	defer unlockState()
-	if !cfg.Enabled {
-		return nil, newError("MCP_SERVER_DISABLED", "dynamic MCP server is disabled", false, map[string]any{"server": server}, nil)
-	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
-	defer cancel()
-	if _, approved := ctx.Value(approvedToolTargetKey{}).(string); approved {
-		resolved, targetErr := m.runtimeConfig(cfg)
-		if targetErr != nil {
-			return nil, targetErr
-		}
-		if targetErr = checkApprovedToolTarget(ctx, resolved); targetErr != nil {
-			return nil, targetErr
-		}
-	}
-	if state.client == nil || !state.discovered {
-		runtimeCfg, err := m.prepareRuntimeConfig(ctx, cfg)
-		if err != nil {
-			recordStateError(state, err)
-			return nil, err
-		}
-		if _, err := refreshStateLocked(ctx, runtimeCfg, state); err != nil {
-			return nil, err
-		}
-	}
-	if !catalogFresh(state.snapshot.Load()) {
-		if _, err := reloadCatalogLocked(ctx, cfg, state); err != nil {
-			return nil, err
-		}
-	}
-	tool, exists := state.tools[name]
-	if !exists {
-		return nil, newError("MCP_TOOL_NOT_FOUND", "MCP tool not found", false, map[string]any{"tool": qualifiedName}, nil)
-	}
-	if err := validateToolArguments(tool, arguments); err != nil {
-		return nil, err
-	}
-	observer := m.callObserver.Load()
-	dispatch := func(callCtx context.Context) (map[string]any, error) {
-		return state.client.callTool(callCtx, name, arguments)
-	}
-	var result map[string]any
-	if observer != nil {
-		result, err = observer.call(ctx, qualifiedName, dispatch)
-	} else {
-		result, err = dispatch(ctx)
-	}
-	if err != nil {
-		// 工具调用失败是请求级结果，不代表 MCP server 的连接或发现状态失效。
-		// server 的 lastError 只记录 refresh / initialize / tools/list 生命周期故障。
-		return nil, err
-	}
-	return result, nil
+	return m.CallPrepared(ctx, prepared)
 }
 
 func (m *Manager) Close() error {

@@ -8,21 +8,22 @@ import (
 )
 
 type indexSnapshot struct {
-	Tools         map[string]Tool
-	Client        protocolClient
-	Generation    uint64
-	Ready         bool
-	Known         bool
-	Count         int
-	Revision      uint64
-	Version       string
-	LastError     string
-	LastErrorCode string
-	RefreshedAt   time.Time
+	Tools            map[string]Tool
+	Client           protocolClient
+	ClientGeneration uint64
+	Generation       uint64
+	Ready            bool
+	Known            bool
+	Count            int
+	Revision         uint64
+	Version          string
+	LastError        string
+	LastErrorCode    string
+	RefreshedAt      time.Time
 }
 
 func stateSnapshotLocked(state *serverState) indexSnapshot {
-	return indexSnapshot{Tools: state.tools, Client: state.client, Generation: state.catalogGeneration, Ready: state.client != nil, Known: state.discovered, Count: len(state.tools), Revision: state.indexRevision,
+	return indexSnapshot{Tools: state.tools, Client: state.client, ClientGeneration: state.clientGeneration, Generation: state.catalogGeneration, Ready: state.client != nil, Known: state.discovered, Count: len(state.tools), Revision: state.indexRevision,
 		Version: state.serverVersion, LastError: state.lastError, LastErrorCode: state.lastErrorCode, RefreshedAt: state.refreshedAt}
 }
 func publishStateLocked(state *serverState) {
@@ -77,11 +78,16 @@ func refreshStateLocked(ctx context.Context, cfg ServerConfig, state *serverStat
 		return nil, err
 	}
 	previous := state.client
+	nextClientGeneration := state.clientGeneration + 1
+	if nextClientGeneration == 0 {
+		nextClientGeneration = 1
+	}
 	revision := state.indexRevision
 	if !state.discovered || !catalogEqual(state.tools, candidate.tools) || state.serverVersion != candidate.serverVersion {
 		revision++
 	}
 	state.client, state.tools = candidate.client, candidate.tools
+	state.clientGeneration = nextClientGeneration
 	state.discovered, state.serverVersion, state.indexRevision = true, candidate.serverVersion, revision
 	state.lastError, state.lastErrorCode = "", ""
 	state.refreshedAt = candidate.refreshedAt

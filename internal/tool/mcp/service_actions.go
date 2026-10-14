@@ -176,46 +176,39 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 }
 
 func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error) {
-	qualifiedName := request.Name
-	serverName, _, ok := strings.Cut(strings.TrimSpace(qualifiedName), ":")
-	if !ok || strings.TrimSpace(serverName) == "" {
-		return nil, toolErrorDetails("MCP_TOOL_NAME_INVALID", "MCP tool name must use <server>:<tool>", "validation", map[string]any{"tool": qualifiedName})
-	}
-	if err := s.ensureAvailable(serverName); err != nil {
+	validated, err := s.validateCallRequest(request)
+	if err != nil {
 		return nil, err
 	}
-	pluginName := s.pluginName(serverName)
-	if capabilityrouting.RequiresDesktopGUIIntent(pluginName, qualifiedName) && !capabilityrouting.ValidDesktopGUIIntent(request.InteractionIntent, request.Reason) {
-		return nil, toolErrorDetails(
-			"MCP_EXPLICIT_INTENT_REQUIRED",
-			"Computer Use calls require an explicit desktop GUI intent and a concrete user-task reason",
-			"validation",
-			map[string]any{
-				"tool": qualifiedName, "plugin": pluginName,
-				"required": map[string]any{"interaction_intent": capabilityrouting.DesktopGUIIntent, "reason": "specific user-task reason"},
-			},
-		)
+	var result map[string]any
+	if prepared := preparedCallFromContext(ctx); prepared != nil {
+		if !preparedCallMatches(prepared, validated) {
+			err = preparedCallMismatch(validated)
+		} else {
+			result, err = s.mcpClients.CallPrepared(ctx, prepared.client)
+		}
+	} else {
+		result, err = s.mcpClients.Call(ctx, validated.qualifiedName, validated.arguments)
 	}
-	arguments := request.Arguments
-	if arguments == nil {
-		arguments = map[string]any{}
-	}
-	result, err := s.mcpClients.Call(ctx, qualifiedName, arguments)
-	catalog, catalogErr := s.mcpClients.CachedSummary(serverName)
+	catalog, catalogErr := s.mcpClients.CachedSummary(validated.serverName)
 	if catalogErr == nil {
-		s.decorateCatalogSummary(pluginName, serverName, catalog)
+		s.decorateCatalogSummary(validated.pluginName, validated.serverName, catalog)
 	}
 	if catalogErr != nil {
-		catalog = map[string]any{"server": serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
+		catalog = map[string]any{"server": validated.serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
 	catalog = s.catalogDeliveries.prepare(ctx, catalog)
-	response := Result{"name": qualifiedName, "mcp_catalog": catalog}
+	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
 	if result != nil {
 		response["result"] = result
 	}
 	if err != nil {
+		if errorReportsNotExecuted(err) {
+			response["executed"] = false
+		}
 		return response, dynamicMCPToolError(err)
 	}
+	response["executed"] = true
 	return response, nil
 }
 
