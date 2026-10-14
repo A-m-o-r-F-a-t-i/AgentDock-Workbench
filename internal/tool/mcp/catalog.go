@@ -20,7 +20,8 @@ func (s *Service) List(ctx context.Context, request ListRequest) (Result, error)
 	if err != nil {
 		return nil, dynamicMCPToolError(err)
 	}
-	return s.catalogResult(catalog, true), nil
+	result := s.catalogResult(catalog, true)
+	return Result(s.catalogDeliveries.prepare(ctx, result, request.ForceFull)), nil
 }
 
 func (s *Service) catalogResult(catalog mcpclient.Catalog, fresh bool) Result {
@@ -113,6 +114,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	tools := []map[string]any{}
 	catalogs := []map[string]any{}
 	problems := invalid
+	fullSchemas, schemaReferences := 0, 0
 	var singleError error
 	for _, server := range servers {
 		value := results[server]
@@ -179,8 +181,14 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			if tool.Annotations != nil {
 				entry["annotations"] = tool.Annotations
 			}
-			if len(tool.StandardMetadata) > 0 {
-				entry["metadata"] = tool.StandardMetadata
+			if metadata := projectToolMetadata(tool.StandardMetadata); len(metadata) > 0 {
+				entry["metadata"] = metadata
+			}
+			entry = s.schemaDeliveries.prepare(ctx, entry, request.ForceFull)
+			if entry["delivery"] == "reference" {
+				schemaReferences++
+			} else {
+				fullSchemas++
 			}
 			tools = append(tools, entry)
 		}
@@ -214,6 +222,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		"tools": tools, "count": len(tools), "total": len(tools),
 		"complete": len(problems) == 0, "errors": problems, "catalogs": catalogs,
 		"builtin_match_count": len(builtins), "dynamic_match_count": len(tools),
+		"schema_full_count": fullSchemas, "schema_reference_count": schemaReferences,
 	}
 	if len(builtins) == 0 {
 		result["route_kind"] = routeKindDynamicMCP

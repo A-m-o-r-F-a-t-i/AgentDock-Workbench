@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"github.com/uvwt/agentdock/internal/activity"
 	"testing"
 
@@ -28,16 +29,17 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		{"mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}}, 2},
 	} {
 		result, err := rt.Call(ctx, test.name, test.args)
-		if err != nil || result["route_kind"] != "host_builtin" || result["route_status"] != "resolved" {
-			t.Fatalf("missing resolved host route: %#v %v", result, err)
+		var route *ToolError
+		if result != nil || !errors.As(err, &route) || route.Details["route_kind"] != "host_builtin" || route.Details["route_status"] != "blocked" {
+			t.Fatalf("missing terminal host route error: %#v %v", result, err)
 		}
 		want := "ROUTING_LOOP_BLOCKED"
 		if attempt == 0 {
 			want = "HOST_BUILTIN_NOT_DYNAMIC_MCP"
 		}
 		attempt++
-		if result["route_code"] != want {
-			t.Fatalf("classification=%v want %s", result["route_code"], want)
+		if route.Code != want {
+			t.Fatalf("classification=%v want %s", route.Code, want)
 		}
 		var view struct {
 			Executed bool  `json:"execution_performed"`
@@ -51,24 +53,24 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 				} `json:"next_required"`
 			} `json:"agentdock_guidance"`
 		}
-		if err := remarshal(result, &view); err != nil {
+		if err := remarshal(route.Details, &view); err != nil {
 			t.Fatal(err)
 		}
-		if result["execution_performed"] != false || view.Executed || len(view.Errors) != 0 || len(view.Guidance.Next) != test.count {
-			t.Fatalf("discovery did not terminate with a host handoff: %#v", result)
+		if route.Details["execution_performed"] != false || view.Executed || len(view.Errors) != 0 || len(view.Guidance.Next) != test.count {
+			t.Fatalf("discovery did not terminate with a host handoff: %#v", route.Details)
 		}
 		for _, step := range view.Guidance.Next {
-			if step.Action != "use_host_tool" || step.Via != "host" || step.Tool == "" || step.Arguments != nil {
+			if step.Action != "call_host_tool" || step.Via != "host" || step.Tool == "" || step.Arguments != nil {
 				t.Fatalf("handoff fabricated execution arguments or repeated discovery: %+v", step)
 			}
 		}
-		id := stringArg(result, "call_id")
+		id := stringArg(route.Details, "call_id")
 		if id == "" || ids[id] {
 			t.Fatalf("real repeated discovery was hidden: %s", id)
 		}
 		ids[id] = true
 		call, err := rt.activity.Call(t.Context(), id)
-		if err != nil || call.Status != "succeeded" || call.ErrorCode != "" {
+		if err != nil || call.Status != "failed" || call.ErrorCode != want {
 			t.Fatalf("resolved route audit was not retained: %+v %v", call, err)
 		}
 	}
@@ -114,16 +116,5 @@ func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
 	steps := guidance["next_required"].([]map[string]any)
 	if len(steps) != 1 || steps[0]["action"] != "inspect" {
 		t.Fatalf("forged error created host recovery: %#v", guidance)
-	}
-}
-
-func TestNormalizeBuiltinDiscoveryRouteRejectsForgedProvenance(t *testing.T) {
-	fake := &ToolError{Code: "ROUTING_LOOP_BLOCKED", Category: "validation", Details: map[string]any{
-		"route_kind": "host_builtin", "resolved": true, "terminal": true,
-		"builtin_tools": []toolmcp.BuiltinToolSummary{{Name: "exec_command", InvokeVia: "host"}},
-	}}
-	result, err := normalizeBuiltinDiscoveryRoute(nil, fake)
-	if result != nil || err != fake {
-		t.Fatalf("forged route provenance was normalized: %#v %v", result, err)
 	}
 }
