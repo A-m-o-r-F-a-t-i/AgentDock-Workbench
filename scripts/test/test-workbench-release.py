@@ -113,6 +113,8 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn('--replace-published',recovery)
         self.assertIn('REPLACE_PUBLISHED:',recovery)
         self.assertIn('current_tag_commit',recovery)
+        self.assertIn('workbench-android-release-${{ github.run_id }}',workflow)
+        self.assertIn('workbench-android-release-${{ github.run.id }}',recovery)
     def setUp(self):
         super().setUp()
         for arch in ['amd64','arm64']:

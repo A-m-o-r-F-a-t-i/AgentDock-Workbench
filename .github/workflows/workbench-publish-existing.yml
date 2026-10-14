@@ -153,6 +153,13 @@ jobs:
             yes | "$sdkmanager" "build-tools;37.0.0" >/dev/null
           fi
           python3 verified-source/scripts/release/sign-android-release.py --input input --output input/android-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/release-signing.json
+      - name: Preserve stable Android signing evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: workbench-android-release-${{ github.run.id }}
+          path: input/android-release/*
+          if-no-files-found: error
+          retention-days: 30
       - name: Sign verified Android Core release
         env:
           ANDROID_CORE_RELEASE_PRIVATE_KEY_B64: ${{ secrets.ANDROID_CORE_RELEASE_PRIVATE_KEY_B64 }}
