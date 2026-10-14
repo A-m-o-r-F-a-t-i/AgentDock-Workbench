@@ -163,7 +163,9 @@ func TestAgentToolsMutationPreservesFinalOutput(t *testing.T) {
 				t.Fatalf("mutation consumed output before status: %#v", observed)
 			}
 			again, err := svc.Observe(SessionObserveRequest{Action: "status", SessionID: s.ID})
-			if err != nil || again["stdout"] != "" || again["stderr"] != "" {
+			stdout, _ := again["stdout"].(string)
+			stderr, _ := again["stderr"].(string)
+			if err != nil || stdout != "" || stderr != "" {
 				t.Fatalf("status no longer consumes output deltas: %#v %v", again, err)
 			}
 		})

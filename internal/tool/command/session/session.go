@@ -94,6 +94,10 @@ type Snapshot struct {
 	StderrOutputLines    int
 	StdoutTruncated      bool
 	StderrTruncated      bool
+	StdoutOffsetBytes    int
+	StderrOffsetBytes    int
+	StdoutNextOffset     int
+	StderrNextOffset     int
 	Completed            bool
 	CompletedAt          time.Time
 	OutcomeUnknown       bool
@@ -566,6 +570,8 @@ func (s *Session) Peek(status string, maxBytes int) Snapshot {
 func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	stdoutOffset := s.stdoutDroppedBytes + s.stdoutCursor
+	stderrOffset := s.stderrDroppedBytes + s.stderrCursor
 	stdout, stdoutAvailable := s.stdout.stringFrom(s.stdoutCursor, maxBytes)
 	stderr, stderrAvailable := s.stderr.stringFrom(s.stderrCursor, maxBytes)
 	if advance {
@@ -590,9 +596,11 @@ func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 		StdoutDroppedBytes: s.stdoutDroppedBytes, StderrDroppedBytes: s.stderrDroppedBytes,
 		StdoutOmittedBytes: stdoutAvailable - len(stdout), StderrOmittedBytes: stderrAvailable - len(stderr),
 		StdoutOutputLines: countLines(stdout), StderrOutputLines: countLines(stderr),
-		StdoutTruncated: maxBytes > 0 && stdoutAvailable > maxBytes,
-		StderrTruncated: maxBytes > 0 && stderrAvailable > maxBytes,
-		Completed:       s.completed, CompletedAt: s.FinishedAt, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
+		StdoutTruncated:   maxBytes > 0 && stdoutAvailable > maxBytes,
+		StderrTruncated:   maxBytes > 0 && stderrAvailable > maxBytes,
+		StdoutOffsetBytes: stdoutOffset, StderrOffsetBytes: stderrOffset,
+		StdoutNextOffset: stdoutOffset + len(stdout), StderrNextOffset: stderrOffset + len(stderr),
+		Completed: s.completed, CompletedAt: s.FinishedAt, ExitCode: s.exitCode, OutcomeUnknown: s.outcomeUnknown,
 		CommandOK: s.completed && s.exitCode == 0 && s.waitErr == nil && !s.TimedOut && !s.terminationRequested,
 		Runtime:   s.execution.Runtime, WSLDistribution: s.execution.Distribution, Workdir: s.execution.Workdir,
 	}

@@ -293,14 +293,20 @@ func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) 
 func snapshotResult(snapshot session.Snapshot) Result {
 	result := Result{
 		"session_id": snapshot.SessionID, "status": snapshot.Status,
-		"stdout": snapshot.Stdout, "stderr": snapshot.Stderr,
-		"elapsed_ms": snapshot.ElapsedMS, "timed_out": snapshot.TimedOut, "terminal": snapshot.Terminal,
-		"stdout_output_bytes": snapshot.StdoutOutputBytes, "stderr_output_bytes": snapshot.StderrOutputBytes,
-		"stdout_total_bytes": snapshot.StdoutTotalBytes, "stderr_total_bytes": snapshot.StderrTotalBytes,
-		"stdout_dropped_bytes": snapshot.StdoutDroppedBytes, "stderr_dropped_bytes": snapshot.StderrDroppedBytes,
-		"stdout_omitted_bytes": snapshot.StdoutOmittedBytes, "stderr_omitted_bytes": snapshot.StderrOmittedBytes,
-		"stdout_output_lines": snapshot.StdoutOutputLines, "stderr_output_lines": snapshot.StderrOutputLines,
-		"stdout_truncated": snapshot.StdoutTruncated, "stderr_truncated": snapshot.StderrTruncated,
+		"elapsed_ms": snapshot.ElapsedMS, "terminal": snapshot.Terminal,
+		"source_complete":      snapshot.StdoutDroppedBytes == 0 && snapshot.StderrDroppedBytes == 0,
+		"displayed_bytes":      snapshot.StdoutOutputBytes + snapshot.StderrOutputBytes,
+		"total_output_bytes":   snapshot.StdoutTotalBytes + snapshot.StderrTotalBytes,
+		"retained_bytes":       max(0, snapshot.StdoutTotalBytes-snapshot.StdoutDroppedBytes) + max(0, snapshot.StderrTotalBytes-snapshot.StderrDroppedBytes),
+		"dropped_before_bytes": snapshot.StdoutDroppedBytes + snapshot.StderrDroppedBytes,
+		"offset":               map[string]any{"stdout": snapshot.StdoutOffsetBytes, "stderr": snapshot.StderrOffsetBytes},
+		"next_offset":          map[string]any{"stdout": snapshot.StdoutNextOffset, "stderr": snapshot.StderrNextOffset},
+		"offset_unit":          "utf8_byte",
+	}
+	addStreamSnapshotResult(result, "stdout", snapshot.Stdout, snapshot.StdoutOutputBytes, snapshot.StdoutTotalBytes, snapshot.StdoutDroppedBytes, snapshot.StdoutOmittedBytes, snapshot.StdoutOutputLines, snapshot.StdoutTruncated)
+	addStreamSnapshotResult(result, "stderr", snapshot.Stderr, snapshot.StderrOutputBytes, snapshot.StderrTotalBytes, snapshot.StderrDroppedBytes, snapshot.StderrOmittedBytes, snapshot.StderrOutputLines, snapshot.StderrTruncated)
+	if snapshot.TimedOut {
+		result["timed_out"] = true
 	}
 	addBindingResult(result, snapshot.Binding)
 	if snapshot.ActivityWarning != "" {
@@ -326,6 +332,30 @@ func snapshotResult(snapshot session.Snapshot) Result {
 		result["observe_after_ms"] = sessionObserveDelay(snapshot.ElapsedMS).Milliseconds()
 	}
 	return result
+}
+
+func addStreamSnapshotResult(result Result, name, text string, outputBytes, totalBytes, droppedBytes, omittedBytes, outputLines int, truncated bool) {
+	if text != "" {
+		result[name] = text
+	}
+	if outputBytes > 0 {
+		result[name+"_output_bytes"] = outputBytes
+	}
+	if totalBytes > 0 {
+		result[name+"_total_bytes"] = totalBytes
+	}
+	if droppedBytes > 0 {
+		result[name+"_dropped_bytes"] = droppedBytes
+	}
+	if omittedBytes > 0 {
+		result[name+"_omitted_bytes"] = omittedBytes
+	}
+	if outputLines > 0 {
+		result[name+"_output_lines"] = outputLines
+	}
+	if truncated {
+		result[name+"_truncated"] = true
+	}
 }
 
 func preparationStatusResult(status session.PreparationStatus) map[string]any {

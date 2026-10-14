@@ -27,18 +27,24 @@ type ManageRequest struct {
 }
 
 type SearchRequest struct {
-	Query  string `json:"query"`
-	Server string `json:"server,omitempty"`
-	Limit  *int   `json:"limit,omitempty"`
+	Query            string `json:"query"`
+	Server           string `json:"server,omitempty"`
+	Limit            *int   `json:"limit,omitempty"`
+	Cursor           string `json:"cursor,omitempty"`
+	MaxResponseBytes *int   `json:"max_response_bytes,omitempty"`
 }
 
 type ListRequest struct {
-	Server string `json:"server"`
+	Server           string `json:"server"`
+	Cursor           string `json:"cursor,omitempty"`
+	MaxResponseBytes *int   `json:"max_response_bytes,omitempty"`
 }
 
 type InspectRequest struct {
-	Names []string `json:"names,omitempty"`
-	Name  string   `json:"name,omitempty"`
+	Names            []string `json:"names,omitempty"`
+	Name             string   `json:"name,omitempty"`
+	Cursor           string   `json:"cursor,omitempty"`
+	MaxResponseBytes *int     `json:"max_response_bytes,omitempty"`
 }
 
 // CallRequest.Arguments 是第三方 MCP 工具 schema 决定的动态叶子，必须保持开放对象。

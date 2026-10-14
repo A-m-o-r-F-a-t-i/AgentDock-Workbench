@@ -198,7 +198,7 @@ func sessionObserveListText(result map[string]any) string {
 
 func sessionObserveStatusText(result map[string]any) string {
 	var text strings.Builder
-	fmt.Fprintf(&text, "session_id=%v status=%v elapsed_ms=%v timed_out=%v", result["session_id"], result["status"], result["elapsed_ms"], result["timed_out"])
+	fmt.Fprintf(&text, "session_id=%v status=%v elapsed_ms=%v timed_out=%v", result["session_id"], result["status"], result["elapsed_ms"], result["timed_out"] == true)
 	if exitCode, exists := result["exit_code"]; exists {
 		fmt.Fprintf(&text, " exit_code=%v", exitCode)
 	}

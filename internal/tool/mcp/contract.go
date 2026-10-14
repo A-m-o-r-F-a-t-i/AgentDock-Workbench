@@ -63,6 +63,9 @@ func InputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+	if name == ToolSearch || name == ToolList || name == ToolInspect {
+		toolcontract.StructuredPagingInput(props)
+	}
 	schema := toolcontract.InputObject(props, required...)
 	if name == ToolInspect {
 		schema["oneOf"] = []map[string]any{{"required": []string{"names"}}, {"required": []string{"name"}}}
@@ -160,6 +163,9 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["mcp_catalog"] = toolcontract.OutputObject(catalogSchemaProperties())
 	default:
 		return nil, false
+	}
+	if name == ToolSearch || name == ToolList || name == ToolInspect {
+		toolcontract.StructuredPagingOutput(props)
 	}
 	return toolcontract.OutputObject(props), true
 }

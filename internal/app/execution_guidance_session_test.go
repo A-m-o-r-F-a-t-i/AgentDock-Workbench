@@ -14,7 +14,7 @@ func TestRunningSessionGuidanceUsesBoundedLongPoll(t *testing.T) {
 		"status":           "running",
 		"observe_after_ms": int64(5000),
 	}
-	guidance := runtime.executionGuidance("session_observe", executionObservation{
+	guidance := runtime.executionGuidance("session_observe", nil, executionObservation{
 		binding: activity.Binding{WorkspaceID: "wsp-fixture"},
 	}, result, false)
 	if guidance["next_required"] != nil {
