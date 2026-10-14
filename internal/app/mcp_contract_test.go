@@ -33,8 +33,11 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 		if !reflect.DeepEqual(base.PublicInputSchema, definition.InputSchema) {
 			t.Fatalf("%s public input contract drifted from its projection", name)
 		}
-		if !reflect.DeepEqual(executionOutputSchema(base.PublicOutputSchema), definition.OutputSchema) {
-			t.Fatalf("%s execution output extension drifted", name)
+		if len(definition.OutputSchema) != 0 {
+			t.Fatalf("%s unexpectedly publishes an MCP output schema", name)
+		}
+		if !reflect.DeepEqual(executionOutputSchema(base.ValidationOutputSchema), definition.ValidationOutputSchema) {
+			t.Fatalf("%s complete validation output extension drifted", name)
 		}
 		if name == mcpcontract.ToolAgentDockContext {
 			// Standalone AgentDock adds only optional local context fields. Compare

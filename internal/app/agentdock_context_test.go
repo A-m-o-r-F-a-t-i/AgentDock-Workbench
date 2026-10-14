@@ -79,7 +79,7 @@ func TestAgentDockContextToolReturnsStructuredRuntimeIndex(t *testing.T) {
 	if !ok {
 		t.Fatal("agentdock_context definition missing")
 	}
-	rootProperties, _ := definition.OutputSchema["properties"].(map[string]any)
+	rootProperties, _ := definition.ValidationOutputSchema["properties"].(map[string]any)
 	runtimeSchema, _ := rootProperties["runtime"].(map[string]any)
 	runtimeProperties, _ := runtimeSchema["properties"].(map[string]any)
 	for _, field := range []string{"build_commit", "build_date"} {
