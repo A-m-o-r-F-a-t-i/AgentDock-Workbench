@@ -358,22 +358,28 @@ func backupNativeMetadataSize(value *backupNativeMetadata) int {
 	return len(value.Security) + 4
 }
 
-// canonicalBackupNativeMetadata projects current binary metadata to the DACL
-// that the backup contract actually preserves. GetNamedSecurityInfo may return
-// incidental owner/group fields even when only DACL information was requested,
-// and equivalent ACLs may contain different unused bytes. A minimal DACL-only
-// descriptor removes both sources of instability without changing restore data.
-func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+// canonicalBackupNativeMetadataVersion normalizes integrity records according
+// to the historical contract that produced them. Version 1 includes owner and
+// group; versions 2 and 3 preserve only the DACL and its inheritance controls.
+func canonicalBackupNativeMetadataVersion(value *backupNativeMetadata, version int) (*backupNativeMetadata, error) {
 	if value == nil {
 		return nil, nil
 	}
-	canonical := *value
-	if !strings.HasPrefix(value.Security, backupBinarySecurityPrefix) {
-		return &canonical, nil
+	if !backupNativeMetadataSupported(version) {
+		return nil, fmt.Errorf("unsupported Windows backup metadata version %d", version)
 	}
-	security, storage, err := decodeBackupSecurityDescriptor(value.Security, backupNativeMetadataVersion)
+	canonical := *value
+	security, storage, err := decodeBackupSecurityDescriptor(value.Security, version)
 	if err != nil {
 		return nil, err
+	}
+	if version == backupNativeMetadataOwnerVersion {
+		canonical.Security = security.String()
+		runtime.KeepAlive(storage)
+		if canonical.Security == "" {
+			return nil, errors.New("could not canonicalize owner-aware backup descriptor")
+		}
+		return &canonical, nil
 	}
 	daclOnly, daclStorage, err := backupDACLOnlySecurityDescriptor(security)
 	if err != nil {
@@ -386,6 +392,10 @@ func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMe
 		return nil, errors.New("could not canonicalize backup DACL")
 	}
 	return &canonical, nil
+}
+
+func canonicalBackupNativeMetadata(value *backupNativeMetadata) (*backupNativeMetadata, error) {
+	return canonicalBackupNativeMetadataVersion(value, backupNativeMetadataVersion)
 }
 
 func backupDACLOnlySecurityDescriptor(security *windows.SECURITY_DESCRIPTOR) (*windows.SECURITY_DESCRIPTOR, []uint64, error) {
@@ -436,24 +446,28 @@ func backupDACLOnlySecurityDescriptor(security *windows.SECURITY_DESCRIPTOR) (*w
 	return canonical, storage, nil
 }
 
-func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
-	canonicalA, errA := canonicalBackupNativeMetadata(a)
-	canonicalB, errB := canonicalBackupNativeMetadata(b)
+func equalBackupNativeMetadataVersion(a, b *backupNativeMetadata, version int) bool {
+	canonicalA, errA := canonicalBackupNativeMetadataVersion(a, version)
+	canonicalB, errB := canonicalBackupNativeMetadataVersion(b, version)
 	if errA != nil || errB != nil || canonicalA == nil || canonicalB == nil {
 		return errA == nil && errB == nil && canonicalA == canonicalB
 	}
 	return *canonicalA == *canonicalB
 }
 
-func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) string {
+func equalBackupNativeMetadata(a, b *backupNativeMetadata) bool {
+	return equalBackupNativeMetadataVersion(a, b, backupNativeMetadataVersion)
+}
+
+func backupNativeMetadataDifferenceVersion(actual, expected *backupNativeMetadata, version int) string {
 	if actual == nil || expected == nil {
 		return "metadata unavailable"
 	}
 	if actual.Attributes != expected.Attributes {
 		return fmt.Sprintf("attribute mismatch: actual=%#x expected=%#x", actual.Attributes, expected.Attributes)
 	}
-	canonicalActual, actualErr := canonicalBackupNativeMetadata(actual)
-	canonicalExpected, expectedErr := canonicalBackupNativeMetadata(expected)
+	canonicalActual, actualErr := canonicalBackupNativeMetadataVersion(actual, version)
+	canonicalExpected, expectedErr := canonicalBackupNativeMetadataVersion(expected, version)
 	if actualErr != nil || expectedErr != nil {
 		return fmt.Sprintf("security descriptor canonicalization failed: actual=%v expected=%v", actualErr, expectedErr)
 	}
@@ -461,4 +475,8 @@ func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) stri
 		return fmt.Sprintf("security descriptor mismatch: actual=%q expected=%q", canonicalActual.Security, canonicalExpected.Security)
 	}
 	return "metadata matches"
+}
+
+func backupNativeMetadataDifference(actual, expected *backupNativeMetadata) string {
+	return backupNativeMetadataDifferenceVersion(actual, expected, backupNativeMetadataVersion)
 }
