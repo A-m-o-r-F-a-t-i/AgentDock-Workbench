@@ -72,6 +72,12 @@ android {
     }
     sourceSets["main"].assets.srcDir("../termux")
 
+    androidResources {
+        // AAPT treats .gz as a precompressed input and removes the suffix while packaging.
+        // The APK uses .tgz so the verified gzip bytes and filename remain stable.
+        noCompress += "tgz"
+    }
+
     packaging {
         jniLibs.useLegacyPackaging = true
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")

@@ -613,9 +613,16 @@ class WorkbenchViewModel(
                     val app = getApplication<Application>()
                     val output = app.contentResolver.openOutputStream(uri, "w") ?: error("无法打开导出目标")
                     java.util.zip.ZipOutputStream(output).use { zip ->
-                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh", "agentdock-core-arm64.tar.gz")) {
-                            zip.putNextEntry(java.util.zip.ZipEntry(name))
-                            app.assets.open(name).use { it.copyTo(zip) }
+                        val bridgeAssets = listOf(
+                            "agentdock-workbench" to "agentdock-workbench",
+                            "agentdock_workbench.py" to "agentdock_workbench.py",
+                            "agentdock_host_executor.py" to "agentdock_host_executor.py",
+                            "agentdock-workbench-bootstrap.sh" to "agentdock-workbench-bootstrap.sh",
+                            "agentdock-core-arm64.tgz" to "agentdock-core-arm64.tar.gz",
+                        )
+                        for ((assetName, bundleName) in bridgeAssets) {
+                            zip.putNextEntry(java.util.zip.ZipEntry(bundleName))
+                            app.assets.open(assetName).use { it.copyTo(zip) }
                             zip.closeEntry()
                         }
                     }

@@ -199,7 +199,7 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
         if stable_android:
             raw_core_name='agentdock_linux_arm64.tar.gz'
             raw_core_checksum=digest(locate(inputs,raw_core_name))
-            bundled_core_asset='assets/agentdock-core-arm64.tar.gz'
+            bundled_core_asset='assets/agentdock-core-arm64.tgz'
             if zip_member_digest(candidate,bundled_core_asset)!=raw_core_checksum:
                 raise RuntimeError('Android candidate does not contain the verified Linux ARM64 Core')
             public_name=f'AgentDock-Workbench-{version}-Android.apk'
