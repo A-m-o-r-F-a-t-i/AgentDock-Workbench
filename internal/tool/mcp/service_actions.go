@@ -111,8 +111,10 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 }
 
 func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, error) {
-	query := strings.TrimSpace(request.Query)
-	server := strings.TrimSpace(request.Server)
+	query, server, normalizeErr := mcpclient.NormalizeSearchSelector(request.Query, request.Server)
+	if normalizeErr != nil {
+		return nil, dynamicMCPToolError(normalizeErr)
+	}
 	limit := boundedInt(intValue(request.Limit, 10), 10, 1, 100)
 	if server == "" {
 		if match, available := s.resolveBuiltinRoute(query); available {
@@ -164,10 +166,10 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		found.Tools[index].Description = capabilityrouting.ToolDescription(pluginName, found.Tools[index].QualifiedName, found.Tools[index].Description)
 	}
 	result := Result{
-		"query": query, "server": server, "tools": found.Tools, "count": len(found.Tools),
+		"query": found.Query, "server": found.Server, "tools": found.Tools, "count": len(found.Tools),
 		"catalogs": found.Catalogs, "complete": found.Complete, "truncated": found.Truncated,
 		"cache_only": found.CacheOnly, "route_kind": routeKindDynamicMCP,
-		"builtin_match_count": 0, "dynamic_match_count": len(found.Tools),
+		"builtin_match_count": 0, "dynamic_match_count": len(found.Tools), "match_kind": found.MatchKind,
 	}
 	if !found.Complete {
 		result["next_action"] = "Select a server from catalogs and use mcp_tool_list; an undiscovered or stale catalog is not evidence that a capability is absent."
@@ -197,7 +199,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if catalogErr != nil {
 		catalog = map[string]any{"server": validated.serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
-	catalog = s.catalogDeliveries.prepare(ctx, catalog)
+	catalog = s.catalogDeliveries.prepare(ctx, catalog, false)
 	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
 	if result != nil {
 		response["result"] = result
@@ -243,7 +245,7 @@ func dynamicMCPToolError(err error) error {
 	if strings.Contains(mcpErr.Code, "INVALID") || strings.Contains(mcpErr.Code, "NOT_FOUND") ||
 		strings.Contains(mcpErr.Code, "EXISTS") || strings.Contains(mcpErr.Code, "DISABLED") ||
 		strings.Contains(mcpErr.Code, "REQUIRED") || strings.Contains(mcpErr.Code, "OWNED") ||
-		strings.Contains(mcpErr.Code, "COLLISION") {
+		strings.Contains(mcpErr.Code, "COLLISION") || strings.Contains(mcpErr.Code, "MISMATCH") {
 		category = "validation"
 	}
 	if mcpErr.Code == "MCP_AUTH_REQUIRED" {

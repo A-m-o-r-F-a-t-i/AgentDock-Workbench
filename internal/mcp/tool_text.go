@@ -16,8 +16,13 @@ func toolResultText(name string, structured any) string {
 		return sessionObserveResultText(asMap(structured))
 	}
 	if name == "mcp_tool_search" || name == "mcp_tool_inspect" {
-		if result := asMap(structured); result["route_kind"] == "host_builtin" && result["resolved"] == true && result["terminal"] == true {
-			return hostBuiltinRouteResultText(result)
+		result := asMap(structured)
+		route := result
+		if details := asMap(result["details"]); details["route_kind"] == "host_builtin" {
+			route = details
+		}
+		if route["route_kind"] == "host_builtin" && route["resolved"] == true && route["terminal"] == true {
+			return hostBuiltinRouteText(route)
 		}
 	}
 	return pretty(structured)
@@ -134,7 +139,7 @@ func boundedText(text string, limit int) string {
 	return text[:end] + "..."
 }
 
-func hostBuiltinRouteResultText(result map[string]any) string {
+func hostBuiltinRouteText(result map[string]any) string {
 	names := []string{}
 	switch values := result["required_host_tools"].(type) {
 	case []string:
@@ -155,7 +160,7 @@ func hostBuiltinRouteResultText(result map[string]any) string {
 	if label == "" {
 		label = "AgentDock host tool"
 	}
-	return "Host route resolved: " + label + ". Use the caller host tool from tools/list. Do not search dynamic MCP catalogs, files, source code, or activity logs for this schema. No business action ran."
+	return "Wrong tool namespace: " + label + ". Call the AgentDock host tool directly from the caller tools/list namespace. Do not repeat dynamic MCP search or inspect. No business action ran."
 }
 
 func sessionObserveResultText(result map[string]any) string {

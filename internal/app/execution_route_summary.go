@@ -1,6 +1,11 @@
 package app
 
-import "strings"
+import (
+	"errors"
+	"strings"
+
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
+)
 
 func isHostBuiltinRoute(tool string, result Result) bool {
 	if tool != "mcp_tool_search" && tool != "mcp_tool_inspect" {
@@ -19,6 +24,17 @@ func executionResultTitle(tool, fallback string, result Result) string {
 		}
 	}
 	return fallback
+}
+
+func executionErrorTitle(tool, fallback string, err error) string {
+	if !toolmcp.IsBuiltinDiscoveryError(err) {
+		return fallback
+	}
+	var routeErr *ToolError
+	if !errors.As(err, &routeErr) {
+		return fallback
+	}
+	return executionResultTitle(tool, fallback, Result(routeErr.Details))
 }
 
 func suppressResultCounts(tool string, result Result) bool {

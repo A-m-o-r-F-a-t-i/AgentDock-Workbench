@@ -39,6 +39,15 @@ func expectBuiltinRouteError(t *testing.T, err error, code string) *ToolError {
 	if got.Details["execution_performed"] != false || got.Details["host_schema_state"] != "caller_managed" {
 		t.Fatalf("routing claimed execution or host schema loading: %#v", got.Details)
 	}
+	if got.Details["route_status"] != "blocked" || got.Details["next_action"] != "call_host_tool" || got.Details["wrong_namespace_search"] != true {
+		t.Fatalf("routing error lost terminal machine-readable state: %#v", got.Details)
+	}
+	if code == "ROUTING_LOOP_BLOCKED" {
+		count, _ := got.Details["wrong_namespace_repeat_count"].(int)
+		if count < 1 {
+			t.Fatalf("repeat routing error lost its count: %#v", got.Details)
+		}
+	}
 	return got
 }
 
@@ -76,16 +85,30 @@ func TestBuiltinDiscoveryCanonicalBatchDeduplication(t *testing.T) {
 func TestBuiltinDiscoveryScopeIsolation(t *testing.T) {
 	s := builtinTestService()
 	binding := builtinTestBinding()
-	variants := []activity.Binding{binding, binding, binding, binding, binding}
-	variants[1].ConversationID = "conv_" + strings.Repeat("c", 32)
-	variants[2].SourceOwnerKey = "other-owner"
-	variants[3].WorkspaceID = "other-workspace"
-	variants[4].BindingRevision++
-	for _, b := range variants {
+	for _, b := range []activity.Binding{
+		func() activity.Binding {
+			value := binding
+			value.ConversationID = "conv_" + strings.Repeat("c", 32)
+			return value
+		}(),
+		func() activity.Binding {
+			value := binding
+			value.SourceOwnerKey = "other-owner"
+			return value
+		}(),
+	} {
 		_, err := s.Search(activity.WithBinding(t.Context(), b), SearchRequest{Query: "exec_command"})
 		expectBuiltinRouteError(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
 	}
 	_, err := s.Search(activity.WithBinding(t.Context(), binding), SearchRequest{Query: "exec_command"})
+	expectBuiltinRouteError(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
+	workspaceChanged := binding
+	workspaceChanged.WorkspaceID = "other-workspace"
+	_, err = s.Search(activity.WithBinding(t.Context(), workspaceChanged), SearchRequest{Query: "exec_command"})
+	expectBuiltinRouteError(t, err, "ROUTING_LOOP_BLOCKED")
+	revisionChanged := binding
+	revisionChanged.BindingRevision++
+	_, err = s.Search(activity.WithBinding(t.Context(), revisionChanged), SearchRequest{Query: "exec_command"})
 	expectBuiltinRouteError(t, err, "ROUTING_LOOP_BLOCKED")
 }
 

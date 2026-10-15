@@ -19,6 +19,7 @@ type Service struct {
 	builtinLookup     func(string) (BuiltinToolSummary, bool)
 	discoveryRoutes   builtinDiscoveryRoutes
 	catalogDeliveries catalogDeliveryState
+	schemaDeliveries  schemaDeliveryState
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
