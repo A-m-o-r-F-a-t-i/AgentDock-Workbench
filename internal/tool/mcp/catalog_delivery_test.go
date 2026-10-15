@@ -23,34 +23,39 @@ func TestCatalogDeliveryUsesTrustedScopeRevisionAndExpiry(t *testing.T) {
 	}
 	ctx := activity.WithBinding(t.Context(), binding)
 
-	full := state.prepare(ctx, testCatalog("v1"))
+	full := state.prepare(ctx, testCatalog("v1"), false)
 	if full["delivery"] != "full" || full["tools_omitted"] != false || catalogToolCount(full) != 2 {
 		t.Fatalf("first delivery is not complete: %#v", full)
 	}
-	reference := state.prepare(ctx, testCatalog("v1"))
+	reference := state.prepare(ctx, testCatalog("v1"), false)
 	if reference["delivery"] != "reference" || reference["tools_omitted"] != true || reference["tools"] != nil || reference["refresh_tool"] != ToolList {
 		t.Fatalf("repeat delivery is not a compact reference: %#v", reference)
 	}
 
 	otherThread := binding
 	otherThread.ThreadID = "parallel"
-	isolated := state.prepare(activity.WithBinding(t.Context(), otherThread), testCatalog("v1"))
-	if isolated["delivery"] != "full" || catalogToolCount(isolated) != 2 {
-		t.Fatalf("parallel thread inherited another thread's catalog: %#v", isolated)
+	reused := state.prepare(activity.WithBinding(t.Context(), otherThread), testCatalog("v1"), false)
+	if reused["delivery"] != "reference" || reused["tools_omitted"] != true {
+		t.Fatalf("same conversation duplicated catalog after a thread change: %#v", reused)
 	}
 
-	changed := state.prepare(ctx, testCatalog("v2"))
+	forced := state.prepare(ctx, testCatalog("v1"), true)
+	if forced["delivery"] != "full" || catalogToolCount(forced) != 2 {
+		t.Fatalf("force_full did not restore the complete catalog: %#v", forced)
+	}
+
+	changed := state.prepare(ctx, testCatalog("v2"), false)
 	if changed["delivery"] != "full" || catalogToolCount(changed) != 2 {
 		t.Fatalf("new revision did not restore the full catalog: %#v", changed)
 	}
 	now = now.Add(catalogDeliveryWindow)
-	expired := state.prepare(ctx, testCatalog("v2"))
+	expired := state.prepare(ctx, testCatalog("v2"), false)
 	if expired["delivery"] != "full" || catalogToolCount(expired) != 2 {
 		t.Fatalf("expired scope did not restore the full catalog: %#v", expired)
 	}
 
 	for range 2 {
-		legacy := state.prepare(t.Context(), testCatalog("v1"))
+		legacy := state.prepare(t.Context(), testCatalog("v1"), false)
 		if legacy["delivery"] != "full" || catalogToolCount(legacy) != 2 {
 			t.Fatalf("unattributed client lost legacy full catalog behavior: %#v", legacy)
 		}
@@ -69,7 +74,7 @@ func TestCatalogDeliveryKeepsIncompleteOrStaleCatalogsFull(t *testing.T) {
 		catalog := testCatalog("v1")
 		mutation(catalog)
 		for range 2 {
-			result := state.prepare(ctx, catalog)
+			result := state.prepare(ctx, catalog, false)
 			if result["delivery"] != "full" || result["tools_omitted"] != false {
 				t.Fatalf("non-reusable catalog was compacted: %#v", result)
 			}

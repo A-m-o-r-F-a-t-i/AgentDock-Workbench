@@ -136,8 +136,8 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 		}
 		seen[summary.Name] = true
 		steps = append(steps, map[string]any{
-			"action": "use_host_tool", "tool": summary.Name, "invoke_via": "host",
-			"text": "Use the known host schema; if absent load it once in the caller's AgentDock catalog. No command ran. Reuse context; stop MCP search/inspect.",
+			"action": "call_host_tool", "tool": summary.Name, "invoke_via": "host",
+			"text": "Call this AgentDock host tool directly from the caller tools/list namespace. Stop dynamic MCP search and inspect. No business action ran.",
 		})
 	}
 	return steps

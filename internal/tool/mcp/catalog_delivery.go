@@ -16,8 +16,7 @@ const (
 )
 
 type catalogDeliveryKey struct {
-	owner, conversation, workspace, task, thread, server string
-	bindingRevision                                      uint64
+	owner, conversation, server string
 }
 
 type catalogDeliveryEntry struct {
@@ -31,10 +30,10 @@ type catalogDeliveryState struct {
 	now     func() time.Time
 }
 
-// prepare returns one complete catalog for each trusted execution scope and
-// catalog generation, then compact references while that scope remains active.
-// Calls without a trusted conversation retain the legacy full-catalog behavior.
-func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]any) map[string]any {
+// prepare returns one complete catalog for each trusted conversation and
+// catalog generation, then compact references while that conversation remains
+// active. Calls without a trusted conversation retain full-catalog behavior.
+func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(catalog)
 	full["delivery"] = "full"
 	full["tools_omitted"] = false
@@ -52,8 +51,7 @@ func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]a
 	}
 	key := catalogDeliveryKey{
 		owner: binding.SourceOwnerKey, conversation: binding.ConversationID,
-		workspace: binding.WorkspaceID, task: binding.TaskID, thread: binding.ThreadID,
-		server: server, bindingRevision: binding.BindingRevision,
+		server: server,
 	}
 	signature := fmt.Sprintf("%s|%t|%t|%d", revision, catalog["complete"] == true, catalog["stale"] == true, catalogTotal(catalog))
 
@@ -68,7 +66,7 @@ func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]a
 			delete(s.entries, candidate)
 		}
 	}
-	if entry, ok := s.entries[key]; ok && entry.signature == signature {
+	if entry, ok := s.entries[key]; ok && entry.signature == signature && !forceFull {
 		entry.delivered = now
 		s.entries[key] = entry
 		reference := maps.Clone(full)
