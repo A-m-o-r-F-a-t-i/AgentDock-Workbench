@@ -37,5 +37,6 @@ public sealed record ToolOutputSettings(
 public readonly record struct PayloadPageBudget(int LimitChars, int MaxBytes)
 {
     public static PayloadPageBudget BytesOnly => new(0, 32768);
+    public static PayloadPageBudget FullRead => new(0, 262144);
     public string Query => LimitChars > 0 ? "limit_chars=" + LimitChars.ToString(CultureInfo.InvariantCulture) : "limit=" + MaxBytes.ToString(CultureInfo.InvariantCulture);
 }

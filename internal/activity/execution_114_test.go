@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -205,6 +206,41 @@ func Test114FileEditProjectionKeepsBoundedDetails(t *testing.T) {
 	full, err := store.Calls(ctx, CallQuery{Unattributed: true, IncludeOutput: true})
 	if err != nil || len(full.Calls) != 1 || full.Calls[0].FileEdit == nil || full.Calls[0].FileEdit.DiffPreview != "@@ bounded @@" {
 		t.Fatalf("full file details: %+v %v", full, err)
+	}
+}
+
+func Test114CallQueryCanIncludeOnlyRequestPreview(t *testing.T) {
+	store, err := New(t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	callID, _ := NewExecutionID("call_")
+	binding := Binding{CallID: callID}
+	request := store.CaptureRequestPayload(ctx, map[string]any{"name": "demo:apply", "arguments": map[string]any{"target": "board", "count": 2}}, "complete", NewRedactor())
+	response := store.CapturePayload(ctx, map[string]any{"status": "succeeded", "result": "large output remains private from the list"}, "complete", NewRedactor())
+	if _, err = store.Append(ctx, Event{Binding: binding, Kind: "call.created", ToolName: "mcp_tool_call"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Append(ctx, Event{Binding: binding, Kind: "call.payload", ToolName: "mcp_tool_call", Request: request, Response: response}); err != nil {
+		t.Fatal(err)
+	}
+
+	compact, err := store.Calls(ctx, CallQuery{Unattributed: true, IncludeRequest: true})
+	if err != nil || len(compact.Calls) != 1 {
+		t.Fatalf("request-only projection: %+v %v", compact, err)
+	}
+	call := compact.Calls[0]
+	if call.Request == nil || call.Request.Preview == "" || !strings.Contains(call.Request.Overview, "target") {
+		t.Fatalf("request parameters missing from compact projection: %+v", call.Request)
+	}
+	if call.Response == nil || call.Response.Preview != "" || call.Response.Overview != "" || call.OutputPreview != "" {
+		t.Fatalf("request-only projection leaked output: %+v", call)
+	}
+
+	full, err := store.Calls(ctx, CallQuery{Unattributed: true, IncludeOutput: true})
+	if err != nil || len(full.Calls) != 1 || full.Calls[0].Request.Preview == "" || full.Calls[0].Response.Preview == "" {
+		t.Fatalf("full projection lost payload previews: %+v %v", full, err)
 	}
 }
 

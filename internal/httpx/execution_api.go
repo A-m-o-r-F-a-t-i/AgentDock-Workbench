@@ -126,7 +126,7 @@ func callQuery(r *http.Request) (query activity.CallQuery, err error) {
 		}
 	}
 	query.Updates = values.Has("after")
-	for key, target := range map[string]*bool{"unattributed": &query.Unattributed, "top_level": &query.TopLevel, "include_output": &query.IncludeOutput, "include_diagnostic": &query.IncludeDiagnostic} {
+	for key, target := range map[string]*bool{"unattributed": &query.Unattributed, "top_level": &query.TopLevel, "include_output": &query.IncludeOutput, "include_request": &query.IncludeRequest, "include_diagnostic": &query.IncludeDiagnostic} {
 		if value := values.Get(key); value != "" {
 			*target, err = strconv.ParseBool(value)
 			if err != nil {
