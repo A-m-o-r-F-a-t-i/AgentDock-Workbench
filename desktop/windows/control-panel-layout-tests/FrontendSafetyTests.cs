@@ -194,13 +194,15 @@ internal static class FrontendSafetyTests
         var clock = Field<ConversationActivityClock>(w, "_activityClock");
         var stop = Named<Button>(w, "StopConversationButton");
         var resume = Named<Button>(w, "ResumeConversationButton");
+        var goalMode = Named<Button>(w, "GoalModeButton");
         row.InFlight = true;
         foreach (var seconds in new[] { 179, 180, 181 })
         {
             var now = DateTimeOffset.UtcNow;
             row.LastToolCallAt = now.AddSeconds(-seconds); clock.Synchronize(now);
-            Invoke(w, "UpdateComposerAvailability");
+            Invoke(w, "UpdateStopButton");
             check(Named<Button>(w, "InsertButton").IsEnabled == (seconds < 180), "WIN-03: insertion time boundary changed.");
+            check(goalMode.IsEnabled == (seconds < 180), "WIN-03: goal mode did not follow the insertion time boundary.");
             check(stop.IsEnabled && stop.Visibility == Visibility.Visible,
                 "WIN-03: long-running conversation lost its stop button.");
             check(!resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
@@ -209,9 +211,10 @@ internal static class FrontendSafetyTests
         var insertionChildren = LogicalChildren(Named<FrameworkElement>(w, "InsertionPanel")).ToArray();
         check(!insertionChildren.Contains(stop) && !insertionChildren.Contains(resume),
             "WIN-03: conversation lifecycle actions still belong to the expiring insertion pane.");
-        row.Terminated = true; Invoke(w, "UpdateComposerAvailability");
+        row.Terminated = true; Invoke(w, "UpdateStopButton");
         check(!stop.IsEnabled && stop.Visibility == Visibility.Collapsed,
             "WIN-03: terminated conversation can be stopped again.");
+        check(!goalMode.IsEnabled, "WIN-03: terminated conversation retained goal mode.");
         check(resume.IsEnabled && resume.Visibility == Visibility.Visible && Equals(resume.Content, "解除终止"),
             "WIN-03: terminated conversation did not expose the resume action.");
 
@@ -232,9 +235,10 @@ internal static class FrontendSafetyTests
             "WIN-03: stale termination detail changed the selected conversation actions.");
 
         Set(w, "_conversationSnapshot", default(JsonElement));
-        row.Trashed = true; Invoke(w, "UpdateComposerAvailability");
+        row.Trashed = true; Invoke(w, "UpdateStopButton");
         check(!stop.IsEnabled && stop.Visibility == Visibility.Collapsed && !resume.IsEnabled && resume.Visibility == Visibility.Collapsed,
             "WIN-03: trash row retained a live lifecycle action.");
+        check(!goalMode.IsEnabled, "WIN-03: trash row retained goal mode.");
     }
 
     private static void InitializationClose(Action<bool, string> check)
