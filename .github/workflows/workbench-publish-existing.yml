@@ -76,8 +76,15 @@ jobs:
           def api(path):
               return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}'],text=True,timeout=60))
           build=api(f'actions/runs/{run_id}')
-          if build['status']!='completed' or build['head_sha']!=sha or build['repository']['full_name']!=repo or build['path']!='.github/workflows/workbench-release.yml':
-              raise RuntimeError('Source run does not match the verified Workbench workflow and SHA')
+          expected_title=f'AgentDock Workbench {sha}'
+          if (build.get('status')!='completed' or build.get('conclusion')!='success'
+                  or build.get('repository',{}).get('full_name')!=repo
+                  or build.get('path')!='.github/workflows/workbench-release.yml'
+                  or build.get('event')!='workflow_dispatch'
+                  or build.get('head_branch')!='main'
+                  or not re.fullmatch(r'[a-f0-9]{40}',build.get('head_sha',''))
+                  or build.get('display_title')!=expected_title):
+              raise RuntimeError('Source run does not match the verified Workbench workflow execution')
           response=api(f'actions/runs/{run_id}/jobs?filter=latest&per_page=100')
           if response['total_count']>100: raise RuntimeError('Unexpected source job count')
           jobs={job['name']:job for job in response['jobs']}
