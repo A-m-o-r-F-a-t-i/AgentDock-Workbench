@@ -79,6 +79,9 @@ func sameContextScope(a, b activity.Binding) bool {
 // Empty Context calls advance a unique immutable sequence. A fully delivered,
 // unchanged snapshot becomes a compact reference; force_refresh starts over.
 func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution) (Result, *structuredOutputResume, error) {
+	if !p.modelOutput {
+		return nil, nil, nil
+	}
 	if p.spec.Name != "agentdock_context" && p.spec.Name != "workspace_context" {
 		return nil, nil, nil
 	}
@@ -188,6 +191,9 @@ var errIncompleteContextBuild = errors.New("context build is incomplete")
 // Share raw, immutable construction only. Per-request binding, permission,
 // insertions and delivery progress are resolved after each waiter's clone.
 func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecution) (Result, error) {
+	if !p.modelOutput {
+		return p.spec.Handler(ctx, r, p.args)
+	}
 	if p.spec.Name != "agentdock_context" || r.contextSnapshots == nil || r.contextSnapshots.complete == nil {
 		return p.spec.Handler(ctx, r, p.args)
 	}

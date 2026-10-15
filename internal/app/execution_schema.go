@@ -47,6 +47,12 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		"call_id":     map[string]any{"type": "string", "pattern": "^call_[a-f0-9]{32}$"},
 	}, "required": []string{"status", "executed", "approval_id", "call_id"}, "additionalProperties": true}
 	visible := maps.Clone(properties)
+	if full, ok := properties["context_diagnostics"].(map[string]any); ok {
+		page := maps.Clone(full)
+		page["required"] = []string{"complete", "components_complete", "binding_status"}
+		visible["context_diagnostics"] = map[string]any{"anyOf": []any{full, page}}
+	}
+
 	if old, exists := visible["status"]; exists {
 		visible["status"] = map[string]any{"anyOf": []any{old, map[string]any{"const": "pending_approval"}}}
 	}

@@ -21,6 +21,7 @@ const transportMetadataKey = "agentdock/transport"
 const (
 	responseTextFull    = "full"
 	responseTextSummary = "summary"
+	responseTextOnly    = "text_only"
 )
 
 type contextResponseKey struct{}
@@ -70,6 +71,9 @@ func responseTextMode(ctx context.Context, name string) string {
 
 func responseModeOption(raw any, capability string) (string, error) {
 	options, ok := raw.(map[string]any)
+	if ok && len(options) == 2 && options["structured"] == false && (options["text"] == responseTextFull || options["text"] == responseTextOnly) {
+		return responseTextOnly, nil
+	}
 	if !ok || len(options) != 2 || options["structured"] != true {
 		return "", errors.New(capability + " negotiation requires structured=true and text=full or summary")
 	}

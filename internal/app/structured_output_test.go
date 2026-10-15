@@ -537,6 +537,7 @@ func TestModelV2SemanticPagesRetainContracts(t *testing.T) {
 func TestModelV2FileBytePagingAndSourceChange(t *testing.T) {
 	r := executionTestRuntime(t)
 	ctx := activity.WithSource(context.Background(), activity.Source{Principal: "output-v2", Namespace: "mcp", HostConversationID: "file-v2"})
+	ctx = WithModelProjection(ctx)
 	text := strings.Repeat("行💡\n长行\"\\", 6000)
 	path := filepath.Join(r.cfg.AgentDockDefaultDir, "page-v2.txt")
 	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
@@ -583,6 +584,7 @@ func TestModelV2FileBytePagingAndSourceChange(t *testing.T) {
 func TestModelV2PinnedOutputSource(t *testing.T) {
 	r := executionTestRuntime(t)
 	ctx := activity.WithSource(context.Background(), activity.Source{Principal: "output-v2", Namespace: "mcp", HostConversationID: "source-v2"})
+	ctx = WithModelProjection(ctx)
 	text := strings.Repeat("设备输出", 4000) + "ORIGINAL_TAIL"
 	spec := ToolSpec{Name: "search_text", Handler: func(context.Context, *Runtime, map[string]any) (Result, error) {
 		return Result{"status": "exited", "exit_code": 1, "command_ok": false, "stdout": text}, nil

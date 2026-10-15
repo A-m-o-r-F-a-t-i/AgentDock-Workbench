@@ -72,7 +72,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		out["_meta"] = meta
 		out["resultType"] = "complete"
 	}
-	chars, err := modelEnvelopeChars(out)
+	chars, err := modelWireChars(ctx, name, out)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		if err != nil {
 			return nil, err
 		}
-		next, countErr := modelEnvelopeChars(out)
+		next, countErr := modelWireChars(ctx, name, out)
 		if countErr != nil {
 			return nil, countErr
 		}
@@ -113,14 +113,14 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 				return nil, storeErr
 			}
 			out = compactModelResponse(name, arguments, out, source)
-			if remaining, _ := modelEnvelopeChars(out); remaining > toolcontract.ModelVisibleTotalChars {
+			if remaining, _ := modelWireChars(ctx, name, out); remaining > toolcontract.ModelVisibleTotalChars {
 				return nil, fmt.Errorf("MODEL_RESPONSE_BUDGET_EXCEEDED: retained source=%s; inspect the completed operation before any retry", source)
 			}
 			chars = next
 			continue
 		}
 		if next == chars {
-			return out, nil
+			return modelWireEnvelope(ctx, name, out)
 		}
 		chars = next
 	}

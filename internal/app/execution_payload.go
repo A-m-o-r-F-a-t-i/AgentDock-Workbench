@@ -37,10 +37,7 @@ func (r *Runtime) executionPayloadEvent(ctx context.Context, binding activity.Bi
 		event.Request = payload
 	} else {
 		event.Response = payload
-		source := modelObject(value)
-		if structured := modelObject(source["structuredContent"]); structured != nil {
-			source = structured
-		}
+		source := deliveredModelPayload(value)
 		if source["projection"] != nil {
 			encoded, err := json.Marshal(source)
 			stages := &activity.OutputStages{}
@@ -85,7 +82,7 @@ func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any) {
 	received, status := response.auditReceived, response.auditStatus
 	response.mu.Unlock()
 	r.recordExecutionPayload(binding, name, "response", envelope, redactor)
-	if payload := modelObject(modelObject(envelope)["structuredContent"]); payload != nil {
+	if payload := deliveredModelPayload(envelope); payload != nil {
 		r.commitStructuredDelivery(binding, Result(payload))
 	}
 	// This server-side boundary includes final-envelope serialization and

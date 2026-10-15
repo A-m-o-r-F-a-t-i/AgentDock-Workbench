@@ -15,6 +15,9 @@ import (
 )
 
 func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRequest) (Result, error) {
+	if !modelProjectionRequested(ctx) && request.SourceRevision == "" && request.Offset == nil && request.LimitChars == nil && request.EndOffset == nil {
+		return r.files.ReadFile(ctx, request)
+	}
 	binding := activity.FromContext(ctx)
 	offset := int64(0)
 	if request.Offset != nil {

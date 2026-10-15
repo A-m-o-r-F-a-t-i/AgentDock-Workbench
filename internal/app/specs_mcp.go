@@ -18,7 +18,10 @@ func dynamicMCPToolSpecs() []ToolSpec {
 			return r.dynamicMCP.Search(ctx, request)
 		})},
 		{Name: "mcp_tool_inspect", Contract: mcpToolContract, Title: "Inspect a dynamic MCP tool", Description: "Read dynamic MCP schemas in one request using names: [server:tool, server:*, other:*]. Unqualified AgentDock host tools return a terminal routing error; mixed batches retain dynamic schemas and per-selector problems. Repeated schemas use compact revision references unless force_full=true.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_inspect", func(ctx context.Context, r *Runtime, request toolmcp.InspectRequest) (Result, error) {
-			return r.dynamicMCP.Inspect(toolmcp.WithDeferredSchemaDelivery(ctx), request)
+			if modelProjectionRequested(ctx) {
+				ctx = toolmcp.WithDeferredSchemaDelivery(ctx)
+			}
+			return r.dynamicMCP.Inspect(ctx, request)
 		})},
 		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Execute a dynamic MCP tool identified as server:tool, validating against its cached schema. Computer Use additionally requires interaction_intent=desktop_gui and a concrete reason. List and call share one complete catalog delivery per trusted conversation and revision; later responses use compact references.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
 			return r.dynamicMCP.Call(ctx, request)

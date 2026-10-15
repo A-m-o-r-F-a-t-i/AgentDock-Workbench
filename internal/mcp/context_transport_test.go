@@ -227,3 +227,50 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 		t.Fatalf("same revision not reused: %+v err=%v", result, err)
 	}
 }
+
+func TestModelV2ExplicitTextOnlyBudgetAndContinuation(t *testing.T) {
+	h := newMCPAppTestHarnessWithApps(t, config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}, false)
+	body := strings.Repeat("只读💡\"\\\n", 2600)
+	file := filepath.Join(h.runtime.Config().AgentDockDefaultDir, "text-only-page.txt")
+	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	arguments := map[string]any{"path": file}
+	assembled := ""
+	for index := 0; index < 100; index++ {
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "read_file", Arguments: arguments, Meta: sdk.Meta{"openai/session": "text-only-budget", StructuredResultsCapability: map[string]any{"structured": false, "text": "full"}}})
+		if err != nil || result.IsError {
+			t.Fatalf("text-only read failed: %v %+v", err, result)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil || utf8.RuneCount(raw) > 12000 {
+			t.Fatalf("text-only escaped final size=%d: %v", utf8.RuneCount(raw), err)
+		}
+		if result.StructuredContent != nil {
+			t.Fatal("text-only response duplicated its body")
+		}
+		var page map[string]any
+		text, ok := result.Content[0].(*sdk.TextContent)
+		if !ok || json.Unmarshal([]byte(text.Text), &page) != nil {
+			t.Fatal("text-only response was not one complete JSON document")
+		}
+		if source, _ := page["source_ref"].(string); page["content"] == nil && source != "" {
+			// A text-only legacy client may have extra JSON escaping overhead. Its
+			// bounded recovery receipt must still identify the retained full source.
+			if asMap(page["delivery"])["continuation_available"] != true {
+				t.Fatal("text-only recovery source unavailable")
+			}
+			return
+		}
+		content, _ := page["content"].(string)
+		assembled += content
+		if page["has_more"] == false {
+			if assembled != body {
+				t.Fatal("text-only byte pagination changed file content")
+			}
+			return
+		}
+		arguments = asMap(asMap(page["continue_read"])["arguments"])
+	}
+	t.Fatal("text-only paging did not finish")
+}

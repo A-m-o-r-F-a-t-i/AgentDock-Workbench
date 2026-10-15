@@ -160,7 +160,7 @@ func (response *ToolResponse) CompletedAdditions() ResponseAdditions {
 
 func BeginToolResponse(ctx context.Context) (context.Context, *ToolResponse) {
 	response := &ToolResponse{transport: InsertionTransportFromContext(ctx)}
-	return context.WithValue(ctx, toolResponseKey{}, response), response
+	return context.WithValue(WithModelProjection(ctx), toolResponseKey{}, response), response
 }
 
 func (r *Runtime) reserveInsertion(ctx context.Context, binding activity.Binding, received time.Time) {
