@@ -89,6 +89,17 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			rootProperties["dynamic_mcp"] = dynamic
 			actualOutput["properties"] = rootProperties
 		}
+		if name == mcpcontract.ToolWorkspaceContext {
+			// Direct AgentDock adds optional revision and continuation controls,
+			// while preserving every shared Workspace Context field unchanged.
+			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
+			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
+			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_revision")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_diagnostics")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "next_cursor")
+			actualOutput = withoutLocalContextProperty(t, actualOutput, "structured_output")
+		}
 		if !reflect.DeepEqual(actualInput, wantInput) {
 			t.Fatalf("%s input schema drifted from shared contract", name)
 		}

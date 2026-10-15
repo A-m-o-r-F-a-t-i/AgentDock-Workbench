@@ -108,11 +108,6 @@ func workspaceContextToolContract(name string, cfg config.Config) (ToolContract,
 	properties := input["properties"].(map[string]any)
 	properties["known_context_revision"] = map[string]any{
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
-		"description": "Revision of complete workspace rules already held by the caller. Matching, revalidated rules return a compact reference; omit after context loss.",
-	}
-	properties["workdir"] = map[string]any{
-		"type": "string", "maxLength": 4096,
-		"description": "Request-local directory; omit to inherit this conversation's workspace. Does not select a new execution workspace.",
 	}
 	toolcontract.StructuredPagingInput(properties)
 	output := cloneJSONSchemaMap(contract.ValidationOutputSchema)
