@@ -23,8 +23,8 @@ func contextToolSpecs() []ToolSpec {
 		Description: contextguide.Description,
 		Handler:     ctxToolHandler((*Runtime).agentDockContextTool),
 	}, {
-		Name: "workspace_context", Contract: canonicalToolContract, Title: "Workspace context",
-		Description: "Read only the selected workspace AGENTS.md rules and workspace-local Skill index. Use for a changed scope, not as a required second bootstrap. Selection is request-local and does not change command defaults.",
+		Name: "workspace_context", Contract: workspaceContextToolContract, Title: "Workspace context",
+		Description: "Read selected workspace AGENTS.md rules and local Skills. Omitted workdir inherits the conversation workspace. Selection is read-only and never changes command defaults. Reuse complete rules; known_context_revision permits an unchanged reference after revalidation. Follow cursor or the retained read_file source for more output.",
 		Handler:     ctxToolHandler((*Runtime).workspaceContextTool),
 	}}
 }
@@ -94,6 +94,41 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	}
 	contract.ValidationOutputSchema["properties"] = output
 	result := newToolContract(name, contract.ValidationInputSchema, contract.ValidationOutputSchema)
+	result.PublicOutputSchema = contextDeliveryPublicOutputSchema(result.PublicOutputSchema)
+	return result, true
+}
+
+// Extend only the standalone workspace tool; the shared Bridge contract stays intact.
+func workspaceContextToolContract(name string, cfg config.Config) (ToolContract, bool) {
+	contract, ok := canonicalToolContract(name, cfg)
+	if !ok {
+		return ToolContract{}, false
+	}
+	input := cloneJSONSchemaMap(contract.ValidationInputSchema)
+	properties := input["properties"].(map[string]any)
+	properties["known_context_revision"] = map[string]any{
+		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
+		"description": "Revision of complete workspace rules already held by the caller. Matching, revalidated rules return a compact reference; omit after context loss.",
+	}
+	properties["workdir"] = map[string]any{
+		"type": "string", "maxLength": 4096,
+		"description": "Request-local directory; omit to inherit this conversation's workspace. Does not select a new execution workspace.",
+	}
+	toolcontract.StructuredPagingInput(properties)
+	output := cloneJSONSchemaMap(contract.ValidationOutputSchema)
+	outputProperties := output["properties"].(map[string]any)
+	outputProperties["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
+	outputProperties["context_diagnostics"] = map[string]any{
+		"type": "object", "additionalProperties": true,
+		"required": []string{"complete", "components_complete", "binding_status"},
+		"properties": map[string]any{
+			"complete":            map[string]any{"type": "boolean"},
+			"components_complete": map[string]any{"type": "boolean"},
+			"binding_status":      map[string]any{"const": "request_local"},
+		},
+	}
+	toolcontract.StructuredPagingOutput(outputProperties)
+	result := newToolContract(name, input, output)
 	result.PublicOutputSchema = contextDeliveryPublicOutputSchema(result.PublicOutputSchema)
 	return result, true
 }

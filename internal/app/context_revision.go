@@ -9,6 +9,10 @@ import (
 const contextRevisionKey = "context_revision"
 
 var contextRevisionFields = []string{
+	"workdir",
+	"workspace_root",
+	"instructions",
+	"workspace_skills",
 	"workspace",
 	"tasks",
 	"instruction_files",

@@ -126,6 +126,29 @@ func cloneStructuredSnapshot(snapshot *structuredOutputSnapshot) *structuredOutp
 	return &copy
 }
 
+// Context roots keep their immutable entry binding in the journal, while their
+// validated output can select a new workspace. Authorize that exact retained
+// source in its selected workspace without allowing arbitrary cross-workspace
+// output reads or accepting a caller-supplied workspace identity.
+func (r *Runtime) ownsSelectedContextSource(source string, binding activity.Binding) bool {
+	if binding.SourceOwnerKey == "" || binding.ConversationID == "" || binding.WorkspaceID == "" {
+		return false
+	}
+	r.structuredOutputMu.Lock()
+	defer r.structuredOutputMu.Unlock()
+	now := time.Now()
+	for _, snapshot := range r.structuredSnapshots {
+		if snapshot != nil && snapshot.Tool == "agentdock_context" && snapshot.SourceComplete &&
+			snapshot.SourceURI == source && !now.After(snapshot.ExpiresAt) &&
+			snapshot.Binding.SourceOwnerKey == binding.SourceOwnerKey &&
+			snapshot.Binding.ConversationID == binding.ConversationID &&
+			snapshot.Binding.WorkspaceID == binding.WorkspaceID {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Runtime) authorizeStructuredSnapshot(ctx context.Context, original, current activity.Binding) error {
 	if original.SourceOwnerKey != "" && original.SourceOwnerKey != activity.SourceOwnerKey(ctx) {
 		return toolError("OUTPUT_OWNER_MISMATCH", "The retained structured result belongs to another authenticated client.", "permission")

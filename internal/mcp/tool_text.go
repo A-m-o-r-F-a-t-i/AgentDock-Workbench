@@ -98,8 +98,12 @@ func toolResultSummary(name string, envelope map[string]any) string {
 		}
 		return boundedToolSummary(label)
 	}
-	parts := []string{displayName + " succeeded"}
-	for _, key := range []string{"status", "action", "session_id", "exit_code", "command_ok", "changed", "files_changed", "count", "path", "new_path", "task_id", "workspace_id"} {
+	verb := "succeeded"
+	if (name == "exec_command" || name == "session_observe" || name == "session_act") && result["session_id"] != nil {
+		verb = "returned"
+	}
+	parts := []string{displayName + " " + verb}
+	for _, key := range []string{"status", "outcome", "action", "session_id", "exit_code", "command_ok", "delivery", "unchanged", "changed", "files_changed", "count", "path", "new_path", "task_id", "workspace_id"} {
 		if value := summaryField(result[key]); value != "" {
 			parts = append(parts, key+"="+value)
 		}

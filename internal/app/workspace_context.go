@@ -3,13 +3,15 @@ package app
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
+	"github.com/uvwt/agentdock/internal/workspace"
 )
 
-type workspaceContextRequest struct {
-	Workdir string `json:"workdir,omitempty"`
-}
+type workspaceContextRequest = contextRequest
 
 type workspaceContextResult struct {
 	Workdir         string                   `json:"workdir"`
@@ -34,6 +36,19 @@ type workspaceSkillItem struct {
 func (r *Runtime) workspaceContext(ctx context.Context, workdir string) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(workdir) == "" {
+		binding := activity.FromContext(ctx)
+		if binding.WorkspaceID != "" {
+			record, err := r.workspaceRegistry.Select(ctx, binding.WorkspaceID, "")
+			if err != nil {
+				return nil, workspaceFailure(err, binding, nil)
+			}
+			if record.Runtime != workspace.HostRuntime() {
+				return nil, toolError("CONTEXT_WORKSPACE_RUNTIME", "The bound workspace requires its own runtime for instruction loading.", "runtime")
+			}
+			workdir = filepath.Join(record.Root, record.DefaultWorkdir)
+		}
 	}
 	resolved, err := r.ws.ResolveExisting(workdir)
 	if err != nil {
@@ -85,6 +100,13 @@ func (r *Runtime) workspaceContext(ctx context.Context, workdir string) (Result,
 		return nil, err
 	}
 	if err := remarshal(value, &result); err != nil {
+		return nil, err
+	}
+	complete := instructionSnapshotComplete(instructions) && len(warnings) == 0
+	result["context_diagnostics"] = map[string]any{
+		"complete": complete, "components_complete": complete, "binding_status": "request_local",
+	}
+	if err := attachContextRevision(result); err != nil {
 		return nil, err
 	}
 	return result, nil

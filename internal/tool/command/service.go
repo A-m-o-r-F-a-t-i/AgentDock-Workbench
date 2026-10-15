@@ -42,6 +42,8 @@ type Service struct {
 	commandContext CommandContext
 	terminalMu     sync.Mutex
 	terminals      map[string]session.TerminalFuture
+	observationMu  sync.Mutex
+	observations   map[observationKey]*sharedObservation
 }
 
 func New(configProvider ConfigProvider, ws *workspace.Workspace, envs *envstore.Store, resolveSkill SkillResolver, commandContext CommandContext) *Service {

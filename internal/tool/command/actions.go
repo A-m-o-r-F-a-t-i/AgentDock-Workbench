@@ -17,14 +17,16 @@ func (s *Service) ObserveContext(ctx context.Context, request SessionObserveRequ
 	action := strings.ToLower(strings.TrimSpace(request.Action))
 	switch action {
 	case "list":
-		if strings.TrimSpace(request.SessionID) != "" || request.MaxOutputBytes != nil || request.WaitMS != nil {
+		if strings.TrimSpace(request.SessionID) != "" || request.WaitMS != nil {
 			return nil, toolErrorDetails(
 				"INVALID_ARGUMENT",
-				"session_id, max_output_bytes and wait_ms are invalid for session_observe action=list",
+				"session_id and wait_ms are invalid for session_observe action=list",
 				"validation",
-				map[string]any{"action": action, "allowed_arguments": []string{"action"}},
+				map[string]any{"action": action, "allowed_arguments": []string{"action", "max_output_bytes"}},
 			)
 		}
+		// Older hosts attach the shared output budget to list. It has no stream
+		// effect here; list still returns only bounded session metadata.
 		return s.listSessions()
 	case "status":
 		if strings.TrimSpace(request.SessionID) == "" {
@@ -35,7 +37,7 @@ func (s *Service) ObserveContext(ctx context.Context, request SessionObserveRequ
 				map[string]any{"action": action, "required": []string{"session_id"}},
 			)
 		}
-		return s.sessionStatusContext(ctx, request)
+		return s.observeSession(ctx, request)
 	default:
 		return nil, toolErrorDetails("INVALID_ACTION", "session_observe action must be list or status", "validation", map[string]any{"action": request.Action, "allowed": []string{"list", "status"}})
 	}
