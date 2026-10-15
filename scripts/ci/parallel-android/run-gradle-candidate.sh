@@ -78,5 +78,65 @@ if not valid:
     raise SystemExit(f"JVM evidence gate failed: {summary}")
 print(f"JVM evidence gate passed: {len(cases)} tests")
 PY
+
+  python3 - <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import os
+import zipfile
+
+source = Path("mobile/android/termux/agentdock-core-arm64.tar.gz")
+if source.is_symlink() or not source.is_file() or not 0 < source.stat().st_size <= 64 * 1024 * 1024:
+    raise SystemExit("verified bundled Core source is missing or invalid")
+with source.open("rb") as stream:
+    source_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+expected_member = "assets/agentdock-core-arm64.tar.gz"
+transformed_member = "assets/agentdock-core-arm64.tar"
+results = []
+for variant in ("debug", "release"):
+    apk = Path(f"mobile/android/app/build/outputs/apk/{variant}/app-{variant}.apk")
+    if apk.is_symlink() or not apk.is_file():
+        raise SystemExit(f"Android {variant} APK is missing")
+    try:
+        with zipfile.ZipFile(apk) as archive:
+            candidates = [
+                entry for entry in archive.infolist()
+                if entry.filename in {expected_member, transformed_member}
+            ]
+            if len(candidates) != 1 or candidates[0].filename != expected_member:
+                names = [entry.filename for entry in candidates]
+                raise SystemExit(f"{apk.name} does not preserve the bundled Core asset name: {names}")
+            entry = candidates[0]
+            if entry.is_dir() or not 0 < entry.file_size <= 64 * 1024 * 1024:
+                raise SystemExit(f"{apk.name} contains an invalid bundled Core asset")
+            with archive.open(entry) as stream:
+                member_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if member_digest != source_digest:
+                raise SystemExit(f"{apk.name} bundled Core bytes differ from the verified Linux archive")
+            if entry.compress_type != zipfile.ZIP_STORED:
+                raise SystemExit(f"{apk.name} bundled Core must remain uncompressed inside the APK")
+            results.append({
+                "variant": variant,
+                "apk": str(apk),
+                "apk_asset": expected_member,
+                "sha256": member_digest,
+                "size_bytes": entry.file_size,
+                "zip_method": "stored",
+            })
+    except zipfile.BadZipFile as error:
+        raise SystemExit(f"invalid Android APK ZIP: {apk}") from error
+
+report = {
+    "schema_version": 1,
+    "source_sha": os.environ["SOURCE_SHA"],
+    "source_archive": str(source),
+    "source_sha256": source_digest,
+    "apks": results,
+    "gate": "passed",
+}
+Path("evidence/build/bundled-core-apk.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+print(f"APK bundled Core gate passed: {len(results)} variants")
+PY
 fi
 exit "$gradle_status"

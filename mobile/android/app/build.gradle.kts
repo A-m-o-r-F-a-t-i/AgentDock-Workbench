@@ -72,6 +72,12 @@ android {
     }
     sourceSets["main"].assets.srcDir("../termux")
 
+    androidResources {
+        // Keep the bundled Core archive byte-for-byte identical to the verified Linux artifact.
+        // Without this, AAPT expands .tar.gz assets and stores them as .tar inside the APK.
+        noCompress += "gz"
+    }
+
     packaging {
         jniLibs.useLegacyPackaging = true
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
