@@ -39,10 +39,10 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["start_line"] = intProp("1-based start line.")
 		props["end_line"] = intProp("Inclusive end line.")
 		props["max_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 262144 and is capped at 4194304.", 1, MaxTextOutputBytes)
-		props["offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "UTF-8 absolute byte offset for a file or retained activity source. Continue with the returned next_offset and source_revision; never substitute a line number."}
-		props["limit_chars"] = boundedIntProp("Maximum visible Unicode characters. JSON escaping and the fixed final response budget can lower the delivered page size.", 1, 100000)
-		props["source_revision"] = stringProp("File identity returned by the previous page; changing a source during paging returns SOURCE_CHANGED_DURING_PAGING.")
-		props["end_offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "Exclusive UTF-8 byte end of the original requested file range, returned in continue_read."}
+		props["offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "UTF-8 byte offset; continue with next_offset and source_revision."}
+		props["limit_chars"] = boundedIntProp("Maximum visible Unicode characters for this page.", 1, 100000)
+		props["source_revision"] = map[string]any{"type": "string"}
+		props["end_offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "Exclusive byte end returned by continue_read."}
 		required = []string{"path"}
 	case ToolListDir:
 		props["path"] = stringProp(PathDescription("Host directory path. Relative paths resolve from ~/AgentDock."))

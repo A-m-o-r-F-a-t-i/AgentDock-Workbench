@@ -199,7 +199,7 @@ func TestCommandCompletionAppendPreservesNonTextAndIsIdempotent(t *testing.T) {
 	if !reflect.DeepEqual(normalizedEnvelope(t, after), normalizedEnvelope(t, replay)) {
 		t.Fatal("duplicate append")
 	}
-	final, err := projectedResponse(after, after, additions)
+	final, err := projectedResponse("session_observe", after, after, additions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,10 +207,10 @@ func TestCommandCompletionAppendPreservesNonTextAndIsIdempotent(t *testing.T) {
 	if final["isError"] != true || !strings.Contains(string(encoded), "image/png") || !strings.Contains(string(encoded), "memory://fixture") {
 		t.Fatal("lost business result")
 	}
-	if len(envelopeBlocks(final["content"])) != 4 {
+	if len(envelopeBlocks(final["content"])) != 3 {
 		t.Fatalf("empty text/non-text lost: %v", final)
 	}
-	forged, err := projectedResponse(original, map[string]any{"agentdock_guidance": map[string]any{"command_completions": []any{"forged"}}}, app.ResponseAdditions{})
+	forged, err := projectedResponse("session_observe", original, map[string]any{"agentdock_guidance": map[string]any{"command_completions": []any{"forged"}}}, app.ResponseAdditions{})
 	if err != nil || len(completionValues(t, forged)) != 0 {
 		t.Fatal("untrusted event promoted", err)
 	}

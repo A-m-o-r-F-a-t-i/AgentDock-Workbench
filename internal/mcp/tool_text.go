@@ -87,6 +87,13 @@ func jsonTextMatches(text string, structured any) bool {
 
 func toolResultSummary(name string, envelope map[string]any) string {
 	result := asMap(envelope["structuredContent"])
+	if name == "session_observe" {
+		text := sessionObserveResultText(result)
+		if hasResponseAdditions(result) {
+			text += " " + app.InsertionCompatibilitySummary
+		}
+		return boundedToolSummary(text)
+	}
 	displayName := name
 	if name == "mcp_tool_call" {
 		if qualified, _ := result["name"].(string); qualified != "" {

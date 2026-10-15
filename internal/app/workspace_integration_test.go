@@ -220,8 +220,8 @@ func TestTypedForeignToolFailureAndGuidanceIsolation(t *testing.T) {
 	if completed == nil || completed.Status != "failed" {
 		t.Fatalf("typed tool failure reported success: completed=%+v events=%+v", completed, page.Events)
 	}
-	if rpcReturned == nil || rpcReturned.RPCStatus != "failed" || rpcReturned.RPCElapsedMS == nil {
-		t.Fatalf("typed tool failure RPC return was not measured: %+v", rpcReturned)
+	if rpcReturned == nil || rpcReturned.RPCStatus != "succeeded" || rpcReturned.RPCElapsedMS == nil {
+		t.Fatalf("typed business failure did not preserve successful RPC delivery: %+v", rpcReturned)
 	}
 	data, _ := json.Marshal(page)
 	if strings.Contains(string(data), "not-for-the-journal") {

@@ -82,7 +82,7 @@ func (s *Server) InvokeProjected(ctx context.Context, name string, args map[stri
 		// A selective script projection must not silently discard bootstrap rules.
 		final, err = copyEnvelope(original)
 	} else {
-		final, err = projectedResponse(original, projected, pending.CompletedAdditions())
+		final, err = projectedResponse(name, original, projected, pending.CompletedAdditions())
 	}
 	if err != nil {
 		failure := s.runtime.RecordInsertionDeliveryFailure(ctx, pending, "outer_projection_failed")
@@ -118,7 +118,7 @@ func copyEnvelope(value map[string]any) (map[string]any, error) {
 	return result, err
 }
 
-func projectedResponse(original, projected map[string]any, additions app.ResponseAdditions) (map[string]any, error) {
+func projectedResponse(name string, original, projected map[string]any, additions app.ResponseAdditions) (map[string]any, error) {
 	final, err := copyEnvelope(projected)
 	if err != nil {
 		return nil, err
@@ -200,7 +200,8 @@ func projectedResponse(original, projected map[string]any, additions app.Respons
 	if len(ownedGuidance) > 0 {
 		structured["agentdock_guidance"] = ownedGuidance
 	}
-	return appendTrustedAdditions(final, additions), nil
+	final = appendTrustedAdditions(final, additions)
+	return singleBodyEnvelope(name, final), nil
 }
 
 func envelopeBlocks(value any) []any {
