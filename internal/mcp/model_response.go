@@ -65,7 +65,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		return nil, err
 	}
 	if chars > toolcontract.ModelVisibleTotalChars {
-		source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(envelope))
+		source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(name, envelope))
 		if storeErr != nil {
 			return nil, fmt.Errorf("retain completed tool output before projection: %w", storeErr)
 		}
@@ -96,7 +96,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			return nil, countErr
 		}
 		if next > toolcontract.ModelVisibleTotalChars {
-			source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(envelope))
+			source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(name, envelope))
 			if storeErr != nil {
 				return nil, storeErr
 			}
@@ -174,14 +174,88 @@ func compactContentEnvelope(name string, envelope map[string]any) map[string]any
 	return out
 }
 
-func responseRetentionValue(envelope map[string]any) any {
+func responseRetentionValue(name string, envelope map[string]any) any {
 	for _, block := range envelopeBlocks(envelope["content"]) {
 		switch asMap(block)["type"] {
 		case "image", "audio", "resource":
 			return envelope
 		}
 	}
+	if name == "mcp_tool_call" {
+		payload := asMap(envelope["structuredContent"])
+		result := asMap(payload["result"])
+		if structured, exists := result["structuredContent"]; exists && structured != nil {
+			content := canonicalDynamicMCPContent(result["content"], structured)
+			if len(content) == 0 {
+				return structured
+			}
+			retained := map[string]any{"structuredContent": structured, "content": content}
+			if value, exists := result["isError"]; exists {
+				retained["isError"] = value
+			}
+			return retained
+		}
+	}
 	return envelope["structuredContent"]
+}
+
+func projectDynamicMCPResult(payload map[string]any) map[string]any {
+	result := asMap(payload["result"])
+	structured, exists := result["structuredContent"]
+	if !exists || structured == nil {
+		return payload
+	}
+	projected := map[string]any{"structuredContent": structured}
+	if value, exists := result["isError"]; exists {
+		projected["isError"] = value
+	}
+	if content := canonicalDynamicMCPContent(result["content"], structured); len(content) > 0 {
+		projected["content"] = content
+	}
+	out := maps.Clone(payload)
+	out["result"] = projected
+	return out
+}
+
+func canonicalDynamicMCPContent(value, structured any) []any {
+	blocks := envelopeBlocks(value)
+	if len(blocks) == 0 {
+		return nil
+	}
+	kept := make([]any, 0, len(blocks))
+	for _, block := range blocks {
+		object := asMap(block)
+		if object["type"] == "text" {
+			text, _ := object["text"].(string)
+			if redundantDynamicMCPText(text, structured) {
+				continue
+			}
+		}
+		kept = append(kept, block)
+	}
+	return kept
+}
+
+func redundantDynamicMCPText(text string, structured any) bool {
+	if jsonTextMatches(text, structured) {
+		return true
+	}
+	var receipt map[string]any
+	if json.Unmarshal([]byte(text), &receipt) != nil {
+		return false
+	}
+	marker, _ := receipt["structuredContent"].(bool)
+	if !marker {
+		return false
+	}
+	for key := range receipt {
+		switch key {
+		case "ok", "structuredContent", "transportOk", "outcome", "requestStatus", "schema", "resultId", "receiptId", "total", "nextOffset", "coverageComplete", "error":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func omittedContentDescriptors(envelope map[string]any) []map[string]any {
@@ -248,6 +322,9 @@ func normalizeResponseStages(name string, args, envelope map[string]any) map[str
 	payload := maps.Clone(asMap(out["structuredContent"]))
 	if payload == nil {
 		payload = map[string]any{}
+	}
+	if name == "mcp_tool_call" {
+		payload = projectDynamicMCPResult(payload)
 	}
 	if payload["operation"] == nil {
 		state, ok := "completed", out["isError"] != true
