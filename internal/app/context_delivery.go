@@ -123,7 +123,7 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	for _, candidate := range candidates {
 		stamp, err := r.contextSourceStamp(ctx, candidate.ContextWorkdir, p.state.binding)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil
 		}
 		if !candidate.SourceComplete || candidate.PermissionRevision != p.decision.Revision || candidate.ContextStamp == "" || stamp != candidate.ContextStamp {
 			r.discardStructuredSnapshot(candidate.ID)
@@ -171,6 +171,9 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 			"operation":           map[string]any{"state": "completed", "ok": true, "executed": false},
 		}
 	}
+	if selected.Delivered && p.spec.Name == "agentdock_context" {
+		r.refreshContextVolatileFacts(ctx, result, selected.ContextWorkdir, p.state.binding)
+	}
 	return result, resume, nil
 }
 
@@ -217,7 +220,7 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 	for attempt := 0; attempt < 2; attempt++ {
 		stamp, err := r.contextSourceStamp(ctx, stringArg(p.args, "workdir"), binding)
 		if err != nil {
-			return nil, err
+			return p.spec.Handler(ctx, r, p.args)
 		}
 		key := binding.SourceOwnerKey + "|" + binding.ConversationID + "|" + stamp
 		if p.args["force_refresh"] == true {
@@ -231,7 +234,7 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 			}
 			after, err := r.contextSourceStamp(buildCtx, stringArg(p.args, "workdir"), binding)
 			if err != nil {
-				return raw, err
+				return raw, errIncompleteContextBuild
 			}
 			if after != stamp {
 				return raw, errContextVersionChanged
@@ -253,6 +256,9 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 		}
 		if diagnostics := modelObject(cloned["context_diagnostics"]); diagnostics != nil {
 			diagnostics["context_snapshot"] = info
+		}
+		if info.CacheHit {
+			r.refreshContextVolatileFacts(ctx, cloned, stringArg(p.args, "workdir"), binding)
 		}
 		return cloned, nil
 	}

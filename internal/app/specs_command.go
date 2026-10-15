@@ -16,10 +16,10 @@ func commandToolSpecs() []ToolSpec {
 			}
 			return r.command.Exec(ctx, request)
 		})},
-		{Name: "session_observe", Contract: commandToolContract, Title: "Observe command sessions", Description: "Read or await an exact exec_command session only when its result is needed. Completed background commands are also reported on a later root call in the same conversation. Continue independent work first; when blocked use action=status with wait_ms (up to 300000), or omit it for adaptive waiting. Completion and request cancellation return early. action=list is recovery-only; do not poll unrelated AgentDock state.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("session_observe", func(ctx context.Context, r *Runtime, request toolcommand.SessionObserveRequest) (Result, error) {
-			return r.command.ObserveContext(ctx, request)
+		{Name: "session_observe", Contract: commandToolContract, Title: "Observe command sessions", Description: "Read or wait for an existing exec_command session only when the next decision requires its result. Reuse the exact session_id and returned output cursor. Completion may arrive on a later root call. An unchanged running result is not a reason to poll again. Do not restart the command to obtain its result.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("session_observe", func(ctx context.Context, r *Runtime, request toolcommand.SessionObserveRequest) (Result, error) {
+			return r.observeCommand(ctx, request)
 		})},
-		{Name: "session_act", Contract: commandToolContract, Title: "Act on command sessions", Description: "Write to or stop command sessions through a mutating session tool.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("session_act", func(_ context.Context, r *Runtime, request toolcommand.SessionActRequest) (Result, error) {
+		{Name: "session_act", Contract: commandToolContract, Title: "Act on command sessions", Description: "Write stdin to, signal, or stop an existing command session. This tool mutates process state; use session_observe for read-only status.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("session_act", func(_ context.Context, r *Runtime, request toolcommand.SessionActRequest) (Result, error) {
 			return r.command.Act(request)
 		})},
 	}

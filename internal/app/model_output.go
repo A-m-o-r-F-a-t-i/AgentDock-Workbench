@@ -67,7 +67,7 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
 		smallCompleteLimit = min(smallCompleteLimit, p.outputPolicy.MaxChars)
 	}
-	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
+	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && p.spec.Name != "apply_patch" && !(p.spec.Name == "session_observe" && result["changed"] == false) && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
 		// A complete small result is retained by the existing final response
 		// journal. Avoid another fsync and duplicate payload for every small call.
 		capture["retained_with"] = "response"
@@ -80,6 +80,9 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if payload.Ref != "" {
 		if _, err := r.activity.Append(ctx, activity.Event{Binding: p.state.binding, Kind: "call.payload", ToolName: p.spec.Name, OutputSource: payload}); err == nil {
 			capture["source_ref"] = activity.SourceReference(p.state.binding.CallID, payload)
+			if p.spec.Name == "apply_patch" {
+				out["output_source"] = capture["source_ref"]
+			}
 			capture["retained_bytes"] = payload.Bytes
 		} else {
 			capture["storage_error"] = "The source could not be journaled. Verify the original operation before retrying."
@@ -96,6 +99,9 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	}
 	out["capture"] = capture
 	out["operation"] = modelOperation(result, p.state.executed)
+	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
+		projectContextFacts(out)
+	}
 	return out
 }
 
@@ -105,7 +111,7 @@ func modelOperation(result Result, executed bool) map[string]any {
 		state = "completed"
 	}
 	operation := map[string]any{"state": state, "executed": executed}
-	if state == "running" || state == "pending_approval" || state == "unknown" {
+	if state == "running" || state == "pending_approval" || state == "unknown" || state == "outcome_unknown" || state == "lost" {
 		operation["ok"] = nil
 	} else {
 		operation["ok"] = !resultReportsFailure(result) && result["command_ok"] != false
@@ -200,6 +206,16 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 		diagnostics := modelObject(result["context_diagnostics"])
 		result["context_ready"] = !required && diagnostics["complete"] == true
 	}
+	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {
+		// Diagnostics and binding details remain in the canonical activity source.
+		compact := Result{}
+		for _, key := range []string{"session_id", "status", "operation_status", "changed", "waited_ms", "offset", "next_offset", "exit_code", "command_ok", "already_delivered", "output_source", "source_complete", "outcome_unknown", "activity_warning"} {
+			if value, exists := result[key]; exists {
+				compact[key] = value
+			}
+		}
+		return compact
+	}
 	return result
 }
 
@@ -232,4 +248,39 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 		return "", err
 	}
 	return activity.SourceReference(binding.CallID, payload), nil
+}
+
+func projectContextFacts(result Result) {
+	if diagnostics := modelObject(result["context_diagnostics"]); diagnostics != nil {
+		compact := map[string]any{}
+		for _, key := range []string{"complete", "components_complete", "binding_status"} {
+			if value, ok := diagnostics[key]; ok {
+				compact[key] = value
+			}
+		}
+		result["context_diagnostics"] = compact
+	}
+	delete(result, "host_tools")
+	delete(result, "permission")
+	for _, key := range []string{"skills", "plugins", "dynamic_mcp", "workflow_templates", "warnings", "running_sessions", "terminal_completions_pending"} {
+		value := result[key]
+		switch typed := value.(type) {
+		case []any:
+			if len(typed) == 0 {
+				delete(result, key)
+			}
+		case []string:
+			if len(typed) == 0 {
+				delete(result, key)
+			}
+		case int:
+			if typed == 0 {
+				delete(result, key)
+			}
+		case float64:
+			if typed == 0 {
+				delete(result, key)
+			}
+		}
+	}
 }

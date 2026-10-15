@@ -5,7 +5,11 @@ package wslfilehelper
 // Request 是 Windows Host 通过 stdin 发送给 Linux helper 的内部协议。
 // 这是内部实现协议，不直接暴露给 MCP 调用方。
 type Request struct {
-	Action string `json:"action"`
+	Patch                 string `json:"patch"`
+	ExpectedPatchRevision string `json:"expected_patch_revision"`
+	WorkspaceID           string `json:"workspace_id"`
+	DryRun                bool   `json:"dry_run"`
+	Action                string `json:"action"`
 
 	Path    string `json:"path"`
 	NewPath string `json:"new_path"`
@@ -56,10 +60,11 @@ type ChangeRequest struct {
 }
 
 type Response struct {
-	OK      bool           `json:"ok"`
-	Code    string         `json:"code,omitempty"`
-	Message string         `json:"message,omitempty"`
-	Details map[string]any `json:"details,omitempty"`
+	PatchResult map[string]any `json:"patch_result,omitempty"`
+	OK          bool           `json:"ok"`
+	Code        string         `json:"code,omitempty"`
+	Message     string         `json:"message,omitempty"`
+	Details     map[string]any `json:"details,omitempty"`
 
 	Exists    *bool  `json:"exists,omitempty"`
 	Path      string `json:"path,omitempty"`

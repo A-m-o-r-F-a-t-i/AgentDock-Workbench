@@ -30,7 +30,7 @@ func publishedToolOutputSchema(_ map[string]any) map[string]any { return nil }
 
 var executionOverrideTools = map[string]bool{
 	"exec_command":        true,
-	"file_edit":           true,
+	"apply_patch":         true,
 	"mcp_tool_call":       true,
 	"plugin_manage":       true,
 	"android_device_read": true,
@@ -43,6 +43,7 @@ var executionOverrideTools = map[string]bool{
 var inheritedExecutionFields = []string{"task_id", "thread_id", "step_id", "activity_label"}
 
 var publicToolHiddenFields = map[string][]string{
+	"exec_command":        {"workspace_id"},
 	"android_device_read": {"workspace_id", "retry_of_call_id"},
 	"android_device_act":  {"workspace_id", "retry_of_call_id"},
 	"mcp_tool_call":       {"workspace_id"},
@@ -99,7 +100,7 @@ func compactPublicToolDescriptions(name string, properties map[string]any) {
 	case "agentdock_context":
 		setSchemaDescription(properties, "workdir", "Existing workspace directory; omit to inherit the conversation workspace. Complete context coordinates binding; running sessions stay unchanged.")
 		setSchemaDescription(properties, "known_context_revision", "Revision of complete context held by the caller; matching, revalidated context may return a compact reference. Omit after context loss.")
-	case "file_edit":
+	case "apply_patch":
 		setSchemaDescription(properties, "path", "Source file or directory path for the selected action.")
 		setSchemaDescription(properties, "new_path", "Destination path for move.")
 		setSchemaDescription(properties, "patch", "Structured envelope: *** Begin Patch; repeat *** Add File: <path>, *** Delete File: <path>, or *** Update File: <path>; use @@ [<optional context line>] and optional *** End of File; finish with *** End Patch.")

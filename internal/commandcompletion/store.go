@@ -287,3 +287,38 @@ func (s *Store) cleanup(state *ledger) bool {
 	state.Records = kept
 	return changed
 }
+
+// Delivered consults the existing durable receipt, including explicit terminal
+// observations that settled before the asynchronous completion callback.
+func (s *Store) Delivered(ctx context.Context, owner, conversation string, identity Identity) (bool, error) {
+	if !validTarget(owner, conversation) || !identity.valid() {
+		return false, errors.New("invalid completion identity")
+	}
+	delivered := false
+	err := s.update(ctx, func(state *ledger) (bool, error) {
+		for _, item := range state.Records {
+			if item.Owner == owner && item.Conversation == conversation && item.Identity == identity {
+				delivered = item.State == "appended"
+				break
+			}
+		}
+		return false, nil
+	})
+	return delivered, err
+}
+
+func (s *Store) PendingCount(ctx context.Context, owner, conversation string) (int, error) {
+	if !validTarget(owner, conversation) {
+		return 0, nil
+	}
+	count := 0
+	err := s.update(ctx, func(state *ledger) (bool, error) {
+		for _, item := range state.Records {
+			if item.Owner == owner && item.Conversation == conversation && (item.State == "pending" || item.State == "reserved") {
+				count++
+			}
+		}
+		return false, nil
+	})
+	return count, err
+}

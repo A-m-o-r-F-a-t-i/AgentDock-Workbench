@@ -229,7 +229,29 @@ func (r *Runtime) requireBuiltinToolVisible(ctx context.Context, name string) er
 
 func (r *Runtime) builtinToolBundleItems(ctx context.Context) []capabilityBuiltinToolBundleItem {
 	items, _ := r.builtinToolBundles.statuses(ctx)
-	return items
+	result := make([]capabilityBuiltinToolBundleItem, 0, len(items))
+	for _, item := range items {
+		bundle, _ := toolcapability.ByName(item.Name)
+		item.ToolCount = len(r.availableBundleTools(bundle))
+		if item.ToolCount > 0 {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func (r *Runtime) availableBundleTools(bundle toolcapability.Bundle) []string {
+	available := map[string]bool{}
+	for _, name := range r.ToolNames() {
+		available[name] = true
+	}
+	tools := []string{}
+	for _, name := range bundle.Tools {
+		if available[name] {
+			tools = append(tools, name)
+		}
+	}
+	return tools
 }
 
 func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapability.Request) (Result, error) {
@@ -240,11 +262,14 @@ func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapabil
 	var loadedBundle toolcapability.Bundle
 	if request.Action == toolcapability.ActionLoad {
 		loadedBundle, _ = toolcapability.ByName(request.Name)
+		if len(r.availableBundleTools(loadedBundle)) == 0 {
+			return nil, toolError("TOOL_BUNDLE_UNAVAILABLE", "This bundle has no enabled tools on this device.", "validation")
+		}
 		changed, scoped = r.builtinToolBundles.load(ctx, loadedBundle)
 	} else {
 		_, scoped = r.builtinToolBundles.statuses(ctx)
 	}
-	items, _ := r.builtinToolBundles.statuses(ctx)
+	items := r.builtinToolBundleItems(ctx)
 	bundles := make([]map[string]any, 0, len(items))
 	definitions := toolcapability.Bundles()
 	byName := make(map[string]toolcapability.Bundle, len(definitions))
@@ -255,7 +280,7 @@ func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapabil
 		definition := byName[item.Name]
 		bundles = append(bundles, map[string]any{
 			"name": item.Name, "description": item.Description, "loaded": item.Loaded,
-			"tool_count": item.ToolCount, "tools": append([]string(nil), definition.Tools...),
+			"tool_count": item.ToolCount, "tools": r.availableBundleTools(definition),
 		})
 	}
 	result := Result{
@@ -264,11 +289,12 @@ func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapabil
 	}
 	if request.Action == toolcapability.ActionLoad {
 		result["loaded_bundle"] = loadedBundle.Name
-		result["revealed_tools"] = append([]string(nil), loadedBundle.Tools...)
+		result["revealed_tools"] = r.availableBundleTools(loadedBundle)
+		result["bundles"] = []map[string]any{}
 		if scoped {
-			result["next_required_action"] = "Refresh the caller's tools/list, then invoke the required revealed tool. No bundled tool action ran during this load."
+			result["next_required_action"] = "Invoke the required revealed tool directly. Loading did not execute it."
 		} else {
-			result["next_required_action"] = "This client already receives the complete legacy directory; invoke the required tool directly."
+			result["next_required_action"] = "This client already has the tools; invoke the required tool directly."
 		}
 	}
 	return result, nil

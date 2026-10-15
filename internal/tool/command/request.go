@@ -1,6 +1,9 @@
 package command
 
-import "github.com/uvwt/agentdock/internal/activity"
+import (
+	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/tool/command/session"
+)
 
 // RuntimeOptions 描述命令实际执行环境。非 Windows 主机只接受零值。
 type RuntimeOptions struct {
@@ -32,10 +35,11 @@ type ExecRequest struct {
 }
 
 type SessionObserveRequest struct {
-	Action         string `json:"action,omitempty"`
-	SessionID      string `json:"session_id,omitempty"`
-	MaxOutputBytes *int   `json:"max_output_bytes,omitempty"`
-	WaitMS         *int   `json:"wait_ms,omitempty"`
+	Offset         *session.OutputCursor `json:"offset,omitempty"`
+	Action         string                `json:"action,omitempty"`
+	SessionID      string                `json:"session_id,omitempty"`
+	MaxOutputBytes *int                  `json:"max_output_bytes,omitempty"`
+	WaitMS         *int                  `json:"wait_ms,omitempty"`
 }
 
 type SessionActRequest struct {

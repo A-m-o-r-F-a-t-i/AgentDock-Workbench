@@ -53,6 +53,11 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output := maps.Clone(contract.ValidationOutputSchema["properties"].(map[string]any))
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
+	output["git"] = map[string]any{"type": "object", "additionalProperties": false, "required": []string{"available"}, "properties": map[string]any{
+		"available": map[string]any{"type": "boolean"}, "repository_root": map[string]any{"type": "string"}, "branch": map[string]any{"type": "string"}, "head": map[string]any{"type": "string"}, "dirty": map[string]any{"type": "boolean"}, "conflicts": map[string]any{"type": "integer", "minimum": 0}, "changed_paths_total": map[string]any{"type": "integer", "minimum": 0}, "revision": map[string]any{"type": "string"}, "error_code": map[string]any{"type": "string"},
+	}}
+	output["running_sessions"] = map[string]any{"type": "integer", "minimum": 0}
+	output["terminal_completions_pending"] = map[string]any{"type": "integer", "minimum": 0}
 	output["android_executor"] = androidExecutorStatusSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
 	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()

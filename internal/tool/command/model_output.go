@@ -37,7 +37,7 @@ func (s *Service) persistedSessionResult(ctx context.Context, id string) (Result
 	if call.TimedOut {
 		status = "timeout"
 	}
-	result := Result{"session_id": id, "status": status, "terminal_retained": true, "no_change": true, "elapsed_ms": call.ElapsedMS, "runtime": call.Runtime, "workdir": call.Workdir}
+	result := Result{"session_id": id, "status": status, "operation_status": "succeeded", "terminal_retained": true, "no_change": true, "elapsed_ms": call.ElapsedMS, "runtime": call.Runtime, "workdir": call.Workdir}
 	if call.ExitCode != nil {
 		result["exit_code"] = *call.ExitCode
 	}
@@ -45,15 +45,24 @@ func (s *Service) persistedSessionResult(ctx context.Context, id string) (Result
 		result["command_ok"] = *call.CommandOK
 	}
 	if call.Status == "unknown" || call.ExitCode == nil {
-		result["status"] = "unknown"
+		result["status"] = "outcome_unknown"
 		result["outcome_unknown"] = true
 	}
 	if call.TimedOut {
 		result["timed_out"] = true
 	}
+	if call.Status == "cancelled" {
+		result["status"], result["command_ok"] = "cancelled", false
+	}
 	if source := activity.SourceReference(call.CallID, call.OutputSource); source != "" {
 		result["source_ref"] = source
+		result["output_source"] = source
 	}
 	addBindingResult(result, call.Binding)
 	return result, nil
+}
+
+// TerminalReceipt reads persisted facts without consuming or replaying output.
+func (s *Service) TerminalReceipt(ctx context.Context, id string) (Result, error) {
+	return s.persistedSessionResult(ctx, id)
 }

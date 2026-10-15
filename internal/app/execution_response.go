@@ -16,7 +16,7 @@ func compactExecutionSuccess(result Result, p *preparedExecution) Result {
 		return result
 	}
 	switch stringArg(result, "status") {
-	case "unknown", "partial", "failed", "error", "timeout", "killed", "cancelled", "pending_approval", "approval_rejected":
+	case "unknown", "outcome_unknown", "lost", "partial", "failed", "error", "timeout", "killed", "cancelled", "pending_approval", "approval_rejected":
 		return result
 	}
 	compact := maps.Clone(result)

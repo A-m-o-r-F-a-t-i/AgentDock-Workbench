@@ -14,9 +14,9 @@ import (
 // caller claims and command spelling cannot prove an effect is constrained.
 func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state executionObservation) permission.Facts {
 	switch f.Tool {
-	case "read_file", "list_dir", "search_text", "file_edit":
+	case "read_file", "list_dir", "search_text", "apply_patch":
 		f.Filesystem = permission.FileRead
-		if f.Tool == "file_edit" && !f.ReadOnly {
+		if f.Tool == "apply_patch" && !f.ReadOnly {
 			f.Filesystem = permission.FileWrite
 		}
 		runtimeName := stringArg(args, "runtime")
@@ -24,7 +24,7 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 			return f
 		}
 		f.EffectsKnown = true
-		if f.Tool == "file_edit" && (state.selected == nil || len(state.originals) == 0) {
+		if f.Tool == "apply_patch" && (state.selected == nil || len(state.originals) == 0) {
 			f.EffectsKnown = false
 		}
 		logical := stringArg(args, "path")
@@ -34,7 +34,7 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 			return f
 		}
 		paths := []string{logical}
-		if f.Tool == "file_edit" {
+		if f.Tool == "apply_patch" {
 			paths = nil
 			for actual := range state.originals {
 				paths = append(paths, actual)
@@ -58,7 +58,7 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 			if strings.HasPrefix(state.selected.Root, `\\`) || strings.HasPrefix(state.selected.Root, "//") {
 				f.Network = true
 			}
-			if target == "" && f.Tool == "file_edit" {
+			if target == "" && f.Tool == "apply_patch" {
 				f.WorkspaceBound = false
 				continue
 			}
@@ -71,7 +71,7 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 				f.WorkspaceBound = false
 				continue
 			}
-			if f.Tool == "file_edit" && resolved.ResolvedPath == resolved.Root {
+			if f.Tool == "apply_patch" && resolved.ResolvedPath == resolved.Root {
 				f.WorkspaceBound = false
 			}
 			if resolved.Root != state.selected.Root {
@@ -85,7 +85,7 @@ func (r *Runtime) profileFacts(f permission.Facts, args map[string]any, state ex
 				f.EffectsKnown = false
 				f.WorkspaceBound = false
 			}
-			if f.Tool == "file_edit" && stringArg(args, "action") == "patch" && len(state.originals) == 0 {
+			if f.Tool == "apply_patch" && stringArg(args, "action") == "patch" && len(state.originals) == 0 {
 				f.WorkspaceBound = false
 			}
 		}

@@ -26,6 +26,7 @@ type liveExecution struct {
 	source    activity.Source
 }
 type preparedExecution struct {
+	patchPreview        Result
 	modelOutput         bool
 	spec                ToolSpec
 	args                map[string]any
@@ -130,7 +131,7 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		if errors.As(failure, &toolErr) {
 			event.ErrorCode = toolErr.Code
 		}
-		if spec.Name == "file_edit" {
+		if spec.Name == "apply_patch" {
 			event.FileEdit = r.fileEditDetails(original, nil, state, failure)
 		}
 		if auditErr := r.appendExecution(event); auditErr != nil {
@@ -211,7 +212,7 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 	if err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "call.bound", ToolName: spec.Name, Title: description, ParameterSummary: r.executionParameters(args), DisplayCommand: r.executionRedactor(args).Text(stringArg(args, "cmd"), 4096), Summary: description}); err != nil {
 		return fail(err)
 	}
-	if spec.Name == "file_edit" {
+	if spec.Name == "apply_patch" {
 		if err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "file.requested", ToolName: spec.Name, FileEdit: r.fileEditDetails(args, nil, state, nil)}); err != nil {
 			return fail(err)
 		}
@@ -233,6 +234,44 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 	if decision.Effect == permission.Deny {
 		r.executionMu.Unlock()
 		return fail(toolErrorDetails("PERMISSION_DENIED", decision.Reason, "permission", map[string]any{"rule_id": decision.RuleID, "mode": decision.Mode, "permission": decision, "executed": false}))
+	}
+	if spec.Name == "apply_patch" {
+		// Never hold the global admission lock while reading a multi-file patch.
+		// Approval binds this preflight revision; ApplyPatch rechecks it under
+		// the same ordered path locks before its first filesystem mutation.
+		r.executionMu.Unlock()
+		var request toolfile.ApplyPatchRequest
+		decodeErr := decodeToolInput(spec.Name, args, &request)
+		if decodeErr != nil {
+			return fail(decodeErr)
+		}
+		request.Binding = state.binding
+		preview, previewErr := r.files.PreviewApplyPatch(ctx, request)
+		if previewErr != nil {
+			var original *ToolError
+			if errors.As(previewErr, &original) {
+				copy := *original
+				copy.Details = maps.Clone(original.Details)
+				if copy.Details == nil {
+					copy.Details = map[string]any{}
+				}
+				copy.Details["operation_status"], copy.Details["effect_state"], copy.Details["executed"] = "failed", "none", false
+				copy.Details["retry_safe"] = original.Category == "validation" || original.Category == "conflict"
+				return fail(errors.Join(&copy, previewErr))
+			}
+			return fail(errors.Join(toolErrorDetails("PATCH_PREFLIGHT_FAILED", previewErr.Error(), "runtime", map[string]any{"operation_status": "failed", "effect_state": "none", "retry_safe": false, "executed": false}), previewErr))
+		}
+		prepared.patchPreview = preview
+		args["expected_patch_revision"] = preview["source_revision"]
+		r.executionMu.Lock()
+		if err = r.executionAdmissionLocked(ctx, state.binding, spec.Name, stringArg(args, "action"), callID); err != nil {
+			r.executionMu.Unlock()
+			return fail(err)
+		}
+		if err = r.revalidatePermission(ctx, prepared); err != nil {
+			r.executionMu.Unlock()
+			return fail(err)
+		}
 	}
 	if spec.Name == "mcp_tool_call" {
 		// Catalog discovery may start a third-party transport. Do not hold the
@@ -262,6 +301,9 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 			return fail(toolError("APPROVAL_LIMIT", "Too many pending approvals; resolve or reject existing requests first.", "resource_limit"))
 		}
 		operation := description
+		if prepared.patchPreview != nil {
+			operation += "\n" + stringArg(prepared.patchPreview, "diff")
+		}
 		if command := stringArg(args, "cmd"); command != "" {
 			operation = command
 		}
@@ -352,7 +394,9 @@ func (r *Runtime) executionError(err error, state executionObservation) error {
 		copy.Details["conversation_id"] = state.binding.ConversationID
 	}
 	if toolErr.Category != "validation" || toolErr.Code == "TOOL_BUNDLE_REQUIRED" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err) {
-		copy.Details["agentdock_guidance"] = r.executionErrorGuidance(state, err)
+		if guidance := r.executionErrorGuidance(state, err); len(guidance) > 0 {
+			copy.Details["agentdock_guidance"] = guidance
+		}
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return errors.Join(&copy, err)
@@ -381,7 +425,7 @@ func (r *Runtime) describeExecution(name string, args map[string]any, state exec
 	if name == "mcp_tool_call" {
 		return r.executionRedactor(args).Text(stringArg(args, "name"), 512)
 	}
-	descriptions := map[string]string{"agentdock_context": "加载上下文", "workspace_context": "读取工作区规则", "read_file": "读取文件", "list_dir": "列出目录", "search_text": "搜索文本", "exec_command": "运行命令", "file_edit": "file_edit", "task_manage": "任务管理", "workspace_manage": "工作区管理", "mcp_tool_search": "发现动态工具", "mcp_tool_list": "读取工具目录", "mcp_tool_inspect": "加载工具 Schema", "mcp_tool_call": "调用动态工具", "plugin_load": "展开插件", "session_observe": "查看命令会话", "session_act": "控制命令会话"}
+	descriptions := map[string]string{"agentdock_context": "加载上下文", "workspace_context": "读取工作区规则", "read_file": "读取文件", "list_dir": "列出目录", "search_text": "搜索文本", "exec_command": "运行命令", "apply_patch": "apply_patch", "task_manage": "任务管理", "workspace_manage": "工作区管理", "mcp_tool_search": "发现动态工具", "mcp_tool_list": "读取工具目录", "mcp_tool_inspect": "加载工具 Schema", "mcp_tool_call": "调用动态工具", "plugin_load": "展开插件", "session_observe": "查看命令会话", "session_act": "控制命令会话"}
 	title := descriptions[name]
 	if title == "" {
 		title = name
@@ -476,7 +520,7 @@ func (r *Runtime) executionFacts(name string, args map[string]any, state executi
 		f.Reason = "固定 Android 操作会控制应用、修改系统设置或输入事件，使用已授权 Shizuku 身份执行。"
 	case "exec_command":
 		f.Reason = "任意命令可能修改文件、安装软件、访问网络或控制服务，需要确认实际命令与工作目录。"
-	case "file_edit":
+	case "apply_patch":
 		f.ReadOnly = args["dry_run"] == true
 		f.Reason = "文件变更将在指定目标执行；请确认修改内容、删除范围及工作区。"
 	}
@@ -620,7 +664,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	}
 	// Only execution tools persist a branch binding. Inspecting a completed task
 	// or switching the viewed branch must not change its continuation point.
-	if state.binding.TaskID != "" && (isCommandExecutionTool(p.spec.Name) || p.spec.Name == "file_edit" || p.spec.Name == "mcp_tool_call" || p.spec.Name == "browser_act") {
+	if state.binding.TaskID != "" && (isCommandExecutionTool(p.spec.Name) || p.spec.Name == "apply_patch" || p.spec.Name == "mcp_tool_call" || p.spec.Name == "browser_act") {
 		if _, err := r.taskTools.ResolveBinding(state.binding, true); err != nil {
 			return r.finishPrepared(p, nil, err, "failed")
 		}
@@ -654,7 +698,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	}
 	executionMS := time.Since(handlerStarted).Milliseconds()
 	p.state.executionMS = &executionMS
-	if p.spec.Name == "file_edit" && err == nil {
+	if p.spec.Name == "apply_patch" && result["changed"] == true {
 		r.recordFileChanges(p.args, result, state)
 	}
 	if err == nil && !resultReportsFailure(result) && p.structuredResume == nil {
@@ -728,7 +772,7 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 	event.OperationElapsedMS = &event.ElapsedMS
 	event.CommandObservation = r.commandObservation(p, result, err)
 	event.ExecutionElapsedMS, event.WaitElapsedMS = p.state.executionMS, p.state.waitMS
-	if p.spec.Name == "file_edit" {
+	if p.spec.Name == "apply_patch" {
 		event.FileEdit = r.fileEditDetails(p.args, result, p.state, err)
 	}
 	var te *ToolError
@@ -790,7 +834,9 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 		decorated["approval_id"] = p.approvalID
 	}
 	decorated["permission"] = p.decision
-	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.args, p.state, projected, false)
+	if guidance := r.executionGuidance(p.spec.Name, p.args, p.state, projected, false); len(guidance) > 0 {
+		decorated["agentdock_guidance"] = guidance
+	}
 	decorated["binding_quality"] = p.state.binding.BindingQuality
 	if p.modelOutput {
 		return r.finishModelOutput(p, r.applyToolOutputPolicy(p, decorated))

@@ -38,7 +38,7 @@ func ClassifyOutput(name string, args map[string]any) OutputClass {
 			return OutputRequiredFull
 		}
 		return OutputCompactReceipt
-	case "file_edit", "workspace_manage", "plugin_load", "plugin_manage", "skill_package", "mcp_manage", "insertion_ack", "session_act":
+	case "workspace_manage", "plugin_load", "plugin_manage", "skill_package", "mcp_manage", "insertion_ack", "session_act":
 		return OutputCompactReceipt
 	}
 	return OutputRecoverablePreview

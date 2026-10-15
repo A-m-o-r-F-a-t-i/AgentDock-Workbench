@@ -89,8 +89,12 @@ func (r *Runtime) fileEditDetails(args map[string]any, result Result, state exec
 	if details.StatsState != "known" && details.StatsState != "partial" {
 		details.Insertions, details.Deletions = nil, nil
 	}
-	details.DiffPreview = r.executionRedactor(args).Text(stringArg(result, "diff_preview"), 2048)
-	details.DiffTruncated = result["truncated"] == true || len(stringArg(result, "diff_preview")) > 2048
+	diff := stringArg(result, "diff")
+	if diff == "" {
+		diff = stringArg(result, "diff_preview")
+	}
+	details.DiffPreview = r.executionRedactor(args).Text(diff, 2048)
+	details.DiffTruncated = result["diff_truncated"] == true || result["truncated"] == true || len(diff) > 2048
 	rawFiles := result["file_statistics"]
 	if rawFiles == nil {
 		rawFiles = result["affected_files"]

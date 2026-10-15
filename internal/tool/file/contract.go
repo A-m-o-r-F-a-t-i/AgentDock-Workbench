@@ -33,8 +33,10 @@ func InputSchema(name string) (map[string]any, bool) {
 	var required []string
 
 	switch name {
+	case ToolApplyPatch:
+		return toolcontract.InputObject(map[string]any{"patch": map[string]any{"type": "string", "minLength": 1, "maxLength": maxApplyPatchBytes, "description": "Codex V4A patch: *** Begin Patch, Add/Delete/Update File operations, optional Move to, @@ hunks, and *** End Patch. Context lines start with a space; deletions with -; additions with +."}}, "patch"), true
 	case ToolReadFile:
-		props["path"] = stringProp(PathDescription("Host path. Relative paths resolve from ~/AgentDock."))
+		props["path"] = stringProp(PathDescription("Host path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound."))
 		AddRuntimeProperties(props)
 		props["start_line"] = intProp("1-based start line.")
 		props["end_line"] = intProp("Inclusive end line.")
@@ -45,7 +47,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["end_offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "Exclusive byte end returned by continue_read."}
 		required = []string{"path"}
 	case ToolListDir:
-		props["path"] = stringProp(PathDescription("Host directory path. Relative paths resolve from ~/AgentDock."))
+		props["path"] = stringProp(PathDescription("Host directory path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound."))
 		AddRuntimeProperties(props)
 		props["max_depth"] = boundedIntProp("Maximum traversal depth relative to path. Defaults to 1 and is capped at 20.", 1, 20)
 		props["max_entries"] = boundedIntProp("Maximum returned entries. Defaults to 200 and is capped at 5000.", 1, 5000)
@@ -55,7 +57,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["include_hidden"] = boolProp("Include hidden paths.")
 		props["include_ignored"] = boolProp("Include normally skipped or ignored paths.")
 	case ToolSearchText:
-		props["path"] = stringProp(PathDescription("Host path. Relative paths resolve from ~/AgentDock."))
+		props["path"] = stringProp(PathDescription("Host path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound."))
 		AddRuntimeProperties(props)
 		props["query"] = stringProp("Text or regex query.")
 		props["regex"] = boolProp("Treat query as regex.")
@@ -72,7 +74,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["action"] = map[string]any{"type": "string", "description": "File edit action.", "enum": []string{"replace", "patch", "add", "delete", "move"}}
 		toolcontract.ActivityProperties(props)
 		toolcontract.TargetProperties(props)
-		props["path"] = stringProp(PathDescription("Host path for replace, add, delete, or move. Relative paths resolve from ~/AgentDock."))
+		props["path"] = stringProp(PathDescription("Host path for replace, add, delete, or move. Relative paths inherit the bound Workspace root, or the configured default directory when unbound."))
 		AddRuntimeProperties(props)
 		props["old"] = stringProp("Exact UTF-8 text to replace.")
 		props["new"] = stringProp("Replacement UTF-8 text for action=replace.")
@@ -146,8 +148,22 @@ func OutputSchema(name string) (map[string]any, bool) {
 	var required []string
 
 	switch name {
+	case ToolApplyPatch:
+		props["operation_status"] = map[string]any{"type": "string", "enum": []string{"succeeded", "failed"}}
+		props["effect_state"] = map[string]any{"type": "string", "enum": []string{"none", "complete", "partial", "unknown"}}
+		props["error_kind"] = stringProp("Stable failure kind.")
+		props["retry_safe"] = boolProp("Whether replay can duplicate known side effects.")
+		props["changed_files"] = arrayProp("Actually changed files and operations.")
+		props["completed_changes"] = arrayProp("Verified completed changes, including when a later operation failed.")
+		props["failed_change"] = toolcontract.OpenObject("Failed operation index, path and actual effects.")
+		props["diff"] = stringProp("Actual written diff, complete before model projection.")
+		props["diff_truncated"] = boolProp("Whether the model-visible diff is truncated.")
+		props["output_source"] = stringProp("Retained full diff and result.")
+		props["workspace_id"] = stringProp("Inherited workspace identity.")
+		props["resolved_path"] = stringProp("Canonical patch workspace root.")
+		return toolcontract.OutputObject(props, "operation_status", "effect_state"), true
 	case ToolReadFile:
-		props["path"] = stringProp("Host path or skill:// resource URI. Relative Host paths resolve from ~/AgentDock.")
+		props["path"] = stringProp("Host path or skill:// resource URI. Relative Host paths inherit the bound Workspace root.")
 		props["content"] = stringProp("Text content slice.")
 		props["encoding"] = stringProp("Detected text encoding.")
 		props["size_bytes"] = intProp("File size in bytes.")
@@ -173,7 +189,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["file_delivery"] = map[string]any{"type": "object", "additionalProperties": true}
 		props["payload"] = map[string]any{"type": "object", "additionalProperties": true}
 	case ToolListDir:
-		props["path"] = stringProp("Listed Host directory path. Relative paths resolve from ~/AgentDock.")
+		props["path"] = stringProp("Listed Host directory path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound.")
 		props["entries"] = map[string]any{
 			"type":        "array",
 			"description": "Matched directory entries. Each entry path is slash-normalized and relative to the requested path.",
@@ -206,7 +222,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 	case ToolFileEdit:
 		props["action"] = stringProp("File edit action.")
 		props["summary"] = stringProp("Result summary.")
-		props["path"] = stringProp("Host path. Relative paths resolve from ~/AgentDock.")
+		props["path"] = stringProp("Host path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound.")
 		props["new_path"] = stringProp("Move destination path.")
 		props["workdir"] = stringProp("Patch working directory.")
 		props["affected_files"] = map[string]any{

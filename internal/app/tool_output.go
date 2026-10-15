@@ -35,8 +35,8 @@ func ordinaryOutputSlots(name string, args map[string]any, result Result) ([]out
 			add(result, "stdout", "stdout")
 			add(result, "stderr", "stderr")
 		}
-	case "file_edit":
-		add(result, "diff_preview", "diff_preview")
+	case "apply_patch":
+		add(result, "diff", "diff")
 	case "mcp_tool_call":
 		remote := modelObject(result["result"])
 		if remote == nil || remote["structuredContent"] != nil {
@@ -134,6 +134,9 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 		description["continue_read"] = map[string]any{"tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}, "offset_unit": "utf8_byte"}
 	} else {
 		description["continuation_unavailable"] = "The original result could not be retained; inspect the activity record before retrying an operation."
+	}
+	if p.spec.Name == "apply_patch" {
+		result["diff_truncated"] = true
 	}
 	result["output_policy"] = description
 	result["projection"] = map[string]any{"mode": "head_tail", "complete": false, "visible_chars": visibleChars, "omitted_bytes": omitted}

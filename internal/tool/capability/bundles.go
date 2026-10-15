@@ -28,6 +28,15 @@ type Request struct {
 }
 
 var builtinBundles = []Bundle{
+	{Name: "workspace-management", Description: "Inspect scoped rules or register and route workspaces.", Tools: []string{"workspace_context", "workspace_manage"}},
+	{Name: "task-management", Description: "Resume or checkpoint an explicitly persistent Task/Thread.", Tools: []string{"task_manage"}},
+	{Name: "external-providers", Description: "Expand plugins and discover or call external dynamic MCP providers.", Tools: []string{"plugin_load", "mcp_tool_search", "mcp_tool_list", "mcp_tool_inspect", "mcp_tool_call"}},
+	{Name: "browser-control", Description: "Use the configured browser provider for a requested browser task.", Tools: []string{"browser_session", "browser_act", "browser_snapshot"}},
+	{Name: "android-control", Description: "Read or control a paired Android device through the verified backend.", Tools: []string{"android_device_read", "android_device_act"}},
+	{Name: "image-reading", Description: "Read a device image or retained image artifact.", Tools: []string{"view_image"}},
+	{Name: "agent-interop", Description: "Control an external coding agent only when explicitly requested.", Tools: []string{"acp_session", "acp_prompt", "acp_interaction"}},
+	{Name: "recall", Description: "Read or maintain existing project recall and explicitly requested private notes.", Tools: []string{"recall_search", "recall_read", "recall_write", "recall_maintain", "private_note_manage"}},
+	{Name: "workflow-templates", Description: "Inspect configured workflow templates and existing evolution capabilities.", Tools: []string{"workflow_template_manage", "evolve"}},
 	{
 		Name:        BundleSystemManagement,
 		Description: "Configure dynamic MCP servers, plugins, and installed Skill packages.",

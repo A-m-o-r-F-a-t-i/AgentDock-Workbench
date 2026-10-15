@@ -298,9 +298,10 @@ func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) 
 // snapshotResult 是 Command capability 向外部 Tool Result 的输出边界；Session 核心只暴露强类型快照。
 func snapshotResult(snapshot session.Snapshot) Result {
 	result := Result{
-		"session_id": snapshot.SessionID, "status": snapshot.Status,
-		"outcome":    commandOutcome(snapshot),
-		"elapsed_ms": snapshot.ElapsedMS, "terminal": snapshot.Terminal,
+		"session_id": snapshot.SessionID, "status": publicCommandStatus(snapshot.Status),
+		"operation_status": "succeeded",
+		"outcome":          commandOutcome(snapshot),
+		"elapsed_ms":       snapshot.ElapsedMS, "terminal": snapshot.Terminal,
 		"source_complete":      snapshot.StdoutDroppedBytes == 0 && snapshot.StderrDroppedBytes == 0,
 		"displayed_bytes":      snapshot.StdoutOutputBytes + snapshot.StderrOutputBytes,
 		"total_output_bytes":   snapshot.StdoutTotalBytes + snapshot.StderrTotalBytes,
@@ -330,7 +331,7 @@ func snapshotResult(snapshot session.Snapshot) Result {
 	}
 	if snapshot.Completed && !snapshot.OutcomeUnknown {
 		result["exit_code"] = snapshot.ExitCode
-		result["command_ok"] = snapshot.CommandOK
+		result["command_ok"] = snapshot.CommandOK && snapshot.Status == "exited" && snapshot.ExitCode == 0
 	}
 	if snapshot.Runtime != "" {
 		result["runtime"] = snapshot.Runtime
@@ -566,7 +567,19 @@ func (svc *Service) sessionStatus(request SessionObserveRequest) (Result, error)
 	return svc.sessionStatusContext(context.Background(), request)
 }
 
-func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObserveRequest) (Result, error) {
+func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObserveRequest) (result Result, failure error) {
+	started := time.Now()
+	defer func() {
+		if result == nil || failure != nil {
+			return
+		}
+		result["waited_ms"] = time.Since(started).Milliseconds()
+		result["changed"] = result["status"] != "running" || result["stdout"] != nil || result["stderr"] != nil
+		if result["changed"] == false {
+			delete(result, "observe_after_ms")
+			delete(result, "next_observe_after_ms")
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -574,11 +587,35 @@ func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObs
 	if !ok {
 		return svc.persistedSessionResult(ctx, request.SessionID)
 	}
-	maxBytes := commandOutputLimit(request.MaxOutputBytes)
+	read := func() (Result, error) {
+		if request.Offset == nil {
+			if s.Completed() {
+				return svc.completedSessionResult(s, commandOutputLimit(request.MaxOutputBytes), true), nil
+			}
+			return snapshotResult(s.Snapshot("running", commandOutputLimit(request.MaxOutputBytes))), nil
+		}
+		snapshot, err := s.SnapshotAt("running", commandOutputLimit(request.MaxOutputBytes), *request.Offset)
+		if err != nil {
+			return nil, toolErrorDetails("INVALID_OUTPUT_CURSOR", err.Error(), "validation", map[string]any{"session_id": request.SessionID})
+		}
+		value := snapshotResult(snapshot)
+		if snapshot.Completed {
+			if err := s.WaitError(); err != nil {
+				value["command_error"] = err.Error()
+			}
+		}
+		return value, nil
+	}
 	select {
 	case <-s.Done:
-		return svc.completedSessionResult(s, maxBytes, true), nil
+		return read()
 	default:
+	}
+	// Validate an explicit cursor before waiting; invalid requests never consume time or output.
+	if request.Offset != nil {
+		if _, err := s.SnapshotAt("running", 1, *request.Offset); err != nil {
+			return nil, toolError("INVALID_OUTPUT_CURSOR", err.Error(), "validation")
+		}
 	}
 	wait, err := sessionObserveWait(request.WaitMS, s.Summary().ElapsedMS)
 	if err != nil {
@@ -589,17 +626,22 @@ func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObs
 		defer timer.Stop()
 		select {
 		case <-s.Done:
-			return svc.completedSessionResult(s, maxBytes, true), nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timer.C:
 		}
 	}
-	select {
-	case <-s.Done:
-		return svc.completedSessionResult(s, maxBytes, true), nil
+	return read()
+}
+
+func publicCommandStatus(status string) string {
+	switch status {
+	case "killed":
+		return "cancelled"
+	case "unknown":
+		return "outcome_unknown"
 	default:
-		return snapshotResult(s.Snapshot("running", maxBytes)), nil
+		return status
 	}
 }
 
