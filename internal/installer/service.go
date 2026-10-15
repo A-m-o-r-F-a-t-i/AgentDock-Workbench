@@ -357,6 +357,11 @@ func startWindowsServices(ctx context.Context, request Request, journal *rollbac
 			return err
 		}
 	}
+	if err := journal.updateService("agentdock", func(service *journalService) {
+		service.StartAttempted = true
+	}); err != nil {
+		return err
+	}
 	if err := runCmd(ctx, binary, "service", "start", "--runtime-root", request.RuntimeRoot); err != nil {
 		return err
 	}
@@ -370,6 +375,11 @@ func startWindowsTunnel(_ context.Context, request Request, journal *rollbackJou
 		if err := journal.NoteService(journalService{Manager: "windows", Name: "agentdock-tunnel"}); err != nil {
 			return err
 		}
+	}
+	if err := journal.updateService("agentdock-tunnel", func(service *journalService) {
+		service.StartAttempted = true
+	}); err != nil {
+		return err
 	}
 	// Windows Tunnel startup is intentionally detached. The WinExe proxy owns the potentially
 	// slow Cloudflare readiness loop; Installer Engine must not block Core commit on it.
@@ -434,6 +444,9 @@ func stopJournalService(ctx context.Context, request Request, service journalSer
 		}
 		return runCmd(ctx, "launchctl", "bootout", spec)
 	case "windows":
+		if !windowsServiceMayNeedStop(service) {
+			return nil
+		}
 		binary := windowsServiceBinary(request)
 		if binary == "" {
 			return fmt.Errorf("Windows 停止找不到 agentdock 二进制")
@@ -444,6 +457,10 @@ func stopJournalService(ctx context.Context, request Request, service journalSer
 		return runCmd(ctx, binary, "service", "stop", "--runtime-root", request.RuntimeRoot)
 	}
 	return nil
+}
+
+func windowsServiceMayNeedStop(service journalService) bool {
+	return service.WasActive || service.StartAttempted || service.StartedByUs
 }
 
 func reloadJournalServices(ctx context.Context, request Request, services []journalService) error {

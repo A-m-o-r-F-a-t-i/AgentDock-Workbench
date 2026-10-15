@@ -705,10 +705,7 @@ func repairWindowsGeneration(request Request, journal *rollbackJournal, layout u
 	if err := journal.Snapshot(generation); err != nil {
 		return stagedInstall{}, err
 	}
-	if err := os.RemoveAll(generation); err != nil && !os.IsNotExist(err) {
-		return stagedInstall{}, err
-	}
-	if err := os.Rename(staging, generation); err != nil {
+	if err := replaceGenerationDirectory(staging, generation); err != nil {
 		return stagedInstall{}, err
 	}
 	staged := stagedInstall{
@@ -744,10 +741,7 @@ func publishWindowsGeneration(request Request, journal *rollbackJournal, layout 
 	if err := journal.Snapshot(generation); err != nil {
 		return stagedInstall{}, err
 	}
-	if err := os.RemoveAll(generation); err != nil && !os.IsNotExist(err) {
-		return stagedInstall{}, err
-	}
-	if err := os.Rename(staging, generation); err != nil {
+	if err := replaceGenerationDirectory(staging, generation); err != nil {
 		return stagedInstall{}, err
 	}
 	if err := journal.NoteCreated(generation); err != nil {
