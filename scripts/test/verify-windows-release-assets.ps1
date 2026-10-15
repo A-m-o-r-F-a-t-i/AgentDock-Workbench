@@ -95,7 +95,7 @@ if (-not (Test-Path -LiteralPath $releaseRoot -PathType Container)) {
 $reportPath = Resolve-RequiredFile -Path $BuildReport -Description 'Build report'
 if ($Architectures -notcontains $Architecture -or @($Architectures | Select-Object -Unique).Count -ne $Architectures.Count) { throw 'Invalid architecture verification scope.' }
 $expectedNames = @('install.ps1','install.ps1.sha256') + @($Architectures | ForEach-Object {
-    "AgentDockSetup-$_.exe"; "AgentDockSetup-$_.exe.sha256"; "agentdock_windows_$_.zip"; "agentdock_windows_$_.zip.sha256"
+    "AgentDock-Workbench-Setup-$_.exe"; "AgentDock-Workbench-Setup-$_.exe.sha256"; "agentdock_windows_$_.zip"; "agentdock_windows_$_.zip.sha256"
 }) | Sort-Object
 $actualNames = @(Get-ChildItem -LiteralPath $releaseRoot -File | Select-Object -ExpandProperty Name | Sort-Object)
 $difference = @(Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames)
@@ -104,7 +104,7 @@ if ($difference.Count -ne 0) {
 }
 
 $digests = [ordered]@{}
-foreach ($name in @("AgentDockSetup-$Architecture.exe", "agentdock_windows_$Architecture.zip", 'install.ps1')) {
+foreach ($name in @("AgentDock-Workbench-Setup-$Architecture.exe", "agentdock_windows_$Architecture.zip", 'install.ps1')) {
     $digests[$name] = Assert-Checksum `
         -PayloadPath (Join-Path $releaseRoot $name) `
         -ChecksumPath (Join-Path $releaseRoot "$name.sha256")
@@ -209,7 +209,7 @@ try {
     Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$setupVersion = (Get-Item -LiteralPath (Join-Path $releaseRoot "AgentDockSetup-$Architecture.exe")).VersionInfo.ProductVersion.Trim()
+$setupVersion = (Get-Item -LiteralPath (Join-Path $releaseRoot "AgentDock-Workbench-Setup-$Architecture.exe")).VersionInfo.ProductVersion.Trim()
 if ($setupVersion -ne $ExpectedVersion) {
     throw "Offline Setup product version mismatch: $setupVersion"
 }

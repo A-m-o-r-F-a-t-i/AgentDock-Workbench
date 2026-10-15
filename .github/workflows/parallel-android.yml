@@ -16,6 +16,11 @@ on:
         description: Exact source commit selected by the release workflow
         type: string
         required: true
+      core_artifact_name:
+        description: Optional verified Linux ARM64 artifact from the parent release run
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -126,10 +131,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
           import json
-          import os
-          import subprocess
           import xml.etree.ElementTree as ET
           files = list(Path("mobile/android/app/src/main").rglob("*.xml"))
           if not files:
@@ -173,25 +175,14 @@ jobs:
           if any(domain.attrib.get("includeSubdomains") != "false" for domain in domains):
               raise SystemExit("loopback cleartext domains must not include subdomains")
 
-          version = tuple(map(int, os.environ["PRODUCT_VERSION"].split(".")))
-          if version >= (1,1,9):
-              identity = json.loads(Path("packaging/android/core-release-signing.json").read_text())
-              public_key = Path(identity["public_key"])
-              if identity.get("schema_version") != 1 or identity.get("algorithm") != "Ed25519" or not public_key.is_file():
-                  raise SystemExit("Android Core release identity is incomplete")
-              public_der = subprocess.check_output([
-                  "openssl", "pkey", "-pubin", "-in", str(public_key), "-outform", "DER"
-              ])
-              if hashlib.sha256(public_der).hexdigest() != identity.get("public_key_sha256"):
-                  raise SystemExit("Android Core release public key fingerprint mismatch")
-              bootstrap = Path("mobile/android/termux/agentdock-workbench-bootstrap.sh").read_text()
-              view_model = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/WorkbenchViewModel.kt").read_text()
-              for text in (bootstrap, view_model):
-                  if "release-ed25519-public.pem" not in text:
-                      raise SystemExit("complete Termux bridge must carry the Android Core release public key")
-              deployment_page = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/DeploymentPage.kt").read_text()
-              if "ANDROID_CORE_MANIFEST_URL" not in deployment_page or "ANDROID_CORE_MANIFEST_SIGNATURE_URL" not in deployment_page:
-                  raise SystemExit("Android deployment page must use the signed official Core source")
+          bootstrap = Path("mobile/android/termux/agentdock-workbench-bootstrap.sh").read_text()
+          view_model = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/WorkbenchViewModel.kt").read_text()
+          for text in (bootstrap, view_model):
+              if "agentdock-core-arm64.tar.gz" not in text:
+                  raise SystemExit("complete Termux bridge must carry the APK-bundled Android Core")
+          deployment_page = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/DeploymentPage.kt").read_text()
+          if "ANDROID_CORE_MANIFEST_URL" in deployment_page or "ANDROID_CORE_MANIFEST_SIGNATURE_URL" in deployment_page:
+              raise SystemExit("Android deployment page must not depend on external Core release metadata")
           PY
           for script in mobile/android/termux/agentdock-workbench mobile/android/termux/*.sh scripts/ci/parallel-android/*.sh; do
             bash -n "$script"
@@ -256,9 +247,73 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  core:
+    name: Prepare APK-bundled ARM64 Core
+    needs: contract
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        if: inputs.core_artifact_name == ''
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        if: inputs.core_artifact_name != ''
+        with:
+          name: ${{ inputs.core_artifact_name }}
+          path: ${{ runner.temp }}/android-core-input
+      - name: Build native ARM64 Core when no parent artifact was supplied
+        if: inputs.core_artifact_name == ''
+        run: python3 packaging/build-unix-release.py --os linux --arch arm64 --commit "$SOURCE_SHA" --output "$RUNNER_TEMP/android-core-input"
+      - name: Verify and stage the APK-bundled Core
+        env:
+          PRODUCT_VERSION: ${{ needs.contract.outputs.product_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/bundled-core
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'android-core-input'
+          archives=[path for path in root.rglob('agentdock_linux_arm64.tar.gz') if path.is_file() and not path.is_symlink()]
+          reports=[path for path in root.rglob('verification-linux-arm64.json') if path.is_file() and not path.is_symlink()]
+          if len(archives)!=1 or len(reports)!=1:
+              raise SystemExit(f'unexpected Linux ARM64 input set: archives={len(archives)} reports={len(reports)}')
+          archive=archives[0]
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          report=json.loads(reports[0].read_text(encoding='utf-8-sig'))
+          if (report.get('product_name')!='AgentDock Workbench' or report.get('version')!=os.environ['PRODUCT_VERSION'] or
+                  report.get('commit')!=os.environ['SOURCE_SHA'] or report.get('platform')!='linux/arm64' or
+                  report.get('native_execution')!='passed' or report.get('assets',{}).get(archive.name)!=digest):
+              raise SystemExit('Linux ARM64 Core evidence does not match the Android candidate source')
+          output=Path('evidence/bundled-core/agentdock-core-arm64.tar.gz')
+          output.write_bytes(archive.read_bytes())
+          (output.with_name(output.name+'.sha256')).write_text(f'{digest}  {output.name}\n',encoding='utf-8')
+          Path('evidence/bundled-core/verification-bundled-core.json').write_text(json.dumps({
+              'schema_version':1,'product_name':'AgentDock Workbench','version':os.environ['PRODUCT_VERSION'],
+              'commit':os.environ['SOURCE_SHA'],'platform':'android-core/arm64','source_archive':archive.name,
+              'sha256':digest,'delivery':'embedded in APK'
+          },indent=2)+'\n',encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wb07-android-bundled-core-${{ github.run_id }}
+          path: evidence/bundled-core/*
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     name: Android lint, unit tests and APKs
-    needs: contract
+    needs: [contract, core]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     outputs:
@@ -282,6 +337,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: wb07-android-bundled-core-${{ github.run_id }}
+          path: ${{ runner.temp }}/android-bundled-core
+      - name: Stage bundled Core as an APK asset
+        run: install -m 0644 "$RUNNER_TEMP/android-bundled-core/agentdock-core-arm64.tar.gz" mobile/android/termux/agentdock-core-arm64.tar.gz
 
       - name: Prepare preinstalled Android SDK
         run: bash scripts/ci/parallel-android/prepare-runner-sdk.sh
@@ -360,7 +422,7 @@ jobs:
 
   emulator:
     name: Emulator API ${{ matrix.api }}
-    needs: [contract, build]
+    needs: [contract, core, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     strategy:
@@ -388,6 +450,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: wb07-android-bundled-core-${{ github.run_id }}
+          path: mobile/android/termux
 
       - name: Prepare preinstalled Android SDK
         env:
@@ -468,7 +535,7 @@ jobs:
   evidence:
     name: Aggregate candidate evidence
     if: always()
-    needs: [contract, build, emulator]
+    needs: [contract, core, build, emulator]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -480,6 +547,7 @@ jobs:
       - name: Write evidence summary
         env:
           CONTRACT_RESULT: ${{ needs.contract.result }}
+          CORE_RESULT: ${{ needs.core.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           EMULATOR_RESULT: ${{ needs.emulator.result }}
           CANDIDATE_ARTIFACT: ${{ needs.build.outputs.candidate_artifact }}
@@ -499,13 +567,14 @@ jobs:
               "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "jobs": {
                   "contract": os.environ.get("CONTRACT_RESULT", "unknown"),
+                  "bundled_core": os.environ.get("CORE_RESULT", "unknown"),
                   "build": os.environ.get("BUILD_RESULT", "unknown"),
                   "emulator_api_26_33_34_35_37_matrix": os.environ.get("EMULATOR_RESULT", "unknown")
               },
               "candidate_artifact": os.environ.get("CANDIDATE_ARTIFACT", ""),
               "signing": "test-signed with Android debug key",
               "physical_arm64_termux": "not run; shell contract only",
-              "signed_linux_arm64_manifest": "pending publisher-signed release contract",
+              "android_core_delivery": "bundled inside the APK",
               "duration_runs": {"30_minutes": "not run", "2_hours": "not run", "8_hours": "not run"},
               "merge": False,
               "tag": False,
@@ -533,12 +602,14 @@ jobs:
       - name: Require every Android job and its actual evidence
         env:
           CONTRACT_RESULT: ${{ needs.contract.result }}
+          CORE_RESULT: ${{ needs.core.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           EMULATOR_RESULT: ${{ needs.emulator.result }}
           PRODUCT_VERSION: ${{ needs.contract.outputs.product_version }}
         run: |
           set -euo pipefail
           test "$CONTRACT_RESULT" = success
+          test "$CORE_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$EMULATOR_RESULT" = success
           python3 scripts/ci/parallel-android/verify-evidence.py --input evidence/inputs --output evidence/verified --version "$PRODUCT_VERSION" --sha "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"

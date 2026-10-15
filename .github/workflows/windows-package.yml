@@ -324,7 +324,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\test\test-windows-setup-e2e.ps1 `
-            -SetupPath .\dist\windows-package\release\AgentDockSetup-amd64.exe `
+            -SetupPath .\dist\windows-package\release\AgentDock-Workbench-Setup-amd64.exe `
             -LegacyCorePath .\dist\windows-package\payload-amd64\agentdock.exe `
             -LegacyTrayPath .\dist\windows-package\payload-amd64\agentdock-tray.exe `
             -AllowLegacyTaskMutation

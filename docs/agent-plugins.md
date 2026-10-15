@@ -74,7 +74,7 @@ GUI 的 Heavy 开关覆盖包内默认值，不修改分发清单。`plugin_mana
 
 ## 安装和迁移
 
-Windows 安装程序和控制面板统一使用 AgentDock 名称，安装文件为 `AgentDockSetup-amd64.exe` 或 `AgentDockSetup-arm64.exe`。安装向导显示“选择安装位置”，支持手动输入和浏览目录；升级时预填原安装位置。安装与卸载均使用所选目录，不改变独立的 `.agentdock` 用户数据目录。
+Windows 安装程序和控制面板统一使用 AgentDock 名称，安装文件为 `AgentDock-Workbench-Setup-amd64.exe` 或 `AgentDock-Workbench-Setup-arm64.exe`。安装向导显示“选择安装位置”，支持手动输入和浏览目录；升级时预填原安装位置。安装与卸载均使用所选目录，不改变独立的 `.agentdock` 用户数据目录。
 
 已有有效安装时，升级继续使用原目录，避免两处安装争用同一开机启动项和端口。更换位置需先卸载并选择保留用户数据，再重新安装并配置连接；仅有卸载注册表残项且原目录已失效时不会阻止新位置安装。
 

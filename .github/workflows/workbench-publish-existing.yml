@@ -63,7 +63,6 @@ jobs:
       - name: Publisher regression without network writes
         run: |
           python3 -B scripts/test/test-workbench-release.py
-          python3 -B scripts/test/test-android-core-release.py
       - name: Verify original build and assembly succeeded
         id: source
         run: |
@@ -95,7 +94,7 @@ jobs:
                            'windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)',
                            'Native Windows ARM64 install and uninstall']
           if tuple(map(int,version.split('.'))) >= (1,1,8):
-              required += ['android / Source and bridge contracts','android / Android lint, unit tests and APKs','android / Aggregate candidate evidence']
+              required += ['android / Source and bridge contracts','android / Prepare APK-bundled ARM64 Core','android / Android lint, unit tests and APKs','android / Aggregate candidate evidence']
               required += [f'android / Emulator API {api}' for api in [26,33,34,35,37]]
           for name in required:
               if name not in jobs or jobs[name]['conclusion']!='success':
@@ -106,7 +105,6 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:
               output.write('android_required='+str(tuple(map(int,version.split('.'))) >= (1,1,8)).lower()+'\n')
               output.write('android_release_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()+'\n')
-              output.write('android_core_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()+'\n')
           print(f'All {len(required)} required platform/native validation jobs and complete assembly match '+sha)
           PY
       - uses: actions/checkout@v5
@@ -184,14 +182,6 @@ jobs:
           path: input/android-release/*
           if-no-files-found: error
           retention-days: 30
-      - name: Sign verified Android Core release
-        if: steps.source.outputs.android_core_required == 'true'
-        env:
-          ANDROID_CORE_RELEASE_PRIVATE_KEY_B64: ${{ secrets.ANDROID_CORE_RELEASE_PRIVATE_KEY_B64 }}
-        run: |
-          set -euo pipefail
-          test -n "$ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"
-          python3 verified-source/scripts/release/sign-android-core-release.py --input input --output input/android-core-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/core-release-signing.json
       - name: Verify original payloads and publish by numeric ID
         run: |
           set -euo pipefail

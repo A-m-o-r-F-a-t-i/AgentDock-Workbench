@@ -26,19 +26,19 @@ class CoreFailurePolicyTest {
     @Test fun missingLocalCoreUsesLatestSuccessfulStatus() {
         val advice = CoreFailurePolicy.advise(
             errors = listOf("Failed to connect to /127.0.0.1:8765"),
-            operations = listOf(operation("status", result = """{"version":"","desired_state":"stopped","healthy":false,"manifest_trust_ready":true}""")),
+            operations = listOf(operation("status", result = """{"version":"","desired_state":"stopped","healthy":false,"bundled_core_ready":true}""")),
             endpoint = "http://127.0.0.1:8765",
             desiredState = "stopped"
         )
         assertEquals("本机 Core 尚未安装", advice.title)
         assertEquals(WorkbenchScreen.InstallUpdate, advice.destination)
-        assertTrue(advice.detail.contains("官方签名源"))
+        assertTrue(advice.detail.contains("APK 内置 Core"))
     }
 
-    @Test fun missingTrustKeyRequiresCompleteBridgeBundle() {
+    @Test fun missingBundledCoreRequiresCompleteBridgeBundle() {
         val advice = CoreFailurePolicy.advise(
             errors = listOf("connection refused"),
-            operations = listOf(operation("probe", result = """{"version":"","desired_state":"stopped","manifest_trust_ready":false}""")),
+            operations = listOf(operation("probe", result = """{"version":"","desired_state":"stopped","bundled_core_ready":false}""")),
             endpoint = "http://localhost:8765",
             desiredState = "stopped"
         )

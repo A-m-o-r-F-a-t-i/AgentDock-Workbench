@@ -142,7 +142,7 @@ try {
         throw "ISCC failed with exit code $LASTEXITCODE."
     }
 
-    $setupPath = Join-Path $outputRoot "AgentDockSetup-$Architecture.exe"
+    $setupPath = Join-Path $outputRoot "AgentDock-Workbench-Setup-$Architecture.exe"
     if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
         throw "Offline Setup was not produced: $setupPath"
     }

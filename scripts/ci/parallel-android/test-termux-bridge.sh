@@ -26,8 +26,8 @@ request status op_status req_status "$nonce" >/dev/null
 out="$(request bootstrap op_boot req_boot "$nonce")"
 jq -e '.status=="pending_manifest" or .status=="requires_user_action" or .status=="ok"' <<<"$out" >/dev/null
 
-out="$(request install op_install req_install "$nonce")"
-jq -e '.status=="pending_manifest"' <<<"$out" >/dev/null
+out="$(request install op_install req_install "$nonce" '{"apk_version":"1.1.9","start_after_install":false}')"
+jq -e '.status=="requires_user_action" and .data.failure_code=="bundled_core_missing"' <<<"$out" >/dev/null
 [ ! -e "$AGENTDOCK_WORKBENCH_TEST_HOME/.agentdock-workbench/node/current" ]
 request cancel_operation op_cancel req_cancel "$nonce" '{"target_operation_id":"op_install","confirm_cancel":true}' >/dev/null
 
@@ -91,7 +91,7 @@ set -e
 [ "$rc" -ne 0 ]
 [ "$(cat "$AGENTDOCK_WORKBENCH_TEST_HOME/child-lock")" = closed ]
 
-# Exact code used by the bridge extractor is tested without bypassing signature gates in production.
+# Exact code used by the bridge extractor is tested against the same bundled-archive path used in production.
 python3 - "$bridge" "$tmp" <<'PYTEST'
 import io, os, pathlib, subprocess, sys, tarfile
 bridge, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])

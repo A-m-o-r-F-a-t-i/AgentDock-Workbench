@@ -12,8 +12,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+PRODUCT = "AgentDock Workbench"
 MAX_JSON_BYTES = 2 * 1024 * 1024
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -21,6 +23,18 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def zip_member_digest(path: Path, member: str, maximum: int = 64 * 1024 * 1024) -> str:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            matches = [value for value in archive.infolist() if value.filename == member]
+            if len(matches) != 1 or matches[0].is_dir() or not 0 < matches[0].file_size <= maximum:
+                raise RuntimeError(f"APK must contain exactly one bounded {member}")
+            with archive.open(matches[0]) as stream:
+                return hashlib.file_digest(stream, "sha256").hexdigest()
+    except zipfile.BadZipFile as error:
+        raise RuntimeError(f"Invalid APK ZIP: {path.name}") from error
 
 
 def read_json(path: Path) -> dict:
@@ -158,6 +172,25 @@ def sign_candidate(
     sidecar = locate_unique(inputs, candidate_name + ".sha256").read_text(encoding="utf-8-sig").strip()
     if sidecar != f"{candidate_checksum}  {candidate_name}":
         raise RuntimeError("Android candidate checksum sidecar is invalid")
+    core_name = "agentdock_linux_arm64.tar.gz"
+    core = locate_unique(inputs, core_name)
+    core_checksum = digest(core)
+    core_report = read_json(locate_unique(inputs, "verification-linux-arm64.json"))
+    if (
+        core_report.get("product_name") != PRODUCT
+        or core_report.get("version") != version
+        or core_report.get("commit") != commit
+        or core_report.get("platform") != "linux/arm64"
+        or core_report.get("native_execution") != "passed"
+        or core_report.get("assets", {}).get(core_name) != core_checksum
+    ):
+        raise RuntimeError("Linux ARM64 verification report does not bind the bundled Core")
+    core_sidecar = locate_unique(inputs, core_name + ".sha256").read_text(encoding="utf-8-sig").strip()
+    if core_sidecar != f"{core_checksum}  {core_name}":
+        raise RuntimeError("Linux ARM64 Core checksum sidecar is invalid")
+    bundled_core_asset = "assets/agentdock-core-arm64.tar.gz"
+    if zip_member_digest(candidate, bundled_core_asset) != core_checksum:
+        raise RuntimeError("Android candidate does not contain the verified Linux ARM64 Core")
 
     output.mkdir(parents=True, exist_ok=True)
     public_name = f"AgentDock-Workbench-{version}-Android.apk"
@@ -190,6 +223,8 @@ def sign_candidate(
         actual_certificate = verified_certificate_digest(verification)
         if actual_certificate != expected_certificate:
             raise RuntimeError("Android release certificate fingerprint mismatch")
+        if zip_member_digest(signed, bundled_core_asset) != core_checksum:
+            raise RuntimeError("Android signing changed or removed the bundled Core")
         os.replace(signed, public_path)
 
     checksum = digest(public_path)
@@ -206,6 +241,11 @@ def sign_candidate(
         "source_apk": {"name": candidate_name, "sha256": candidate_checksum},
         "source_run_id": str(candidate_report.get("run_id", "")),
         "source_run_attempt": str(candidate_report.get("run_attempt", "")),
+        "bundled_core": {
+            "apk_asset": bundled_core_asset,
+            "source_archive": {"name": core_name, "sha256": core_checksum},
+            "validation": "passed",
+        },
         "release_signing_validation": "passed",
         "assets": {public_name: checksum},
     }

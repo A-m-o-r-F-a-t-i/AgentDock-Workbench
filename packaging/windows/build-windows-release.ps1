@@ -93,7 +93,7 @@ try {
         }
         if ($SignedBuild) { $parameters.SignedBuild=$true }
         & (Join-Path $PSScriptRoot 'build-windows-offline-setup.ps1') @parameters
-        $setup = Join-Path $releaseRoot "AgentDockSetup-$architecture.exe"
+        $setup = Join-Path $releaseRoot "AgentDock-Workbench-Setup-$architecture.exe"
         if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Setup payload is missing: $architecture" }
         Write-Checksum $setup
         Write-Host "Windows $architecture release assets ready."

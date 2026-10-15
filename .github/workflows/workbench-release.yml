@@ -73,10 +73,6 @@ jobs:
           echo "stable_android=$stable_android" >> "$GITHUB_OUTPUT"
           python3 scripts/test/check-workbench-brand.py
           python3 -B scripts/test/test-workbench-release.py
-          if [[ "$stable_android" == true ]]; then
-            test -f scripts/test/test-android-core-release.py
-            python3 -B scripts/test/test-android-core-release.py
-          fi
 
   windows:
     needs: resolve-source
@@ -91,10 +87,11 @@ jobs:
       installation_tests: ${{ inputs.installation_tests || inputs.publish || github.event_name == 'push' }}
 
   android:
-    needs: resolve-source
+    needs: [resolve-source, unix]
     uses: ./.github/workflows/parallel-android.yml
     with:
       source_sha: ${{ needs.resolve-source.outputs.commit }}
+      core_artifact_name: workbench-linux-arm64-${{ github.run_id }}
 
   windows-arm-package:
     needs: [resolve-source, windows]
@@ -132,7 +129,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $fixture=Join-Path $env:RUNNER_TEMP 'arm64-package-fixture'
           Expand-Archive dist/windows-package/release/agentdock_windows_arm64.zip -DestinationPath $fixture
-          & ./scripts/test/test-windows-setup-e2e.ps1 -SetupPath dist/windows-package/release/AgentDockSetup-arm64.exe -LegacyCorePath (Join-Path $fixture 'agentdock.exe') -LegacyTrayPath (Join-Path $fixture 'agentdock-tray.exe') -AllowLegacyTaskMutation
+          & ./scripts/test/test-windows-setup-e2e.ps1 -SetupPath dist/windows-package/release/AgentDock-Workbench-Setup-arm64.exe -LegacyCorePath (Join-Path $fixture 'agentdock.exe') -LegacyTrayPath (Join-Path $fixture 'agentdock-tray.exe') -AllowLegacyTaskMutation
           if ($LASTEXITCODE -ne 0) { throw 'Native ARM64 install/repair/uninstall failed' }
           @{version='${{ needs.resolve-source.outputs.version }}';commit='${{ needs.resolve-source.outputs.commit }}';platform='windows/arm64';native_execution='passed';native_installation='passed';scope='isolated runner install, repair, health, uninstall'} | ConvertTo-Json | Set-Content dist/verification-native-windows-arm64.json
       - uses: actions/upload-artifact@v7
@@ -375,16 +372,6 @@ jobs:
           path: input/android-release/*
           if-no-files-found: error
           retention-days: 30
-      - name: Sign verified Android Core release
-        if: needs.resolve-source.outputs.stable_android == 'true'
-        env:
-          ANDROID_CORE_RELEASE_PRIVATE_KEY_B64: ${{ secrets.ANDROID_CORE_RELEASE_PRIVATE_KEY_B64 }}
-          EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}
-          EXPECTED_VERSION: ${{ needs.resolve-source.outputs.version }}
-        run: |
-          set -euo pipefail
-          test -n "$ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"
-          python3 scripts/release/sign-android-core-release.py --input input --output input/android-core-release --version "$EXPECTED_VERSION" --commit "$EXPECTED_COMMIT"
       - name: Validate reports and assemble complete release
         env:
           EXPECTED_COMMIT: ${{ needs.resolve-source.outputs.commit }}

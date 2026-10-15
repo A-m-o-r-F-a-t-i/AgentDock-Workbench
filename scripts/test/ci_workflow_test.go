@@ -161,15 +161,20 @@ func TestWindowsPackageReusableAndSingleAutomaticReleaseOwner(t *testing.T) {
 		t.Fatal("Windows-only workflow must not race all-platform publication")
 	}
 	unified := readWorkflow(t, "workbench-release.yml")
-	for _, required := range []string{"push:\n    tags:", "windows-package.yml", "needs: [resolve-source, windows, windows-arm-package, unix, macos-app, android]", "parallel-android.yml", "source_sha: ${{ needs.resolve-source.outputs.commit }}", "publish-workbench.py", "sign-android-release.py", "ANDROID_RELEASE_KEYSTORE_B64", "sign-android-core-release.py", "ANDROID_CORE_RELEASE_PRIVATE_KEY_B64", "prerelease:", "--prerelease"} {
+	for _, required := range []string{"push:\n    tags:", "windows-package.yml", "needs: [resolve-source, windows, windows-arm-package, unix, macos-app, android]", "parallel-android.yml", "source_sha: ${{ needs.resolve-source.outputs.commit }}", "core_artifact_name: workbench-linux-arm64-${{ github.run_id }}", "publish-workbench.py", "sign-android-release.py", "ANDROID_RELEASE_KEYSTORE_B64", "prerelease:", "--prerelease"} {
 		if !strings.Contains(unified, required) {
 			t.Fatalf("all-platform release gate missing %q", required)
 		}
 	}
 	recovery := readWorkflow(t, "workbench-publish-existing.yml")
-	for _, required := range []string{"sign-android-release.py", "ANDROID_RELEASE_KEYSTORE_B64", "ANDROID_RELEASE_KEYSTORE_PASSWORD", "ANDROID_RELEASE_KEY_PASSWORD", "sign-android-core-release.py", "ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"} {
+	for _, required := range []string{"sign-android-release.py", "ANDROID_RELEASE_KEYSTORE_B64", "ANDROID_RELEASE_KEYSTORE_PASSWORD", "ANDROID_RELEASE_KEY_PASSWORD"} {
 		if !strings.Contains(recovery, required) {
 			t.Fatalf("verified Workbench publisher missing Android release signing contract %q", required)
+		}
+	}
+	for _, forbidden := range []string{"sign-android-core-release.py", "ANDROID_CORE_RELEASE_PRIVATE_KEY_B64"} {
+		if strings.Contains(unified, forbidden) || strings.Contains(recovery, forbidden) {
+			t.Fatalf("single-APK publishing must not retain separate Android Core signing contract %q", forbidden)
 		}
 	}
 	crossPlatform := readWorkflow(t, "release.yml")

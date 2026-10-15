@@ -613,14 +613,14 @@ class WorkbenchViewModel(
                     val app = getApplication<Application>()
                     val output = app.contentResolver.openOutputStream(uri, "w") ?: error("无法打开导出目标")
                     java.util.zip.ZipOutputStream(output).use { zip ->
-                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh", "release-ed25519-public.pem")) {
+                        for (name in listOf("agentdock-workbench", "agentdock_workbench.py", "agentdock_host_executor.py", "agentdock-workbench-bootstrap.sh", "agentdock-core-arm64.tar.gz")) {
                             zip.putNextEntry(java.util.zip.ZipEntry(name))
                             app.assets.open(name).use { it.copyTo(zip) }
                             zip.closeEntry()
                         }
                     }
                 }
-                showNotice("已导出完整桥包。请在外部 Termux 解压并手动运行 bootstrap。")
+                showNotice("已导出包含 Core 的完整桥包。请在外部 Termux 解压并手动运行 bootstrap。")
             } catch (error: CancellationException) { throw error
             } catch (error: Exception) { showError(error) }
         }

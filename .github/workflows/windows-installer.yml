@@ -432,7 +432,7 @@ jobs:
         with:
           name: windows-history-current-setup
           path: |
-            ${{ runner.temp }}\agentdock-setup\AgentDockSetup-amd64.exe
+            ${{ runner.temp }}\agentdock-setup\AgentDock-Workbench-Setup-amd64.exe
             ${{ runner.temp }}\agentdock-setup\version.txt
           if-no-files-found: error
           retention-days: 3
@@ -442,7 +442,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\test\test-windows-setup-e2e.ps1 `
-            -SetupPath (Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDockSetup-amd64.exe') `
+            -SetupPath (Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDock-Workbench-Setup-amd64.exe') `
             -LegacyCorePath .\dist\agentdock.exe `
             -LegacyTrayPath .\dist\agentdock-tray.exe `
             -AllowLegacyTaskMutation
@@ -525,9 +525,9 @@ jobs:
             -OutputDirectory $releaseDir `
             -SignedBuild
 
-          $amd64Setup = Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDockSetup-amd64.exe'
+          $amd64Setup = Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDock-Workbench-Setup-amd64.exe'
           Copy-Item -LiteralPath $amd64Setup -Destination $releaseDir -Force
-          foreach ($setupName in @('AgentDockSetup-amd64.exe', 'AgentDockSetup-arm64.exe')) {
+          foreach ($setupName in @('AgentDock-Workbench-Setup-amd64.exe', 'AgentDock-Workbench-Setup-arm64.exe')) {
             $setupPath = Join-Path $releaseDir $setupName
             $setupHash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
             [IO.File]::WriteAllText(
@@ -607,6 +607,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
             throw "Published Setup is missing for v$env:BASELINE_VERSION."
           }
+          Move-Item -LiteralPath $setup -Destination (Join-Path $baselineDirectory 'baseline-setup.exe') -Force
 
       - name: Upgrade v${{ matrix.baseline }} and verify repair and uninstall
         shell: powershell
@@ -617,8 +618,8 @@ jobs:
           $currentDirectory = Join-Path $env:RUNNER_TEMP 'agentdock-current-setup'
           $currentVersion = [IO.File]::ReadAllText((Join-Path $currentDirectory 'version.txt')).Trim()
           & .\scripts\test\test-windows-release-setup-upgrade.ps1 `
-            -BaselineSetup (Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup\AgentDockSetup-amd64.exe') `
-            -CurrentSetup (Join-Path $currentDirectory 'AgentDockSetup-amd64.exe') `
+            -BaselineSetup (Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup\baseline-setup.exe') `
+            -CurrentSetup (Join-Path $currentDirectory 'AgentDock-Workbench-Setup-amd64.exe') `
             -BaselineVersion $env:BASELINE_VERSION `
             -CurrentVersion $currentVersion `
             -TestRoot (Join-Path $env:RUNNER_TEMP ("agentdock-release-upgrade-" + $env:BASELINE_VERSION)) `

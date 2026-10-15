@@ -713,8 +713,8 @@ func TestWindowsSetupKeepsPublicAccessExplicitAndSecretsOffCommandLine(t *testin
 		"-KeepInstallDir",
 		"PurgeStateQuestion",
 		"Bearer Token：",
-		"AgentDockSetup-amd64",
-		"AgentDockSetup-arm64",
+		"AgentDock-Workbench-Setup-amd64",
+		"AgentDock-Workbench-Setup-arm64",
 		"agentdock_windows_{#PayloadArchitecture}.zip",
 		"Source: \"{#OfflinePayloadDir}\\cloudflared.exe\"",
 		"-OfflineArchive ",
@@ -1242,7 +1242,7 @@ func TestWindowsSetupDirectorySelectionUsesAgentDockIdentity(t *testing.T) {
 	}
 	for _, want := range []string{
 		"AppName=AgentDock Workbench", "DefaultDirName={localappdata}\\AgentDock",
-		"DisableDirPage=no", "UsePreviousAppDir=yes", "AgentDockSetup-amd64", "AgentDockSetup-arm64",
+		"DisableDirPage=no", "UsePreviousAppDir=yes", "AgentDock-Workbench-Setup-amd64", "AgentDock-Workbench-Setup-arm64",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("Setup missing %q", want)

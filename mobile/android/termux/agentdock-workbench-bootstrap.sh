@@ -3,26 +3,26 @@ set -eu
 umask 077
 
 # Run manually inside the official external Termux app after exporting the complete
-# bridge bundle from AgentDock Workbench. It never installs a Core release by itself.
+# bridge bundle from AgentDock Workbench. The bundle carries the matching ARM64 Core.
 SELF_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BRIDGE="$SELF_DIR/agentdock-workbench"
 MODULE="$SELF_DIR/agentdock_workbench.py"
 HOST_EXECUTOR="$SELF_DIR/agentdock_host_executor.py"
-PUBLISHER_KEY="$SELF_DIR/release-ed25519-public.pem"
+BUNDLED_CORE="$SELF_DIR/agentdock-core-arm64.tar.gz"
 [ -f "$HOST_EXECUTOR" ] || { printf 'Missing host executor module\n' >&2; exit 1; }
 [ -f "$MODULE" ] || { printf 'Missing companion module\n' >&2; exit 1; }
 [ -f "$BRIDGE" ] || { printf 'Missing companion file: %s\n' "$BRIDGE" >&2; exit 1; }
-[ -f "$PUBLISHER_KEY" ] || { printf 'Missing Android Core release public key\n' >&2; exit 1; }
+[ -f "$BUNDLED_CORE" ] || { printf 'Missing APK-bundled Android Core\n' >&2; exit 1; }
 
 # -y alone does not answer dpkg conffile prompts. Keep the user's existing
 # configuration and finish interrupted package configuration before installing.
 export DEBIAN_FRONTEND=noninteractive
 timeout --signal=TERM --kill-after=15s 180s dpkg --force-confold --configure -a
 timeout --signal=TERM --kill-after=15s 900s apt-get update
-timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install proot-distro curl jq coreutils util-linux procps openssl-tool tar python
+timeout --signal=TERM --kill-after=15s 900s apt-get -y -o Dpkg::Options::=--force-confold install proot-distro jq coreutils util-linux procps tar python
 audit="$(dpkg --audit)"
 [ -z "$audit" ] || { printf 'Package configuration remains incomplete:\n%s\n' "$audit" >&2; exit 1; }
-for package in proot-distro curl jq coreutils util-linux procps openssl-tool tar python; do
+for package in proot-distro jq coreutils util-linux procps tar python; do
   [ "$(dpkg-query -W -f='${Status}' "$package")" = 'install ok installed' ] || { printf 'Package is not configured: %s\n' "$package" >&2; exit 1; }
 done
 if [ ! -d "$HOME/storage/shared" ] && command -v termux-setup-storage >/dev/null 2>&1; then
@@ -35,12 +35,11 @@ fi
 WORKSPACE="$HOME/storage/shared/Documents/AgentDock/Workspaces"
 ARTIFACTS="$HOME/storage/shared/Documents/AgentDock/Artifacts"
 mkdir -p "$WORKSPACE" "$ARTIFACTS"
-mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/trust"
+mkdir -p "$HOME/.termux/tasker" "$HOME/.agentdock-workbench/bundle"
 install -m 0600 "$MODULE" "$HOME/.termux/tasker/agentdock_workbench.py"
 install -m 0600 "$HOST_EXECUTOR" "$HOME/.termux/tasker/agentdock_host_executor.py"
 install -m 0700 "$BRIDGE" "$HOME/.termux/tasker/agentdock-workbench"
-openssl pkey -pubin -in "$PUBLISHER_KEY" -noout >/dev/null
-install -m 0600 "$PUBLISHER_KEY" "$HOME/.agentdock-workbench/trust/release-ed25519-public.pem"
+install -m 0600 "$BUNDLED_CORE" "$HOME/.agentdock-workbench/bundle/agentdock-core-arm64.tar.gz"
 properties="$HOME/.termux/termux.properties"
 touch "$properties"
 if grep -q '^[[:space:]]*allow-external-apps[[:space:]]*=' "$properties"; then
@@ -74,8 +73,8 @@ proot-distro login debian -- /bin/sh -lc '
   done
   apt-get clean
 '
-printf '%s\n' 'Termux bridge, Debian PRoot and the Android Core release trust key are ready.'
+printf '%s\n' 'Termux bridge, Debian PRoot and the APK-bundled Android Core are ready.'
 printf 'User workspace: %s\n' "$WORKSPACE"
 printf 'User artifacts: %s\n' "$ARTIFACTS"
 printf '%s\n' 'Return to AgentDock Workbench, grant RUN_COMMAND, then run Probe/Bootstrap.'
-printf '%s\n' 'Use Install & Update to install the signed ARM64 Core release.'
+printf '%s\n' 'Use Install & Update to deploy the ARM64 Core included in this APK.'
