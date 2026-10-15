@@ -212,7 +212,7 @@ public partial class ExecutionWindow
             return;
         }
         var fixedIds = ids.ToArray(); var menu = Menu(anchor);
-        if (fixedIds.Length == 1 && Calls.FirstOrDefault(row => row.Id == fixedIds[0]) is { Tool: "file_edit" } fileRow)
+        if (fixedIds.Length == 1 && Calls.FirstOrDefault(row => row.Id == fixedIds[0]) is { Tool: "apply_patch" or "file_edit" } fileRow)
         {
             var locations = fileRow.FileLocations;
             if (locations.Length <= 1)
