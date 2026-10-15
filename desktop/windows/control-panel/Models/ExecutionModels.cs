@@ -182,25 +182,6 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     public string Command => _value.Text("display_command");
     public string Workdir => _value.Text("workdir");
     public string[] FileLocations => FileExplorerReveal.Locations(_value);
-    public string Parameters => _value.Text("parameter_summary");
-    public string ParameterOverview => RequestPayload.Overview.Length > 0 ? RequestPayload.Overview : Tool == "mcp_tool_call" ? (RequestPayload.HasStoredContent ? "完整参数已保存" : "") : Parameters;
-    public string ParameterDisplay
-    {
-        get
-        {
-            var overview = ParameterOverview;
-            var size = RequestPayload.HasStoredContent ? RequestPayload.SizeLabel : "";
-            if (overview.Length == 0) return size.Length == 0 ? "" : "参数 " + size;
-            return size.Length == 0 ? overview : $"参数 {size} · {overview}";
-        }
-    }
-    public bool HasParameterDisplay => ParameterDisplay.Length > 0;
-    public string ParameterHint => string.Join("\n", new[]
-    {
-        ParameterOverview,
-        RequestPayload.HasStoredContent ? "完整已脱敏载荷：" + (RequestPayload.SizeLabel.Length > 0 ? RequestPayload.SizeLabel : "大小未知") : "",
-        RequestPayload.HasStoredContent ? "选择此调用后可查看并复制完整参数。" : ""
-    }.Where(value => value.Length > 0));
     public bool ReadOnlyLegacy => _value.Flag("read_only_legacy");
     public string Summary => string.Join(" · ", new[] { _value.Text("summary"), OutputStateSummary }.Where(value => value.Length > 0));
     public string OutputStateSummary => string.Join(" · ", new[]

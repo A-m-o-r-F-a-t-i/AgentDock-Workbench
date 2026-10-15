@@ -181,10 +181,10 @@ Check(missingOutput.Output.Contains("旧记录未保存输出") && !missingOutpu
 var mcpParameters = new ExecutionCallRow(Json("""
 {"tool_name":"mcp_tool_call","parameter_summary":"{\"server_fingerprint\":\"digest\"}","request":{"state":"complete","ref":"blob-mcp","bytes":92,"overview":"{\"name\":\"eda:apply\",\"arguments\":{\"target\":\"board\"}}"}}
 """));
-Check(mcpParameters.ParameterDisplay.Contains("target") && mcpParameters.ParameterDisplay.Contains("92 B") && !mcpParameters.ParameterDisplay.Contains("server_fingerprint"),
-    "MCP row did not use the real redacted request overview");
-Check(mcpParameters.ParameterHint.Contains("完整已脱敏载荷") && mcpParameters.HasParameterDisplay,
-    "parameter size and full-detail hint are missing");
+Check(mcpParameters.RequestPayload.Overview.Contains("target") && !mcpParameters.RequestPayload.Overview.Contains("server_fingerprint"),
+    "call detail did not use the real redacted request overview");
+Check(mcpParameters.RequestPayload.HasStoredContent && mcpParameters.RequestPayload.SizeLabel == "92 B",
+    "call detail payload metadata is missing");
 var payload = new ExecutionPayloadView("调用");
 payload.Describe(Json("{\"state\":\"complete\",\"ref\":\"blob-a\",\"bytes\":10,\"lines\":2,\"preview\":\"12345\",\"overview\":\"{\\\"arguments\\\":{\\\"target\\\":\\\"board\\\"}}\"}"));
 Check(payload.NeedsLoad && payload.CanLoadAll && payload.Position.Contains("10") && payload.Overview.Contains("target"), "bounded preview reports full size and overview");
