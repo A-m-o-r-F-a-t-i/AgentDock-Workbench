@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"net/http"
 	"net/http/httptest"
@@ -56,19 +57,24 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 		{"write_file", "file_edit", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
 	} {
 		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": test.query})
-		if err != nil || result["route_kind"] != "host_builtin" || result["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || result["route_status"] != "resolved" {
-			t.Fatalf("host route not resolved: %#v %v", result, err)
+		var route *ToolError
+		if result != nil || !errors.As(err, &route) {
+			t.Fatalf("host namespace misuse was not a tool error: %#v %v", result, err)
 		}
-		if result["required_host_tool"] != test.want || stringArg(result, "matched_alias") != test.alias || result["execution_performed"] != false || result["filesystem_lookup_required"] != false || result["dynamic_discovery_required"] != false {
-			t.Fatalf("wrong canonical recovery: %#v", result)
+		wantCode := "HOST_BUILTIN_NOT_DYNAMIC_MCP"
+		if route.Code != wantCode || route.Retryable || route.Details["route_status"] != "blocked" {
+			t.Fatalf("wrong route classification: %#v", route)
 		}
-		raw, _ := json.Marshal(result)
+		if route.Details["required_host_tool"] != test.want || stringArg(route.Details, "matched_alias") != test.alias || route.Details["execution_performed"] != false || route.Details["filesystem_lookup_required"] != false || route.Details["dynamic_discovery_required"] != false {
+			t.Fatalf("wrong canonical recovery: %#v", route.Details)
+		}
+		raw, _ := json.Marshal(route.Details)
 		if strings.Contains(string(raw), "input_schema") || strings.Contains(string(raw), "InputSchema") || strings.Contains(string(raw), "OutputSchema") {
 			t.Fatalf("host schema leaked: %s", raw)
 		}
-		call, e := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
-		if e != nil || call.Status != "succeeded" || call.ErrorCode != "" {
-			t.Fatalf("resolved route audit is not successful: %+v %v", call, e)
+		call, e := rt.activity.Call(t.Context(), stringArg(route.Details, "call_id"))
+		if e != nil || call.Status != "failed" || call.ErrorCode != wantCode || call.Title != "错误工具命名空间 · "+test.want {
+			t.Fatalf("wrong-namespace route audit is not failed: %+v %v", call, e)
 		}
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
@@ -82,25 +88,26 @@ func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T)
 	rt := newAuditDiscoveryRuntime(t)
 	for _, args := range []map[string]any{{"names": []string{"exec_command", "task_manage"}}, {"name": "exec_command"}} {
 		result, err := rt.Call(t.Context(), "mcp_tool_inspect", args)
-		if err != nil || result["route_kind"] != "host_builtin" || result["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || result["terminal"] != true {
-			t.Fatalf("inspect host route unresolved: %#v %v", result, err)
+		var route *ToolError
+		if result != nil || !errors.As(err, &route) || route.Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || route.Details["terminal"] != true {
+			t.Fatalf("inspect host route was not rejected: %#v %v", result, err)
 		}
 		count := 1
 		if args["names"] != nil {
 			count = 2
 		}
-		builtins, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary)
+		builtins, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary)
 		if !ok || len(builtins) != count {
-			t.Fatalf("host members lost: %#v", result)
+			t.Fatalf("host members lost: %#v", route.Details)
 		}
 		for _, item := range builtins {
 			if item.InvokeVia != "host" {
 				t.Fatalf("wrong host route: %+v", item)
 			}
 		}
-		call, e := rt.activity.Call(t.Context(), stringArg(result, "call_id"))
-		if e != nil || call.Status != "succeeded" || call.ErrorCode != "" {
-			t.Fatalf("inspect route audit is not successful: %+v %v", call, e)
+		call, e := rt.activity.Call(t.Context(), stringArg(route.Details, "call_id"))
+		if e != nil || call.Status != "failed" || call.ErrorCode != route.Code {
+			t.Fatalf("inspect route audit is not failed: %+v %v", call, e)
 		}
 	}
 }

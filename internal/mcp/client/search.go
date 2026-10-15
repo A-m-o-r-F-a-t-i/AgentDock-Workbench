@@ -13,6 +13,9 @@ const maxSearchCatalogSummaries = 100
 type SearchResult struct {
 	Tools     []ToolSummary
 	Catalogs  []map[string]any
+	Query     string
+	Server    string
+	MatchKind string
 	Complete  bool
 	Truncated bool
 	CacheOnly bool
@@ -22,8 +25,11 @@ type SearchResult struct {
 // Selecting a server explicitly retains lazy discovery and its original errors.
 // The visibility predicate runs before reading any member catalog.
 func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server string, limit int, allow func(string) bool) (SearchResult, error) {
-	result := SearchResult{Tools: []ToolSummary{}, Catalogs: []map[string]any{}, Complete: true}
-	query, server = strings.ToLower(strings.TrimSpace(query)), strings.TrimSpace(server)
+	query, server, err := NormalizeSearchSelector(query, server)
+	result := SearchResult{Tools: []ToolSummary{}, Catalogs: []map[string]any{}, Query: query, Server: server, MatchKind: "none", Complete: true}
+	if err != nil {
+		return result, err
+	}
 	result.CacheOnly = server == ""
 	if query == "" {
 		return result, newError("MCP_QUERY_REQUIRED", "MCP tool search query is required", false, nil, nil)
@@ -43,6 +49,7 @@ func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server stri
 	}
 	type scoredTool struct {
 		score int
+		kind  string
 		item  ToolSummary
 	}
 	matches := []scoredTool{}
@@ -93,8 +100,8 @@ func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server stri
 		}
 		result.Catalogs = append(result.Catalogs, entry)
 		for _, tool := range catalog.Tools {
-			if score := toolMatchScore(query, tool); score > 0 {
-				matches = append(matches, scoredTool{score, toolSummaryForConfig(cfg, tool)})
+			if score, kind := toolMatch(query, tool); score > 0 {
+				matches = append(matches, scoredTool{score: score, kind: kind, item: toolSummaryForConfig(cfg, tool)})
 			}
 		}
 	}
@@ -114,5 +121,36 @@ func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server stri
 	for _, match := range matches {
 		result.Tools = append(result.Tools, match.item)
 	}
+	if len(matches) > 0 {
+		result.MatchKind = matches[0].kind
+	}
 	return result, nil
+}
+
+// NormalizeSearchSelector accepts either a capability query or an exact
+// <server>:<tool> selector. Exact selectors select their server before catalog
+// visibility is evaluated, so qualified names behave the same as an explicit
+// server plus a bare tool name.
+func NormalizeSearchSelector(query, server string) (string, string, error) {
+	rawQuery := strings.TrimSpace(query)
+	query = strings.ToLower(rawQuery)
+	server = strings.TrimSpace(server)
+	qualifiedServer, tool, qualified := strings.Cut(rawQuery, ":")
+	qualifiedServer, tool = strings.TrimSpace(qualifiedServer), strings.TrimSpace(tool)
+	if !qualified || qualifiedServer == "" || tool == "" || strings.ContainsAny(qualifiedServer+tool, " \t\r\n") {
+		return query, server, nil
+	}
+	if server != "" && !strings.EqualFold(server, qualifiedServer) {
+		return query, server, newError(
+			"MCP_SERVER_QUERY_MISMATCH",
+			"qualified MCP tool query conflicts with the selected server",
+			false,
+			map[string]any{"server": server, "query_server": qualifiedServer},
+			nil,
+		)
+	}
+	if server == "" {
+		server = qualifiedServer
+	}
+	return strings.ToLower(tool), server, nil
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
@@ -831,38 +832,99 @@ func cloneTools(input map[string]Tool) map[string]Tool {
 	return out
 }
 
-func toolMatchScore(query string, tool Tool) int {
+var searchStopWords = map[string]struct{}{
+	"a": {}, "an": {}, "and": {}, "are": {}, "be": {}, "been": {}, "being": {},
+	"call": {}, "calls": {}, "can": {}, "could": {}, "did": {}, "do": {}, "does": {},
+	"exact": {}, "for": {}, "from": {}, "is": {}, "may": {}, "might": {}, "must": {},
+	"no": {}, "not": {}, "of": {}, "on": {}, "or": {}, "please": {}, "should": {},
+	"that": {}, "the": {}, "these": {}, "this": {}, "those": {}, "to": {}, "tool": {},
+	"tools": {}, "use": {}, "used": {}, "using": {}, "was": {}, "were": {}, "would": {},
+}
+
+func toolMatch(query string, tool Tool) (int, string) {
+	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "*" {
-		return 1
+		return 1, "wildcard"
 	}
 	name := strings.ToLower(tool.Name)
 	title := strings.ToLower(tool.Title)
 	description := strings.ToLower(tool.Description)
-	for _, token := range strings.Fields(query) {
-		if strings.Contains(token, "_") && !strings.Contains(name, token) && !strings.Contains(title, token) {
-			return 0
+	if name == query {
+		return 1000, "exact_name"
+	}
+	if title == query {
+		return 950, "exact_title"
+	}
+	tokens := meaningfulSearchTokens(query)
+	if len(tokens) == 0 {
+		return 0, "none"
+	}
+	if query != "" && strings.Contains(name, query) {
+		return 800, "name_phrase"
+	}
+	if query != "" && strings.Contains(title, query) {
+		return 700, "title_phrase"
+	}
+	strong, weak, identifier := 0, 0, false
+	for _, token := range tokens {
+		inNameOrTitle := strings.Contains(name, token) || strings.Contains(title, token)
+		inDescription := strings.Contains(description, token)
+		if !inNameOrTitle && !inDescription {
+			return 0, "none"
+		}
+		if strings.ContainsAny(token, "_-") {
+			identifier = true
+			if !inNameOrTitle {
+				return 0, "none"
+			}
+		}
+		if inNameOrTitle {
+			strong++
+		} else {
+			weak++
 		}
 	}
-	score := 0
-	if name == query {
-		score += 100
-	} else if strings.Contains(name, query) {
-		score += 60
+	if len(tokens) == 1 && strong == 0 {
+		return 0, "none"
 	}
-	if strings.Contains(title, query) {
-		score += 30
+	if strong == 0 && weak < 2 {
+		return 0, "none"
+	}
+	score := strong*100 + weak*20
+	kind := "token_coverage"
+	if identifier {
+		score += 200
+		kind = "identifier_coverage"
+	} else if strong == 0 {
+		kind = "description_coverage"
 	}
 	if strings.Contains(description, query) {
-		score += 20
+		score += 30
 	}
-	for _, token := range strings.Fields(query) {
-		if strings.Contains(name, token) {
-			score += 10
+	return score, kind
+}
+
+func meaningfulSearchTokens(query string) []string {
+	fields := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-'
+	})
+	result := make([]string, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
+	for _, token := range fields {
+		if len(token) < 2 || seen[token] {
+			continue
 		}
-		if strings.Contains(title, token) || strings.Contains(description, token) {
-			score += 5
+		if _, stop := searchStopWords[token]; stop {
+			continue
 		}
+		seen[token] = true
+		result = append(result, token)
 	}
+	return result
+}
+
+func toolMatchScore(query string, tool Tool) int {
+	score, _ := toolMatch(query, tool)
 	return score
 }
 

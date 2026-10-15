@@ -132,4 +132,32 @@ func TestToolMatchScoreRequiresIdentifierCoverage(t *testing.T) {
 	if score := toolMatchScore("launch Windows app", launch); score <= 0 {
 		t.Fatalf("natural-language capability search was rejected: %d", score)
 	}
+	if score := toolMatchScore("This call should not be used", launch); score != 0 {
+		t.Fatalf("stop-word-only query produced a false match: %d", score)
+	}
+	described := Tool{Name: "fixture", Title: "Fixture", Description: "Create a repository branch"}
+	if score, kind := toolMatch("create branch", described); score <= 0 || kind != "description_coverage" {
+		t.Fatalf("multi-keyword description search was rejected: score=%d kind=%s", score, kind)
+	}
+}
+
+func TestNormalizeSearchSelectorAcceptsQualifiedNames(t *testing.T) {
+	for _, test := range []struct {
+		query, server, wantQuery, wantServer string
+	}{
+		{"github:create_branch", "", "create_branch", "github"},
+		{"github:create_branch", "github", "create_branch", "github"},
+		{"create_branch", "github", "create_branch", "github"},
+		{"GitHub:Create_Branch", "", "create_branch", "GitHub"},
+	} {
+		query, server, err := NormalizeSearchSelector(test.query, test.server)
+		if err != nil || query != test.wantQuery || server != test.wantServer {
+			t.Fatalf("normalize %q/%q = %q/%q, %v", test.query, test.server, query, server, err)
+		}
+	}
+	_, _, err := NormalizeSearchSelector("gitlab:create_branch", "github")
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Code != "MCP_SERVER_QUERY_MISMATCH" || typed.Retryable {
+		t.Fatalf("server/query conflict was not classified: %v", err)
+	}
 }

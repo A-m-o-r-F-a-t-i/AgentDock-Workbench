@@ -692,6 +692,9 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 }
 func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
 	title := executionResultTitle(p.spec.Name, r.describeExecution(p.spec.Name, p.args, p.state), result)
+	if err != nil {
+		title = executionErrorTitle(p.spec.Name, title, err)
+	}
 	summary := title
 	if err != nil {
 		summary = r.executionRedactor(p.args).Text(err.Error(), 4096)
