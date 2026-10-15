@@ -148,7 +148,23 @@ func TestExecutionFailedToolPreservesStructuredFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err := r.activity.ReadCallPayload(context.Background(), stringArg(result, "call_id"), "response", 0, 32768)
-	if err != nil || !strings.Contains(page.Text, "partial failure detail") || !strings.Contains(page.Text, "\"isError\": true") {
+	if err != nil {
 		t.Fatalf("failure result lost %+v %v", page, err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(page.Text), &decoded); err != nil {
+		t.Fatalf("failure result is not valid JSON: %v", err)
+	}
+	failure, ok := decoded["result"].(map[string]any)
+	if decoded["isError"] != true || !ok || failure["isError"] != true {
+		t.Fatalf("failure flags lost: %#v", decoded)
+	}
+	blocks, ok := failure["content"].([]any)
+	if !ok || len(blocks) != 1 {
+		t.Fatalf("failure content lost: %#v", failure)
+	}
+	block, ok := blocks[0].(map[string]any)
+	if !ok || block["type"] != "text" || block["text"] != "partial failure detail" {
+		t.Fatalf("failure detail changed: %#v", blocks)
 	}
 }
