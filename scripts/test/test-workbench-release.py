@@ -34,10 +34,13 @@ class ReleaseGate(unittest.TestCase):
         self.assertEqual(names[-1],'AgentDock-Workbench-1.1.9-Android.apk')
         self.assertEqual(len(names),8)
         self.assertFalse(any('Android-Core-arm64' in name for name in names))
-        self.assertEqual(release.obsolete_public_installers('1.1.8'),{
-            'AgentDock-Workbench-1.1.8-Android-test-signed.apk'})
-        self.assertTrue({'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe'}.issubset(
-            release.obsolete_public_installers('1.1.9')))
+        self.assertEqual(release.obsolete_public_installers('1.1.8'),set())
+        self.assertEqual(release.obsolete_public_installers('1.1.9'),{
+            'AgentDock-Workbench-1.1.9-Android-test-signed.apk',
+            'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
+            'AgentDock-Workbench-1.1.9-Android-Core-arm64.tar.gz',
+            'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.json',
+            'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.sig'})
 
     def test_repository_license_is_preserved(self):
         license_text=(ROOT/'LICENSE').read_text()
@@ -113,12 +116,13 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn("github.event.deleted != true",workflow)
         self.assertIn('needs: [resolve-source, windows, windows-arm-package, unix, macos-app, android]',workflow)
         self.assertIn('stable_android: ${{ steps.identity.outputs.stable_android }}',workflow)
-        self.assertIn('if [[ "$stable_android" == true ]]; then',workflow)
-        self.assertEqual(workflow.count("if: needs.resolve-source.outputs.stable_android == 'true'"),3)
+        self.assertNotIn('if [[ "$stable_android" == true ]]; then',workflow)
+        self.assertEqual(workflow.count("if: needs.resolve-source.outputs.stable_android == 'true'"),2)
         android_workflow=(ROOT/'.github/workflows/parallel-android.yml').read_text()
         self.assertIn('PRODUCT_VERSION: ${{ steps.identity.outputs.product_version }}',android_workflow)
-        self.assertIn('version = tuple(map(int, os.environ["PRODUCT_VERSION"].split(".")))',android_workflow)
-        self.assertIn('if version >= (1,1,9):',android_workflow)
+        self.assertIn('core_artifact_name:',android_workflow)
+        self.assertIn('Prepare APK-bundled ARM64 Core',android_workflow)
+        self.assertIn('complete Termux bridge must carry the APK-bundled Android Core',android_workflow)
         recovery=(ROOT/'.github/workflows/workbench-publish-existing.yml').read_text()
         self.assertIn(">= (1,1,7)",recovery)
         self.assertIn('Native Windows ARM64 install and uninstall',recovery)
@@ -136,9 +140,8 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn('test "$(git -C verified-source rev-parse HEAD)" = "$SOURCE_SHA"',recovery)
         self.assertIn('--commit "$SOURCE_SHA" --publish',recovery)
         self.assertIn("android_release_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()",recovery)
-        self.assertIn("android_core_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()",recovery)
-        self.assertIn("if: steps.source.outputs.android_release_required == 'true'",recovery)
-        self.assertIn("if: steps.source.outputs.android_core_required == 'true'",recovery)
+        self.assertNotIn('android_core_required',recovery)
+        self.assertEqual(recovery.count("if: steps.source.outputs.android_release_required == 'true'"),2)
         self.assertIn('current_tag_commit',recovery)
         self.assertIn('workbench-android-release-${{ github.run_id }}',workflow)
         self.assertIn('workbench-android-release-${{ github.run_id }}',recovery)
@@ -181,10 +184,7 @@ class LegacyAndroidReleaseGate(EnhancedReleaseGate):
             'assets':{candidate:checksum}}
         self.flush()
     def test_118_preserves_original_test_signed_android_contract(self):
-        with (
-            patch.object(release,'android_release_identity',side_effect=AssertionError('stable signer must not be used')),
-            patch.object(release,'android_core_release_identity',side_effect=AssertionError('Core signer must not be used')),
-        ):
+        with patch.object(release,'android_release_identity',side_effect=AssertionError('stable signer must not be used')):
             manifest=self.assemble()
         candidate=release.android_public_asset_name(self.version)
         self.assertEqual(candidate,'AgentDock-Workbench-1.1.8-Android-test-signed.apk')
