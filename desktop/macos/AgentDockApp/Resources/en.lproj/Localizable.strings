@@ -715,6 +715,10 @@
 "Isolate" = "Isolate";
 "Remove isolation" = "Remove isolation";
 "Steps: %@ / %@" = "Steps: %@ / %@";
+"Operation failed" = "Operation failed";
+"Source capture incomplete" = "Source capture incomplete";
+"Partial model preview" = "Partial model preview";
+"Required context has more pages" = "Required context has more pages";
 
 "A supplement must contain 1–8192 UTF-8 bytes." = "A supplement must contain 1–8192 UTF-8 bytes.";
 
