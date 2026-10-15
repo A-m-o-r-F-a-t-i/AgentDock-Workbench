@@ -124,6 +124,8 @@ jobs:
           fi
 
       - name: Validate source, bridge and security contracts
+        env:
+          PRODUCT_VERSION: ${{ steps.identity.outputs.product_version }}
         shell: bash
         run: |
           set -euo pipefail

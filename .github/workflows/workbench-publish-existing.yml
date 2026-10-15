@@ -25,6 +25,10 @@ on:
         description: 'Explicitly replace or promote the already published prerelease for this verified tag'
         type: boolean
         default: false
+      replace_stable:
+        description: 'Explicitly replace the currently published stable Latest release for this verified tag'
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -46,6 +50,7 @@ jobs:
       PRODUCT_VERSION: ${{ inputs.version }}
       PRERELEASE: ${{ inputs.prerelease || false }}
       REPLACE_PUBLISHED: ${{ inputs.replace_published || false }}
+      REPLACE_STABLE: ${{ inputs.replace_stable || false }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -70,8 +75,15 @@ jobs:
           def api(path):
               return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}'],text=True,timeout=60))
           build=api(f'actions/runs/{run_id}')
-          if build['status']!='completed' or build['head_sha']!=sha or build['repository']['full_name']!=repo or build['path']!='.github/workflows/workbench-release.yml':
-              raise RuntimeError('Source run does not match the verified Workbench workflow and SHA')
+          expected_title=f'AgentDock Workbench {sha}'
+          if (build.get('status')!='completed' or build.get('conclusion')!='success'
+                  or build.get('repository',{}).get('full_name')!=repo
+                  or build.get('path')!='.github/workflows/workbench-release.yml'
+                  or build.get('event')!='workflow_dispatch'
+                  or build.get('head_branch')!='main'
+                  or not re.fullmatch(r'[a-f0-9]{40}',build.get('head_sha',''))
+                  or build.get('display_title')!=expected_title):
+              raise RuntimeError('Source run does not match the verified Workbench workflow execution')
           response=api(f'actions/runs/{run_id}/jobs?filter=latest&per_page=100')
           if response['total_count']>100: raise RuntimeError('Unexpected source job count')
           jobs={job['name']:job for job in response['jobs']}
@@ -92,6 +104,7 @@ jobs:
               raise RuntimeError('Original complete-artifact assembly was not verified')
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:
               output.write('android_required='+str(tuple(map(int,version.split('.'))) >= (1,1,8)).lower()+'\n')
+              output.write('android_release_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()+'\n')
           print(f'All {len(required)} required platform/native validation jobs and complete assembly match '+sha)
           PY
       - uses: actions/checkout@v5
@@ -107,12 +120,21 @@ jobs:
       - name: Verify existing tag state before publication
         env:
           REPLACE_PUBLISHED: ${{ inputs.replace_published || false }}
+          REPLACE_STABLE: ${{ inputs.replace_stable || false }}
         run: |
           set -euo pipefail
           test "$(git -C verified-source rev-parse HEAD)" = "$SOURCE_SHA"
           current_tag_commit="$(git -C verified-source rev-list -n 1 "refs/tags/v$PRODUCT_VERSION")"
           [[ "$current_tag_commit" =~ ^[0-9a-f]{40}$ ]]
-          if [[ "$REPLACE_PUBLISHED" != true ]]; then
+          if [[ "$REPLACE_PUBLISHED" == true && "$REPLACE_STABLE" == true ]]; then
+            echo 'Replacement modes are mutually exclusive.' >&2
+            exit 1
+          fi
+          if [[ "$REPLACE_STABLE" == true && "$PRERELEASE" == true ]]; then
+            echo 'Stable replacement must remain on the stable release channel.' >&2
+            exit 1
+          fi
+          if [[ "$REPLACE_PUBLISHED" != true && "$REPLACE_STABLE" != true ]]; then
             test "$current_tag_commit" = "$SOURCE_SHA"
           fi
       - uses: actions/download-artifact@v8
@@ -135,7 +157,7 @@ jobs:
           name: workbench-android-${{ inputs.run_id }}
           path: input/android
       - name: Sign verified Android installer with the stable release identity
-        if: steps.source.outputs.android_required == 'true'
+        if: steps.source.outputs.android_release_required == 'true'
         env:
           ANDROID_RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
           ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
@@ -153,6 +175,7 @@ jobs:
           fi
           python3 verified-source/scripts/release/sign-android-release.py --input input --output input/android-release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --config verified-source/packaging/android/release-signing.json
       - name: Preserve stable Android signing evidence
+        if: steps.source.outputs.android_release_required == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: workbench-android-release-${{ github.run_id }}
@@ -165,6 +188,7 @@ jobs:
           args=()
           if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
           if [[ "$REPLACE_PUBLISHED" == true ]]; then args+=(--replace-published); fi
+          if [[ "$REPLACE_STABLE" == true ]]; then args+=(--replace-stable); fi
           python3 scripts/release/publish-workbench.py --source-root verified-source --input input --dist dist/release --version "$PRODUCT_VERSION" --commit "$SOURCE_SHA" --publish "${args[@]}"
       - name: Record recovery and source identities
         run: |

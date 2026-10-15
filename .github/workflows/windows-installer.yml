@@ -586,20 +586,24 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $baselineDirectory = Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup'
           New-Item -ItemType Directory -Path $baselineDirectory -Force | Out-Null
-          $release = gh release view ("v" + $env:BASELINE_VERSION) `
-            --repo $env:GITHUB_REPOSITORY `
-            --json assets | ConvertFrom-Json
-          $publishedName = @('AgentDock-Workbench-Setup-amd64.exe', 'AgentDockSetup-amd64.exe') |
-            Where-Object { $release.assets.name -contains $_ } |
-            Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($publishedName)) {
+          $tag = "v$env:BASELINE_VERSION"
+          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          $assetName = @(
+            'AgentDock-Workbench-Setup-amd64.exe'
+            'AgentDockSetup-amd64.exe'
+          ) | Where-Object { $release.assets.name -contains $_ } | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($assetName)) {
             throw "Published Setup is missing for v$env:BASELINE_VERSION."
           }
-          gh release download ("v" + $env:BASELINE_VERSION) `
+          gh release download $tag `
             --repo $env:GITHUB_REPOSITORY `
-            --pattern $publishedName `
+            --pattern $assetName `
             --dir $baselineDirectory
-          $setup = Join-Path $baselineDirectory $publishedName
+          $downloadedSetup = Join-Path $baselineDirectory $assetName
+          $setup = Join-Path $baselineDirectory 'AgentDockSetup-amd64.exe'
+          if ($downloadedSetup -ne $setup) {
+            Move-Item -LiteralPath $downloadedSetup -Destination $setup -Force
+          }
           if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
             throw "Published Setup is missing for v$env:BASELINE_VERSION."
           }

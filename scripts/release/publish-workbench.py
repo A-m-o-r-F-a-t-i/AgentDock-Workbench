@@ -27,6 +27,15 @@ def android_release_identity() -> tuple[str,str]:
     return alias,certificate
 
 
+def stable_android_release_required(version: str) -> bool:
+    return tuple(map(int,version.split('.'))) >= (1,1,9)
+
+
+def android_public_asset_name(version: str) -> str:
+    suffix='Android.apk' if stable_android_release_required(version) else 'Android-test-signed.apk'
+    return f'AgentDock-Workbench-{version}-{suffix}'
+
+
 def run(*args: str) -> str:
     return subprocess.check_output(args,cwd=ROOT,text=True,encoding='utf-8',timeout=600).strip()
 
@@ -83,7 +92,7 @@ def expected_payloads(version: str) -> list[str]:
         f'agentdock-workbench-{version}-1.x86_64.rpm',f'agentdock-workbench-{version}-1.aarch64.rpm',
         'install.sh','install.ps1']
     if tuple(map(int,version.split('.'))) >= (1,1,8):
-        payloads.append(f'AgentDock-Workbench-{version}-Android.apk')
+        payloads.append(android_public_asset_name(version))
     return payloads
 
 
@@ -97,14 +106,14 @@ def public_installers(version: str) -> list[str]:
         f'agentdock-workbench-{version}-1.aarch64.rpm',
     ]
     if tuple(map(int,version.split('.'))) >= (1,1,8):
-        installers.append(f'AgentDock-Workbench-{version}-Android.apk')
+        installers.append(android_public_asset_name(version))
     return installers
 
 
 def obsolete_public_installers(version: str) -> set[str]:
     """Return historical public names that an explicit replacement may remove."""
     obsolete: set[str] = set()
-    if tuple(map(int,version.split('.'))) >= (1,1,8):
+    if stable_android_release_required(version):
         obsolete.add(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
     if tuple(map(int,version.split('.'))) >= (1,1,9):
         obsolete.update({'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe'})
@@ -319,14 +328,21 @@ def write_release_tag(tag: str,commit: str,title: str,expected_ref: str | None=N
         raise RuntimeError('Remote release tag does not match the verified source after update')
 
 
-def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_published: bool=False) -> None:
+def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
+            replace_published: bool=False,replace_stable: bool=False) -> None:
     if os.environ.get('GITHUB_REPOSITORY')!=REPOSITORY:
         raise RuntimeError('Publication is restricted to the user fork')
+    if replace_published and replace_stable:
+        raise RuntimeError('Published prerelease and stable replacement modes are mutually exclusive')
+    if replace_stable and prerelease:
+        raise RuntimeError('Stable replacement must remain on the stable release channel')
+    replacement_requested=replace_published or replace_stable
     tag='v'+version
     title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
     prerelease_field='prerelease='+str(prerelease).lower()
     latest_field='make_latest='+('false' if prerelease else 'true')
-    previous_latest=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')).get('id') if prerelease else None
+    latest_before=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')) if prerelease or replace_stable else None
+    previous_latest=latest_before.get('id') if prerelease else None
     notes=ROOT/f'docs/releases/{tag}.md'
     if not notes.is_file():raise RuntimeError('Final release notes are missing')
     public_names=public_installers(version)
@@ -339,34 +355,42 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     expected={path.name:{'size':path.stat().st_size,'digest':'sha256:'+digest(path)} for path in files}
     record=find_release(tag)
     if record is None:
-        if replace_published:
+        if replacement_requested:
             raise RuntimeError('Published replacement requires an existing release')
     elif not isinstance(record,dict) or type(record.get('id')) is not int or record['id']<=0 or record.get('tag_name')!=tag:
         raise RuntimeError('Created release could not be located; preserve draft and inspect before retrying')
-    obsolete=obsolete_public_installers(version) if replace_published else set()
+    obsolete=obsolete_public_installers(version) if replacement_requested else set()
     if record is not None:
         release_assets(record,expected,obsolete)
         if replace_published and record.get('prerelease') is not True:
             raise RuntimeError('Published replacement requires an existing prerelease')
-        if replace_published and record.get('immutable') is True:
-            raise RuntimeError('Published prerelease is immutable and cannot be replaced')
+        if replace_stable:
+            if record.get('draft'):
+                if record.get('prerelease') is not True or record.get('name')!=title:
+                    raise RuntimeError('Stable replacement recovery requires the original stable release draft')
+            elif record.get('prerelease') is not False or record.get('name')!=title:
+                raise RuntimeError('Stable replacement requires an existing stable release')
+            elif not isinstance(latest_before,dict) or latest_before.get('id')!=record['id']:
+                raise RuntimeError('Stable replacement requires the current Latest release')
+        if replacement_requested and record.get('immutable') is True:
+            raise RuntimeError('Published release is immutable and cannot be replaced')
     release_target=str(record.get('target_commitish','')).lower() if record is not None else ''
     release_was_draft=bool(record.get('draft')) if record is not None else False
     tag_ref,tag_commit=remote_tag_identity(tag)
-    if replace_published and tag_ref is not None and tag_commit!=commit:
+    if replacement_requested and tag_ref is not None and tag_commit!=commit:
         allowed_targets={tag_commit}
         if release_was_draft:
             # A prior replacement may have updated the draft target before its
             # compare-and-swap tag push failed. Resume that exact partial state.
             allowed_targets.add(commit)
         if release_target not in allowed_targets:
-            raise RuntimeError('Existing prerelease target does not match the remote tag or verified source; preserve it for inspection')
+            raise RuntimeError('Existing release target does not match the remote tag or verified source; preserve it for inspection')
     if tag_ref is None:
         if record is not None:
             raise RuntimeError('Existing release has no remote tag; preserve it for inspection')
         write_release_tag(tag,commit,title)
         tag_ref,tag_commit=remote_tag_identity(tag)
-    elif tag_commit!=commit and not replace_published:
+    elif tag_commit!=commit and not replacement_requested:
         raise RuntimeError('Remote release tag does not match the verified source')
     if record is None:
         # Retain the identity returned by the successful POST. A subsequent
@@ -383,19 +407,21 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     # explicit replacement path scoped to the installer set assembled above.
     release_assets(record,expected,obsolete)
     if not record.get('draft'):
-        if not replace_published:
+        if not replacement_requested:
             raise RuntimeError('Refusing to replace an already published release')
         record=json.loads(run('gh','api','--method','PATCH',endpoint,
             '-F','draft=true','-F','prerelease=true','-f','make_latest=false','-f',f'target_commitish={commit}'))
     elif replace_published and record.get('prerelease') is not True:
         raise RuntimeError('Published replacement requires an existing prerelease')
-    if replace_published and tag_commit!=commit:
+    elif replace_stable and (record.get('prerelease') is not True or record.get('name')!=title):
+        raise RuntimeError('Stable replacement recovery requires the original stable release draft')
+    if replacement_requested and tag_commit!=commit:
         write_release_tag(tag,commit,title,tag_ref)
         tag_ref,tag_commit=remote_tag_identity(tag)
     record=json.loads(run('gh','api',endpoint))
     if record.get('id')!=release_id or record.get('tag_name')!=tag or not record.get('draft'):
         raise RuntimeError('Release identity or draft state changed before upload')
-    if replace_published:
+    if replacement_requested:
         actual=release_assets(record,expected,obsolete)
         stale=[]
         for name,asset in actual.items():
@@ -452,12 +478,15 @@ def main() -> None:
     parser.add_argument('--publish',action='store_true')
     parser.add_argument('--prerelease',action='store_true',help='Publish as a prerelease without replacing stable Latest')
     parser.add_argument('--replace-published',action='store_true',help='Explicitly replace or promote an existing published prerelease after full artifact verification')
+    parser.add_argument('--replace-stable',action='store_true',help='Explicitly replace the current stable Latest release after full artifact verification')
     parser.add_argument('--source-root',type=Path,default=ROOT,help='Verified build source checkout; does not change the artifact SHA')
     args=parser.parse_args()
-    if args.replace_published and not args.publish:parser.error('--replace-published requires --publish')
+    if args.replace_published and args.replace_stable:parser.error('replacement modes are mutually exclusive')
+    if args.replace_stable and args.prerelease:parser.error('--replace-stable cannot be combined with --prerelease')
+    if (args.replace_published or args.replace_stable) and not args.publish:parser.error('replacement requires --publish')
     ROOT=args.source_root.resolve()
     manifest=assemble(args.input.resolve(),args.dist.resolve(),args.version,args.commit,args.prerelease)
     print(f'Verified {len(manifest["assets"])} payloads across the verified target platforms')
-    if args.publish:publish(args.dist.resolve(),args.version,args.commit,args.prerelease,args.replace_published)
+    if args.publish:publish(args.dist.resolve(),args.version,args.commit,args.prerelease,args.replace_published,args.replace_stable)
 
 if __name__=='__main__':main()

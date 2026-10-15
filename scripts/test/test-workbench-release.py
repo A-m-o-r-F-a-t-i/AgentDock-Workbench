@@ -22,7 +22,7 @@ class ReleaseGate(unittest.TestCase):
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe','AgentDock-macos-universal.dmg',
             'agentdock-workbench_1.1.8_amd64.deb','agentdock-workbench_1.1.8_arm64.deb',
             'agentdock-workbench-1.1.8-1.x86_64.rpm','agentdock-workbench-1.1.8-1.aarch64.rpm',
-            'AgentDock-Workbench-1.1.8-Android.apk'])
+            'AgentDock-Workbench-1.1.8-Android-test-signed.apk'])
         for name in release.public_installers('1.1.8'):
             self.assertFalse(name.endswith(('.zip','.tar.gz','.sha256')))
             self.assertNotIn(name,('install.sh','install.ps1','SHA256SUMS','release-manifest.json'))
@@ -112,12 +112,33 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn("github.event.forced != true",workflow)
         self.assertIn("github.event.deleted != true",workflow)
         self.assertIn('needs: [resolve-source, windows, windows-arm-package, unix, macos-app, android]',workflow)
+        self.assertIn('stable_android: ${{ steps.identity.outputs.stable_android }}',workflow)
+        self.assertIn('if [[ "$stable_android" == true ]]; then',workflow)
+        self.assertEqual(workflow.count("if: needs.resolve-source.outputs.stable_android == 'true'"),3)
+        android_workflow=(ROOT/'.github/workflows/parallel-android.yml').read_text()
+        self.assertIn('PRODUCT_VERSION: ${{ steps.identity.outputs.product_version }}',android_workflow)
+        self.assertIn('version = tuple(map(int, os.environ["PRODUCT_VERSION"].split(".")))',android_workflow)
+        self.assertIn('if version >= (1,1,9):',android_workflow)
         recovery=(ROOT/'.github/workflows/workbench-publish-existing.yml').read_text()
         self.assertIn(">= (1,1,7)",recovery)
         self.assertIn('Native Windows ARM64 install and uninstall',recovery)
         self.assertIn('replace_published:',recovery)
         self.assertIn('--replace-published',recovery)
         self.assertIn('REPLACE_PUBLISHED:',recovery)
+        self.assertIn('replace_stable:',recovery)
+        self.assertIn('--replace-stable',recovery)
+        self.assertIn('REPLACE_STABLE:',recovery)
+        self.assertNotIn("build['head_sha']!=sha",recovery)
+        self.assertIn("build.get('conclusion')!='success'",recovery)
+        self.assertIn("build.get('event')!='workflow_dispatch'",recovery)
+        self.assertIn("build.get('head_branch')!='main'",recovery)
+        self.assertIn("build.get('display_title')!=expected_title",recovery)
+        self.assertIn('test "$(git -C verified-source rev-parse HEAD)" = "$SOURCE_SHA"',recovery)
+        self.assertIn('--commit "$SOURCE_SHA" --publish',recovery)
+        self.assertIn("android_release_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()",recovery)
+        self.assertIn("android_core_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()",recovery)
+        self.assertIn("if: steps.source.outputs.android_release_required == 'true'",recovery)
+        self.assertIn("if: steps.source.outputs.android_core_required == 'true'",recovery)
         self.assertIn('current_tag_commit',recovery)
         self.assertIn('workbench-android-release-${{ github.run_id }}',workflow)
         self.assertIn('workbench-android-release-${{ github.run_id }}',recovery)
@@ -144,6 +165,34 @@ class EnhancedReleaseGate(ReleaseGate):
     def test_native_evidence_cannot_mix_source_generations(self):
         self.reports['acceptance-source-arm64.json']['commit']='b'*40;self.flush()
         with self.assertRaisesRegex(RuntimeError,'different source'):self.assemble()
+
+class LegacyAndroidReleaseGate(EnhancedReleaseGate):
+    target_version='1.1.8'
+    def setUp(self):
+        super().setUp()
+        candidate=release.android_public_asset_name(self.version)
+        checksum=release.digest(self.inputs/candidate)
+        self.reports['verification-android.json']={
+            'version':self.version,'commit':self.commit,'product_name':release.PRODUCT,
+            'platform':'android/arm64','apk_validation':'passed','emulator_validation':'passed',
+            'api_levels':[26,33,34,35,37],'signing':'test-signed Android debug key',
+            'physical_arm64_termux':'not_run',
+            'emulators':[{'api':api,'tests':13,'passed':13,'screenshots':23,'attempt_exit_codes':[0]} for api in [26,33,34,35,37]],
+            'assets':{candidate:checksum}}
+        self.flush()
+    def test_118_preserves_original_test_signed_android_contract(self):
+        with (
+            patch.object(release,'android_release_identity',side_effect=AssertionError('stable signer must not be used')),
+            patch.object(release,'android_core_release_identity',side_effect=AssertionError('Core signer must not be used')),
+        ):
+            manifest=self.assemble()
+        candidate=release.android_public_asset_name(self.version)
+        self.assertEqual(candidate,'AgentDock-Workbench-1.1.8-Android-test-signed.apk')
+        self.assertTrue((self.dist/candidate).is_file())
+        self.assertFalse((self.dist/'AgentDock-Workbench-1.1.8-Android.apk').exists())
+        self.assertEqual(manifest['signing']['android'],'test-signed Android debug key')
+        self.assertEqual(manifest['signing']['android_core'],'not_included')
+
 
 class AndroidReleaseGate(EnhancedReleaseGate):
     target_version='1.1.9'
@@ -293,7 +342,8 @@ class PublicationGate(unittest.TestCase):
             if target==self.endpoint:return json.dumps(self.record)
             if target.endswith('/releases/latest'):return json.dumps(self.latest)
         raise AssertionError('Unexpected command '+repr(args))
-    def publish(self,prerelease=False,replace_published=False):release.publish(self.dist,'1.1.7',self.commit,prerelease,replace_published)
+    def publish(self,prerelease=False,replace_published=False,replace_stable=False):
+        release.publish(self.dist,'1.1.7',self.commit,prerelease,replace_published,replace_stable)
     def mutations(self):return [args for args in self.commands if args[:4] in [('gh','api','--method','POST'),('gh','api','--method','PATCH'),('gh','api','--method','DELETE')]]
     def test_existing_complete_draft_uses_id_without_reupload(self):
         self.publish()
@@ -393,6 +443,46 @@ class PublicationGate(unittest.TestCase):
     def test_explicit_replacement_rejects_stable_release_before_mutation(self):
         self.record['draft']=False;self.record['prerelease']=False
         with self.assertRaisesRegex(RuntimeError,'existing prerelease'):self.publish(False,True)
+        self.assertEqual(self.mutations(),[])
+    def test_explicit_stable_replacement_reconciles_assets_and_preserves_release_id(self):
+        self.record['draft']=False;self.record['prerelease']=False;self.latest=self.record
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(False,False,True)
+        mutations=self.mutations()
+        self.assertEqual([args[3] for args in mutations],['PATCH','DELETE','POST','PATCH'])
+        self.assertIn('draft=true',mutations[0]);self.assertIn('prerelease=true',mutations[0]);self.assertIn('make_latest=false',mutations[0])
+        self.assertIn('draft=false',mutations[-1]);self.assertIn('prerelease=false',mutations[-1]);self.assertIn('make_latest=true',mutations[-1])
+        self.assertFalse(self.record['draft']);self.assertFalse(self.record['prerelease'])
+        self.assertEqual(self.record['id'],123);self.assertEqual(self.latest['id'],123)
+        self.assertEqual(self.record['assets'],[self.asset])
+    def test_stable_replacement_retargets_tag_with_compare_and_swap(self):
+        previous='b'*40
+        self.remote_tag_ref='c'*40;self.remote_tag_commit=previous
+        self.record['target_commitish']=previous;self.record['draft']=False;self.record['prerelease']=False;self.latest=self.record
+        self.publish(False,False,True)
+        tag_push=[args for args in self.commands if args[:2]==('git','push')]
+        self.assertEqual(len(tag_push),1)
+        self.assertIn(f'--force-with-lease=refs/tags/{self.tag}:'+'c'*40,tag_push[0])
+        self.assertEqual(self.remote_tag_commit,self.commit)
+        self.assertEqual(self.record['target_commitish'],self.commit)
+    def test_stable_replacement_rejects_non_latest_release_before_mutation(self):
+        self.record['draft']=False;self.record['prerelease']=False
+        with self.assertRaisesRegex(RuntimeError,'current Latest'):self.publish(False,False,True)
+        self.assertEqual(self.mutations(),[])
+    def test_stable_replacement_rejects_prerelease_before_mutation(self):
+        self.record['draft']=False;self.record['prerelease']=True;self.latest=self.record
+        with self.assertRaisesRegex(RuntimeError,'existing stable release'):self.publish(False,False,True)
+        self.assertEqual(self.mutations(),[])
+    def test_stable_replacement_resumes_recoverable_draft(self):
+        self.record['draft']=True;self.record['prerelease']=True;self.record['target_commitish']=self.commit
+        self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
+        self.publish(False,False,True)
+        self.assertEqual([args[3] for args in self.mutations()],['DELETE','POST','PATCH'])
+        self.assertFalse(self.record['draft']);self.assertFalse(self.record['prerelease'])
+        self.assertEqual(self.latest['id'],123)
+    def test_stable_replacement_modes_are_mutually_exclusive(self):
+        with self.assertRaisesRegex(RuntimeError,'mutually exclusive'):self.publish(False,True,True)
+        with self.assertRaisesRegex(RuntimeError,'stable release channel'):self.publish(True,False,True)
         self.assertEqual(self.mutations(),[])
     def test_explicit_replacement_rejects_unexpected_asset_before_unpublish(self):
         self.record['draft']=False;self.record['prerelease']=True

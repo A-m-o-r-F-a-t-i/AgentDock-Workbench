@@ -105,14 +105,16 @@ func compactPublicToolDescriptions(name string, properties map[string]any) {
 		setSchemaDescription(properties, "patch", "Structured envelope: *** Begin Patch; repeat *** Add File: <path>, *** Delete File: <path>, or *** Update File: <path>; use @@ [<optional context line>] and optional *** End of File; finish with *** End Patch.")
 		setSchemaDescription(properties, "workdir", "Working directory for patch paths.")
 	case "mcp_tool_search":
-		setSchemaDescription(properties, "query", "Dynamic MCP capability query. Call known host tools directly.")
-		setSchemaDescription(properties, "server", "Server name from agentdock_context.")
-		setSchemaDescription(properties, "limit", "Maximum matches; default 10.")
+		setSchemaDescription(properties, "query", "Dynamic MCP query; call host tools directly.")
+		setSchemaDescription(properties, "server", "Optional dynamic MCP server.")
+		setSchemaDescription(properties, "limit", "Max matches; default 10.")
 	case "mcp_tool_list":
-		setSchemaDescription(properties, "server", "Enabled server; lists all visible tool names and descriptions.")
+		setSchemaDescription(properties, "server", "Enabled dynamic MCP server.")
+		setSchemaDescription(properties, "force_full", "Return the full catalog.")
 	case "mcp_tool_inspect":
-		setSchemaDescription(properties, "name", "Dynamic MCP name: server:tool.")
-		setSchemaDescription(properties, "names", "server:tool or server:* selectors; may mix services.")
+		setSchemaDescription(properties, "name", "Dynamic tool: server:tool.")
+		setSchemaDescription(properties, "names", "Selectors: server:tool or server:*.")
+		setSchemaDescription(properties, "force_full", "Return full schemas.")
 	case "mcp_manage":
 		setSchemaDescription(properties, "header_env", "HTTP header name to host environment variable name.")
 		setSchemaDescription(properties, "env_from_env", "Child environment variable name to host environment variable name.")
