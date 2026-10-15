@@ -15,6 +15,9 @@ func contextDiagnosticsSchema() map[string]any {
 			}}
 	}
 	properties := map[string]any{
+		"context_snapshot":    snapshot(),
+		"snapshot_freshness":  map[string]any{"type": "string"},
+		"degraded_reason":     map[string]any{"type": "string"},
 		"complete":            map[string]any{"type": "boolean"},
 		"components_complete": map[string]any{"type": "boolean"},
 		"binding_status":      map[string]any{"type": "string", "enum": []string{"pending", "updated", "unchanged", "unattributed", "context_incomplete", "conflict", "failed"}},

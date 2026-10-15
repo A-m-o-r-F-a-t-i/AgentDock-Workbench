@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/config"
@@ -12,16 +14,13 @@ import (
 
 type outputPolicyContextKey struct{}
 
-var outputSourceURI = regexp.MustCompile(`^activity://call/(call_[a-f0-9]{32})/source$`)
+var outputSourceURI = regexp.MustCompile(`^activity://call/(call_[a-f0-9]{32})/source(?:/([a-f0-9]{64}))?$`)
 
 // An activity source is an existing immutable payload reached through its
 // owning call, never a filesystem path or a blob hash supplied by the caller.
 func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile.ReadRequest) (Result, error) {
 	if !strings.HasPrefix(request.Path, "activity://") {
-		if request.Offset != nil || request.LimitChars != nil {
-			return nil, toolError("INVALID_ARGUMENT", "offset and limit_chars apply only to host-issued activity source references.", "validation")
-		}
-		return r.files.ReadFile(ctx, request)
+		return r.readProjectedFile(ctx, request)
 	}
 	parts := outputSourceURI.FindStringSubmatch(request.Path)
 	if len(parts) != 2 || request.StartLine != nil || request.EndLine != nil || request.MaxBytes != nil {
@@ -58,9 +57,9 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	if !ok {
 		policy = r.MCPPresentationSettings().ToolOutput
 	}
-	limit := 100000
+	limit := toolcontract.ModelVisiblePayloadChars
 	if policy.Enabled {
-		limit = policy.MaxChars
+		limit = min(limit, policy.MaxChars)
 	}
 	if request.LimitChars != nil {
 		limit = min(limit, *request.LimitChars)
@@ -73,6 +72,10 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	if err != nil {
 		return nil, err
 	}
+	visible := toolcontract.JSONTextPrefix(page.Text, toolcontract.ModelVisiblePayloadChars-2000)
+	page.HasMore = page.HasMore || len(visible) < len(page.Text)
+	page.NextOffset = page.Offset + int64(len(visible))
+	page.Text, page.ReturnedChars = visible, utf8.RuneCountInString(visible)
 	descriptor := *page.Payload
 	descriptor.Preview = ""
 	return Result{"path": request.Path, "content": page.Text, "encoding": "utf-8", "size_bytes": page.Payload.Bytes, "offset": page.Offset, "next_offset": page.NextOffset, "has_more": page.HasMore, "unit": "unicode_scalar", "limit_chars": limit, "returned_chars": page.ReturnedChars, "source_state": page.Payload.State, "payload": descriptor}, nil

@@ -299,7 +299,7 @@ func (m *Manager) externalServersLocked(ctx context.Context) (map[string]ServerC
 	}
 	provided, err := m.external(ctx)
 	if err != nil {
-		return nil, newError("MCP_PLUGIN_REGISTRY_READ_FAILED", "read plugin-owned MCP servers", true, nil, err)
+		return nil, pluginRegistryFailure(err)
 	}
 	servers := make(map[string]ServerConfig, len(provided))
 	for key, raw := range provided {

@@ -24,6 +24,16 @@ func executionOutputSchema(original map[string]any) map[string]any {
 			properties[name] = map[string]any{"type": "object", "additionalProperties": true}
 		}
 	}
+	for _, name := range []string{"operation", "capture", "projection", "model_projection", "activity_preview", "continue_read", "range"} {
+		properties[name] = map[string]any{"type": "object", "additionalProperties": true}
+	}
+	properties["delivery"] = map[string]any{"anyOf": []any{map[string]any{"type": "string", "enum": []string{"full", "reference"}}, map[string]any{"type": "object", "required": []string{"class", "sequence_complete", "continuation_required", "continuation_available"}, "properties": map[string]any{"class": map[string]any{"enum": []string{"required_full", "recoverable_preview", "compact_receipt"}}, "sequence_complete": map[string]any{"type": "boolean"}, "continuation_required": map[string]any{"type": "boolean"}, "continuation_available": map[string]any{"type": "boolean"}}, "additionalProperties": true}}}
+	for _, name := range []string{"truncated", "source_complete", "context_ready", "has_more", "unchanged"} {
+		properties[name] = map[string]any{"type": "boolean"}
+	}
+	for _, name := range []string{"truncation_stage", "source_ref", "snapshot_id", "source_revision", "context_delivery"} {
+		properties[name] = map[string]any{"type": "string"}
+	}
 	properties["binding_updated"] = map[string]any{"type": "boolean"}
 	properties["output_policy"] = map[string]any{"type": "object", "additionalProperties": true, "description": "Budget for declared ordinary text fields, separate from control metadata and complete rules. Includes actual storage/continuation state when shortened."}
 	properties["agentdock_guidance"] = responseGuidanceSchema(properties["agentdock_guidance"])
@@ -47,7 +57,11 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	}
 	visible["executed"] = map[string]any{"type": "boolean"}
 	visible["approval"] = map[string]any{"type": "object"}
-	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending}}
+	projected := map[string]any{"type": "object", "required": []string{"operation", "capture", "projection", "delivery"}, "properties": map[string]any{
+		"operation": properties["operation"], "capture": properties["capture"], "delivery": properties["delivery"],
+		"projection": map[string]any{"type": "object", "required": []string{"mode", "complete"}, "properties": map[string]any{"mode": map[string]any{"enum": []string{"semantic_page", "continuous_page", "head_tail", "compact_receipt", "source_receipt", "reference"}}, "complete": map[string]any{"type": "boolean"}}, "additionalProperties": true},
+	}, "additionalProperties": true}
+	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending, projected}}
 	for _, key := range []string{"$defs", "definitions"} {
 		if value, exists := original[key]; exists {
 			result[key] = value

@@ -7,6 +7,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
@@ -84,6 +85,14 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 }
 
 func structuredOutputFollowups(name string, args map[string]any, result Result) []map[string]any {
+	if toolcontract.ClassifyOutput(name, args) != toolcontract.OutputRequiredFull {
+		return nil
+	}
+	if name == "read_file" && result["has_more"] == true {
+		if continuation := modelObject(result["continue_read"]); continuation != nil {
+			return []map[string]any{{"action": "continue_required_content", "tool": "read_file", "arguments": continuation["arguments"], "text": "Continue this immutable contract from its exact byte cursor before relying on the complete contract."}}
+		}
+	}
 	structured, ok := result["structured_output"].(map[string]any)
 	if !ok {
 		return nil

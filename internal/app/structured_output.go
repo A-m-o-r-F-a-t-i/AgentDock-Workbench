@@ -31,6 +31,9 @@ func sourceResultComplete(result Result) (bool, string) {
 }
 
 func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Result) Result {
+	if result != nil && p.state.binding.ParentCallID == "" && p.spec.Name != "read_file" && toolcontract.ClassifyOutput(p.spec.Name, p.args) == toolcontract.OutputRequiredFull {
+		return r.applyRequiredOutputPolicy(p, result)
+	}
 	paths := structuredOutputPaths(p.spec.Name)
 	if len(paths) == 0 || result == nil || p.state.binding.ParentCallID != "" {
 		return result
@@ -47,9 +50,9 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	if err != nil {
 		return result
 	}
-	budget := structuredOutputBudget(p.spec.Name, p.args)
-	businessBudget := max(1<<10, budget-structuredExecutionEnvelopeReserve(p.spec.Name))
-	if p.structuredResume == nil && len(encoded) <= businessBudget {
+	budget := min(toolcontract.ModelVisibleTotalChars, structuredOutputBudget(p.spec.Name, p.args))
+	businessBudget := max(1<<10, budget-2500)
+	if chars, countErr := toolcontract.JSONChars(full); p.structuredResume == nil && countErr == nil && chars <= businessBudget {
 		return result
 	}
 
@@ -97,8 +100,9 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	}
 	meta := map[string]any{
 		"truncated":             deliveryIncomplete || position.PathIndex != 0 || position.ItemIndex != 0,
-		"budget_bytes":          budget,
-		"business_budget_bytes": businessBudget,
+		"budget_chars":          budget,
+		"snapshot_id":           snapshot.ID,
+		"business_budget_chars": businessBudget,
 		"source_bytes":          len(encoded),
 		"retained_bytes":        len(snapshot.Encoded),
 		"dropped_before_bytes":  0,
@@ -111,7 +115,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 		meta["source"] = snapshot.SourceURI
 		meta["continue_read"] = map[string]any{
 			"tool":      "read_file",
-			"arguments": map[string]any{"path": snapshot.SourceURI, "offset": 0, "limit_chars": 20000},
+			"arguments": map[string]any{"path": snapshot.SourceURI, "offset": 0, "limit_chars": 8000},
 		}
 	}
 	if snapshot.SourceReason != "" {
@@ -135,6 +139,12 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	} else if hasMore {
 		meta["continuation_unavailable"] = "The exact structured result was not retained; use the activity source when available."
 	}
+	if oversized != nil {
+		delete(page, "next_cursor")
+		meta["continuation_unavailable"] = "An indivisible result item exceeds the page budget; recover its full content from source without re-running this operation."
+	}
+	meta["remaining_items"] = countRemainingStructuredItems(full, paths, next)
+	page["has_more"] = hasMore
 	page["structured_output"] = meta
 	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
 		setContextDeliveryComplete(page, !deliveryIncomplete && !snapshot.OversizedItems)
@@ -188,6 +198,10 @@ func appendStructuredReason(existing, addition string) string {
 }
 
 func (r *Runtime) retainStructuredActivitySource(p *preparedExecution, full Result, snapshot *structuredOutputSnapshot) {
+	if source := stringArg(modelObject(full["capture"]), "source_ref"); source != "" {
+		snapshot.SourceURI = source
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	payload := r.activity.CapturePayload(ctx, full, snapshot.SourceState, r.executionRedactor(p.args))
@@ -202,5 +216,5 @@ func (r *Runtime) retainStructuredActivitySource(p *preparedExecution, full Resu
 		snapshot.SourceReason = appendStructuredReason(snapshot.SourceReason, "The activity source could not be journaled.")
 		return
 	}
-	snapshot.SourceURI = "activity://call/" + p.state.binding.CallID + "/source"
+	snapshot.SourceURI = activity.SourceReference(p.state.binding.CallID, payload)
 }

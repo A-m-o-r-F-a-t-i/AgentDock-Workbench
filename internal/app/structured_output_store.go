@@ -21,18 +21,34 @@ const (
 )
 
 type structuredOutputSnapshot struct {
-	ID             string
-	Tool           string
-	ArgumentsHash  string
-	Binding        activity.Binding
-	Encoded        []byte
-	CreatedAt      time.Time
-	ExpiresAt      time.Time
-	SourceURI      string
-	SourceState    string
-	SourceReason   string
-	SourceComplete bool
-	OversizedItems bool
+	PermissionRevision    uint64
+	ID                    string
+	Tool                  string
+	ArgumentsHash         string
+	Binding               activity.Binding
+	Encoded               []byte
+	CreatedAt             time.Time
+	ExpiresAt             time.Time
+	SourceURI             string
+	SourceState           string
+	SourceReason          string
+	SourceComplete        bool
+	OversizedItems        bool
+	Required              bool
+	ContextStamp          string
+	ContextWorkdir        string
+	NextPage              int
+	Delivered             bool
+	FilePath              string
+	FileRuntime           string
+	FileDistribution      string
+	FileRevision          string
+	FileByteStart         int64
+	FileByteEnd           int64
+	FileRangeEnd          int64
+	PageBudget            int
+	PageCount             int
+	SourceDeliveredOffset int64
 }
 
 type structuredOutputCursor struct {
@@ -47,6 +63,7 @@ type structuredOutputResume struct {
 	Snapshot  structuredOutputSnapshot
 	PathIndex int
 	ItemIndex int
+	Reference bool
 }
 
 func structuredArgumentsHash(args map[string]any) (string, error) {
@@ -63,7 +80,7 @@ func structuredSelectorArguments(args map[string]any) map[string]any {
 	filtered := make(map[string]any, len(args))
 	for key, value := range args {
 		switch key {
-		case "cursor", "max_response_bytes", "task_id", "thread_id", "step_id", "workspace_id", "retry_of_call_id", "activity_label":
+		case "cursor", "max_response_bytes", "task_id", "thread_id", "step_id", "workspace_id", "retry_of_call_id", "activity_label", "force_refresh", "known_context_revision":
 			continue
 		default:
 			filtered[key] = value
@@ -85,7 +102,7 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 	if cursor == "" {
 		return nil, nil, nil
 	}
-	if len(structuredOutputPaths(p.spec.Name)) == 0 {
+	if len(structuredOutputPaths(p.spec.Name)) == 0 && p.spec.Name != "task_manage" {
 		return nil, nil, toolError("INVALID_ARGUMENT", "This tool does not support structured result cursors.", "validation")
 	}
 	argumentsHash, err := structuredArgumentsHash(p.args)
@@ -109,6 +126,20 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 	}
 	if err := r.authorizeStructuredSnapshot(ctx, snapshot.Binding, p.state.binding); err != nil {
 		return nil, nil, err
+	}
+	if snapshot.ContextStamp != "" && snapshot.PermissionRevision != p.decision.Revision {
+		r.discardStructuredSnapshot(snapshot.ID)
+		return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "The permission contract changed during paging; request the current Context snapshot.", "conflict")
+	}
+	if snapshot.ContextStamp != "" {
+		stamp, stampErr := r.contextSourceStamp(ctx, snapshot.ContextWorkdir, p.state.binding)
+		if stampErr != nil {
+			return nil, nil, stampErr
+		}
+		if stamp != snapshot.ContextStamp {
+			r.discardStructuredSnapshot(snapshot.ID)
+			return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "Context dependencies changed during paging. Call agentdock_context once to receive the current snapshot.", "conflict")
+		}
 	}
 	result, err := decodeStructuredResult(snapshot.Encoded)
 	if err != nil {
@@ -171,6 +202,10 @@ func (r *Runtime) authorizeStructuredSnapshot(ctx context.Context, original, cur
 }
 
 func (r *Runtime) storeStructuredSnapshot(snapshot *structuredOutputSnapshot) (*structuredOutputSnapshot, error) {
+	if len(snapshot.Encoded) > structuredSnapshotMaxBytes {
+		return nil, toolError("OUTPUT_SNAPSHOT_TOO_LARGE", "The complete snapshot exceeds the retained output limit; read the explicit source when available.", "resource_limit")
+	}
+
 	id, err := randomStructuredID("sout_")
 	if err != nil {
 		return nil, fmt.Errorf("create structured result snapshot: %w", err)
@@ -187,6 +222,19 @@ func (r *Runtime) storeStructuredSnapshot(snapshot *structuredOutputSnapshot) (*
 	r.structuredOutputMu.Lock()
 	defer r.structuredOutputMu.Unlock()
 	r.pruneStructuredOutputLocked(now)
+	if r.structuredSnapshots == nil {
+		r.structuredSnapshots = map[string]*structuredOutputSnapshot{}
+	}
+	if r.structuredCursors == nil {
+		r.structuredCursors = map[string]structuredOutputCursor{}
+	}
+	if stored.ContextStamp != "" {
+		for _, existing := range r.structuredSnapshots {
+			if existing.Tool == stored.Tool && existing.ContextStamp == stored.ContextStamp && existing.ArgumentsHash == stored.ArgumentsHash && existing.PermissionRevision == stored.PermissionRevision && sameContextScope(existing.Binding, stored.Binding) {
+				return cloneStructuredSnapshot(existing), nil
+			}
+		}
+	}
 	r.structuredSnapshots[id] = stored
 	r.structuredSnapshotBytes += int64(len(stored.Encoded))
 	r.pruneStructuredOutputLocked(now)

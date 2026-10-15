@@ -65,7 +65,7 @@ func responseTextMode(ctx context.Context, name string) string {
 	if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
 		return responseTextSummary
 	}
-	return responseTextFull
+	return responseTextSummary
 }
 
 func responseModeOption(raw any, capability string) (string, error) {

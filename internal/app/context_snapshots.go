@@ -30,6 +30,7 @@ type contextFiles interface {
 }
 
 type contextSnapshots struct {
+	complete    *snapshot.Cache[Result]
 	rules       *snapshot.Cache[agentinstructions.Snapshot]
 	skills      *snapshot.Cache[skillIndexSnapshot]
 	common      *snapshot.Cache[*capabilityCommonSkillIndex]
@@ -54,6 +55,7 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 		return first != ".locks" && first != ".tmp" && first != ".cache"
 	}
 	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter)}
+	resources.complete = snapshot.New[Result](32, cfg.ContextBudget(), 15*time.Minute)
 	resources.common = snapshot.New[*capabilityCommonSkillIndex](4, cfg.ContextBudget(), time.Minute)
 	resources.commonFiles = snapshot.NewFiles(nil)
 	for _, dir := range []string{skillRoot, filepath.Join(skillRoot, ".state"), filepath.Join(skillRoot, ".system"), filepath.Join(skillRoot, ".versions")} {
@@ -63,6 +65,9 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 }
 func (s *contextSnapshots) Close() {
 	s.once.Do(func() {
+		if s.complete != nil {
+			s.complete.Close()
+		}
 		s.rules.Close()
 		s.skills.Close()
 		s.common.Close()

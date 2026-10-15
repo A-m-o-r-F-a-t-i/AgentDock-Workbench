@@ -105,7 +105,7 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 	label := strings.Join(names, ", ")
 	details := map[string]any{
 		"route_kind": routeKindHostBuiltin, "resolved": true, "terminal": true,
-		"retryable": false, "execution_performed": false,
+		"retryable": false, "execution_performed": false, "retry_dynamic_search": false,
 		"builtin_tools": builtins, "required_host_tools": names,
 		"next_action": "call_host_tool", "repeated": repeated,
 		"route_code": code, "route_status": "blocked",
@@ -123,6 +123,11 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 	if previous != "" {
 		details["previous_call_id"] = previous
 	}
+	if repeated {
+		delete(details, "builtin_tools")
+		details["route_reference"] = previous
+	}
+
 	return toolErrorCause(code,
 		"AgentDock host tool "+label+" cannot be searched or inspected as dynamic MCP. Call it directly from the caller tools/list namespace. No business action ran.",
 		"validation", details, errBuiltinDiscovery)

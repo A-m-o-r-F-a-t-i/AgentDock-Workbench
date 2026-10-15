@@ -23,6 +23,9 @@ func withContextRevisionRequest(ctx context.Context, name string, args map[strin
 }
 
 func projectContextReference(ctx context.Context, name string, result any, err error) any {
+	if _, modern := asMap(result)["delivery"].(map[string]any); modern {
+		return result
+	}
 	if (name != "agentdock_context" && name != "workspace_context") || err != nil {
 		return result
 	}

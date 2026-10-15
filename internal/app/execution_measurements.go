@@ -18,7 +18,9 @@ func (r *Runtime) recordRPCReturn(binding activity.Binding, tool string, receive
 
 func rpcReturnStatus(result Result, failure error) string {
 	status := "succeeded"
-	if failure != nil || resultReportsFailure(result) || result["command_ok"] == false {
+	// A completed RPC may carry a failed command or remote business result.
+	// Those outcomes remain on the operation, not the transport lifetime.
+	if failure != nil {
 		status = "failed"
 	}
 	if errors.Is(failure, context.Canceled) {

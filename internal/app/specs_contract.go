@@ -7,6 +7,7 @@ import (
 	toolacp "github.com/uvwt/agentdock/internal/tool/acp"
 	toolbrowser "github.com/uvwt/agentdock/internal/tool/browser"
 	toolcommand "github.com/uvwt/agentdock/internal/tool/command"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	toolmedia "github.com/uvwt/agentdock/internal/tool/media"
@@ -58,6 +59,9 @@ func taskToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	inputSchema, ok := tooltask.InputSchema(name, cfg)
 	if !ok {
 		return ToolContract{}, false
+	}
+	if properties, ok := inputSchema["properties"].(map[string]any); ok {
+		toolcontract.StructuredPagingInput(properties)
 	}
 	outputSchema, ok := tooltask.OutputSchema(name, cfg)
 	if !ok {

@@ -71,6 +71,9 @@ func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any) {
 	received, status := response.auditReceived, response.auditStatus
 	response.mu.Unlock()
 	r.recordExecutionPayload(binding, name, "response", envelope, redactor)
+	if payload := modelObject(modelObject(envelope)["structuredContent"]); payload != nil {
+		r.commitStructuredDelivery(binding, Result(payload))
+	}
 	// This server-side boundary includes final-envelope serialization and
 	// observation storage. It does not invent downstream network delivery time.
 	if !received.IsZero() {

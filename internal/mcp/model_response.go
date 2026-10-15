@@ -1,0 +1,171 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"maps"
+	"unicode/utf8"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/uvwt/agentdock/internal/app"
+	"github.com/uvwt/agentdock/internal/buildinfo"
+	"github.com/uvwt/agentdock/internal/config"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
+)
+
+// Native image/audio blocks are binary transport, not a textual model
+// projection. Keep their rendering contract; bound every textual JSON field.
+func modelEnvelopeChars(envelope map[string]any) (int, error) {
+	measured := maps.Clone(envelope)
+	blocks := envelopeBlocks(envelope["content"])
+	content := make([]any, 0, len(blocks))
+	for _, block := range blocks {
+		object := asMap(block)
+		if object["type"] == "image" || object["type"] == "audio" {
+			object = maps.Clone(object)
+			object["data"] = ""
+			content = append(content, object)
+		} else {
+			content = append(content, block)
+		}
+	}
+	measured["content"] = content
+	encoded, err := json.Marshal(measured)
+	if err != nil {
+		return 0, err
+	}
+	var result mcpsdk.CallToolResult
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		return 0, err
+	}
+	encoded, err = json.Marshal(&result)
+	return utf8.RuneCount(encoded), err
+}
+
+func singleBodyEnvelope(name string, envelope map[string]any) map[string]any {
+	out := maps.Clone(envelope)
+	content := []any{map[string]any{"type": "text", "text": toolResultSummary(name, envelope)}}
+	for _, block := range envelopeBlocks(envelope["content"]) {
+		if asMap(block)["type"] != "text" {
+			content = append(content, block)
+		}
+	}
+	out["content"] = content
+	return out
+}
+
+// This is the last shared SDK/Bridge boundary, after trusted additions and SDK
+// metadata. A large result remains a successful operation with a source receipt.
+func (s *Server) boundModelResponse(ctx context.Context, name string, arguments map[string]any, pending *app.ToolResponse, envelope map[string]any) (map[string]any, error) {
+	out := envelope
+	if responseTextMode(ctx, name) == responseTextSummary {
+		out = singleBodyEnvelope(name, out)
+	}
+	if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
+		out = maps.Clone(out)
+		meta := maps.Clone(asMap(out["_meta"]))
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta[mcpsdk.MetaKeyServerInfo] = &mcpsdk.Implementation{Name: config.ServerName, Version: buildinfo.Version}
+		out["_meta"] = meta
+		out["resultType"] = "complete"
+	}
+	chars, err := modelEnvelopeChars(out)
+	if err != nil {
+		return nil, err
+	}
+	if chars > toolcontract.ModelVisibleTotalChars {
+		source, storeErr := s.runtime.RetainResponseSource(pending, envelope["structuredContent"])
+		if storeErr != nil {
+			return nil, fmt.Errorf("retain completed tool output before projection: %w", storeErr)
+		}
+		out = compactModelResponse(name, arguments, out, source)
+	}
+	for range 8 {
+		payload := maps.Clone(asMap(out["structuredContent"]))
+		if payload == nil {
+			payload = map[string]any{}
+		}
+		projection := maps.Clone(asMap(payload["projection"]))
+		if projection == nil {
+			projection = map[string]any{"mode": "full", "complete": true}
+		}
+		payload["model_projection"] = map[string]any{
+			"chars": chars, "budget_chars": toolcontract.ModelVisibleTotalChars,
+			"class": toolcontract.ClassifyOutput(name, arguments),
+			"mode":  projection["mode"], "complete": projection["complete"],
+		}
+		out["structuredContent"] = payload
+		out, err = measureContextResponse(ctx, name, out)
+		if err != nil {
+			return nil, err
+		}
+		next, countErr := modelEnvelopeChars(out)
+		if countErr != nil {
+			return nil, countErr
+		}
+		if next > toolcontract.ModelVisibleTotalChars {
+			source, storeErr := s.runtime.RetainResponseSource(pending, envelope["structuredContent"])
+			if storeErr != nil {
+				return nil, storeErr
+			}
+			out = compactModelResponse(name, arguments, out, source)
+			if remaining, _ := modelEnvelopeChars(out); remaining > toolcontract.ModelVisibleTotalChars {
+				return nil, fmt.Errorf("MODEL_RESPONSE_BUDGET_EXCEEDED: retained source=%s; inspect the completed operation before any retry", source)
+			}
+			chars = next
+			continue
+		}
+		if next == chars {
+			return out, nil
+		}
+		chars = next
+	}
+	return nil, fmt.Errorf("model response character count did not converge")
+}
+
+func compactModelResponse(name string, args map[string]any, original map[string]any, source string) map[string]any {
+	full := asMap(original["structuredContent"])
+	class := toolcontract.ClassifyOutput(name, args)
+	payload := map[string]any{}
+	for _, key := range []string{"operation", "capture", "agentdock_guidance", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms"} {
+		if value, exists := full[key]; exists {
+			if text, ok := value.(string); ok {
+				value = toolcontract.JSONTextPrefix(text, 512)
+			}
+			payload[key] = value
+		}
+	}
+	if payload["operation"] == nil {
+		payload["operation"] = map[string]any{"state": "returned", "ok": original["isError"] != true}
+	}
+	payload["projection"] = map[string]any{"mode": "source_receipt", "complete": false}
+	payload["truncated"] = true
+	payload["truncation_stage"] = "projection"
+	payload["source_ref"] = source
+	payload["delivery"] = map[string]any{
+		"class": class, "sequence_complete": class != toolcontract.OutputRequiredFull,
+		"continuation_required":  class == toolcontract.OutputRequiredFull && source != "",
+		"continuation_available": source != "",
+	}
+	if source != "" {
+		payload["continue_read"] = map[string]any{"tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}}
+	}
+	if name == "agentdock_context" || name == "workspace_context" {
+		payload["context_ready"] = false
+		payload["context_revision"] = full["context_revision"]
+		payload["context_diagnostics"] = map[string]any{"complete": false, "components_complete": true, "binding_status": "unchanged"}
+	}
+	// Preserve the error tail for commands even when decorations force a smaller
+	// emergency projection. File cursors are never advanced by this fallback.
+	for _, key := range []string{"stderr", "stdout"} {
+		if text, _ := full[key].(string); text != "" {
+			payload[key] = toolcontract.JSONTextSuffix(text, 1500)
+		}
+	}
+	out := maps.Clone(original)
+	out["structuredContent"] = payload
+	return singleBodyEnvelope(name, out)
+}

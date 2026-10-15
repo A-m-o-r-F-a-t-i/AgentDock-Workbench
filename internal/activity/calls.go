@@ -22,6 +22,7 @@ type FileChange struct {
 	StatsKnown bool   `json:"stats_known"`
 }
 type ExecutionCall struct {
+	OutputSourceVersions []*Payload `json:"output_source_versions,omitempty"`
 	CommandObservation
 	Request           *Payload   `json:"request,omitempty"`
 	Response          *Payload   `json:"response,omitempty"`
@@ -306,6 +307,13 @@ func cloneCall(call *ExecutionCall, requestPreview, output bool) ExecutionCall {
 	copied.Request = call.Request.clone(requestPreview || output)
 	copied.Response = call.Response.clone(output)
 	copied.OutputSource = call.OutputSource.clone(output)
+	copied.OutputSourceVersions = nil
+	if output {
+		for _, previous := range call.OutputSourceVersions {
+			copied.OutputSourceVersions = append(copied.OutputSourceVersions, previous.clone(false))
+		}
+	}
+
 	copied.CallMeasurements = call.CallMeasurements.clone()
 	copied.LastActivityAt = copyValue(call.LastActivityAt)
 	copied.LastInteractionAt = copyValue(call.LastInteractionAt)

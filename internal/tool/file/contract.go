@@ -39,8 +39,10 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["start_line"] = intProp("1-based start line.")
 		props["end_line"] = intProp("Inclusive end line.")
 		props["max_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 262144 and is capped at 4194304.", 1, MaxTextOutputBytes)
-		props["offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 16777216, "description": "UTF-8 byte offset for a host-issued activity://call/.../source reference only. Not a character or line offset."}
-		props["limit_chars"] = boundedIntProp("Unicode scalar budget for an activity source page only. Mutually exclusive with line and max_bytes parameters; current device output policy may lower it.", 1, 100000)
+		props["offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "UTF-8 absolute byte offset for a file or retained activity source. Continue with the returned next_offset and source_revision; never substitute a line number."}
+		props["limit_chars"] = boundedIntProp("Maximum visible Unicode characters. JSON escaping and the fixed final response budget can lower the delivered page size.", 1, 100000)
+		props["source_revision"] = stringProp("File identity returned by the previous page; changing a source during paging returns SOURCE_CHANGED_DURING_PAGING.")
+		props["end_offset"] = map[string]any{"type": "integer", "minimum": 0, "maximum": maxTextFileReadBytes, "description": "Exclusive UTF-8 byte end of the original requested file range, returned in continue_read."}
 		required = []string{"path"}
 	case ToolListDir:
 		props["path"] = stringProp(PathDescription("Host directory path. Relative paths resolve from ~/AgentDock."))
@@ -162,6 +164,12 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["limit_chars"] = intProp("Effective scalar budget for this source page.")
 		props["returned_chars"] = intProp("Unicode scalars returned in content.")
 		props["source_state"] = stringProp("Retained source completeness; does not assert that upstream collection was complete.")
+		props["source_revision"] = stringProp("Immutable file source identity used by the next page.")
+		props["range_end"] = intProp("Exclusive byte end of the selected source range.")
+		props["range"] = map[string]any{"type": "object", "additionalProperties": true}
+		props["modified"] = stringProp("Source modification timestamp when available.")
+		props["next_cursor"] = map[string]any{"type": "object", "properties": map[string]any{"byte_offset": intProp("Next actual delivered UTF-8 byte offset.")}}
+		props["continue_read"] = map[string]any{"type": "object", "additionalProperties": true}
 		props["payload"] = map[string]any{"type": "object", "additionalProperties": true}
 	case ToolListDir:
 		props["path"] = stringProp("Listed Host directory path. Relative paths resolve from ~/AgentDock.")

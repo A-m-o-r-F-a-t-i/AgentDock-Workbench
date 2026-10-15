@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/uvwt/agentdock/internal/fs/filelock"
@@ -22,14 +23,17 @@ type BuildMetrics struct {
 	ElapsedMS      float64 `json:"build_elapsed_ms"`
 }
 type Directory struct {
-	Revision        string
-	sourceRevision  string
-	Metrics         BuildMetrics
-	records         map[string]packageRecord
-	skills          map[string]SkillMember
-	orderedSkills   []SkillMember
-	skillMembership map[string]Membership
-	mcpMembership   map[string]Membership
+	SnapshotFreshness string
+	DegradedReason    string
+	verified          bool
+	Revision          string
+	sourceRevision    string
+	Metrics           BuildMetrics
+	records           map[string]packageRecord
+	skills            map[string]SkillMember
+	orderedSkills     []SkillMember
+	skillMembership   map[string]Membership
+	mcpMembership     map[string]Membership
 }
 
 func (d *Directory) Skills() []SkillMember                 { return append([]SkillMember(nil), d.orderedSkills...) }
@@ -60,6 +64,7 @@ type directoryFiles interface {
 }
 
 type storeSnapshots struct {
+	lastVerified  *Directory
 	cache         *snapshot.Cache[*Directory]
 	files         directoryFiles
 	keyMu         sync.Mutex
@@ -96,6 +101,7 @@ func (s *Store) Invalidate() {
 	}
 	s.snapshots.keyMu.Lock()
 	s.snapshots.stampAt = time.Time{}
+	s.snapshots.lastVerified = nil
 	s.snapshots.files.Invalidate()
 	s.snapshots.cache.Invalidate()
 	s.snapshots.keyMu.Unlock()
@@ -130,6 +136,11 @@ func (s *Store) Snapshot(ctx context.Context) (*Directory, snapshot.Info, error)
 			return s.buildSnapshot(buildCtx, sourceRevision, cacheRevision)
 		})
 		info = current
+		if err != nil {
+			if previous := s.lastVerifiedDirectory(ctx, sourceRevision, err); previous != nil {
+				return previous, info, nil
+			}
+		}
 		if errors.Is(err, errDirectoryChanged) {
 			continue
 		}
@@ -141,6 +152,11 @@ func (s *Store) Snapshot(ctx context.Context) (*Directory, snapshot.Info, error)
 			return nil, info, err
 		}
 		if now == value.sourceRevision {
+			if value.verified {
+				s.snapshots.keyMu.Lock()
+				s.snapshots.lastVerified = value
+				s.snapshots.keyMu.Unlock()
+			}
 			return value, info, nil
 		}
 	}
@@ -231,6 +247,7 @@ func (s *Store) buildSnapshot(ctx context.Context, requested, published string) 
 		scanned[result.name] = result
 	}
 	records := map[string]packageRecord{}
+	verified := true
 	// Disk parsing is outside the writer lock; publishing checks the same version
 	// again. A cancelled scan checks ctx at each package and Skill boundary.
 	// Results are committed in stable name order so diagnostics and ownership
@@ -245,7 +262,20 @@ func (s *Store) buildSnapshot(ctx context.Context, requested, published string) 
 			return nil, ctx.Err()
 		}
 		if err != nil {
-			records[name] = packageRecord{root: result.root, manifest: Manifest{Name: name}, definition: Definition{Name: name, Path: result.root, Enabled: false, Diagnostics: []string{err.Error()}}}
+			var diagnostic *Error
+			if errors.As(err, &diagnostic) {
+				diagnostic.Details["lock_wait_ms"] = metrics.LockWaitMS
+			}
+			if transientPluginRead(err) {
+				return nil, err
+			}
+			verified = false
+			message := err.Error()
+			if diagnostic != nil {
+				details, _ := json.Marshal(diagnostic.DiagnosticDetails())
+				message += ": " + string(details)
+			}
+			records[name] = packageRecord{root: result.root, manifest: Manifest{Name: name}, definition: Definition{Name: name, Path: result.root, Enabled: false, Diagnostics: []string{message}}}
 			continue
 		}
 		if record.manifest.Name != name {
@@ -270,7 +300,7 @@ func (s *Store) buildSnapshot(ctx context.Context, requested, published string) 
 	}
 	// Propagate the captured cache generation to downstream indexes even when
 	// an unhealthy watcher has missed a member-file event.
-	directory := &Directory{Revision: published, sourceRevision: after, records: records, skills: map[string]SkillMember{}, skillMembership: map[string]Membership{}, mcpMembership: map[string]Membership{}}
+	directory := &Directory{SnapshotFreshness: "current", verified: verified, Revision: published, sourceRevision: after, records: records, skills: map[string]SkillMember{}, skillMembership: map[string]Membership{}, mcpMembership: map[string]Membership{}}
 	for _, name := range sortedPackageNames(records) {
 		record := records[name]
 		for _, skill := range sortedKeys(record.skillPaths) {
@@ -294,4 +324,11 @@ func (s *Store) SnapshotRevision(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return fmt.Sprint(d.Revision), nil
+}
+
+// SourceRevision revalidates source identity without building a capability
+// directory. Retained Context pages must not trigger another plugin scan.
+func (s *Store) SourceRevision(ctx context.Context) (string, error) {
+	source, _, err := s.revision(ctx, false)
+	return source, err
 }

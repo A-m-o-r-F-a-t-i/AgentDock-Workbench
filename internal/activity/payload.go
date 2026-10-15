@@ -27,6 +27,19 @@ const PayloadOverviewBytes = 512
 const payloadPublicationGrace = 5 * time.Minute
 const payloadPublicationSafety = time.Minute
 
+const MaxSourceVersions = 8
+
+var ErrPayloadVersionNotFound = errors.New("output source version is no longer retained for this call")
+
+// A public source reference pins the immutable blob while authorizing through
+// its originating call. Later terminal output cannot replace an active page.
+func SourceReference(callID string, payload *Payload) string {
+	if payload == nil || len(payload.Ref) != 64 {
+		return ""
+	}
+	return "activity://call/" + callID + "/source/" + payload.Ref
+}
+
 // Payload is part of the canonical call projection. Its immutable local blob is
 // addressed only through an authorized call, never via an arbitrary file path.
 // Missing historical fields remain unknown rather than a fabricated empty value.
@@ -240,7 +253,14 @@ func (s *Store) ReadCallPayloadCharacters(ctx context.Context, callID, kind stri
 	return s.readCallPayload(ctx, callID, kind, offset, 4*limitChars, limitChars)
 }
 
-func (s *Store) readCallPayload(ctx context.Context, callID, kind string, offset int64, limit, limitChars int) (PayloadPage, error) {
+func (s *Store) ReadCallPayloadVersionCharacters(ctx context.Context, callID, version string, offset int64, limitChars int) (PayloadPage, error) {
+	if limitChars < 1 || limitChars > 100000 {
+		return PayloadPage{}, errors.New("limit_chars must be in 1..100000")
+	}
+	return s.readCallPayload(ctx, callID, "source", offset, 4*limitChars, limitChars, version)
+}
+
+func (s *Store) readCallPayload(ctx context.Context, callID, kind string, offset int64, limit, limitChars int, versions ...string) (PayloadPage, error) {
 	call, err := s.Call(ctx, callID)
 	if err != nil {
 		return PayloadPage{}, err
@@ -255,6 +275,21 @@ func (s *Store) readCallPayload(ctx context.Context, callID, kind string, offset
 		payload = call.OutputSource
 	default:
 		return PayloadPage{}, fmt.Errorf("invalid payload kind")
+	}
+	if kind == "source" && len(versions) == 1 && versions[0] != "" {
+		version := versions[0]
+		if payload == nil || payload.Ref != version {
+			payload = nil
+			for _, previous := range call.OutputSourceVersions {
+				if previous != nil && previous.Ref == version {
+					payload = previous
+					break
+				}
+			}
+			if payload == nil {
+				return PayloadPage{}, ErrPayloadVersionNotFound
+			}
+		}
 	}
 	if payload == nil {
 		return PayloadPage{Payload: &Payload{State: "unknown", Reason: "旧记录未保存" + map[string]string{"request": "调用参数", "response": "输出"}[kind]}}, nil
@@ -436,7 +471,7 @@ func (s *Store) prunePayloadsLocked(ctx context.Context, root string) (int64, er
 	}
 	retained := map[string]bool{}
 	for _, call := range projection.calls {
-		for _, payload := range []*Payload{call.Request, call.Response, call.OutputSource} {
+		for _, payload := range append([]*Payload{call.Request, call.Response, call.OutputSource}, call.OutputSourceVersions...) {
 			if payload != nil {
 				retained[payload.Ref] = true
 			}

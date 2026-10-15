@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"sync"
 	"time"
@@ -78,6 +79,38 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 		}
 		delete(s.entries, oldestKey)
 	}
-	s.entries[key] = now
+	if deferred, _ := ctx.Value(deferredSchemaDeliveryKey{}).(bool); !deferred {
+		s.entries[key] = now
+	}
 	return full
+}
+
+type deferredSchemaDeliveryKey struct{}
+
+func WithDeferredSchemaDelivery(ctx context.Context) context.Context {
+	return context.WithValue(ctx, deferredSchemaDeliveryKey{}, true)
+}
+
+// CommitSchemas is called after the final required page was actually encoded.
+// No transport refresh or business invocation is performed while acknowledging.
+func (s *Service) CommitSchemas(binding activity.Binding, result map[string]any) {
+	entries := []map[string]any{}
+	if result["input_schema"] != nil {
+		entries = append(entries, result)
+	}
+	if result["tools"] != nil {
+		encoded, err := json.Marshal(result["tools"])
+		if err == nil {
+			var batch []map[string]any
+			if json.Unmarshal(encoded, &batch) == nil {
+				entries = append(entries, batch...)
+			}
+		}
+	}
+	ctx := activity.WithBinding(context.Background(), binding)
+	for _, entry := range entries {
+		if entry["input_schema"] != nil {
+			s.schemaDeliveries.prepare(ctx, entry, true)
+		}
+	}
 }
