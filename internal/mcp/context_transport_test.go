@@ -6,9 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/app"
@@ -48,34 +48,26 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 	if err := os.WriteFile(filepath.Join(h.runtime.Config().AgentDockDefaultDir, "AGENTS.md"), []byte(rule), 0600); err != nil {
 		t.Fatal(err)
 	}
-	var fullBytes int
 	for _, mode := range []string{"full", "summary"} {
-		meta := sdk.Meta{ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
-		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"max_response_bytes": 65536}, Meta: meta})
+		meta := sdk.Meta{"openai/session": "context-negotiation-" + mode, ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
+		args := map[string]any{"max_response_bytes": 65536}
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: meta})
 		if err != nil || result.IsError {
 			t.Fatalf("%s: result=%+v error=%v", mode, result, err)
 		}
-		encoded, _ := json.Marshal(result.StructuredContent)
-		if !strings.Contains(string(encoded), rule) {
-			t.Fatal("full rule omitted from structured result")
-		}
 		assertContextMeasurements(t, result)
+		wire, _ := json.Marshal(result)
+		if utf8.RuneCount(wire) > 12000 {
+			t.Fatal("negotiated response exceeded the fixed final budget")
+		}
+		full := requiredSDKPayload(t, h.session, result, args, meta)
+		encoded, _ := json.Marshal(full)
+		if !strings.Contains(string(encoded), rule) {
+			t.Fatal("required sequence lost original rules")
+		}
 		first := result.Content[0].(*sdk.TextContent).Text
-		if mode == "full" {
-			var compat any
-			if json.Unmarshal([]byte(first), &compat) != nil || !reflect.DeepEqual(compat, result.StructuredContent) {
-				t.Fatal("legacy text is no longer complete JSON")
-			}
-			data, _ := json.Marshal(result)
-			fullBytes = len(data)
-		} else {
-			if len(first) > ContextSummaryMaxBytes || strings.Contains(first, rule) {
-				t.Fatal("summary text is not bounded")
-			}
-			data, _ := json.Marshal(result)
-			if len(data) >= fullBytes {
-				t.Fatal("negotiated summary did not remove duplicate rules")
-			}
+		if mode == "summary" && (utf8.RuneCountInString(first) > 512 || strings.Contains(first, rule)) {
+			t.Fatal("summary duplicated the contract")
 		}
 	}
 }
@@ -90,8 +82,8 @@ func TestContextTransportNegotiationRejectsMalformedMetadata(t *testing.T) {
 	}
 	result := map[string]any{"rules": []string{"retain me"}}
 	normal := responseEnvelope(WithStructuredContext(t.Context()), "list_dir", result, nil)
-	if !strings.Contains(asMap(envelopeBlocks(normal["content"])[0])["text"].(string), "retain me") {
-		t.Fatal("summary affected unrelated tools")
+	if asMap(normal["structuredContent"])["rules"].([]string)[0] != "retain me" || utf8.RuneCountInString(asMap(envelopeBlocks(normal["content"])[0])["text"].(string)) > 512 {
+		t.Fatal("default summary lost its structured body or exceeded the compatibility budget")
 	}
 	failed := responseEnvelope(WithStructuredContext(t.Context()), "agentdock_context", nil, errors.New("fixed failure"))
 	if failed["isError"] != true || !strings.Contains(asMap(envelopeBlocks(failed["content"])[0])["text"].(string), "fixed failure") {
@@ -126,7 +118,13 @@ func TestContextTransportProjectionCannotStripBootstrap(t *testing.T) {
 	if err != nil || final["isError"] == true {
 		t.Fatalf("context invocation: %v %v", final, err)
 	}
-	structured := asMap(final["structuredContent"])
+	structured := requiredPayload(t, final, map[string]any{}, func(name string, args map[string]any) map[string]any {
+		value, err := h.server.InvokeProjected(WithStructuredContext(t.Context()), name, args, host, countOnlyProjection, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	})
 	for _, key := range []string{"rules", "instruction_files", "runtime", "skills", "workspace"} {
 		if structured[key] == nil {
 			t.Fatalf("projection lost %s", key)
@@ -179,4 +177,97 @@ func TestContextTransportPreDispatchAndEncodeErrorsAreTyped(t *testing.T) {
 	if !errors.As(err, &failure) || failure.Stage != "response_encode" || failure.Retryable {
 		t.Fatalf("bad encode error: %v", err)
 	}
+}
+
+func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
+	h := newMCPAppTestHarnessWithApps(t, config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}, false)
+	rule := strings.Repeat("新规则💡\"\\\n", 2400)
+	if err := os.WriteFile(filepath.Join(h.runtime.Config().AgentDockDefaultDir, "AGENTS.md"), []byte(rule), 0600); err != nil {
+		t.Fatal(err)
+	}
+	revision := ""
+	args := map[string]any{"force_refresh": true}
+	complete := false
+	for index := 0; index < 80; index++ {
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+		if err != nil || result.IsError {
+			t.Fatalf("page %d err=%v result=%+v", index, err, result)
+		}
+		encoded, err := json.Marshal(result)
+		if err != nil || utf8.RuneCount(encoded) > 12000 {
+			t.Fatalf("final escaped budget exceeded: chars=%d err=%v", utf8.RuneCount(encoded), err)
+		}
+		if text, ok := result.Content[0].(*sdk.TextContent); !ok || utf8.RuneCountInString(text.Text) > 512 {
+			t.Fatal("compatibility summary exceeded")
+		}
+		value := asMap(result.StructuredContent)
+		current, _ := value["context_revision"].(string)
+		if index == 0 {
+			revision = current
+		} else if current != revision {
+			t.Fatal("Context revision changed during frozen paging")
+		}
+		if value["context_ready"] == true {
+			complete = true
+			break
+		}
+		if asMap(value["delivery"])["continuation_required"] != true {
+			t.Fatalf("incomplete required context lacked continuation: %+v", value["delivery"])
+		}
+		args = map[string]any{}
+	}
+	if !complete {
+		t.Fatal("Context automatic paging did not finish")
+	}
+	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+	if err != nil || result.IsError || asMap(result.StructuredContent)["unchanged"] != true {
+		t.Fatalf("same revision not reused: %+v err=%v", result, err)
+	}
+}
+
+func TestModelV2ExplicitTextOnlyBudgetAndContinuation(t *testing.T) {
+	h := newMCPAppTestHarnessWithApps(t, config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}, false)
+	body := strings.Repeat("只读💡\"\\\n", 2600)
+	file := filepath.Join(h.runtime.Config().AgentDockDefaultDir, "text-only-page.txt")
+	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	arguments := map[string]any{"path": file}
+	assembled := ""
+	for index := 0; index < 100; index++ {
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "read_file", Arguments: arguments, Meta: sdk.Meta{"openai/session": "text-only-budget", StructuredResultsCapability: map[string]any{"structured": false, "text": "full"}}})
+		if err != nil || result.IsError {
+			t.Fatalf("text-only read failed: %v %+v", err, result)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil || utf8.RuneCount(raw) > 12000 {
+			t.Fatalf("text-only escaped final size=%d: %v", utf8.RuneCount(raw), err)
+		}
+		if result.StructuredContent != nil {
+			t.Fatal("text-only response duplicated its body")
+		}
+		var page map[string]any
+		text, ok := result.Content[0].(*sdk.TextContent)
+		if !ok || json.Unmarshal([]byte(text.Text), &page) != nil {
+			t.Fatal("text-only response was not one complete JSON document")
+		}
+		if source, _ := page["source_ref"].(string); page["content"] == nil && source != "" {
+			// A text-only legacy client may have extra JSON escaping overhead. Its
+			// bounded recovery receipt must still identify the retained full source.
+			if asMap(page["delivery"])["continuation_available"] != true {
+				t.Fatal("text-only recovery source unavailable")
+			}
+			return
+		}
+		content, _ := page["content"].(string)
+		assembled += content
+		if page["has_more"] == false {
+			if assembled != body {
+				t.Fatal("text-only byte pagination changed file content")
+			}
+			return
+		}
+		arguments = asMap(asMap(page["continue_read"])["arguments"])
+	}
+	t.Fatal("text-only paging did not finish")
 }

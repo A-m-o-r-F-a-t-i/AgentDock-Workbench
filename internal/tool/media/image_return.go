@@ -13,6 +13,10 @@ import (
 const (
 	defaultViewImageBytes = 750000
 	hardViewImageBytes    = 2 * 1024 * 1024
+	// Base64 data is part of the final CallToolResult character budget. Keeping
+	// processed image bytes below this threshold leaves room for structured
+	// metadata, status fields and the compatibility summary.
+	modelVisibleViewImageBytes = 4096
 )
 
 func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {

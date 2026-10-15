@@ -80,15 +80,18 @@ func (svc *Service) ReadFile(ctx context.Context, request ReadRequest) (Result, 
 	if !utf8.Valid(data) {
 		return nil, toolError("ENCODING_UNSUPPORTED", "file is not valid utf-8", "validation")
 	}
-	maxBytes := boundedInt(intValue(request.MaxBytes, 262144), 262144, 1, maxTextOutputBytes)
-	content, meta := sliceText(string(data), intValue(request.StartLine, 1), intValue(request.EndLine, 0), maxBytes)
-	result := Result{"path": displayPath, "content": content, "encoding": "utf-8", "size_bytes": len(data), "truncated": meta.Truncated, "start_line": meta.Start, "end_line": meta.End, "total_lines": meta.Total}
-	if meta.NextStartLine > 0 {
-		result["next_start_line"] = meta.NextStartLine
+	after, err := os.Stat(absPath)
+	if err != nil {
+		return nil, err
 	}
-	if meta.TruncatedReason != "" {
-		result["truncated_reason"] = meta.TruncatedReason
+	if !os.SameFile(info, after) || info.Size() != after.Size() || !info.ModTime().Equal(after.ModTime()) {
+		return nil, toolError("SOURCE_CHANGED_DURING_PAGING", "The source file changed during collection; read its current revision again.", "conflict")
 	}
+	result, err := makeReadTextResult(string(data), displayPath, fileMetadataRevision(absPath, after), request)
+	if err != nil {
+		return nil, err
+	}
+	result["modified"] = after.ModTime().UTC().Format(time.RFC3339Nano)
 	return addFileRuntimeResult(result, selection), nil
 }
 

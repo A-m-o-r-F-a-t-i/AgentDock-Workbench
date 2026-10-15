@@ -9,7 +9,7 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-func TestExecutionSchemaSharesBusinessDefinitionsWithoutWideningSuccess(t *testing.T) {
+func TestExecutionSchemaStoresBusinessDefinitionsOnceWithoutWideningSuccess(t *testing.T) {
 	original := map[string]any{
 		"type": "object", "additionalProperties": false,
 		"required": []string{"status", "executed", "approval", "payload/~"},
@@ -40,8 +40,8 @@ func TestExecutionSchemaSharesBusinessDefinitionsWithoutWideningSuccess(t *testi
 	}
 	success := schema["anyOf"].([]any)[0].(map[string]any)
 	properties := success["properties"].(map[string]any)
-	if got := properties["payload/~"].(map[string]any)["$ref"]; got != "#/properties/payload~1~0" {
-		t.Fatalf("escaped property reference = %v", got)
+	if properties["payload/~"] != true {
+		t.Fatalf("success branch repeated business schema: %#v", properties["payload/~"])
 	}
 	valid := map[string]any{
 		"status": "ok", "executed": true, "approval": map[string]any{"approved": true},

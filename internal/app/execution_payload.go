@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/activity"
 )
@@ -35,6 +37,15 @@ func (r *Runtime) executionPayloadEvent(ctx context.Context, binding activity.Bi
 		event.Request = payload
 	} else {
 		event.Response = payload
+		source := deliveredModelPayload(value)
+		if source["projection"] != nil {
+			encoded, err := json.Marshal(source)
+			stages := &activity.OutputStages{}
+			if err == nil && json.Unmarshal(encoded, stages) == nil {
+				stages.ActivityPreview = &activity.PreviewMeasurement{Chars: utf8.RuneCountInString(payload.Preview), Truncated: payload.Truncated}
+				event.OutputStages = stages
+			}
+		}
 	}
 	return event, true
 }
@@ -71,6 +82,9 @@ func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any) {
 	received, status := response.auditReceived, response.auditStatus
 	response.mu.Unlock()
 	r.recordExecutionPayload(binding, name, "response", envelope, redactor)
+	if payload := deliveredModelPayload(envelope); payload != nil {
+		r.commitStructuredDelivery(binding, Result(payload))
+	}
 	// This server-side boundary includes final-envelope serialization and
 	// observation storage. It does not invent downstream network delivery time.
 	if !received.IsZero() {

@@ -201,6 +201,12 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	}
 	catalog = s.catalogDeliveries.prepare(ctx, catalog, false)
 	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
+	if prepared := preparedCallFromContext(ctx); prepared != nil {
+		if class, mode := prepared.OutputPolicy(); class != "" {
+			response["output_class"] = class
+			response["preview_mode"] = mode
+		}
+	}
 	if result != nil {
 		response["result"] = result
 	}

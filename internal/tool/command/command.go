@@ -214,7 +214,13 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 	err = s.WaitError()
 	s.Cancel()
 	waitCommandActivity(activityDone)
-	result := snapshotResult(s.Snapshot("exited", maxBytes))
+	var final session.Snapshot
+	if modelOutputProjection(ctx) {
+		final = s.RetainedSnapshot()
+	} else {
+		final = s.Snapshot("exited", maxBytes)
+	}
+	result := snapshotResult(final)
 	result["sandbox"] = preparationStatusResult(sandboxStatus)
 	if s.TimedOut {
 		result["status"] = "timeout"
@@ -303,6 +309,12 @@ func snapshotResult(snapshot session.Snapshot) Result {
 		"offset":               map[string]any{"stdout": snapshot.StdoutOffsetBytes, "stderr": snapshot.StderrOffsetBytes},
 		"next_offset":          map[string]any{"stdout": snapshot.StdoutNextOffset, "stderr": snapshot.StderrNextOffset},
 		"offset_unit":          "utf8_byte",
+	}
+	if snapshot.Stdout == "" && snapshot.Stderr == "" {
+		result["no_change"] = true
+		if !snapshot.Completed {
+			result["next_observe_after_ms"] = maxSessionObserveDelay.Milliseconds()
+		}
 	}
 	addStreamSnapshotResult(result, "stdout", snapshot.Stdout, snapshot.StdoutOutputBytes, snapshot.StdoutTotalBytes, snapshot.StdoutDroppedBytes, snapshot.StdoutOmittedBytes, snapshot.StdoutOutputLines, snapshot.StdoutTruncated)
 	addStreamSnapshotResult(result, "stderr", snapshot.Stderr, snapshot.StderrOutputBytes, snapshot.StderrTotalBytes, snapshot.StderrDroppedBytes, snapshot.StderrOmittedBytes, snapshot.StderrOutputLines, snapshot.StderrTruncated)
@@ -560,7 +572,7 @@ func (svc *Service) sessionStatusContext(ctx context.Context, request SessionObs
 	}
 	s, ok := svc.sessions.Get(request.SessionID)
 	if !ok {
-		return nil, toolError("SESSION_NOT_FOUND", "session not found", "not_found")
+		return svc.persistedSessionResult(ctx, request.SessionID)
 	}
 	maxBytes := commandOutputLimit(request.MaxOutputBytes)
 	select {

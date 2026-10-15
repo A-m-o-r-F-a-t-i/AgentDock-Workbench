@@ -715,6 +715,10 @@
 "Isolate" = "隔离";
 "Remove isolation" = "取消隔离";
 "Steps: %@ / %@" = "步骤：%@ / %@";
+"Operation failed" = "业务执行失败";
+"Source capture incomplete" = "原始采集不完整";
+"Partial model preview" = "模型收到部分预览";
+"Required context has more pages" = "必要上下文尚有续页";
 
 "A supplement must contain 1–8192 UTF-8 bytes." = "补充内容必须为 1–8192 个 UTF-8 字节。";
 

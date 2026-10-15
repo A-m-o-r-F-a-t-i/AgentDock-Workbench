@@ -24,9 +24,14 @@ func assertInsertionAttention(t *testing.T, envelope map[string]any) {
 	}
 	blocks := envelopeBlocks(value["content"])
 	text, _ := asMap(blocks[len(blocks)-1])["text"].(string)
-	if !strings.Contains(text, app.InsertionResponseInstructions) || !strings.Contains(text, "先阶段总结，再继续任务") {
+	if !strings.Contains(text, app.InsertionCompatibilitySummary) || strings.Contains(text, messageText(messages[0])) {
 		t.Fatal("text-only compatibility response lost its visible summary requirement")
 	}
+}
+
+func messageText(value any) string {
+	text, _ := asMap(value)["text"].(string)
+	return text
 }
 
 func TestInsertionBootstrapRequiresSummaryAndSameTurnContinuation(t *testing.T) {

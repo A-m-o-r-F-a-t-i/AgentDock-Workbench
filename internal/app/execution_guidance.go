@@ -7,6 +7,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
@@ -84,16 +85,30 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 }
 
 func structuredOutputFollowups(name string, args map[string]any, result Result) []map[string]any {
+	if toolcontract.ResolveOutputClass(name, args, result) != toolcontract.OutputRequiredFull {
+		return nil
+	}
+	if name == "read_file" && result["has_more"] == true {
+		if continuation := modelObject(result["continue_read"]); continuation != nil {
+			return []map[string]any{{"action": "continue_required_content", "tool": "read_file", "arguments": continuation["arguments"], "text": "Continue this immutable contract from its exact byte cursor before relying on the complete contract."}}
+		}
+	}
 	structured, ok := result["structured_output"].(map[string]any)
 	if !ok {
 		return nil
 	}
 	steps := make([]map[string]any, 0, 2)
+	if result["has_more"] == true && stringArg(result, "next_cursor") == "" {
+		if source := stringArg(structured, "source"); source != "" {
+			return []map[string]any{{"action": "read_required_source", "tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}, "text": "Continue the immutable required source. This reads retained data without re-executing the original tool."}}
+		}
+	}
+
 	if structured["oversized_item"] != nil {
 		if source, _ := structured["source"].(string); source != "" {
 			steps = append(steps, map[string]any{
 				"action": "read_structured_source", "tool": "read_file",
-				"arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 20000},
+				"arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000},
 				"text":      "Read the retained activity source to recover the oversized structured item, then follow next_offset. This never re-executes the source tool.",
 			})
 		}
@@ -123,7 +138,14 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 	}
 	summaries, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary)
 	if !ok {
-		return nil
+		// Repeated local routes retain exact names without full descriptions.
+		names, compact := result["required_host_tools"].([]string)
+		if !compact || result["repeated"] != true {
+			return nil
+		}
+		for _, exact := range names {
+			summaries = append(summaries, toolmcp.BuiltinToolSummary{Name: exact, InvokeVia: "host"})
+		}
 	}
 	steps := []map[string]any{}
 	seen := map[string]bool{}

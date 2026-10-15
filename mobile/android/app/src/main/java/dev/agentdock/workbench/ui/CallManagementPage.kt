@@ -85,6 +85,7 @@ fun CallManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, modif
                     Column(Modifier.weight(1f)) {
                         Text(row.optString("display_title", row.optString("tool_name", id)), style = MaterialTheme.typography.titleMedium)
                         ResourceObject(row, listOf("status", "display_command", "elapsed_ms", "duration_ms", "started_at", "parent_call_id"))
+                        outputStageSummary(row).takeIf { it.isNotBlank() }?.let { Text(it) }
                         TextButton(onClick = { select(id) }) { Text(if (selected == id) "重新读取详情" else "查看详情") }
                     }
                 }
@@ -116,6 +117,7 @@ fun CallManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, modif
                 ResourceFeedback(resource.views["call-detail"]) { select(selected) }
                 if (detail != null) {
                     ResourceObject(detail)
+                    outputStageSummary(detail).takeIf { it.isNotBlank() }?.let { Text(it) }
                     ResourceObject(detail.optJSONObject("timing") ?: JSONObject(), listOf("rpc_ms", "queue_ms", "execution_ms", "total_ms"))
                     ResourceObject(detail, listOf("duration_ms", "rpc_elapsed_ms", "elapsed_ms", "exit_code", "error", "source", "truncated"))
                     val parent = detail.optString("parent_call_id")
@@ -177,3 +179,10 @@ private fun CallPayloadPanel(id: String, state: WorkbenchUiState, model: Workben
         }) { Text("读取下一段") }
     }
 }
+
+private fun outputStageSummary(value: JSONObject): String = listOfNotNull(
+    if (value.optJSONObject("operation")?.opt("ok") == false) "业务执行失败" else null,
+    if (value.optJSONObject("capture")?.opt("complete") == false) "原始采集不完整" else null,
+    if (value.optJSONObject("projection")?.opt("complete") == false) "模型收到部分预览" else null,
+    if (value.optJSONObject("delivery")?.opt("continuation_required") == true) "必要上下文尚有续页" else null
+).joinToString(" · ")

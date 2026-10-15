@@ -94,7 +94,25 @@ func (details *FileEditDetails) clone(preview bool) *FileEditDetails {
 }
 
 func applyMeasurements(call *ExecutionCall, event Event) {
+	if event.OutputStages != nil {
+		call.OutputStages = event.OutputStages.clone()
+	}
 	if event.OutputSource != nil {
+		if previous := call.OutputSource; previous != nil && previous.Ref != "" && previous.Ref != event.OutputSource.Ref {
+			found := false
+			for _, retained := range call.OutputSourceVersions {
+				if retained.Ref == previous.Ref {
+					found = true
+					break
+				}
+			}
+			if !found {
+				call.OutputSourceVersions = append(call.OutputSourceVersions, previous.clone(false))
+				if len(call.OutputSourceVersions) > MaxSourceVersions {
+					call.OutputSourceVersions = call.OutputSourceVersions[len(call.OutputSourceVersions)-MaxSourceVersions:]
+				}
+			}
+		}
 		call.OutputSource = event.OutputSource.clone(true)
 	}
 	if event.Request != nil {

@@ -202,7 +202,14 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
         RequestPayload.HasStoredContent ? "选择此调用后可查看并复制完整参数。" : ""
     }.Where(value => value.Length > 0));
     public bool ReadOnlyLegacy => _value.Flag("read_only_legacy");
-    public string Summary => _value.Text("summary");
+    public string Summary => string.Join(" · ", new[] { _value.Text("summary"), OutputStateSummary }.Where(value => value.Length > 0));
+    public string OutputStateSummary => string.Join(" · ", new[]
+    {
+        _value.Field("operation").Field("ok").ValueKind == JsonValueKind.False ? "业务执行失败" : "",
+        _value.Field("capture").Field("complete").ValueKind == JsonValueKind.False ? "原始采集不完整" : "",
+        _value.Field("projection").Field("complete").ValueKind == JsonValueKind.False ? "模型收到部分预览" : "",
+        _value.Field("delivery").Flag("continuation_required") ? "必要上下文尚有续页" : ""
+    }.Where(value => value.Length > 0));
     public string OriginalLabel => _value.Text("activity_label", _value.Text("display_title", _value.Text("title", Tool)));
     public string Title => IsInsertion ? "用户补充" : ExecutionTitleFormatter.Format(Tool, OriginalLabel, _value.Text("action"));
     public string TitleTooltip => Title + (OriginalLabel.Length > 0 && OriginalLabel != Title ? "\n原始说明：" + OriginalLabel : "");

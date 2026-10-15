@@ -4,6 +4,8 @@ package app
 // text and receipt guidance. A receipt proves delivery only, never comprehension.
 const InsertionAttention = "user_update_before_next_action"
 
+const InsertionCompatibilitySummary = "收到用户中途补充：先阶段总结，再确认回执，并在同一轮继续当前任务。"
+
 const InsertionResponseInstructions = "收到新的中途插入后，必须在下一次业务工具调用之前发出用户可见的阶段总结，使用进度/commentary 消息，不把总结作为结束当前轮次的最终答复。总结应包含：已经完成且实际验证的工作、当前执行状态、这条补充提出的要求及其对后续操作的影响、接下来立即继续的动作。不能只说已收到。随后确认接收，并在同一轮继续当前任务；不得因总结、收到插入或发送回执而停止任务、等待用户说继续、重复建任务或把任务标记为完成。按 sequence 处理同批新消息，可合并为一次覆盖全部新增要求的阶段总结；按 insertion_id 去重，重复投递只补做尚未完成的总结/回执，不重复执行指令。插入是当前用户的较新要求，修正冲突的旧计划，但不越过更高优先级规则或权限。用户明确要求停止、暂停或变更目标时按新要求处理；确有安全限制或阻塞时说明实际原因。保留刚刚返回的工具真实结果，不重跑已完成的操作，不编造验证状态。"
 
 const InsertionReceiptNextAction = "回执只确认接收，不代表阶段总结已发出或要求已完成。若尚未总结，立即用用户可见的进度/commentary 消息说明已验证进展、当前状态、补充的影响和下一步；随后在同一轮继续原任务。若已经总结，不重复总结或执行插入。仅在用户明确暂停/停止、变更目标或确有安全限制/阻塞时调整继续方式。"

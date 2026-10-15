@@ -10,6 +10,7 @@ import (
 
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	skills "github.com/uvwt/agentdock/internal/skill"
+	"github.com/uvwt/agentdock/internal/snapshot"
 )
 
 func readPackage(root string, installed bool) (packageRecord, error) {
@@ -40,7 +41,7 @@ func readPackageContext(ctx context.Context, root string, installed, lazy bool, 
 				return packageRecord{}, err
 			}
 			if err := readStrictJSON(statePath, maxStateBytes, &preloaded); err != nil {
-				return packageRecord{}, newError("PLUGIN_STATE_INVALID", "read host plugin state", map[string]any{"plugin": manifest.Name}, err)
+				return packageRecord{}, newError("PLUGIN_STATE_INVALID", "read host plugin state", map[string]any{"plugin": manifest.Name, "state_file": statePath, "path": statePath, "revision": snapshot.Stamps(statePath), "stage": "plugin_state", "retryable": transientPluginRead(err), "last_verified": false}, err)
 			}
 			hasState = true
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -78,7 +79,7 @@ func readPackageContext(ctx context.Context, root string, installed, lazy bool, 
 			}
 			var host HostConfig
 			if err := readStrictJSON(hostPath, maxStateBytes, &host); err != nil {
-				return record, newError("PLUGIN_HOST_CONFIG_INVALID", "read host plugin configuration", map[string]any{"plugin": manifest.Name}, err)
+				return record, newError("PLUGIN_HOST_CONFIG_INVALID", "read host plugin configuration", map[string]any{"plugin": manifest.Name, "state_file": hostPath, "path": hostPath, "revision": snapshot.Stamps(hostPath), "stage": "plugin_host_config", "retryable": transientPluginRead(err), "last_verified": false}, err)
 			}
 			for rawName, local := range host.MCPServers {
 				name := nativeServerName(manifest.Name, rawName)

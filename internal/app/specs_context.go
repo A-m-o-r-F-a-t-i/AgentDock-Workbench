@@ -15,6 +15,7 @@ type contextRequest struct {
 	KnownContextRevision string `json:"known_context_revision,omitempty"`
 	Cursor               string `json:"cursor,omitempty"`
 	MaxResponseBytes     *int   `json:"max_response_bytes,omitempty"`
+	ForceRefresh         bool   `json:"force_refresh,omitempty"`
 }
 
 func contextToolSpecs() []ToolSpec {
@@ -40,12 +41,12 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	input := maps.Clone(contract.ValidationInputSchema["properties"].(map[string]any))
 	input["workdir"] = map[string]any{
 		"type": "string", "maxLength": 4096,
-		"description": "Existing host workspace directory. Omit or use an empty string to inherit this conversation's workspace, falling back to the device default only when unbound. A complete response coordinates subsequent conversation binding in this call; running sessions and device defaults remain unchanged.",
+		"description": "Existing workspace; empty inherits the conversation or device default.",
 	}
 	toolcontract.StructuredPagingInput(input)
+	input["force_refresh"] = map[string]any{"type": "boolean"}
 	input["known_context_revision"] = map[string]any{
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
-		"description": "context_revision from a complete response already held by the caller. A matching revision permits a compact reference only after the server fully reloads, revalidates, and coordinates the current context. Omit when the complete context may be absent.",
 	}
 	contract.ValidationInputSchema["properties"] = input
 	contract.ValidationOutputSchema = maps.Clone(contract.ValidationOutputSchema)
@@ -110,6 +111,7 @@ func workspaceContextToolContract(name string, cfg config.Config) (ToolContract,
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
 	}
 	toolcontract.StructuredPagingInput(properties)
+	properties["force_refresh"] = map[string]any{"type": "boolean"}
 	output := cloneJSONSchemaMap(contract.ValidationOutputSchema)
 	outputProperties := output["properties"].(map[string]any)
 	outputProperties["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}

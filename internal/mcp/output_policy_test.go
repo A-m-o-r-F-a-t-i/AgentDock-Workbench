@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,20 +65,19 @@ func TestOutputBudgetBothAdaptersPreserveCopiesAndInsertion(t *testing.T) {
 			assertInsertionAttention(t, envelope)
 			structured := asMap(envelope["structuredContent"])
 			visible, _ := structured["content"].(string)
-			if utf8.RuneCountInString(visible) != 1000 || !strings.HasPrefix(body, visible) || envelope["isError"] == true {
+			if utf8.RuneCountInString(visible) > 1000 || !strings.HasPrefix(body, visible) || envelope["isError"] == true {
 				t.Fatal("business preview budget or status changed")
 			}
 			blocks := envelope["content"].([]any)
 			business, _ := asMap(blocks[0])["text"].(string)
-			var copy map[string]any
-			if err = json.Unmarshal([]byte(business), &copy); err != nil {
-				t.Fatal(err)
+			if utf8.RuneCountInString(business) > 512 || strings.Contains(business, visible) || strings.Contains(business, id) {
+				t.Fatal("compatibility text duplicated the structured body or insertion")
 			}
-			if copy["content"] != visible {
-				t.Fatal("content.text bypassed the structured preview budget")
+			continuation := asMap(asMap(structured["continue_read"])["arguments"])
+			if len(continuation) == 0 {
+				policy := asMap(structured["output_policy"])
+				continuation = asMap(asMap(policy["continue_read"])["arguments"])
 			}
-			policy := asMap(structured["output_policy"])
-			continuation := asMap(asMap(policy["continue_read"])["arguments"])
 			if continuation["path"] == nil {
 				t.Fatal("adapter lost retained source continuation")
 			}

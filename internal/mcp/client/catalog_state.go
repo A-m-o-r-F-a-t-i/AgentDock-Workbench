@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"time"
 )
 
@@ -113,4 +116,23 @@ func (m *Manager) Snapshots(names []string) []ServerSummary {
 		}
 	}
 	return items
+}
+
+// DirectoryRevision reads only published in-memory catalog metadata. It never
+// connects a transport or refreshes a third-party tool directory.
+func (m *Manager) DirectoryRevision() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	names := make([]string, 0, len(m.servers))
+	for name := range m.servers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	items := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		item := summaryFor(m.servers[name], m.states[name])
+		items = append(items, map[string]any{"name": name, "revision": item.Revision, "enabled": item.Enabled, "status": item.Status})
+	}
+	encoded, _ := json.Marshal(items)
+	return fmt.Sprintf("mcprev_%x", sha256.Sum256(encoded))
 }

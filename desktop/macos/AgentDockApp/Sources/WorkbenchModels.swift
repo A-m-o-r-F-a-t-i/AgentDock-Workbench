@@ -285,7 +285,13 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
         updatedAt = json.date("last_activity_at") ?? json.date("completed_at")
         command = json.text("display_command")
         workdir = json.text("workdir")
-        summary = json.firstText("summary", "message")
+        let outputStates: [String?] = [
+            json["operation"]["ok"].boolValue == false ? L10n.text("Operation failed") : nil,
+            json["capture"]["complete"].boolValue == false ? L10n.text("Source capture incomplete") : nil,
+            json["projection"]["complete"].boolValue == false ? L10n.text("Partial model preview") : nil,
+            json["delivery"]["continuation_required"].boolValue == true ? L10n.text("Required context has more pages") : nil
+        ]
+        summary = ([json.firstText("summary", "message")] + outputStates.compactMap { $0 }).filter { !$0.isEmpty }.joined(separator: " · ")
         isInsertion = !insertionID.isEmpty || kind.hasPrefix("insertion.") || toolName == "conversation.insertion"
         let originalTitle = json.firstText("display_title", "activity_label", "title")
         if isInsertion {

@@ -183,26 +183,12 @@ func (svc *Service) readFileWSL(ctx context.Context, request ReadRequest, select
 		return nil, err
 	}
 	content, _ := loaded["content"].(string)
-	maxBytes := boundedInt(intValue(request.MaxBytes, 262144), 262144, 1, maxTextOutputBytes)
-	sliced, meta := sliceText(content, intValue(request.StartLine, 1), intValue(request.EndLine, 0), maxBytes)
-	result := Result{
-		"path":        path,
-		"content":     sliced,
-		"encoding":    "utf-8",
-		"size_bytes":  resultInt(loaded, "size_bytes"),
-		"truncated":   meta.Truncated,
-		"start_line":  meta.Start,
-		"end_line":    meta.End,
-		"total_lines": meta.Total,
+	result, err := makeReadTextResult(content, path, fileContentRevision(path, content), request)
+	if err != nil {
+		return nil, err
 	}
 	if symlink, _ := loaded["symlink"].(bool); symlink {
 		result["symlink"] = true
-	}
-	if meta.NextStartLine > 0 {
-		result["next_start_line"] = meta.NextStartLine
-	}
-	if meta.TruncatedReason != "" {
-		result["truncated_reason"] = meta.TruncatedReason
 	}
 	return addFileRuntimeResult(result, selection), nil
 }

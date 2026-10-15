@@ -44,8 +44,8 @@ func TestStructuredResultsModernProtocolUsesBoundedSummary(t *testing.T) {
 func TestStructuredResultsLegacyAndExplicitModes(t *testing.T) {
 	payload := map[string]any{"status": "ok", "content": "complete legacy text"}
 	legacy := responseEnvelope(t.Context(), "read_file", payload, nil)
-	if text := textBlocks(legacy["content"])[0]; !strings.Contains(text, "complete legacy text") {
-		t.Fatalf("legacy response lost full compatibility JSON: %q", text)
+	if text := textBlocks(legacy["content"])[0]; strings.Contains(text, "complete legacy text") || !strings.Contains(text, "read_file succeeded") {
+		t.Fatalf("default compatibility summary is not bounded: %q", text)
 	}
 
 	modern := modernToolContext(t.Context())
@@ -53,8 +53,8 @@ func TestStructuredResultsLegacyAndExplicitModes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text := textBlocks(responseEnvelope(full, "read_file", payload, nil)["content"])[0]; !strings.Contains(text, "complete legacy text") {
-		t.Fatalf("explicit full mode was ignored: %q", text)
+	if text := textBlocks(responseEnvelope(full, "read_file", payload, nil)["content"])[0]; strings.Contains(text, "complete legacy text") || !strings.Contains(text, "read_file succeeded") {
+		t.Fatalf("structured full mode duplicated the complete body: %q", text)
 	}
 
 	summary, err := contextResponseOptions(t.Context(), map[string]any{StructuredResultsCapability: map[string]any{"structured": true, "text": responseTextSummary}})

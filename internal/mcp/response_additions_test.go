@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/activity"
@@ -44,6 +45,23 @@ func assertResponseSupplement(t *testing.T, envelope map[string]any, id, text st
 	content, ok := value["content"].([]any)
 	if !ok || len(content) == 0 {
 		t.Fatal("compatibility text disappeared")
+	}
+	summaryFound := false
+	for _, entry := range content {
+		block := asMap(entry)
+		if block["type"] != "text" {
+			continue
+		}
+		preview, _ := block["text"].(string)
+		if strings.Contains(preview, app.InsertionCompatibilitySummary) {
+			summaryFound = true
+			if utf8.RuneCountInString(preview) > 512 || strings.Contains(preview, id) || strings.Contains(preview, text) {
+				t.Fatal("compatibility summary duplicated a message or exceeded its fixed limit")
+			}
+		}
+	}
+	if summaryFound {
+		return
 	}
 	last := asMap(content[len(content)-1])
 	block, _ := last["text"].(string)

@@ -21,6 +21,7 @@ const transportMetadataKey = "agentdock/transport"
 const (
 	responseTextFull    = "full"
 	responseTextSummary = "summary"
+	responseTextOnly    = "text_only"
 )
 
 type contextResponseKey struct{}
@@ -65,11 +66,14 @@ func responseTextMode(ctx context.Context, name string) string {
 	if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
 		return responseTextSummary
 	}
-	return responseTextFull
+	return responseTextSummary
 }
 
 func responseModeOption(raw any, capability string) (string, error) {
 	options, ok := raw.(map[string]any)
+	if ok && len(options) == 2 && options["structured"] == false && (options["text"] == responseTextFull || options["text"] == responseTextOnly) {
+		return responseTextOnly, nil
+	}
 	if !ok || len(options) != 2 || options["structured"] != true {
 		return "", errors.New(capability + " negotiation requires structured=true and text=full or summary")
 	}
@@ -77,7 +81,9 @@ func responseModeOption(raw any, capability string) (string, error) {
 	if mode != responseTextFull && mode != responseTextSummary {
 		return "", errors.New("invalid " + capability + " text mode")
 	}
-	return mode, nil
+	// Structured clients always receive one bounded compatibility summary. The
+	// complete result exists only in structuredContent.
+	return responseTextSummary, nil
 }
 
 func contextResponseOptions(ctx context.Context, meta map[string]any) (context.Context, error) {

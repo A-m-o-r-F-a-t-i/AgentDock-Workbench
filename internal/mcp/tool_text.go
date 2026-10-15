@@ -7,6 +7,8 @@ import (
 	"maps"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/uvwt/agentdock/internal/app"
 )
 
 const maxSessionObserveTextSessions = 16
@@ -85,6 +87,13 @@ func jsonTextMatches(text string, structured any) bool {
 
 func toolResultSummary(name string, envelope map[string]any) string {
 	result := asMap(envelope["structuredContent"])
+	if name == "session_observe" {
+		text := sessionObserveResultText(result)
+		if hasResponseAdditions(result) {
+			text += " " + app.InsertionCompatibilitySummary
+		}
+		return boundedToolSummary(text)
+	}
 	displayName := name
 	if name == "mcp_tool_call" {
 		if qualified, _ := result["name"].(string); qualified != "" {
@@ -101,6 +110,9 @@ func toolResultSummary(name string, envelope map[string]any) string {
 		if message != "" {
 			label += ": " + message
 		}
+		if hasResponseAdditions(result) {
+			label += " " + app.InsertionCompatibilitySummary
+		}
 		return boundedToolSummary(label)
 	}
 	verb := "succeeded"
@@ -108,6 +120,9 @@ func toolResultSummary(name string, envelope map[string]any) string {
 		verb = "returned"
 	}
 	parts := []string{displayName + " " + verb}
+	if hasResponseAdditions(result) {
+		parts = append(parts, app.InsertionCompatibilitySummary)
+	}
 	for _, key := range []string{"status", "outcome", "action", "session_id", "exit_code", "command_ok", "delivery", "unchanged", "changed", "files_changed", "count", "path", "new_path", "task_id", "workspace_id"} {
 		if value := summaryField(result[key]); value != "" {
 			parts = append(parts, key+"="+value)
@@ -115,6 +130,18 @@ func toolResultSummary(name string, envelope map[string]any) string {
 	}
 	parts = append(parts, "Read structuredContent for the complete result.")
 	return boundedToolSummary(strings.Join(parts, " "))
+}
+
+func hasResponseAdditions(result map[string]any) bool {
+	value := asMap(result["agentdock_guidance"])["response_additions"]
+	switch items := value.(type) {
+	case []any:
+		return len(items) > 0
+	case []app.UserResponseAddition:
+		return len(items) > 0
+	default:
+		return false
+	}
 }
 
 func summaryField(value any) string {

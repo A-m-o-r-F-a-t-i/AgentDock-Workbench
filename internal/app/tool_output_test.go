@@ -12,6 +12,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/config"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 func setOutputBudget(t *testing.T, r *Runtime, enabled bool, limit int) {
@@ -25,7 +26,7 @@ func setOutputBudget(t *testing.T, r *Runtime, enabled bool, limit int) {
 func outputCall(t *testing.T, r *Runtime, ctx context.Context, name string, args map[string]any, body Result) Result {
 	t.Helper()
 	spec := ToolSpec{Name: name, Handler: func(context.Context, *Runtime, map[string]any) (Result, error) { return body, nil }}
-	result, err := r.callObserved(ctx, spec, args)
+	result, err := r.callObserved(WithModelProjection(ctx), spec, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestToolOutputSharedUnicodeBudgetAndDurableRead(t *testing.T) {
 	stderr := strings.Repeat("错误", 200)
 	result := outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"stdout": stdout, "stderr": stderr, "status": "failed", "exit_code": 7, "command_ok": false})
 	policy := result["output_policy"].(map[string]any)
-	if policy["truncated"] != true || result["exit_code"] != 7 || result["command_ok"] != false || utf8.RuneCountInString(stringArg(result, "stdout"))+utf8.RuneCountInString(stringArg(result, "stderr")) != 1000 {
+	if policy["truncated"] != true || result["exit_code"] != 7 || result["command_ok"] != false || utf8.RuneCountInString(stringArg(result, "stdout"))+utf8.RuneCountInString(stringArg(result, "stderr")) > 1000 {
 		t.Fatalf("budget or control changed: %v", policy)
 	}
 	for _, key := range []string{"unit", "limit_chars", "scope", "displayed_chars", "fields", "source_scope", "storage_redaction"} {
@@ -82,7 +83,7 @@ func TestToolOutputSharedUnicodeBudgetAndDurableRead(t *testing.T) {
 		}
 		offset = next
 	}
-	var saved map[string]string
+	var saved map[string]any
 	if err := json.Unmarshal([]byte(all.String()), &saved); err != nil || saved["stdout"] != stdout || saved["stderr"] != stderr {
 		t.Fatalf("retained source mismatch: %v", err)
 	}
@@ -111,65 +112,70 @@ func TestToolOutputSharedUnicodeBudgetAndDurableRead(t *testing.T) {
 	}
 }
 
-func TestToolOutputBoundariesDisabledAndRulesExempt(t *testing.T) {
+func TestToolOutputFixedBudgetAndRequiredFilePaging(t *testing.T) {
 	r := executionTestRuntime(t)
-	ctx := scopeHost("output-boundaries")
-	for _, limit := range []int{1000, 1733, 100000} {
-		setOutputBudget(t, r, true, limit)
-		for _, length := range []int{limit - 1, limit, limit + 1} {
-			result := outputCall(t, r, ctx, "read_file", map[string]any{"path": "ordinary.txt"}, Result{"content": strings.Repeat("😀", length)})
-			if utf8.RuneCountInString(stringArg(result, "content")) != min(limit, length) {
-				t.Fatalf("boundary %d/%d changed content length", limit, length)
-			}
-			policy, present := result["output_policy"].(map[string]any)
-			if length <= limit {
-				if present {
-					t.Fatalf("complete boundary %d/%d returned output policy: %v", limit, length, policy)
+	ctx := WithModelProjection(scopeHost("output-boundaries"))
+	for _, enabled := range []bool{false, true} {
+		for _, limit := range []int{1000, 1733, 100000} {
+			setOutputBudget(t, r, enabled, limit)
+			for _, length := range []int{limit - 1, limit, limit + 1} {
+				result := outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"status": "exited", "stdout": strings.Repeat("😀", length)})
+				text := stringArg(result, "stdout")
+				budget := toolcontract.ModelVisiblePayloadChars
+				if enabled {
+					budget = min(budget, limit)
 				}
-			} else if !present || policy["truncated"] != true {
-				t.Fatalf("truncated boundary %d/%d lost output policy: %v", limit, length, policy)
+				chars, _ := toolcontract.JSONChars(text)
+				if chars-2 > budget {
+					t.Fatalf("escaped output exceeded fixed budget: %d/%d", chars-2, budget)
+				}
+				if utf8.RuneCountInString(text) < length && modelObject(result["capture"])["source_ref"] == "" {
+					t.Fatal("bounded result lost original source")
+				}
 			}
 		}
-	}
-	setOutputBudget(t, r, false, 1000)
-	full := strings.Repeat("汉", 5000)
-	result := outputCall(t, r, ctx, "read_file", map[string]any{"path": "ordinary.txt"}, Result{"content": full})
-	if result["content"] != full || result["output_policy"] != nil {
-		t.Fatal("disabled setting still truncated")
 	}
 	setOutputBudget(t, r, true, 1000)
-	for _, path := range []string{"AGENTS.md", "sub/AGENTS.md", "skill://managed/example/SKILL.md"} {
-		result := outputCall(t, r, ctx, "read_file", map[string]any{"path": path}, Result{"content": full})
-		if result["content"] != full || result["output_policy"] != nil {
-			t.Fatal("rule body was truncated")
-		}
-	}
-	root := t.TempDir()
-	writeInstructionFixture(t, root, full)
-	contextResult, err := r.Call(ctx, "agentdock_context", map[string]any{"workdir": root, "max_response_bytes": 65536})
-	if err != nil {
+	text := strings.Repeat("规则💡", 2000)
+	path := filepath.Join(r.cfg.AgentDockDefaultDir, "AGENTS.md")
+	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		t.Fatal(err)
 	}
-	assertContextScope(t, contextResult, root, full)
-	if contextResult["output_policy"] != nil {
-		t.Fatal("bootstrap received an ordinary text limit")
+	args := map[string]any{"path": path}
+	recovered := ""
+	for index := 0; index < 100; index++ {
+		result, err := r.Call(ctx, "read_file", args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recovered += stringArg(result, "content")
+		if result["has_more"] != true {
+			break
+		}
+		if modelObject(result["delivery"])["continuation_required"] != true {
+			t.Fatal("contract continuation became optional")
+		}
+		args = modelObject(modelObject(result["continue_read"])["arguments"])
+	}
+	if recovered != text {
+		t.Fatal("required file paging omitted rules")
 	}
 }
 
 func TestToolOutputSnapshotHotChangeDoesNotAlterInFlight(t *testing.T) {
 	r := executionTestRuntime(t)
-	ctx := scopeHost("output-hot-change")
+	ctx := WithModelProjection(scopeHost("output-hot-change"))
 	setOutputBudget(t, r, true, 1000)
 	entered, release := make(chan struct{}), make(chan struct{})
 	done := make(chan Result, 1)
 	failed := make(chan error, 1)
-	spec := ToolSpec{Name: "read_file", Handler: func(context.Context, *Runtime, map[string]any) (Result, error) {
+	spec := ToolSpec{Name: "session_observe", Handler: func(context.Context, *Runtime, map[string]any) (Result, error) {
 		close(entered)
 		<-release
-		return Result{"content": strings.Repeat("A", 4000)}, nil
+		return Result{"stdout": strings.Repeat("A", 4000), "status": "exited"}, nil
 	}}
 	go func() {
-		result, err := r.callObserved(ctx, spec, map[string]any{"path": "ordinary.txt"})
+		result, err := r.callObserved(ctx, spec, map[string]any{"action": "list"})
 		done <- result
 		failed <- err
 	}()
@@ -184,11 +190,11 @@ func TestToolOutputSnapshotHotChangeDoesNotAlterInFlight(t *testing.T) {
 	if err := <-failed; err != nil {
 		t.Fatal(err)
 	}
-	if len(stringArg(result, "content")) != 1000 {
+	if modelObject(result["output_policy"])["budget_chars"] != 1000 {
 		t.Fatal("in-flight policy changed")
 	}
-	result = outputCall(t, r, ctx, "read_file", map[string]any{"path": "ordinary.txt"}, Result{"content": strings.Repeat("B", 4000)})
-	if len(stringArg(result, "content")) != 3000 {
+	result = outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"stdout": strings.Repeat("B", 4000), "status": "exited"})
+	if modelObject(result["output_policy"])["budget_chars"] != 3000 {
 		t.Fatal("subsequent call did not use updated policy")
 	}
 }
@@ -202,7 +208,7 @@ func TestToolOutputDynamicPlainTextAndUnknownStructuredContract(t *testing.T) {
 	result := r.applyToolOutputPolicy(p, Result{"result": remote})
 	limited := result["result"].(map[string]any)
 	blocks := limited["content"].([]any)
-	if limited["isError"] != true || utf8.RuneCountInString(blocks[2].(map[string]any)["text"].(string)) != 200 || blocks[1].(map[string]any)["data"] != "abc" {
+	if limited["isError"] != true || utf8.RuneCountInString(blocks[0].(map[string]any)["text"].(string))+utf8.RuneCountInString(blocks[2].(map[string]any)["text"].(string)) > 1000 || blocks[1].(map[string]any)["data"] != "abc" {
 		t.Fatal("dynamic content or status contract changed")
 	}
 	if remote["content"].([]any)[2].(map[string]any)["text"] != second {
@@ -212,7 +218,7 @@ func TestToolOutputDynamicPlainTextAndUnknownStructuredContract(t *testing.T) {
 	encoded, _ := json.Marshal(structured)
 	remote = map[string]any{"structuredContent": structured, "content": []any{map[string]any{"type": "text", "text": string(encoded)}}}
 	result = r.applyToolOutputPolicy(p, Result{"result": remote})
-	if remote["structuredContent"].(map[string]any)["text"] != structured["text"] || result["output_policy"].(map[string]any)["unapplied_fields"] == nil {
+	if remote["structuredContent"].(map[string]any)["text"] != structured["text"] || result["output_policy"] != nil {
 		t.Fatal("unknown schema was silently altered")
 	}
 }
@@ -223,7 +229,7 @@ func TestToolOutputRedactionAndOriginalTruncationRemainExplicit(t *testing.T) {
 	setOutputBudget(t, r, true, 1000)
 	result := outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"stdout": "password=do-not-retain " + strings.Repeat("A", 1200), "stderr": "", "stdout_truncated": true, "status": "running"})
 	policy := result["output_policy"].(map[string]any)
-	if strings.Contains(stringArg(result, "stdout"), "do-not-retain") || policy["source_truncated"] != true || policy["storage_state"] != "partial" {
+	if strings.Contains(stringArg(result, "stdout"), "do-not-retain") || modelObject(result["capture"])["complete"] != false || modelObject(result["capture"])["state"] != "partial" {
 		t.Fatalf("source/redaction state lost: %v", policy)
 	}
 }

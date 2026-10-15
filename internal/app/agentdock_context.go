@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"sort"
 	"strings"
@@ -50,7 +51,18 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	pluginStarted := time.Now()
 	directory, pluginInfo, directoryErr := r.pluginStore.Snapshot(ctx)
 	if directoryErr != nil {
-		return nil, toolErrorDetails("CONTEXT_PREPARATION_FAILED", directoryErr.Error(), "runtime", map[string]any{"stage": "plugins", "budget_ms": r.cfg.ContextBudget().Milliseconds()})
+		details := map[string]any{"stage": "plugin_snapshot", "budget_ms": r.cfg.ContextBudget().Milliseconds(), "elapsed_ms": time.Since(pluginStarted).Milliseconds()}
+		var diagnostic interface{ DiagnosticDetails() map[string]any }
+		if errors.As(directoryErr, &diagnostic) {
+			for key, value := range diagnostic.DiagnosticDetails() {
+				if key == "stage" {
+					details["cause_stage"] = value
+				} else {
+					details[key] = value
+				}
+			}
+		}
+		return nil, toolErrorDetails("CONTEXT_PREPARATION_FAILED", directoryErr.Error(), "runtime", details)
 	}
 	pluginElapsed := time.Since(pluginStarted)
 	skillStarted := time.Now()
@@ -196,7 +208,8 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 			"skills_ms": float64(skillElapsed) / float64(time.Millisecond), "mcp_catalog_ms": float64(mcpElapsed) / float64(time.Millisecond),
 			"serialization_ms": float64(time.Since(serializeStarted)) / float64(time.Millisecond), "context_ms": float64(time.Since(started)) / float64(time.Millisecond),
 			"plugin_snapshot": pluginInfo, "skill_snapshot": skillInfo, "plugin_build": directory.Metrics,
-			"plugin_revision":  directory.Revision,
+			"plugin_revision":    directory.Revision,
+			"snapshot_freshness": directory.SnapshotFreshness, "degraded_reason": directory.DegradedReason,
 			"common_skills_ms": float64(commonElapsed) / float64(time.Millisecond), "common_snapshot": commonInfo,
 			"task_index_ms": float64(taskElapsed) / float64(time.Millisecond),
 		}

@@ -26,6 +26,13 @@ func (svc *Service) SessionBinding(id string) (activity.Binding, bool) {
 		}
 		svc.activityMu.Unlock()
 		if !ok {
+			if svc.activity != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				if retained, err := svc.activity.CommandSession(ctx, id); err == nil {
+					return retained.Binding, true
+				}
+			}
 			return activity.Binding{}, false
 		}
 	}
@@ -162,6 +169,14 @@ func (svc *Service) trackCommandActivity(s *session.Session, request ExecRequest
 			event.TimedOut, event.ElapsedMS = outcome.TimedOut, snap.ElapsedMS
 			event.StdoutTruncated, event.StderrTruncated = outTruncated, errTruncated
 			event.Summary = outcome.Summary
+			full := s.RetainedSnapshot()
+			sourceState := "complete"
+			if full.StdoutDroppedBytes > 0 || full.StderrDroppedBytes > 0 {
+				sourceState = "partial"
+			}
+			retainCtx, retainCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			event.OutputSource = svc.activity.CapturePayload(retainCtx, snapshotResult(full), sourceState, redactor)
+			retainCancel()
 			persisted, err := appendEvent(event)
 			if persisted.EventID == "" && persisted.Seq == 0 {
 				if err == nil {

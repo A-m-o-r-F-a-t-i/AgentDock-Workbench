@@ -355,3 +355,24 @@ func (m *Manager) CallPrepared(ctx context.Context, prepared *PreparedMCPCall) (
 	}
 	return dispatch(callCtx)
 }
+
+// OutputPolicy reads the frozen tool annotation already included in the
+// preparation digest. Unknown values leave the default recoverable projection.
+func (p *PreparedMCPCall) OutputPolicy() (string, string) {
+	if p == nil {
+		return "", ""
+	}
+	class, _ := p.tool.Annotations["agentdock/outputClass"].(string)
+	switch class {
+	case "required_full", "recoverable_preview", "compact_receipt":
+	default:
+		return "", ""
+	}
+	mode, _ := p.tool.Annotations["agentdock/previewMode"].(string)
+	switch mode {
+	case "items", "head_tail", "tail", "full":
+	default:
+		mode = ""
+	}
+	return class, mode
+}

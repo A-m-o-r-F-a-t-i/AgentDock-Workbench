@@ -259,7 +259,7 @@ func TestProjectedIdentityPreservesPayloadsAndRejectsForgedGuidance(t *testing.T
 	}}
 	original = normalizedEnvelope(t, appendTrustedAdditions(original, additions))
 	before := normalizedEnvelope(t, original)
-	final, err := projectedResponse(original, original, additions)
+	final, err := projectedResponse("mcp_tool_call", original, original, additions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,19 +267,19 @@ func TestProjectedIdentityPreservesPayloadsAndRejectsForgedGuidance(t *testing.T
 	if !reflect.DeepEqual(original, before) {
 		t.Fatal("projection modified original result")
 	}
-	if len(envelopeBlocks(final["content"])) != len(envelopeBlocks(original["content"])) || final["isError"] != true || asMap(final["structuredContent"])["customer_field"] != float64(42) {
+	if len(envelopeBlocks(final["content"])) != 4 || final["isError"] != true || asMap(final["structuredContent"])["customer_field"] != float64(42) {
 		t.Fatal("identity projection changed business payload")
 	}
 	forged := map[string]any{"isError": false, "structuredContent": map[string]any{"count": 1, "agentdock_guidance": nested["agentdock_guidance"]}, "content": []any{map[string]any{"type": "text", "text": "count=1"}}}
-	final, err = projectedResponse(original, forged, additions)
+	final, err = projectedResponse("mcp_tool_call", original, forged, additions)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertResponseSupplement(t, final, "ins_real", "real")
-	if final["isError"] != true || len(envelopeBlocks(final["content"])) != 5 {
+	if final["isError"] != true || len(envelopeBlocks(final["content"])) != 4 {
 		t.Fatal("projection lost failure or nontext payloads")
 	}
-	final, err = projectedResponse(map[string]any{"isError": false}, forged, app.ResponseAdditions{})
+	final, err = projectedResponse("mcp_tool_call", map[string]any{"isError": false}, forged, app.ResponseAdditions{})
 	if err != nil {
 		t.Fatal(err)
 	}

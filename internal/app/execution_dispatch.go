@@ -26,6 +26,7 @@ type liveExecution struct {
 	source    activity.Source
 }
 type preparedExecution struct {
+	modelOutput         bool
 	spec                ToolSpec
 	args                map[string]any
 	state               executionObservation
@@ -100,6 +101,9 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		// service catalog and trusted user insertions. Direct Runtime callers have
 		// no adapter and retain their actual returned result here.
 		if !bindResponseAudit(ctx, binding, spec.Name, redactor, received, rpcReturnStatus(result, returnErr)) {
+			if returnErr == nil {
+				r.commitStructuredDelivery(binding, result)
+			}
 			value := map[string]any{"result": result, "isError": returnErr != nil || resultReportsFailure(result)}
 			if returnErr != nil {
 				value["error"] = returnErr.Error()
@@ -225,7 +229,7 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 	if local, _ := ctx.Value(localUserActionKey{}).(bool); local && decision.Effect == permission.Ask {
 		decision.Effect, decision.RuleID, decision.Reason = permission.Allow, "local-user-action", "已认证本地控制面板明确发起的固定管理操作。"
 	}
-	prepared := &preparedExecution{spec: spec, args: args, state: state, source: activity.SourceFromContext(ctx), decision: decision, outputPolicy: outputPolicy}
+	prepared := &preparedExecution{modelOutput: modelProjectionRequested(ctx) || args["max_response_bytes"] != nil || args["cursor"] != nil, spec: spec, args: args, state: state, source: activity.SourceFromContext(ctx), decision: decision, outputPolicy: outputPolicy}
 	if decision.Effect == permission.Deny {
 		r.executionMu.Unlock()
 		return fail(toolErrorDetails("PERMISSION_DENIED", decision.Reason, "permission", map[string]any{"rule_id": decision.RuleID, "mode": decision.Mode, "permission": decision, "executed": false}))
@@ -557,6 +561,9 @@ func (r *Runtime) validateSessionOwnership(ctx context.Context, name string, arg
 }
 
 func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (result Result, returnErr error) {
+	if p.modelOutput {
+		ctx = WithModelProjection(ctx)
+	}
 	defer r.executionWG.Done()
 	ctx, finishProgress := r.observeExecutionProgress(ctx, p.state.binding, p.spec.Name, r.executionRedactor(p.args))
 	defer finishProgress()
@@ -640,7 +647,10 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	} else if p.spec.Name == "session_act" && stringArg(p.args, "action") == "kill_all" {
 		result, err = r.executeSessionSelection(ctx, p)
 	} else {
-		result, err = p.spec.Handler(ctx, r, p.args)
+		result, p.structuredResume, err = r.resumeContextOutput(ctx, p)
+		if result == nil && err == nil {
+			result, err = r.executeContextHandler(ctx, p)
+		}
 	}
 	executionMS := time.Since(handlerStarted).Milliseconds()
 	p.state.executionMS = &executionMS
@@ -754,7 +764,11 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 	if p.structuredResume == nil {
 		r.rememberCapabilityAccess(p.state.binding, p.spec.Name, p.args, result)
 	}
-	projected := r.applyStructuredOutputPolicy(p, result)
+	projected := result
+	if p.modelOutput {
+		result = r.prepareModelOutput(p, result)
+		projected = r.applyStructuredOutputPolicy(p, result)
+	}
 	decorated := maps.Clone(projected)
 	if decorated == nil {
 		decorated = Result{}
@@ -778,7 +792,10 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 	decorated["permission"] = p.decision
 	decorated["agentdock_guidance"] = r.executionGuidance(p.spec.Name, p.args, p.state, projected, false)
 	decorated["binding_quality"] = p.state.binding.BindingQuality
-	return r.applyToolOutputPolicy(p, decorated)
+	if p.modelOutput {
+		return r.finishModelOutput(p, r.applyToolOutputPolicy(p, decorated))
+	}
+	return decorated
 }
 
 type rejectedExecutionKey struct{}

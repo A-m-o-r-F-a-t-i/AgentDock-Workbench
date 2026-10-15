@@ -58,7 +58,7 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	if !s.uiEnabled() {
 		envelope = filterTextOnlyEnvelope(envelope, name == "mcp_tool_call")
 	}
-	envelope, err = measureContextResponse(ctx, name, envelope)
+	envelope, err = s.boundModelResponse(ctx, name, arguments, pending, envelope)
 	if err != nil {
 		return nil, invocationError(ctx, "response_measure", "MCP response measurement failed; do not replay the original tool", err)
 	}
@@ -76,7 +76,7 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 		if !s.uiEnabled() {
 			envelope = filterTextOnlyEnvelope(envelope, name == "mcp_tool_call")
 		}
-		envelope, err = measureContextResponse(ctx, name, envelope)
+		envelope, err = s.boundModelResponse(ctx, name, arguments, pending, envelope)
 		if err != nil {
 			return nil, invocationError(ctx, "response_measure", "Response measurement failed after tool execution", err)
 		}

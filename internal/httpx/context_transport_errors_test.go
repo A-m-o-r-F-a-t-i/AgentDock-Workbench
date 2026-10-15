@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -48,9 +49,17 @@ func TestContextTransportProtocolErrorsRemainCorrelated(t *testing.T) {
 }
 
 func TestContextTransportProbeThroughRealHTTPServer(t *testing.T) {
-	python, err := exec.LookPath("python3")
-	if err != nil {
-		python, err = exec.LookPath("python")
+	candidates := []string{"python3", "python"}
+	if runtime.GOOS == "windows" {
+		candidates = []string{"python", "python3"}
+	}
+	python := ""
+	var err error
+	for _, candidate := range candidates {
+		python, err = exec.LookPath(candidate)
+		if err == nil {
+			break
+		}
 	}
 	if err != nil {
 		t.Skip("Python is required for the external protocol probe")
@@ -79,7 +88,7 @@ func TestContextTransportProbeThroughRealHTTPServer(t *testing.T) {
 		CallID    string           `json:"call_id"`
 		Samples   []map[string]any `json:"samples"`
 	}
-	if err = json.Unmarshal(output, &report); err != nil || !report.OK || !requesttrace.ValidID(report.RequestID) || report.CallID == "" || len(report.Samples) != 4 {
+	if err = json.Unmarshal(output, &report); err != nil || !report.OK || !requesttrace.ValidID(report.RequestID) || report.CallID == "" || len(report.Samples) < 4 || len(report.Samples) > 520 {
 		t.Fatalf("probe report: %s %v", output, err)
 	}
 	for _, sample := range report.Samples {

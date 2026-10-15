@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
@@ -142,8 +143,8 @@ func buildStructuredPage(full Result, paths []structuredOutputPath, start struct
 		current := append([]any{}, structuredPathItems(page, path)...)
 		trialItems := append(current, items[position.ItemIndex])
 		setStructuredPath(page, path, trialItems)
-		encoded, marshalErr := json.Marshal(page)
-		if marshalErr == nil && len(encoded)+structuredMetadataReserveBytes <= budget {
+		encodedChars, marshalErr := toolcontract.JSONChars(page)
+		if marshalErr == nil && encodedChars+structuredMetadataReserveBytes <= budget {
 			returned++
 			position.ItemIndex++
 			continue
@@ -152,17 +153,29 @@ func buildStructuredPage(full Result, paths []structuredOutputPath, start struct
 		if returned > 0 {
 			break
 		}
-		required := len(encoded) + structuredMetadataReserveBytes
-		if marshalErr == nil && required <= hardBudget {
-			minimumBytes = required
-			break
+		// Search snippets may shrink, but match identity and path/line stay atomic.
+		item := modelObject(items[position.ItemIndex])
+		if item != nil && structuredPathName(path) == "matches" {
+			item = maps.Clone(item)
+			for _, key := range []string{"line", "text", "match", "context_before", "context_after"} {
+				if text, ok := item[key].(string); ok {
+					item[key] = toolcontract.JSONTextPrefix(text, 384)
+				}
+			}
+			item["preview_shortened"] = true
+			setStructuredPath(page, path, append(current, item))
+			if chars, err := toolcontract.JSONChars(page); err == nil && chars+structuredMetadataReserveBytes <= budget {
+				returned++
+				position.ItemIndex++
+				continue
+			}
+			setStructuredPath(page, path, current)
 		}
 		oversized = map[string]any{
 			"collection": structuredPathName(path), "index": position.ItemIndex,
-			"serialized_bytes": max(0, len(encoded)),
-			"reason":           "The item exceeds the maximum semantic page size; read it from the retained activity source.",
+			"serialized_chars": max(0, encodedChars),
+			"reason":           "The item exceeds the fixed semantic page size; read the retained activity source. This cursor has not skipped it.",
 		}
-		position.ItemIndex++
 		break
 	}
 	position = normalizeStructuredPosition(full, paths, position)
@@ -243,4 +256,16 @@ func structuredPathName(path structuredOutputPath) string {
 		name += "." + part
 	}
 	return name
+}
+
+func countRemainingStructuredItems(full Result, paths []structuredOutputPath, next structuredPageState) int {
+	count := 0
+	for index := next.PathIndex; index < len(paths); index++ {
+		length := len(structuredPathItems(full, paths[index]))
+		if index == next.PathIndex {
+			length -= next.ItemIndex
+		}
+		count += max(0, length)
+	}
+	return count
 }
