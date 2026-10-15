@@ -2,10 +2,10 @@
   "schema_version": 1,
   "version": "1.1.9",
   "source_sha": "0a5d8da43e633eb31074d00a1f232c45983f8845",
-  "phase": "build",
-  "state": "success",
-  "message": "Verified build run 38694213875 completed successfully.",
+  "phase": "publish_dispatch",
+  "state": "running",
+  "message": "Dispatching verified prerelease replacement from build 38694213875.",
   "build_run_id": "38694213875",
   "publish_run_id": "",
-  "updated_at": "2026-10-15T07:37:13.382327+00:00"
+  "updated_at": "2026-10-15T07:37:16.542162+00:00"
 }
