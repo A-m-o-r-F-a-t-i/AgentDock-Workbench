@@ -2,10 +2,10 @@
   "schema_version": 1,
   "version": "1.1.9",
   "source_sha": "0a5d8da43e633eb31074d00a1f232c45983f8845",
-  "phase": "publish",
+  "phase": "complete",
   "state": "success",
-  "message": "Publication run 38699985313 completed successfully.",
+  "message": "v1.1.9 now targets 0a5d8da43e633eb31074d00a1f232c45983f8845; prerelease channel, release notes and eight public assets are verified.",
   "build_run_id": "38694213875",
   "publish_run_id": "38699985313",
-  "updated_at": "2026-10-15T07:39:12.977092+00:00"
+  "updated_at": "2026-10-15T07:39:16.074057+00:00"
 }
