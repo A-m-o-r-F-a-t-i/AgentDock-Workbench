@@ -52,7 +52,8 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	successProperties := make(map[string]any, len(properties))
 	for name := range properties {
 		// The root validates each field once. The success branch keeps property
-		// names only so closed business objects still admit execution metadata.
+		// names only so closed business objects admit execution metadata without
+		// duplicating every business schema.
 		successProperties[name] = true
 	}
 	for _, name := range []string{"status", "executed", "approval", "context_diagnostics"} {
