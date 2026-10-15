@@ -1,0 +1,202 @@
+name: One-shot rebuild AgentDock Workbench 1.1.9
+run-name: One-shot rebuild 1.1.9 from verified main
+
+on:
+  push:
+    branches:
+      - ops/rebuild-v1.1.9-20261015
+    paths:
+      - '.github/workflows/rebuild-v1.1.9-once.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: one-shot-rebuild-v1.1.9
+  cancel-in-progress: false
+
+jobs:
+  rebuild-and-replace:
+    name: Rebuild and replace prerelease
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      SOURCE_SHA: 0a5d8da43e633eb31074d00a1f232c45983f8845
+      VERSION: 1.1.9
+      BUILD_WORKFLOW: workbench-release.yml
+      PUBLISH_WORKFLOW: workbench-publish-existing.yml
+    steps:
+      - name: Verify immutable source and release preconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
+          test "$main_sha" = "$SOURCE_SHA"
+          test "$(gh pr list --repo "$REPOSITORY" --state open --json number --jq length)" = 0
+          release_json="$(gh api "repos/$REPOSITORY/releases/tags/v$VERSION")"
+          RELEASE_JSON="$release_json" python3 - <<'PY'
+          import json, os
+          release=json.loads(os.environ['RELEASE_JSON'])
+          assert release['draft'] is False
+          assert release['prerelease'] is True
+          assert release['name']=='AgentDock Workbench 1.1.9 Pre-release'
+          PY
+
+      - name: Dispatch and verify complete cross-platform build
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          find_run() {
+            local workflow="$1" expected_title="$2" not_before="$3"
+            local runs run_id
+            for _ in $(seq 1 90); do
+              runs="$(gh run list --repo "$REPOSITORY" --workflow "$workflow" --event workflow_dispatch --limit 40 --json databaseId,displayTitle,headSha,createdAt,status)"
+              run_id="$(RUNS_JSON="$runs" EXPECTED_TITLE="$expected_title" NOT_BEFORE="$not_before" SOURCE_SHA="$SOURCE_SHA" python3 - <<'PY'
+          import datetime, json, os
+          rows=json.loads(os.environ['RUNS_JSON'])
+          threshold=datetime.datetime.fromisoformat(os.environ['NOT_BEFORE'].replace('Z','+00:00'))
+          matches=[]
+          for row in rows:
+              created=datetime.datetime.fromisoformat(row['createdAt'].replace('Z','+00:00'))
+              if row.get('displayTitle')==os.environ['EXPECTED_TITLE'] and row.get('headSha')==os.environ['SOURCE_SHA'] and created>=threshold:
+                  matches.append((created,row['databaseId']))
+          if matches:
+              print(max(matches)[1])
+          PY
+              )"
+              if [[ -n "$run_id" ]]; then
+                printf '%s\n' "$run_id"
+                return 0
+              fi
+              sleep 4
+            done
+            return 1
+          }
+
+          not_before="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run "$BUILD_WORKFLOW" --repo "$REPOSITORY" --ref main \
+            -f ref="$SOURCE_SHA" \
+            -f publish=false \
+            -f prerelease=true \
+            -f installation_tests=true \
+            -f ignore_macos_intel_scale=false
+          build_title="AgentDock Workbench $SOURCE_SHA"
+          build_run_id="$(find_run "$BUILD_WORKFLOW" "$build_title" "$not_before")"
+          echo "run_id=$build_run_id" >> "$GITHUB_OUTPUT"
+          echo "Build run: $build_run_id" >> "$GITHUB_STEP_SUMMARY"
+
+          if ! gh run watch "$build_run_id" --repo "$REPOSITORY" --exit-status --interval 20; then
+            gh run rerun "$build_run_id" --repo "$REPOSITORY" --failed
+            gh run watch "$build_run_id" --repo "$REPOSITORY" --exit-status --interval 20
+          fi
+
+      - name: Dispatch verified prerelease replacement
+        id: publish
+        env:
+          BUILD_RUN_ID: ${{ steps.build.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
+          test "$current_main" = "$SOURCE_SHA"
+          test "$(gh pr list --repo "$REPOSITORY" --state open --json number --jq length)" = 0
+
+          find_run() {
+            local workflow="$1" expected_title="$2" not_before="$3"
+            local runs run_id
+            for _ in $(seq 1 90); do
+              runs="$(gh run list --repo "$REPOSITORY" --workflow "$workflow" --event workflow_dispatch --limit 40 --json databaseId,displayTitle,headSha,createdAt,status)"
+              run_id="$(RUNS_JSON="$runs" EXPECTED_TITLE="$expected_title" NOT_BEFORE="$not_before" SOURCE_SHA="$SOURCE_SHA" python3 - <<'PY'
+          import datetime, json, os
+          rows=json.loads(os.environ['RUNS_JSON'])
+          threshold=datetime.datetime.fromisoformat(os.environ['NOT_BEFORE'].replace('Z','+00:00'))
+          matches=[]
+          for row in rows:
+              created=datetime.datetime.fromisoformat(row['createdAt'].replace('Z','+00:00'))
+              if row.get('displayTitle')==os.environ['EXPECTED_TITLE'] and row.get('headSha')==os.environ['SOURCE_SHA'] and created>=threshold:
+                  matches.append((created,row['databaseId']))
+          if matches:
+              print(max(matches)[1])
+          PY
+              )"
+              if [[ -n "$run_id" ]]; then
+                printf '%s\n' "$run_id"
+                return 0
+              fi
+              sleep 4
+            done
+            return 1
+          }
+
+          not_before="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run "$PUBLISH_WORKFLOW" --repo "$REPOSITORY" --ref main \
+            -f run_id="$BUILD_RUN_ID" \
+            -f commit="$SOURCE_SHA" \
+            -f version="$VERSION" \
+            -f prerelease=true \
+            -f replace_published=true \
+            -f replace_stable=false
+          publish_title="Publish verified Workbench $VERSION from run $BUILD_RUN_ID"
+          publish_run_id="$(find_run "$PUBLISH_WORKFLOW" "$publish_title" "$not_before")"
+          echo "run_id=$publish_run_id" >> "$GITHUB_OUTPUT"
+          echo "Publication run: $publish_run_id" >> "$GITHUB_STEP_SUMMARY"
+
+          if ! gh run watch "$publish_run_id" --repo "$REPOSITORY" --exit-status --interval 15; then
+            gh run rerun "$publish_run_id" --repo "$REPOSITORY" --failed
+            gh run watch "$publish_run_id" --repo "$REPOSITORY" --exit-status --interval 15
+          fi
+
+      - name: Verify release identity, channel, assets and checksums
+        env:
+          BUILD_RUN_ID: ${{ steps.build.outputs.run_id }}
+          PUBLISH_RUN_ID: ${{ steps.publish.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
+          test "$current_main" = "$SOURCE_SHA"
+          test "$(gh pr list --repo "$REPOSITORY" --state open --json number --jq length)" = 0
+
+          release_json="$(gh api "repos/$REPOSITORY/releases/tags/v$VERSION")"
+          ref_json="$(gh api "repos/$REPOSITORY/git/ref/tags/v$VERSION")"
+          RELEASE_JSON="$release_json" REF_JSON="$ref_json" SOURCE_SHA="$SOURCE_SHA" python3 - <<'PY'
+          import json, os, re
+          release=json.loads(os.environ['RELEASE_JSON'])
+          ref=json.loads(os.environ['REF_JSON'])
+          expected={
+              'AgentDock-Workbench-Setup-amd64.exe',
+              'AgentDock-Workbench-Setup-arm64.exe',
+              'AgentDock-macos-universal.dmg',
+              'agentdock-workbench_1.1.9_amd64.deb',
+              'agentdock-workbench_1.1.9_arm64.deb',
+              'agentdock-workbench-1.1.9-1.x86_64.rpm',
+              'agentdock-workbench-1.1.9-1.aarch64.rpm',
+              'AgentDock-Workbench-1.1.9-Android.apk',
+          }
+          actual={asset['name'] for asset in release['assets']}
+          assert release['draft'] is False
+          assert release['prerelease'] is True
+          assert release['name']=='AgentDock Workbench 1.1.9 Pre-release'
+          assert release['target_commitish']==os.environ['SOURCE_SHA']
+          assert ref['object']['type']=='commit'
+          assert ref['object']['sha']==os.environ['SOURCE_SHA']
+          assert actual==expected, (sorted(actual),sorted(expected))
+          for asset in release['assets']:
+              assert asset['state']=='uploaded'
+              assert asset['size']>0
+              assert re.fullmatch(r'sha256:[0-9a-f]{64}',asset.get('digest',''))
+          PY
+
+          {
+            echo '## AgentDock Workbench 1.1.9 prerelease replaced'
+            echo
+            echo "- Source commit: \`$SOURCE_SHA\`"
+            echo "- Verified build run: \`$BUILD_RUN_ID\`"
+            echo "- Publication run: \`$PUBLISH_RUN_ID\`"
+            echo '- Public assets: 8 verified installers'
+          } >> "$GITHUB_STEP_SUMMARY"
