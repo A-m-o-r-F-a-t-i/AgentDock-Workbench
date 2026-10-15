@@ -51,7 +51,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.candidate_name = f"AgentDock-Workbench-{self.version}-Android-test-signed.apk"
         self.candidate = self.inputs / self.candidate_name
         with zipfile.ZipFile(self.candidate, "w", compression=zipfile.ZIP_STORED) as archive:
-            archive.writestr("assets/agentdock-core-arm64.tar.gz", self.core.read_bytes())
+            archive.writestr("assets/agentdock-core-arm64.tgz", self.core.read_bytes())
         checksum = module.digest(self.candidate)
         (self.inputs / (self.candidate_name + ".sha256")).write_text(
             f"{checksum}  {self.candidate_name}\n"
@@ -126,7 +126,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.assertEqual(report["certificate_sha256"], CERTIFICATE)
         self.assertEqual(report["source_apk"]["sha256"], module.digest(self.candidate))
         self.assertEqual(report["bundled_core"], {
-            "apk_asset": "assets/agentdock-core-arm64.tar.gz",
+            "apk_asset": "assets/agentdock-core-arm64.tgz",
             "source_archive": {"name": self.core_name, "sha256": self.core_checksum},
             "validation": "passed",
         })
@@ -162,7 +162,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
 
     def test_candidate_bundled_core_must_match_verified_linux_archive(self):
         with zipfile.ZipFile(self.candidate, "w") as archive:
-            archive.writestr("assets/agentdock-core-arm64.tar.gz", b"different")
+            archive.writestr("assets/agentdock-core-arm64.tgz", b"different")
         checksum = module.digest(self.candidate)
         (self.inputs / (self.candidate_name + ".sha256")).write_text(
             f"{checksum}  {self.candidate_name}\n"

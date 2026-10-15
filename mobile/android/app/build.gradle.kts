@@ -73,9 +73,9 @@ android {
     sourceSets["main"].assets.srcDir("../termux")
 
     androidResources {
-        // Keep the bundled Core archive byte-for-byte identical to the verified Linux artifact.
-        // Without this, AAPT expands .tar.gz assets and stores them as .tar inside the APK.
-        noCompress += "gz"
+        // AAPT treats .gz as a precompressed input and removes the suffix while packaging.
+        // The APK uses .tgz so the verified gzip bytes and filename remain stable.
+        noCompress += "tgz"
     }
 
     packaging {

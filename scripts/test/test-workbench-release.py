@@ -122,7 +122,7 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn('PRODUCT_VERSION: ${{ steps.identity.outputs.product_version }}',android_workflow)
         self.assertIn('core_artifact_name:',android_workflow)
         self.assertIn('Prepare APK-bundled ARM64 Core',android_workflow)
-        self.assertIn('complete Termux bridge must carry the APK-bundled Android Core',android_workflow)
+        self.assertIn('Android bridge export must map the APK-safe Core asset to the external archive name',android_workflow)
         recovery=(ROOT/'.github/workflows/workbench-publish-existing.yml').read_text()
         self.assertIn(">= (1,1,7)",recovery)
         self.assertIn('Native Windows ARM64 install and uninstall',recovery)
@@ -201,7 +201,7 @@ class AndroidReleaseGate(EnhancedReleaseGate):
         raw_name='agentdock_linux_arm64.tar.gz'
         raw_bytes=(self.inputs/raw_name).read_bytes()
         raw_checksum=release.digest(self.inputs/raw_name)
-        bundled_asset='assets/agentdock-core-arm64.tar.gz'
+        bundled_asset='assets/agentdock-core-arm64.tgz'
         def write_apk(path):
             with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_STORED) as archive:
                 archive.writestr(bundled_asset,raw_bytes)
@@ -266,7 +266,7 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     def test_candidate_apk_must_contain_verified_linux_arm64_core(self):
         candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
         with zipfile.ZipFile(self.inputs/candidate,'w') as archive:
-            archive.writestr('assets/agentdock-core-arm64.tar.gz',b'different')
+            archive.writestr('assets/agentdock-core-arm64.tgz',b'different')
         checksum=release.digest(self.inputs/candidate)
         (self.inputs/(candidate+'.sha256')).write_text(f'{checksum}  {candidate}\n')
         self.reports['verification-android.json']['assets'][candidate]=checksum;self.flush()
@@ -274,7 +274,7 @@ class AndroidReleaseGate(EnhancedReleaseGate):
     def test_signed_apk_must_keep_verified_bundled_core(self):
         public=f'AgentDock-Workbench-{self.version}-Android.apk'
         with zipfile.ZipFile(self.inputs/public,'w') as archive:
-            archive.writestr('assets/agentdock-core-arm64.tar.gz',b'different')
+            archive.writestr('assets/agentdock-core-arm64.tgz',b'different')
         checksum=release.digest(self.inputs/public)
         (self.inputs/(public+'.sha256')).write_text(f'{checksum}  {public}\n')
         self.reports['verification-android-release.json']['assets'][public]=checksum;self.flush()

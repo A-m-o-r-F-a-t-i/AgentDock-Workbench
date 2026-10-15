@@ -86,13 +86,16 @@ import json
 import os
 import zipfile
 
-source = Path("mobile/android/termux/agentdock-core-arm64.tar.gz")
+source = Path("mobile/android/termux/agentdock-core-arm64.tgz")
 if source.is_symlink() or not source.is_file() or not 0 < source.stat().st_size <= 64 * 1024 * 1024:
     raise SystemExit("verified bundled Core source is missing or invalid")
 with source.open("rb") as stream:
     source_digest = hashlib.file_digest(stream, "sha256").hexdigest()
-expected_member = "assets/agentdock-core-arm64.tar.gz"
-transformed_member = "assets/agentdock-core-arm64.tar"
+expected_member = "assets/agentdock-core-arm64.tgz"
+invalid_members = {
+    "assets/agentdock-core-arm64.tar.gz",
+    "assets/agentdock-core-arm64.tar",
+}
 results = []
 for variant in ("debug", "release"):
     apk = Path(f"mobile/android/app/build/outputs/apk/{variant}/app-{variant}.apk")
@@ -102,7 +105,7 @@ for variant in ("debug", "release"):
         with zipfile.ZipFile(apk) as archive:
             candidates = [
                 entry for entry in archive.infolist()
-                if entry.filename in {expected_member, transformed_member}
+                if entry.filename == expected_member or entry.filename in invalid_members
             ]
             if len(candidates) != 1 or candidates[0].filename != expected_member:
                 names = [entry.filename for entry in candidates]

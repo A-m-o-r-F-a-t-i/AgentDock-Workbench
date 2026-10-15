@@ -188,7 +188,7 @@ def sign_candidate(
     core_sidecar = locate_unique(inputs, core_name + ".sha256").read_text(encoding="utf-8-sig").strip()
     if core_sidecar != f"{core_checksum}  {core_name}":
         raise RuntimeError("Linux ARM64 Core checksum sidecar is invalid")
-    bundled_core_asset = "assets/agentdock-core-arm64.tar.gz"
+    bundled_core_asset = "assets/agentdock-core-arm64.tgz"
     if zip_member_digest(candidate, bundled_core_asset) != core_checksum:
         raise RuntimeError("Android candidate does not contain the verified Linux ARM64 Core")
 

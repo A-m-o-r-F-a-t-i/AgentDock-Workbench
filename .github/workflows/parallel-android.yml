@@ -177,9 +177,10 @@ jobs:
 
           bootstrap = Path("mobile/android/termux/agentdock-workbench-bootstrap.sh").read_text()
           view_model = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/WorkbenchViewModel.kt").read_text()
-          for text in (bootstrap, view_model):
-              if "agentdock-core-arm64.tar.gz" not in text:
-                  raise SystemExit("complete Termux bridge must carry the APK-bundled Android Core")
+          if "agentdock-core-arm64.tar.gz" not in bootstrap:
+              raise SystemExit("Termux bootstrap must retain the external Core archive contract")
+          if not all(name in view_model for name in ("agentdock-core-arm64.tgz", "agentdock-core-arm64.tar.gz")):
+              raise SystemExit("Android bridge export must map the APK-safe Core asset to the external archive name")
           deployment_page = Path("mobile/android/app/src/main/java/dev/agentdock/workbench/ui/DeploymentPage.kt").read_text()
           if "ANDROID_CORE_MANIFEST_URL" in deployment_page or "ANDROID_CORE_MANIFEST_SIGNATURE_URL" in deployment_page:
               raise SystemExit("Android deployment page must not depend on external Core release metadata")
@@ -343,7 +344,7 @@ jobs:
           name: wb07-android-bundled-core-${{ github.run_id }}
           path: ${{ runner.temp }}/android-bundled-core
       - name: Stage bundled Core as an APK asset
-        run: install -m 0644 "$RUNNER_TEMP/android-bundled-core/agentdock-core-arm64.tar.gz" mobile/android/termux/agentdock-core-arm64.tar.gz
+        run: install -m 0644 "$RUNNER_TEMP/android-bundled-core/agentdock-core-arm64.tar.gz" mobile/android/termux/agentdock-core-arm64.tgz
 
       - name: Prepare preinstalled Android SDK
         run: bash scripts/ci/parallel-android/prepare-runner-sdk.sh
@@ -454,7 +455,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: wb07-android-bundled-core-${{ github.run_id }}
-          path: mobile/android/termux
+          path: ${{ runner.temp }}/android-bundled-core
+      - name: Stage bundled Core as an APK-safe asset
+        run: install -m 0644 "$RUNNER_TEMP/android-bundled-core/agentdock-core-arm64.tar.gz" mobile/android/termux/agentdock-core-arm64.tgz
 
       - name: Prepare preinstalled Android SDK
         env:
