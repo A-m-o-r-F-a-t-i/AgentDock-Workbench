@@ -44,7 +44,8 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolSearch:
 		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly; misuse returns a non-retryable routing error.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
-		props["limit"] = boundedIntProp("Maximum matching tools. Defaults to 10 and is capped at 100.", 1, 100)
+		props["limit"] = boundedIntProp("Maximum ranked candidates. Defaults to 5 and is capped at 100. Exact matches are retained before applying this limit.", 1, 100)
+		props["refresh"] = boolProp("Refresh only the explicitly selected server catalog. Does not call a business tool.")
 		required = []string{"query"}
 	case ToolList:
 		props["server"] = stringProp("Known enabled MCP server. Returns every visible tool name and one-line description without a search limit.")
@@ -60,7 +61,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["interaction_intent"] = map[string]any{"type": "string", "enum": []string{"desktop_gui"}, "description": "Required as desktop_gui for Computer Use tools. Omit for unrelated MCP tools."}
 		props["reason"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 512, "description": "Concrete user-task reason for an explicitly selected Computer Use call. Required with interaction_intent."}
 		// arguments 的结构由上游 MCP tool schema 决定，是这里唯一需要保持开放的动态叶节点。
-		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the schema returned by mcp_tool_inspect.", "additionalProperties": true}
+		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the complete input schema returned by search or inspect.", "additionalProperties": true}
 		required = []string{"name", "arguments"}
 	default:
 		return nil, false
@@ -103,9 +104,17 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
 		props["count"] = intProp("Matching dynamic tool count. Host-tool namespace misuse returns a terminal error instead of a success result.")
 		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
-		props["complete"] = boolProp("All visible catalogs are current and matching results fit the response limit.")
+		props["complete"] = boolProp("All visible catalogs are complete and current; candidate truncation is reported independently.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
 		props["cache_only"] = boolProp("No remote service is initialized or refreshed by this unscoped search.")
+		props["resolution_status"] = stringProp("resolved, ambiguous, incomplete or not_found. Only a complete fresh selected catalog can establish absence.")
+		props["absence_authoritative"] = boolProp("Whether zero matches establish absence within the selected complete fresh catalog.")
+		props["selected"] = objectProp("Canonical registered callable, complete input schema and the immutable catalog generation used to resolve it.")
+		props["next_call"] = objectProp("Formal MCP call template. Fill schema-required arguments before execution; discovery never executes this template.")
+		props["catalog_state"] = objectProp("Selected server catalog freshness, revision and refresh error code.")
+		props["required_action"] = objectProp("Scoped protocol refresh or model decision needed for an unresolved query.")
+		props["match_count"] = intProp("Candidate count before applying the ranking limit.")
+		props["exact_count"] = intProp("Exact canonical or registered-alias matches before ranking.")
 		props["match_kind"] = stringProp("Match classification for the highest-ranked result, such as exact_name, identifier_coverage, or none.")
 		props["route_kind"] = stringProp("Resolved namespace: host_builtin or dynamic_mcp.")
 		props["resolved"] = boolProp("Whether the request has a deterministic route.")
@@ -181,6 +190,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
 		"server": toolcontract.String("Dynamic MCP server."), "catalog_revision": toolcontract.String("Referenced complete catalog generation."),
+		"catalog_state": toolcontract.OpenObject("Catalog freshness and absence authority, independent of transport availability."),
 		"complete":      toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
 		"stale":         toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
 		"total":         toolcontract.Integer("Total tools in the referenced catalog."),

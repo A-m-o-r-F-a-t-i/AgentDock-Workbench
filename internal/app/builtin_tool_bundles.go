@@ -31,10 +31,11 @@ type builtinToolBundleSessions struct {
 }
 
 type capabilityBuiltinToolBundleItem struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Loaded      bool   `json:"loaded"`
-	ToolCount   int    `json:"tool_count"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Loaded      bool     `json:"loaded"`
+	ToolCount   int      `json:"tool_count"`
+	Tools       []string `json:"tools"`
 }
 
 func builtinToolScopeKey(ctx context.Context) (string, bool) {
@@ -227,6 +228,8 @@ func (r *Runtime) requireBuiltinToolVisible(ctx context.Context, name string) er
 		"validation",
 		map[string]any{
 			"tool": name, "bundle": bundle.Name, "loader": toolcapability.ToolLoad, "executed": false,
+			"operation_status": "blocked", "error_kind": "tool_bundle_required", "execution_performed": false,
+			"required_action": map[string]any{"category": "protocol", "tool": toolcapability.ToolLoad, "arguments": map[string]any{"action": "load", "name": bundle.Name}, "execution_performed": false, "reason_code": "tool_bundle_required"},
 		},
 	)
 }
@@ -236,7 +239,8 @@ func (r *Runtime) builtinToolBundleItems(ctx context.Context) []capabilityBuilti
 	result := make([]capabilityBuiltinToolBundleItem, 0, len(items))
 	for _, item := range items {
 		bundle, _ := toolcapability.ByName(item.Name)
-		item.ToolCount = len(r.availableBundleTools(bundle))
+		item.Tools = r.availableBundleTools(bundle)
+		item.ToolCount = len(item.Tools)
 		if item.ToolCount > 0 {
 			result = append(result, item)
 		}
@@ -290,13 +294,16 @@ func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapabil
 	result := Result{
 		"action": request.Action, "scoped": scoped, "changed": changed,
 		"directory_changed": changed, "bundles": bundles,
+		"tool_catalog_revision": r.ToolCatalogRevision(ctx), "host_refresh_required": scoped, "execution_performed": false,
 	}
 	if request.Action == toolcapability.ActionLoad {
+		result["loaded"], result["bundle"] = true, loadedBundle.Name
 		result["loaded_bundle"] = loadedBundle.Name
 		result["revealed_tools"] = r.availableBundleTools(loadedBundle)
 		result["bundles"] = []map[string]any{}
 		if scoped {
-			result["next_required_action"] = "Invoke the required revealed tool directly. Loading did not execute it."
+			result["next_required_action"] = "Refresh the host tools/list snapshot, then invoke the original tool with its original arguments. Loading did not execute it."
+			result["required_action"] = map[string]any{"category": "protocol", "action": "refresh_host_tools", "method": "tools/list", "execution_performed": false, "reason_code": "host_tool_snapshot_refresh"}
 		} else {
 			result["next_required_action"] = "This client already has the tools; invoke the required tool directly."
 		}

@@ -13,7 +13,7 @@ func capabilityToolSpecs() []ToolSpec {
 	return []ToolSpec{{
 		Name: toolcapability.ToolLoad, Contract: capabilityToolContract,
 		Title:       "Load built-in tool bundle",
-		Description: "Load a needed built-in bundle from the agentdock_context index, once per conversation, then call its tool directly. Repeated loads return changed=false. Loading changes visibility only; external MCP discovery, permissions and plugin state remain separate.",
+		Description: "Load a needed built-in bundle from the agentdock_context index once per conversation. Refresh the host tools/list snapshot before calling the revealed tool. Repeated loads return changed=false. Loading changes visibility only; external MCP discovery, permissions and plugin state remain separate.",
 		Annotations: annotations,
 		Handler: typedToolHandler(toolcapability.ToolLoad, func(ctx context.Context, r *Runtime, request toolcapability.Request) (Result, error) {
 			return r.loadBuiltinToolBundle(ctx, request)

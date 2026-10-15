@@ -70,10 +70,22 @@ type ToolSummary struct {
 	Server        string `json:"server"`
 }
 
+type CatalogState struct {
+	State                string `json:"state"`
+	CatalogRevision      string `json:"catalog_revision"`
+	ServerRevision       string `json:"server_revision"`
+	RefreshedAt          string `json:"refreshed_at,omitempty"`
+	RefreshAttempted     bool   `json:"refresh_attempted"`
+	RefreshErrorCode     string `json:"refresh_error_code,omitempty"`
+	AbsenceAuthoritative bool   `json:"absence_authoritative"`
+	Lazy                 bool   `json:"lazy,omitempty"`
+}
+
 type ServerSummary struct {
-	SourceType  string `json:"source_type,omitempty"`
-	PluginName  string `json:"plugin_name,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
+	CatalogState CatalogState `json:"catalog_state"`
+	SourceType   string       `json:"source_type,omitempty"`
+	PluginName   string       `json:"plugin_name,omitempty"`
+	DisplayName  string       `json:"display_name,omitempty"`
 
 	Revision          string `json:"revision"`
 	OverrideSource    string `json:"override_source"`

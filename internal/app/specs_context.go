@@ -61,6 +61,11 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["android_executor"] = androidExecutorStatusSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
 	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
+	output["host_tools"] = toolcontract.ObjectArray("Exact currently visible host tool routes.")
+	output["dynamic_mcp_summary"] = toolcontract.OpenObject("Non-connecting catalog summary; zero candidates are authoritative only in a complete fresh selected catalog.")
+	output["task_binding"] = toolcontract.OpenObject("Current task, thread and workspace binding.")
+	output["tool_catalog_revision"] = toolcontract.String("Revision of the currently visible host and MCP directory.")
+	output["workdir"] = toolcontract.String("Selected execution workdir.")
 	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
 		runtimeSchema := maps.Clone(originalRuntime)
 		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
@@ -85,6 +90,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 					properties["revision"] = map[string]any{"type": "string"}
 					properties["server_version"] = map[string]any{"type": "string"}
 					properties["tool_count_known"] = map[string]any{"type": "boolean"}
+					properties["catalog_state"] = toolcontract.OpenObject("Discovered catalog freshness and authority.")
 					if _, exists := properties["source_type"]; !exists {
 						properties["source_type"] = map[string]any{"type": "string"}
 					}
@@ -177,6 +183,8 @@ func instructionFilesSchema() map[string]any {
 		"type": "object", "additionalProperties": false,
 		"required": []string{"auto_load", "workdir", "workspace_root", "files"},
 		"properties": map[string]any{
+			"complete":       map[string]any{"type": "boolean"},
+			"revision":       map[string]any{"type": "string"},
 			"auto_load":      map[string]any{"type": "boolean"},
 			"workdir":        map[string]any{"type": "string"},
 			"workspace_root": map[string]any{"type": "string"},
@@ -240,6 +248,7 @@ func builtinToolBundleIndexSchema() map[string]any {
 				"description": map[string]any{"type": "string"},
 				"loaded":      map[string]any{"type": "boolean"},
 				"tool_count":  map[string]any{"type": "integer", "minimum": 0},
+				"tools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			},
 		},
 	}

@@ -20,11 +20,16 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 		return out
 	}
 	if p.spec.Name == "agentdock_context" {
+		ctx := activity.WithSource(activity.WithBinding(context.Background(), p.state.binding), p.source)
 		routes := []map[string]any{}
 		for _, name := range r.ToolNames() {
+			if !r.BuiltinToolVisible(ctx, name) {
+				continue
+			}
 			routes = append(routes, map[string]any{"name": name, "invoke_via": "host", "dynamic_mcp_search": false})
 		}
 		out["host_tools"], out["permission"] = routes, p.decision
+		r.prepareContextBootstrap(ctx, out, p.state.binding)
 		result = out
 	}
 	if capture := modelObject(result["capture"]); capture != nil && p.spec.Name == "read_file" {
@@ -204,7 +209,10 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	result["truncation_stage"] = stage
 	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
 		diagnostics := modelObject(result["context_diagnostics"])
-		result["context_ready"] = !required && diagnostics["complete"] == true
+		result["context_ready"] = diagnostics["complete"] == true && (!required || p.spec.Name == "agentdock_context")
+		if required && p.spec.Name == "agentdock_context" {
+			result["required_action"] = map[string]any{"category": "detail", "action": "continue_structured_output", "tool": p.spec.Name, "arguments": map[string]any{"cursor": result["next_cursor"], "known_context_revision": result["context_revision"]}, "execution_performed": false, "reason_code": "context_details_paged"}
+		}
 	}
 	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {
 		// Diagnostics and binding details remain in the canonical activity source.
@@ -260,7 +268,6 @@ func projectContextFacts(result Result) {
 		}
 		result["context_diagnostics"] = compact
 	}
-	delete(result, "host_tools")
 	delete(result, "permission")
 	for _, key := range []string{"skills", "plugins", "dynamic_mcp", "workflow_templates", "warnings", "running_sessions", "terminal_completions_pending"} {
 		value := result[key]

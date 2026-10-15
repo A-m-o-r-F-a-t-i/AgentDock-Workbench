@@ -14,6 +14,7 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
+	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	pluginregistry "github.com/uvwt/agentdock/internal/plugin"
 	"github.com/uvwt/agentdock/internal/snapshot"
 	"github.com/uvwt/agentdock/internal/taskstate"
@@ -189,7 +190,7 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	}
 	if !nexusLocalOnly {
 		contextResult.BuiltinToolBundles = r.builtinToolBundleItems(ctx)
-		contextResult.Rules = append(contextResult.Rules, "builtin_tool_bundles 已列出可用低频工具包。仅在需要包内工具时 capability_load action=load 一次，然后直接调用目标工具；重复加载幂等，不改变权限或插件状态。")
+		contextResult.Rules = append(contextResult.Rules, "builtin_tool_bundles 已列出可用低频工具包。仅在需要包内工具时 capability_load action=load 一次，随后刷新 Host tools/list 再调用目标工具；重复加载幂等，不改变权限或插件状态。")
 		// runtime 只保留模型操作主机所需的稳定环境事实；Nexus Bridge 已通过 Hello 持有这些节点事实，
 		// 私有 context.local 不重复传输，避免两个来源长期漂移。
 		build := buildinfo.Current()
@@ -350,16 +351,17 @@ type capabilityCommonSkillItem struct {
 }
 
 type capabilityDynamicMCPItem struct {
-	SourceType     string `json:"source_type,omitempty"`
-	PluginName     string `json:"plugin_name,omitempty"`
-	Revision       string `json:"revision,omitempty"`
-	ServerVersion  string `json:"server_version,omitempty"`
-	ToolCountKnown *bool  `json:"tool_count_known,omitempty"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	Status         string `json:"status"`
-	ToolCount      int    `json:"tool_count"`
-	LastErrorCode  string `json:"last_error_code,omitempty"`
+	CatalogState   *mcpclient.CatalogState `json:"catalog_state,omitempty"`
+	SourceType     string                  `json:"source_type,omitempty"`
+	PluginName     string                  `json:"plugin_name,omitempty"`
+	Revision       string                  `json:"revision,omitempty"`
+	ServerVersion  string                  `json:"server_version,omitempty"`
+	ToolCountKnown *bool                   `json:"tool_count_known,omitempty"`
+	Name           string                  `json:"name"`
+	Description    string                  `json:"description"`
+	Status         string                  `json:"status"`
+	ToolCount      int                     `json:"tool_count"`
+	LastErrorCode  string                  `json:"last_error_code,omitempty"`
 }
 
 type capabilityPluginItem struct {
@@ -463,9 +465,15 @@ func (r *Runtime) dynamicMCPCapabilityIndexContext(ctx context.Context, includeP
 			revision = server.Revision
 			version = server.ServerVersion
 		}
+		var catalogState *mcpclient.CatalogState
+		if !includePluginMembers {
+			value := server.CatalogState
+			catalogState = &value
+		}
 		items = append(items, capabilityDynamicMCPItem{
-			Name:     server.Name,
-			Revision: revision, ServerVersion: version, ToolCountKnown: known,
+			CatalogState: catalogState,
+			Name:         server.Name,
+			Revision:     revision, ServerVersion: version, ToolCountKnown: known,
 			Description:   truncateString(capabilityrouting.ServerDescription(server.Plugin, server.Name, server.Description), 240),
 			SourceType:    capabilitySourceType(server.Plugin),
 			PluginName:    server.Plugin,

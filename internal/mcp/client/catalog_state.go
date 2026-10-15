@@ -49,7 +49,7 @@ func summaryForSnapshot(cfg ServerConfig, snapshot indexSnapshot) ServerSummary 
 	}
 	summary := ServerSummary{SourceType: cfg.SourceType, PluginName: cfg.PluginName, DisplayName: cfg.DisplayName, Plugin: cfg.PluginName, Name: cfg.Name, Description: cfg.Description, Transport: cfg.Transport, Enabled: cfg.Enabled, Status: status,
 		ToolCount: snapshot.Count, ToolCountKnown: snapshot.Known, ServerVersion: snapshot.Version, LastError: snapshot.LastError, LastErrorCode: snapshot.LastErrorCode,
-		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), OverrideSource: cfg.overrideSource, LastGoodAvailable: snapshot.Ready && snapshot.LastError != ""}
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), OverrideSource: cfg.overrideSource, LastGoodAvailable: snapshot.Known && snapshot.LastError != "", CatalogState: catalogStateForSnapshot(cfg, snapshot)}
 	if !snapshot.RefreshedAt.IsZero() {
 		summary.RefreshedAt = snapshot.RefreshedAt.Format(time.RFC3339Nano)
 	}
@@ -135,4 +135,27 @@ func (m *Manager) DirectoryRevision() string {
 	}
 	encoded, _ := json.Marshal(items)
 	return fmt.Sprintf("mcprev_%x", sha256.Sum256(encoded))
+}
+
+// Freshness and connection availability are independent: retained schemas survive
+// refresh failures, and a cold/lazy directory never proves a tool is absent.
+func catalogStateForSnapshot(cfg ServerConfig, snapshot indexSnapshot) CatalogState {
+	state := CatalogState{State: "stale", CatalogRevision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerRevision: cfg.revision, Lazy: !snapshot.Ready}
+	if !snapshot.RefreshedAt.IsZero() {
+		state.RefreshedAt = snapshot.RefreshedAt.Format(time.RFC3339Nano)
+	}
+	switch {
+	case snapshot.LastErrorCode != "":
+		state.RefreshErrorCode, state.RefreshAttempted = snapshot.LastErrorCode, true
+		if snapshot.Known {
+			state.State = "refresh_failed"
+		} else {
+			state.State = "unavailable"
+		}
+	case catalogFresh(&snapshot):
+		state.State, state.AbsenceAuthoritative = "fresh", cfg.Enabled
+	case snapshot.Known && !snapshot.Ready:
+		state.State = "cached"
+	}
+	return state
 }

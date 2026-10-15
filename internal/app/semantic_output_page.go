@@ -122,9 +122,14 @@ func requiredPageHeader(full Result, first bool) Result {
 	if diagnostics := modelObject(full["context_diagnostics"]); diagnostics != nil {
 		page["context_diagnostics"] = map[string]any{"complete": false, "components_complete": diagnostics["components_complete"], "binding_status": diagnostics["binding_status"]}
 	}
-	if first {
-		if routes, exists := full["host_tools"]; exists {
-			page["host_tools"] = routes
+	if first && full["host_tools"] != nil {
+		for _, key := range contextBootstrapHeaderKeys {
+			if value, exists := full[key]; exists {
+				page[key] = value
+			}
+		}
+		if instructions := modelObject(full["instruction_files"]); instructions != nil && instructions["revision"] != nil {
+			page["instruction_files"] = map[string]any{"complete": instructions["complete"], "revision": instructions["revision"]}
 		}
 	}
 	return page
@@ -134,6 +139,11 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 	body := maps.Clone(full)
 	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "host_tools"} {
 		delete(body, key)
+	}
+	if _, bootstrap := full["host_tools"]; bootstrap {
+		for _, key := range contextBootstrapHeaderKeys {
+			delete(body, key)
+		}
 	}
 	headerChars, _ := toolcontract.JSONChars(requiredPageHeader(full, false))
 	// Reserve section-name accounting and array punctuation before filling a page.
@@ -169,7 +179,8 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 	page := requiredPageHeader(full, start == 0)
 	page["sections"] = groups[start]
 	if diagnostics := modelObject(page["context_diagnostics"]); diagnostics != nil {
-		diagnostics["complete"] = modelObject(full["context_diagnostics"])["complete"] == true && start+1 == len(groups)
+		_, bootstrap := full["host_tools"]
+		diagnostics["complete"] = modelObject(full["context_diagnostics"])["complete"] == true && (bootstrap || start+1 == len(groups))
 	}
 	received := map[string]bool{}
 	for key := range requiredPageHeader(full, true) {

@@ -27,6 +27,7 @@ type ManageRequest struct {
 }
 
 type SearchRequest struct {
+	Refresh          bool   `json:"refresh,omitempty"`
 	Query            string `json:"query"`
 	Server           string `json:"server,omitempty"`
 	Limit            *int   `json:"limit,omitempty"`
