@@ -1,6 +1,6 @@
 {
   "state": "rerunning",
-  "detail": "Source run attempt 1 concluded failure; rerun 1",
+  "detail": "Source run attempt 2 concluded failure; rerun 2",
   "source_run_id": 38677141595,
   "source_sha": "ae7a38eccd83710c44673764ce3f345a7e329db9",
   "version": "1.1.9",
