@@ -1,0 +1,228 @@
+name: One-shot AgentDock 1.1.9 prerelease recovery
+run-name: Recover 1.1.9 prerelease from verified build 38677141595
+
+on:
+  push:
+    branches:
+      - ops/release-1.1.9-ae7a38ec-20261015
+    paths:
+      - .github/workflows/ops-release-1.1.9-ae7a38ec.yml
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  recover:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: '38677141595'
+      SOURCE_SHA: ae7a38eccd83710c44673764ce3f345a7e329db9
+      PRODUCT_VERSION: 1.1.9
+      OPS_BRANCH: ops/release-1.1.9-ae7a38ec-20261015
+      STATUS_PATH: .agentdock-ops/release-1.1.9-ae7a38ec-status.json
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Recover verified build and replace prerelease
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          status_write() {
+            local state="$1"
+            local detail="$2"
+            local payload encoded current_sha
+            payload="$(STATE="$state" DETAIL="$detail" python3 - <<'PY'
+          import json, os
+          print(json.dumps({
+              'state': os.environ['STATE'],
+              'detail': os.environ['DETAIL'],
+              'source_run_id': int(os.environ['SOURCE_RUN']),
+              'source_sha': os.environ['SOURCE_SHA'],
+              'version': os.environ['PRODUCT_VERSION'],
+              'ops_run_id': int(os.environ['GITHUB_RUN_ID']),
+              'ops_run_attempt': int(os.environ['GITHUB_RUN_ATTEMPT']),
+          }, ensure_ascii=False, indent=2))
+          PY
+            )"
+            encoded="$(printf '%s\n' "$payload" | base64 -w0)"
+            current_sha="$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/$STATUS_PATH" -f "ref=$OPS_BRANCH" --jq .sha 2>/dev/null || true)"
+            args=(--method PUT -f "message=ops: record 1.1.9 release state $state" -f "content=$encoded" -f "branch=$OPS_BRANCH")
+            if [[ -n "$current_sha" ]]; then
+              args+=(-f "sha=$current_sha")
+            fi
+            gh api "repos/$GITHUB_REPOSITORY/contents/$STATUS_PATH" "${args[@]}" >/dev/null
+          }
+
+          on_exit() {
+            local rc=$?
+            trap - EXIT
+            if (( rc != 0 )); then
+              status_write failed "Recovery workflow stopped with exit code $rc" || true
+            fi
+            exit "$rc"
+          }
+          trap on_exit EXIT
+
+          get_source_run() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN"
+          }
+
+          wait_source_completion() {
+            local json status
+            for _ in $(seq 1 240); do
+              json="$(get_source_run)"
+              status="$(jq -r .status <<<"$json")"
+              if [[ "$status" == completed ]]; then
+                printf '%s' "$json"
+                return 0
+              fi
+              sleep 15
+            done
+            echo "Source run did not complete within the bounded wait" >&2
+            return 1
+          }
+
+          wait_new_attempt() {
+            local previous="$1"
+            local json attempt
+            for _ in $(seq 1 80); do
+              json="$(get_source_run)"
+              attempt="$(jq -r .run_attempt <<<"$json")"
+              if (( attempt > previous )); then
+                printf '%s' "$json"
+                return 0
+              fi
+              sleep 10
+            done
+            echo "Source rerun attempt did not start" >&2
+            return 1
+          }
+
+          status_write started "Waiting for source build run $SOURCE_RUN"
+          source_json="$(wait_source_completion)"
+          conclusion="$(jq -r .conclusion <<<"$source_json")"
+          attempt="$(jq -r .run_attempt <<<"$source_json")"
+
+          for retry in 1 2 3; do
+            if [[ "$conclusion" == success ]]; then
+              break
+            fi
+            status_write rerunning "Source run attempt $attempt concluded $conclusion; rerun $retry"
+            endpoint=rerun
+            if [[ "$conclusion" == failure ]]; then
+              endpoint=rerun-failed-jobs
+            fi
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/$endpoint" --silent
+            wait_new_attempt "$attempt" >/dev/null
+            source_json="$(wait_source_completion)"
+            conclusion="$(jq -r .conclusion <<<"$source_json")"
+            attempt="$(jq -r .run_attempt <<<"$source_json")"
+          done
+
+          if [[ "$conclusion" != success ]]; then
+            echo "Source run remained $conclusion after bounded retries" >&2
+            exit 1
+          fi
+
+          jq -e --arg sha "$SOURCE_SHA" '
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_sha == $sha and
+            .head_branch == "main" and
+            .event == "workflow_dispatch" and
+            .path == ".github/workflows/workbench-release.yml"
+          ' <<<"$source_json" >/dev/null
+          status_write build_verified "Source run $SOURCE_RUN attempt $attempt passed"
+
+          dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/workbench-publish-existing.yml/dispatches" --input - --silent <<JSON
+          {
+            "ref": "main",
+            "inputs": {
+              "run_id": "$SOURCE_RUN",
+              "commit": "$SOURCE_SHA",
+              "version": "$PRODUCT_VERSION",
+              "prerelease": "true",
+              "replace_published": "true",
+              "replace_stable": "false"
+            }
+          }
+          JSON
+
+          expected_title="Publish verified Workbench $PRODUCT_VERSION from run $SOURCE_RUN"
+          publication_id=""
+          for _ in $(seq 1 60); do
+            publication_id="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/workbench-publish-existing.yml/runs?event=workflow_dispatch&branch=main&per_page=30" |
+              jq -r --arg title "$expected_title" --arg since "$dispatch_started" '
+                [.workflow_runs[] | select(.display_title == $title and .created_at >= $since)]
+                | sort_by(.created_at)
+                | last
+                | .id // empty
+              '
+            )"
+            if [[ -n "$publication_id" ]]; then
+              break
+            fi
+            sleep 10
+          done
+          if [[ -z "$publication_id" ]]; then
+            echo "Publication workflow run was not created" >&2
+            exit 1
+          fi
+
+          status_write publishing "Publication run $publication_id started"
+          publication_json=""
+          for _ in $(seq 1 180); do
+            publication_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$publication_id")"
+            if [[ "$(jq -r .status <<<"$publication_json")" == completed ]]; then
+              break
+            fi
+            sleep 15
+          done
+          jq -e --arg sha "$SOURCE_SHA" '
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_sha == $sha and
+            .head_branch == "main" and
+            .event == "workflow_dispatch"
+          ' <<<"$publication_json" >/dev/null
+
+          release_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$PRODUCT_VERSION")"
+          jq -e '
+            .draft == false and
+            .prerelease == true and
+            .tag_name == "v1.1.9" and
+            .name == "AgentDock Workbench 1.1.9 Pre-release"
+          ' <<<"$release_json" >/dev/null
+
+          ref_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$PRODUCT_VERSION")"
+          ref_type="$(jq -r .object.type <<<"$ref_json")"
+          ref_sha="$(jq -r .object.sha <<<"$ref_json")"
+          if [[ "$ref_type" == tag ]]; then
+            ref_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$ref_sha" --jq .object.sha)"
+          fi
+          test "$ref_sha" = "$SOURCE_SHA"
+
+          expected_assets="$(cat <<'ASSETS' | sort
+          AgentDock-Workbench-1.1.9-Android.apk
+          AgentDock-Workbench-Setup-amd64.exe
+          AgentDock-Workbench-Setup-arm64.exe
+          AgentDock-macos-universal.dmg
+          agentdock-workbench-1.1.9-1.aarch64.rpm
+          agentdock-workbench-1.1.9-1.x86_64.rpm
+          agentdock-workbench_1.1.9_amd64.deb
+          agentdock-workbench_1.1.9_arm64.deb
+          ASSETS
+          )"
+          actual_assets="$(jq -r '.assets[].name' <<<"$release_json" | sort)"
+          test "$actual_assets" = "$expected_assets"
+
+          status_write success "Published prerelease v$PRODUCT_VERSION from source run $SOURCE_RUN attempt $attempt via publication run $publication_id"
+          trap - EXIT
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$OPS_BRANCH" --silent || true
