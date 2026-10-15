@@ -2,10 +2,10 @@
   "schema_version": 1,
   "version": "1.1.9",
   "source_sha": "0a5d8da43e633eb31074d00a1f232c45983f8845",
-  "phase": "preflight",
+  "phase": "build",
   "state": "running",
-  "message": "Verifying main, open pull requests and current prerelease state.",
-  "build_run_id": "",
+  "message": "Waiting for verified build run 38694213875.",
+  "build_run_id": "38694213875",
   "publish_run_id": "",
-  "updated_at": "2026-10-15T06:49:09.360805+00:00"
+  "updated_at": "2026-10-15T06:49:14.498373+00:00"
 }
