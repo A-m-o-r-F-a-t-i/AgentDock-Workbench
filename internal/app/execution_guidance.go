@@ -109,7 +109,7 @@ func structuredOutputFollowups(name string, args map[string]any, result Result) 
 		}
 		steps = append(steps, map[string]any{
 			"action": "continue_structured_output", "tool": name, "arguments": arguments,
-			"text": "Call the same tool with these supplied continuation arguments. The retained result is immutable and the source operation will not run again.",
+			"text": "Use these continuation arguments to read the retained result. If the host schema omits cursor, use structured_output.continue_read and follow next_offset instead. Never repeat the initial request to read more output.",
 		})
 	}
 	return steps

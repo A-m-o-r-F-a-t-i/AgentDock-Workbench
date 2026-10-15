@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/contextguide"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
@@ -33,6 +34,14 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	paths := structuredOutputPaths(p.spec.Name)
 	if len(paths) == 0 || result == nil || p.state.binding.ParentCallID != "" {
 		return result
+	}
+	// Match against the complete, revalidated result before paging can mark its
+	// delivery incomplete. Cursor requests must always deliver their next page.
+	if p.structuredResume == nil && (p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context") {
+		projected := contextguide.ProjectReference(p.spec.Name, stringArg(p.args, "known_context_revision"), result)
+		if projected["delivery"] == "reference" {
+			return projected
+		}
 	}
 	full, encoded, err := cloneStructuredResult(result)
 	if err != nil {
@@ -100,6 +109,10 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	}
 	if snapshot.SourceURI != "" {
 		meta["source"] = snapshot.SourceURI
+		meta["continue_read"] = map[string]any{
+			"tool":      "read_file",
+			"arguments": map[string]any{"path": snapshot.SourceURI, "offset": 0, "limit_chars": 20000},
+		}
 	}
 	if snapshot.SourceReason != "" {
 		meta["source_reason"] = snapshot.SourceReason
@@ -123,7 +136,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 		meta["continuation_unavailable"] = "The exact structured result was not retained; use the activity source when available."
 	}
 	page["structured_output"] = meta
-	if p.spec.Name == "agentdock_context" {
+	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
 		setContextDeliveryComplete(page, !deliveryIncomplete && !snapshot.OversizedItems)
 	}
 	for range 3 {

@@ -30,13 +30,15 @@ HTTP 收尾记录实际写入字节数、请求取消、写入失败和异常退
 
 ### 上下文响应
 
-默认模式继续在 structuredContent 与文本中提供完整上下文，以兼容旧客户端。客户端明确保证消费 structuredContent 时，可在工具请求的 `_meta` 中传入：
+旧协议及未声明结构化支持的调用保留完整兼容 JSON。使用 MCP 2026-07-28 及以后协议的适配路径，对上下文与普通工具统一采用结构化结果加有界文本摘要。需要完整文本的客户端可显式协商 `text=full`。客户端也可在工具请求的 `_meta` 中指定摘要模式：
 
 ```json
 {"agentdock/context-response-v1":{"structured":true,"text":"summary"}}
 ```
 
 摘要正文小于 1024 字节，所有规则、工作区、Skill、任务和警告仍保存在 structuredContent。错误结果保留错误文本。可信中途插入继续单独追加，不计入摘要正文上限。适配器也可显式调用 `WithStructuredContext`。
+
+上下文修订引用在完整内容校验后、结构化分页前生成，避免相同大结果因分页变为 `complete=false` 而失去复用机会。续读请求始终交付实际页内容，不用已知修订引用替代最后一页。分页响应保留 `read_file` 读取来源的备用入口，支持宿主旧 Schema 尚未展示游标参数的场景。
 
 `_meta.agentdock/context-response-v1` 给出 structured_bytes、text_content_bytes、response_bytes、compat_text_mode、response_truncated。response_bytes 是序列化后的 CallToolResult 字节数，包括当前 SDK 的结果修饰字段，不包含 JSON-RPC 外层、HTTP 头和分块编码。HTTP 日志的 bytes 独立反映实际写入量。旧协议与新协议分别验证，不用结构化内容大小冒充网络流量。
 

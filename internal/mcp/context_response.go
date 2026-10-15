@@ -60,10 +60,10 @@ func responseTextMode(ctx context.Context, name string) string {
 	if mode, _ := ctx.Value(structuredResultsKey{}).(string); mode != "" {
 		return mode
 	}
-	if name != "agentdock_context" {
-		if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
-			return responseTextSummary
-		}
+	// Apply the same structured-result policy to bootstrap and ordinary tools.
+	// Explicit text=full negotiation above still supports text-only adapters.
+	if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
+		return responseTextSummary
 	}
 	return responseTextFull
 }

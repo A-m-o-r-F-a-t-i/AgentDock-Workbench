@@ -10,13 +10,13 @@ MCP 服务创建时，把全局规则和默认工作区规则加入初始化 ins
 {}
 ```
 
-空参数使用当前运行时默认工作目录。操作另一个项目或进入有独立规则的子目录前，传入目标目录：
+空参数继承当前对话绑定的工作区，未绑定时使用设备默认目录。操作另一个项目或进入有独立规则的子目录前，传入目标目录：
 
 ```json
 {"workdir":"C:\\projects\\example"}
 ```
 
-`workdir` 接受既有 Host 目录、相对路径和 `~/` 路径。选择仅对本次上下文请求有效，不会修改命令工具的默认工作目录、持久化配置或其他客户端的工作区。后续 `exec_command` 等操作仍需传入对应的 `workdir` 或绝对文件路径。
+`workdir` 接受既有 Host 目录、相对路径和 `~/` 路径。`agentdock_context` 在本次请求内完成规则读取和当前对话的工作区绑定协调，`binding_updated=true` 不要求再次初始化。设备默认目录、其他对话和已运行命令的绑定保持原值。子目录操作继续显式传入对应的 `workdir` 或绝对文件路径。
 
 规则文件创建、修改或删除后，再调用 `agentdock_context` 即可刷新，无需重启 Core。文件改变不会主动推送或追溯修改客户端已经收到的启动快照，也不会凭空获知用户在自然语言里切换了哪个项目。客户端应在开始项目操作、切换项目或已知规则变化时获取上下文，只在正文尚未提供或需要编辑规则时另行读取文件。
 
@@ -82,8 +82,14 @@ go build -o ./bin/agentdock-context.exe ./cmd/agentdock
 
 ## 定向工作区入口
 
-`workspace_context` 接收同样的可选 `workdir`，返回工作区规则与 `.agents/skills/*/SKILL.md` 摘要及可直接读取的精确来源引用。它是定向入口，不替代当前 fork 的完整 `agentdock_context`，也不要求同一规则作用域内每一步同时调用两者。共享或工作区 Skill 与已安装同名 Skill 保持不同身份，不合并正文或借用已安装 Skill 的凭据。
+`workspace_context` 接收可选 `workdir`，省略时读取当前对话绑定的工作区，返回规则与 `.agents/skills/*/SKILL.md` 摘要及精确来源引用。其选择仅影响本次只读请求，不修改执行绑定，`context_diagnostics.binding_status=request_local` 明确表示这一点。已获得所需规则后直接继续业务操作。共享或工作区 Skill 与已安装同名 Skill 保持不同身份，不合并正文或借用已安装 Skill 的凭据。
 
 ## 上下文复用
 
 首次缺少规则时调用一次 `agentdock_context`。同一规则作用域后续直接使用业务工具，无新增 AGENTS.md 的子目录操作不重载。后台命令继续观察原 session；普通失败或短暂网络错误先核对原调用；MCP 变化只定向刷新该服务。工作区/规则变化或模型压缩后缺少必要内容时可以再次请求，返回完整有效快照，不需要每次填写 conversation_id/task_id。
+
+两个本地上下文工具均支持 `known_context_revision`：仅在调用方仍持有完整上下文时传入其 `context_revision`。服务端重新核验完整内容后，在分页前比较修订号，匹配时返回 `delivery=reference`、`unchanged=true` 和紧凑诊断。修订不匹配或省略该参数时返回实际内容，不把“曾经发送过”当作调用方仍持有正文。
+
+`next_cursor` 表示当前完整快照还有未交付部分，应携带响应给出的选择参数和 `cursor` 继续读取。宿主缓存的旧 Schema 缺少 `cursor` 时，使用 `structured_output.continue_read` 中的 `read_file` 参数，并跟随 `next_offset` 读取同一个保留来源。两条路径均不会重新执行初始 Context 请求。权限、来源所有者和工作区检查继续生效，游标过期后才重新获取需要的只读快照。
+
+Context 刚完成工作区切换时，Activity 根记录仍保留进入请求时的绑定。备用来源读取仅在未过期、完整的 Context 快照记录了同一来源所有者、同一对话和当前目标工作区时，按该快照的目标授权。普通命令输出与其他来源继续使用原工作区检查，重启或快照过期后不沿用此临时引用。

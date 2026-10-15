@@ -50,10 +50,7 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 	}
 	var fullBytes int
 	for _, mode := range []string{"full", "summary"} {
-		meta := sdk.Meta{}
-		if mode == "summary" {
-			meta[ContextResponseCapability] = map[string]any{"structured": true, "text": "summary"}
-		}
+		meta := sdk.Meta{ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
 		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"max_response_bytes": 65536}, Meta: meta})
 		if err != nil || result.IsError {
 			t.Fatalf("%s: result=%+v error=%v", mode, result, err)

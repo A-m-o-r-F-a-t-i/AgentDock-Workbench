@@ -153,14 +153,14 @@ func TestWorkspaceContextSchemaIsRequestLocalWorkspaceEntrypoint(t *testing.T) {
 		t.Fatalf("workspace_context description should explain workspace rules: %q", def.Description)
 	}
 	inputProps := schemaProperties(t, "workspace_context")
-	if len(inputProps) != 1 || inputProps["workdir"] == nil {
-		t.Fatalf("workspace_context should expose only optional workdir: %#v", inputProps)
+	if len(inputProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil {
+		t.Fatalf("workspace_context should expose optional workdir, revision and paging controls: %#v", inputProps)
 	}
 	if required, _ := inputSchema("workspace_context")["required"].([]string); len(required) != 0 {
 		t.Fatalf("workspace_context must accept empty arguments: %#v", required)
 	}
 	outputProps := outputSchema("workspace_context")["properties"].(map[string]any)
-	for _, name := range []string{"workdir", "workspace_root", "instructions", "workspace_skills", "warnings"} {
+	for _, name := range []string{"workdir", "workspace_root", "instructions", "workspace_skills", "warnings", "context_revision", "context_diagnostics", "next_cursor", "structured_output"} {
 		if _, ok := outputProps[name]; !ok {
 			t.Fatalf("workspace_context output missing %q: %#v", name, outputProps)
 		}
