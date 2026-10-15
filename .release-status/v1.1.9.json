@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "version": "1.1.9",
+  "source_sha": "0a5d8da43e633eb31074d00a1f232c45983f8845",
+  "phase": "preflight",
+  "state": "running",
+  "message": "Verifying main, open pull requests and current prerelease state.",
+  "build_run_id": "",
+  "publish_run_id": "",
+  "updated_at": "2026-10-15T06:49:09.360805+00:00"
+}
