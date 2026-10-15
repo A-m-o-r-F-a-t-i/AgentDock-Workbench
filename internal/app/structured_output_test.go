@@ -487,3 +487,171 @@ func collectStructuredMatchLines(t *testing.T, result Result) []int {
 	}
 	return lines
 }
+
+func TestModelV2SemanticPagesRetainContracts(t *testing.T) {
+	text := strings.Repeat("规则💡\"\\\n", 6500)
+	full := Result{"rules": text, "context_revision": "stable", "context_diagnostics": map[string]any{"complete": true, "components_complete": true, "diagnostic_detail": strings.Repeat("diagnostic", 1500)}, "host_tools": []any{map[string]any{"name": "exec_command", "invoke_via": "host"}}}
+	recovered, diagnostics := "", ""
+	for start := 0; start < 100; start++ {
+		page, next, count, _ := buildRequiredOutputPage(full, start, 7900)
+		chars, err := toolcontract.JSONChars(page)
+		if err != nil || chars > 7900 {
+			t.Fatalf("page %d chars=%d err=%v", start, chars, err)
+		}
+		for _, part := range page["sections"].([]semanticOutputPart) {
+			target := (*string)(nil)
+			if part.Path == "/rules" {
+				target = &recovered
+			}
+			if part.Path == "/context_diagnostics/diagnostic_detail" {
+				target = &diagnostics
+			}
+			if target == nil {
+				continue
+			}
+			if part.Text != nil {
+				if part.ByteStart != len(*target) {
+					t.Fatalf("page skipped bytes at %s", part.Path)
+				}
+				*target += *part.Text
+			} else if value, ok := part.Value.(string); ok {
+				*target += value
+			}
+		}
+		if next == count {
+			if recovered != text || diagnostics != strings.Repeat("diagnostic", 1500) {
+				t.Fatalf("required content lost: rules=%d/%d diagnostics=%d", len(recovered), len(text), len(diagnostics))
+			}
+			if modelObject(page["context_diagnostics"])["complete"] != true {
+				t.Fatal("last page is not ready")
+			}
+			return
+		}
+		if modelObject(page["context_diagnostics"])["complete"] == true {
+			t.Fatal("intermediate page claimed complete")
+		}
+	}
+	t.Fatal("required pages did not terminate")
+}
+
+func TestModelV2FileBytePagingAndSourceChange(t *testing.T) {
+	r := executionTestRuntime(t)
+	ctx := activity.WithSource(context.Background(), activity.Source{Principal: "output-v2", Namespace: "mcp", HostConversationID: "file-v2"})
+	text := strings.Repeat("行💡\n长行\"\\", 6000)
+	path := filepath.Join(r.cfg.AgentDockDefaultDir, "page-v2.txt")
+	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
+		t.Fatal(err)
+	}
+	args := map[string]any{"path": path, "max_bytes": 65536, "limit_chars": 750}
+	combined := ""
+	for index := 0; index < 400; index++ {
+		page, err := r.Call(ctx, "read_file", args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if integerArgument(page["offset"]) != len(combined) {
+			t.Fatal("non-contiguous byte cursor")
+		}
+		combined += stringArg(page, "content")
+		if integerArgument(page["next_offset"]) != len(combined) {
+			t.Fatal("cursor advanced past actual visible bytes")
+		}
+		if page["has_more"] == false {
+			break
+		}
+		args = modelObject(modelObject(page["continue_read"])["arguments"])
+		if args == nil {
+			t.Fatal("missing continuation")
+		}
+	}
+	if combined != text {
+		t.Fatalf("file content mismatch: %d/%d bytes", len(combined), len(text))
+	}
+	first, err := r.Call(ctx, "read_file", map[string]any{"path": path, "limit_chars": 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text+"changed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Call(ctx, "read_file", modelObject(modelObject(first["continue_read"])["arguments"]))
+	if err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("changed source was accepted: %v", err)
+	}
+}
+
+func TestModelV2PinnedOutputSource(t *testing.T) {
+	r := executionTestRuntime(t)
+	ctx := activity.WithSource(context.Background(), activity.Source{Principal: "output-v2", Namespace: "mcp", HostConversationID: "source-v2"})
+	text := strings.Repeat("设备输出", 4000) + "ORIGINAL_TAIL"
+	spec := ToolSpec{Name: "search_text", Handler: func(context.Context, *Runtime, map[string]any) (Result, error) {
+		return Result{"status": "exited", "exit_code": 1, "command_ok": false, "stdout": text}, nil
+	}}
+	result, err := r.callObserved(ctx, spec, map[string]any{"query": "fixture output"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := stringArg(modelObject(result["capture"]), "source_ref")
+	if len(outputSourceURI.FindStringSubmatch(source)) != 3 {
+		t.Fatalf("invalid pinned reference %q", source)
+	}
+	call, err := r.activity.Call(ctx, stringArg(result, "call_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := r.activity.CapturePayload(ctx, Result{"stdout": "NEW_SOURCE"}, "complete", r.executionRedactor(nil))
+	if _, err := r.activity.Append(ctx, activity.Event{Binding: call.Binding, Kind: "call.payload", ToolName: "exec_command", OutputSource: replacement}); err != nil {
+		t.Fatal(err)
+	}
+	assembled := ""
+	offset := 0
+	for index := 0; index < 30; index++ {
+		page, err := r.Call(ctx, "read_file", map[string]any{"path": source, "offset": offset, "limit_chars": 8000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assembled += stringArg(page, "content")
+		offset = integerArgument(page["next_offset"])
+		if page["has_more"] == false {
+			break
+		}
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(assembled), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["stdout"] != text {
+		t.Fatal("pinned source was replaced by a later publication")
+	}
+}
+
+func TestModelV2ContextSourceIdentityStable(t *testing.T) {
+	r := executionTestRuntime(t)
+	ctx := context.Background()
+	for attempt := 0; attempt < 3; attempt++ {
+		before, err := r.contextSourceIdentity(ctx, "", activity.Binding{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.agentDockContext(ctx, false, ""); err != nil {
+			t.Fatal(err)
+		}
+		after, err := r.contextSourceIdentity(ctx, "", activity.Binding{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		changes := []string{}
+		for key, value := range before {
+			left, _ := json.Marshal(value)
+			right, _ := json.Marshal(after[key])
+			if string(left) != string(right) {
+				changes = append(changes, key)
+				t.Logf("attempt=%d changed=%s before=%.600s after=%.600s", attempt, key, left, right)
+			}
+		}
+		if len(changes) == 0 {
+			return
+		}
+	}
+	t.Fatal("Context identity did not stabilize after dependency registration")
+}

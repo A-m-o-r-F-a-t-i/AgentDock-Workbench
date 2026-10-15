@@ -58,7 +58,7 @@ func singleBodyEnvelope(name string, envelope map[string]any) map[string]any {
 // This is the last shared SDK/Bridge boundary, after trusted additions and SDK
 // metadata. A large result remains a successful operation with a source receipt.
 func (s *Server) boundModelResponse(ctx context.Context, name string, arguments map[string]any, pending *app.ToolResponse, envelope map[string]any) (map[string]any, error) {
-	out := envelope
+	out := normalizeResponseStages(name, arguments, envelope)
 	if responseTextMode(ctx, name) == responseTextSummary {
 		out = singleBodyEnvelope(name, out)
 	}
@@ -89,13 +89,14 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			payload = map[string]any{}
 		}
 		projection := maps.Clone(asMap(payload["projection"]))
-		if projection == nil {
+		if len(projection) == 0 {
 			projection = map[string]any{"mode": "full", "complete": true}
 		}
 		payload["model_projection"] = map[string]any{
 			"chars": chars, "budget_chars": toolcontract.ModelVisibleTotalChars,
-			"class": toolcontract.ClassifyOutput(name, arguments),
-			"mode":  projection["mode"], "complete": projection["complete"],
+			"class":                   modelOutputClass(name, arguments, payload),
+			"native_attachment_bytes": nativeAttachmentBytes(out),
+			"mode":                    projection["mode"], "complete": projection["complete"],
 		}
 		out["structuredContent"] = payload
 		out, err = measureContextResponse(ctx, name, out)
@@ -128,7 +129,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 
 func compactModelResponse(name string, args map[string]any, original map[string]any, source string) map[string]any {
 	full := asMap(original["structuredContent"])
-	class := toolcontract.ClassifyOutput(name, args)
+	class := modelOutputClass(name, args, full)
 	payload := map[string]any{}
 	for _, key := range []string{"operation", "capture", "agentdock_guidance", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms"} {
 		if value, exists := full[key]; exists {
@@ -156,7 +157,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	if name == "agentdock_context" || name == "workspace_context" {
 		payload["context_ready"] = false
 		payload["context_revision"] = full["context_revision"]
-		payload["context_diagnostics"] = map[string]any{"complete": false, "components_complete": true, "binding_status": "unchanged"}
+		payload["context_diagnostics"] = map[string]any{"complete": false, "components_complete": asMap(full["context_diagnostics"])["components_complete"], "binding_status": asMap(full["context_diagnostics"])["binding_status"]}
 	}
 	// Preserve the error tail for commands even when decorations force a smaller
 	// emergency projection. File cursors are never advanced by this fallback.
@@ -168,4 +169,60 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	out := maps.Clone(original)
 	out["structuredContent"] = payload
 	return singleBodyEnvelope(name, out)
+}
+
+func modelOutputClass(name string, args, payload map[string]any) toolcontract.OutputClass {
+	if value, ok := asMap(payload["delivery"])["class"].(toolcontract.OutputClass); ok {
+		return value
+	}
+	if value, ok := asMap(payload["delivery"])["class"].(string); ok {
+		switch toolcontract.OutputClass(value) {
+		case toolcontract.OutputRequiredFull, toolcontract.OutputRecoverablePreview, toolcontract.OutputCompactReceipt:
+			return toolcontract.OutputClass(value)
+		}
+	}
+	return toolcontract.ResolveOutputClass(name, args, payload)
+}
+
+func nativeAttachmentBytes(envelope map[string]any) int64 {
+	total := int64(0)
+	for _, block := range envelopeBlocks(envelope["content"]) {
+		value := asMap(block)
+		if value["type"] == "image" || value["type"] == "audio" {
+			if data, ok := value["data"].(string); ok {
+				total += int64(len(data))
+			}
+		}
+	}
+	return total
+}
+
+func normalizeResponseStages(name string, args, envelope map[string]any) map[string]any {
+	out := maps.Clone(envelope)
+	payload := maps.Clone(asMap(out["structuredContent"]))
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	if payload["operation"] == nil {
+		state, ok := "completed", out["isError"] != true
+		if !ok {
+			state = "failed"
+		}
+		operation := map[string]any{"state": state, "ok": ok}
+		if code, exists := payload["code"]; exists {
+			operation["error_code"] = code
+		}
+		payload["operation"] = operation
+	}
+	if payload["capture"] == nil {
+		payload["capture"] = map[string]any{"state": "complete", "complete": true, "retained_with": "response"}
+	}
+	if payload["projection"] == nil {
+		payload["projection"] = map[string]any{"mode": "full", "complete": true}
+	}
+	if payload["delivery"] == nil {
+		payload["delivery"] = map[string]any{"class": toolcontract.ResolveOutputClass(name, args, payload), "sequence_complete": true, "continuation_required": false, "continuation_available": false}
+	}
+	out["structuredContent"] = payload
+	return out
 }

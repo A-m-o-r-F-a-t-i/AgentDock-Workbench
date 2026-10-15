@@ -123,3 +123,10 @@ func errorReportsNotExecuted(err error) bool {
 	}
 	return false
 }
+
+func (p *PreparedCall) OutputPolicy() (string, string) {
+	if p == nil || p.client == nil {
+		return "", ""
+	}
+	return p.client.OutputPolicy()
+}

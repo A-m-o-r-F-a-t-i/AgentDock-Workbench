@@ -94,6 +94,9 @@ func (details *FileEditDetails) clone(preview bool) *FileEditDetails {
 }
 
 func applyMeasurements(call *ExecutionCall, event Event) {
+	if event.OutputStages != nil {
+		call.OutputStages = event.OutputStages.clone()
+	}
 	if event.OutputSource != nil {
 		if previous := call.OutputSource; previous != nil && previous.Ref != "" && previous.Ref != event.OutputSource.Ref {
 			found := false

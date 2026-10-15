@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/activity"
 )
@@ -35,6 +37,18 @@ func (r *Runtime) executionPayloadEvent(ctx context.Context, binding activity.Bi
 		event.Request = payload
 	} else {
 		event.Response = payload
+		source := modelObject(value)
+		if structured := modelObject(source["structuredContent"]); structured != nil {
+			source = structured
+		}
+		if source["projection"] != nil {
+			encoded, err := json.Marshal(source)
+			stages := &activity.OutputStages{}
+			if err == nil && json.Unmarshal(encoded, stages) == nil {
+				stages.ActivityPreview = &activity.PreviewMeasurement{Chars: utf8.RuneCountInString(payload.Preview), Truncated: payload.Truncated}
+				event.OutputStages = stages
+			}
+		}
 	}
 	return event, true
 }

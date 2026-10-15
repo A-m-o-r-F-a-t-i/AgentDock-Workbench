@@ -59,6 +59,14 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 		if err != nil {
 			return nil, err
 		}
+		text := stringArg(raw, "content")
+		textChars := utf8.RuneCountInString(text)
+		encodedChars, countErr := toolcontract.JSONChars(raw)
+		if countErr == nil && encodedChars < 4000 && raw["has_more"] == false && (request.LimitChars == nil || *request.LimitChars >= textChars) {
+			raw["capture"] = map[string]any{"state": "complete", "complete": true, "retained_with": "response"}
+			raw["projection"] = map[string]any{"mode": "continuous_page", "complete": true, "visible_chars": textChars}
+			return raw, nil
+		}
 		encodedRaw, encoded, err := cloneStructuredResult(raw)
 		if err != nil {
 			return nil, err

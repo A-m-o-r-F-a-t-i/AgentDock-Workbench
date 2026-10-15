@@ -96,3 +96,15 @@ func jsonRuneChars(value rune) int {
 		return 1
 	}
 }
+
+// Explicit declarations only alter presentation, never execution admission.
+func ResolveOutputClass(name string, args, result map[string]any) OutputClass {
+	if name == "mcp_tool_call" || name == "read_file" {
+		declared, _ := result["output_class"].(string)
+		switch OutputClass(declared) {
+		case OutputRequiredFull, OutputRecoverablePreview, OutputCompactReceipt:
+			return OutputClass(declared)
+		}
+	}
+	return ClassifyOutput(name, args)
+}

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -17,43 +19,56 @@ import (
 // Observe dependency identities without rebuilding Context or expanding MCPs.
 // Authorization is independently revalidated by the normal execution admission.
 func (r *Runtime) contextSourceStamp(ctx context.Context, workdir string, binding activity.Binding) (string, error) {
-	ctx = activity.WithBinding(ctx, binding)
-	selected, resolved, err := r.selectContextWorkspace(ctx, workdir)
+	identity, err := r.contextSourceIdentity(ctx, workdir, binding)
 	if err != nil {
 		return "", err
 	}
-	pluginRevision, err := r.pluginStore.SourceRevision(ctx)
+	encoded, err := json.Marshal(identity)
 	if err != nil {
 		return "", err
+	}
+	return fmt.Sprintf("ctxsrc_%x", sha256.Sum256(encoded)), nil
+}
+
+func (r *Runtime) contextSourceIdentity(ctx context.Context, workdir string, binding activity.Binding) (map[string]any, error) {
+	ctx = activity.WithBinding(ctx, binding)
+	selected, resolved, err := r.selectContextWorkspace(ctx, workdir)
+	if err != nil {
+		return nil, err
+	}
+	pluginRevision, err := r.pluginStore.SourceRevision(ctx)
+	if err != nil {
+		return nil, err
 	}
 	global := r.cfg.InstructionsFile
 	if global == "" {
 		global = filepath.Join(r.cfg.AgentDockHome, "AGENTS.md")
 	}
 	paths := snapshot.MetadataPaths(resolved, global)
+	taskRevision, err := r.contextTaskRevision()
+	if err != nil {
+		return nil, err
+	}
+
 	revisions := []string{}
 	if r.contextSnapshots != nil {
 		for _, files := range []contextFiles{r.contextSnapshots.ruleFiles, r.contextSnapshots.skillFiles, r.contextSnapshots.commonFiles} {
 			if err := files.Sync(ctx); err != nil {
-				return "", err
+				return nil, err
 			}
 			source, _ := files.Revisions()
 			revisions = append(revisions, source)
 		}
 	}
-	encoded, err := json.Marshal(map[string]any{
+	return map[string]any{
 		"workspace": selected, "workdir": resolved, "plugins": pluginRevision,
 		"files": revisions, "rules": snapshot.Stamps(paths...),
-		"task_index": snapshot.Stamps(filepath.Join(r.cfg.AgentDockHome, "tasks")),
+		"task_index": taskRevision,
 
 		"task": binding.TaskID, "thread": binding.ThreadID, "step": binding.StepID,
 		"platform": buildinfo.FullCommit(), "mcp": r.capabilityManager.DirectoryRevision(),
 		"builtin_tools": r.builtinToolBundleItems(ctx),
-	})
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("ctxsrc_%x", sha256.Sum256(encoded)), nil
+	}, nil
 }
 
 func sameContextScope(a, b activity.Binding) bool {
@@ -220,4 +235,22 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 		return cloned, nil
 	}
 	return nil, toolErrorDetails("CONTEXT_REVISION_CHANGED", "Context sources changed while preparing the immutable snapshot.", "conflict", map[string]any{"stage": "response_projection"})
+}
+
+func (r *Runtime) contextTaskRevision() (string, error) {
+	root := filepath.Join(r.cfg.AgentDockHome, "tasks")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", err
+	}
+	paths := []string{}
+	// Store read locks are created/removed in this directory. Only persisted
+	// task/management records change Context; parent directory mtimes do not.
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() && (strings.HasPrefix(name, "tsk_") && strings.HasSuffix(name, ".json") || name == "management-v1.json" || name == ".thread-transaction.json" || name == ".management-delete.json") {
+			paths = append(paths, filepath.Join(root, name))
+		}
+	}
+	return snapshot.Stamps(paths...), nil
 }

@@ -31,7 +31,7 @@ func sourceResultComplete(result Result) (bool, string) {
 }
 
 func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Result) Result {
-	if result != nil && p.state.binding.ParentCallID == "" && p.spec.Name != "read_file" && toolcontract.ClassifyOutput(p.spec.Name, p.args) == toolcontract.OutputRequiredFull {
+	if result != nil && p.state.binding.ParentCallID == "" && p.spec.Name != "read_file" && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) == toolcontract.OutputRequiredFull {
 		return r.applyRequiredOutputPolicy(p, result)
 	}
 	paths := structuredOutputPaths(p.spec.Name)

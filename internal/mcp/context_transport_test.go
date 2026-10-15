@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/app"
@@ -178,5 +179,51 @@ func TestContextTransportPreDispatchAndEncodeErrorsAreTyped(t *testing.T) {
 	_, err = h.server.finishResponse(ctx, "agentdock_context", nil, pending, map[string]any{"content": make(chan int)})
 	if !errors.As(err, &failure) || failure.Stage != "response_encode" || failure.Retryable {
 		t.Fatalf("bad encode error: %v", err)
+	}
+}
+
+func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
+	h := newMCPAppTestHarnessWithApps(t, config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}, false)
+	rule := strings.Repeat("新规则💡\"\\\n", 2400)
+	if err := os.WriteFile(filepath.Join(h.runtime.Config().AgentDockDefaultDir, "AGENTS.md"), []byte(rule), 0600); err != nil {
+		t.Fatal(err)
+	}
+	revision := ""
+	args := map[string]any{"force_refresh": true}
+	complete := false
+	for index := 0; index < 80; index++ {
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+		if err != nil || result.IsError {
+			t.Fatalf("page %d err=%v result=%+v", index, err, result)
+		}
+		encoded, err := json.Marshal(result)
+		if err != nil || utf8.RuneCount(encoded) > 12000 {
+			t.Fatalf("final escaped budget exceeded: chars=%d err=%v", utf8.RuneCount(encoded), err)
+		}
+		if text, ok := result.Content[0].(*sdk.TextContent); !ok || utf8.RuneCountInString(text.Text) > 512 {
+			t.Fatal("compatibility summary exceeded")
+		}
+		value := asMap(result.StructuredContent)
+		current, _ := value["context_revision"].(string)
+		if index == 0 {
+			revision = current
+		} else if current != revision {
+			t.Fatal("Context revision changed during frozen paging")
+		}
+		if value["context_ready"] == true {
+			complete = true
+			break
+		}
+		if asMap(value["delivery"])["continuation_required"] != true {
+			t.Fatalf("incomplete required context lacked continuation: %+v", value["delivery"])
+		}
+		args = map[string]any{}
+	}
+	if !complete {
+		t.Fatal("Context automatic paging did not finish")
+	}
+	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+	if err != nil || result.IsError || asMap(result.StructuredContent)["unchanged"] != true {
+		t.Fatalf("same revision not reused: %+v err=%v", result, err)
 	}
 }

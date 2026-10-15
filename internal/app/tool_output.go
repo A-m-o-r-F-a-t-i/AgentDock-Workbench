@@ -104,7 +104,7 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
 		budget = min(budget, p.outputPolicy.MaxChars)
 	}
-	if toolcontract.ClassifyOutput(p.spec.Name, p.args) == toolcontract.OutputCompactReceipt {
+	if toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) == toolcontract.OutputCompactReceipt {
 		budget = min(budget, 1500)
 	}
 	redactor := r.executionRedactor(nil)

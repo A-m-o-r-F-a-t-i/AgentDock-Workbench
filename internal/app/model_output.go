@@ -63,6 +63,13 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if dropped, exists := result["dropped_before_bytes"]; exists {
 		capture["dropped_bytes"] = dropped
 	}
+	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= 4000 && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
+		// A complete small result is retained by the existing final response
+		// journal. Avoid another fsync and duplicate payload for every small call.
+		capture["retained_with"] = "response"
+		out["capture"], out["operation"] = capture, modelOperation(result, p.state.executed)
+		return out
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	payload := r.activity.CapturePayload(ctx, result, state, r.executionRedactor(p.args))
@@ -122,7 +129,7 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	if result == nil || p.state.binding.ParentCallID != "" {
 		return result
 	}
-	class := toolcontract.ClassifyOutput(p.spec.Name, p.args)
+	class := toolcontract.ResolveOutputClass(p.spec.Name, p.args, result)
 	structured := modelObject(result["structured_output"])
 	policy := modelObject(result["output_policy"])
 	capture := modelObject(result["capture"])

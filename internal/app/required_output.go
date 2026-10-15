@@ -128,6 +128,11 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 		delete(page, "next_cursor")
 		meta["continuation_unavailable"] = "Read the exact retained source to recover this indivisible semantic unit."
 	}
+	if p.spec.Name == "mcp_tool_call" {
+		// Recovery is a read of the frozen source, never another dynamic write.
+		delete(page, "next_cursor")
+		page["output_class"] = string(toolcontract.OutputRequiredFull)
+	}
 	page["structured_output"] = meta
 	page["has_more"] = hasMore
 	if isContext {
@@ -139,6 +144,7 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 // Delivery progress is committed from the final projection, not from the raw
 // Context handler. An encoder fallback therefore cannot skip an undelivered page.
 func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Result) {
+	r.commitRequiredSource(binding, result)
 	meta := modelObject(result["structured_output"])
 	id := stringArg(meta, "snapshot_id")
 	index, count := integerArgument(meta["page_index"]), integerArgument(meta["page_count"])

@@ -85,7 +85,7 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 }
 
 func structuredOutputFollowups(name string, args map[string]any, result Result) []map[string]any {
-	if toolcontract.ClassifyOutput(name, args) != toolcontract.OutputRequiredFull {
+	if toolcontract.ResolveOutputClass(name, args, result) != toolcontract.OutputRequiredFull {
 		return nil
 	}
 	if name == "read_file" && result["has_more"] == true {
@@ -98,11 +98,17 @@ func structuredOutputFollowups(name string, args map[string]any, result Result) 
 		return nil
 	}
 	steps := make([]map[string]any, 0, 2)
+	if result["has_more"] == true && stringArg(result, "next_cursor") == "" {
+		if source := stringArg(structured, "source"); source != "" {
+			return []map[string]any{{"action": "read_required_source", "tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}, "text": "Continue the immutable required source. This reads retained data without re-executing the original tool."}}
+		}
+	}
+
 	if structured["oversized_item"] != nil {
 		if source, _ := structured["source"].(string); source != "" {
 			steps = append(steps, map[string]any{
 				"action": "read_structured_source", "tool": "read_file",
-				"arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 20000},
+				"arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000},
 				"text":      "Read the retained activity source to recover the oversized structured item, then follow next_offset. This never re-executes the source tool.",
 			})
 		}

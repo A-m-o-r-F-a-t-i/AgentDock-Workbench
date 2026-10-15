@@ -24,14 +24,14 @@ func executionOutputSchema(original map[string]any) map[string]any {
 			properties[name] = map[string]any{"type": "object", "additionalProperties": true}
 		}
 	}
-	for _, name := range []string{"operation", "capture", "projection", "model_projection", "activity_preview", "continue_read", "range"} {
+	for _, name := range []string{"operation", "capture", "projection", "model_projection", "activity_preview", "continue_read", "range", "source_delivery"} {
 		properties[name] = map[string]any{"type": "object", "additionalProperties": true}
 	}
 	properties["delivery"] = map[string]any{"anyOf": []any{map[string]any{"type": "string", "enum": []string{"full", "reference"}}, map[string]any{"type": "object", "required": []string{"class", "sequence_complete", "continuation_required", "continuation_available"}, "properties": map[string]any{"class": map[string]any{"enum": []string{"required_full", "recoverable_preview", "compact_receipt"}}, "sequence_complete": map[string]any{"type": "boolean"}, "continuation_required": map[string]any{"type": "boolean"}, "continuation_available": map[string]any{"type": "boolean"}}, "additionalProperties": true}}}
 	for _, name := range []string{"truncated", "source_complete", "context_ready", "has_more", "unchanged"} {
 		properties[name] = map[string]any{"type": "boolean"}
 	}
-	for _, name := range []string{"truncation_stage", "source_ref", "snapshot_id", "source_revision", "context_delivery"} {
+	for _, name := range []string{"truncation_stage", "source_ref", "snapshot_id", "source_revision", "context_delivery", "output_class", "preview_mode", "source_freshness"} {
 		properties[name] = map[string]any{"type": "string"}
 	}
 	properties["binding_updated"] = map[string]any{"type": "boolean"}
