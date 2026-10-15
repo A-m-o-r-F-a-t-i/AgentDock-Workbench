@@ -15,10 +15,9 @@ func TestSessionObserveRequiresExplicitAction(t *testing.T) {
 
 func TestSessionObserveRejectsArgumentsThatDoNotBelongToList(t *testing.T) {
 	runtime, _ := newCommandTestService(t)
-	limit, wait := 1024, 1000
+	wait := 1000
 	for _, request := range []SessionObserveRequest{
 		{Action: "list", SessionID: "session-unexpected"},
-		{Action: "list", MaxOutputBytes: &limit},
 		{Action: "list", WaitMS: &wait},
 	} {
 		_, err := runtime.Observe(request)
@@ -44,6 +43,7 @@ func TestSessionObserveAcceptsOnlyActionSpecificSchemaShapes(t *testing.T) {
 
 	valid := []map[string]any{
 		{"action": "list"},
+		{"action": "list", "max_output_bytes": 4096},
 		{"action": "status", "session_id": "session-123"},
 		{"action": "status", "session_id": "session-123", "max_output_bytes": 4096},
 		{"action": "status", "session_id": "session-123", "wait_ms": 0},
@@ -58,7 +58,6 @@ func TestSessionObserveAcceptsOnlyActionSpecificSchemaShapes(t *testing.T) {
 	invalid := []map[string]any{
 		{},
 		{"action": "list", "session_id": "session-123"},
-		{"action": "list", "max_output_bytes": 4096},
 		{"action": "list", "wait_ms": 1000},
 		{"action": "status"},
 		{"action": "status", "session_id": ""},

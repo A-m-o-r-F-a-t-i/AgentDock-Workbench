@@ -31,6 +31,8 @@ func structuredOutputPaths(name string) []structuredOutputPath {
 		return []structuredOutputPath{{"tools"}, {"mcp_catalog", "tools"}}
 	case "mcp_tool_inspect":
 		return []structuredOutputPath{{"tools"}, {"errors"}, {"catalogs"}, {"builtin_tools"}}
+	case "workspace_context":
+		return []structuredOutputPath{{"warnings"}, {"instructions"}, {"workspace_skills"}}
 	case "agentdock_context":
 		return []structuredOutputPath{
 			{"rules"}, {"warnings"}, {"instruction_files", "files"},

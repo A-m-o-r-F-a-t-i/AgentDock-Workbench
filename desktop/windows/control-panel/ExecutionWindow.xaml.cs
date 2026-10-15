@@ -230,7 +230,7 @@ public partial class ExecutionWindow : Window
         var query = CallScopeQuery(); var generation = _generation;
         var epoch = older ? _streamEpoch : ++_streamEpoch;
         if (!older) { _streamCancellation?.Cancel(); _historyReadFailed = false; HistoryRetryButton.Visibility = Visibility.Collapsed; }
-        var value = await _client.ExecutionGetAsync("/internal/runtime/calls?" + query + "&limit=100" + (older && _before > 0 ? "&before=" + _before : ""), SelectionToken);
+        var value = await _client.ExecutionGetAsync("/internal/runtime/calls?" + query + "&limit=100&include_request=true" + (older && _before > 0 ? "&before=" + _before : ""), SelectionToken);
         if (generation != _generation || epoch != _streamEpoch || query != CallScopeQuery()) return;
         var previousUpdating = _updating;
         _updating = true;

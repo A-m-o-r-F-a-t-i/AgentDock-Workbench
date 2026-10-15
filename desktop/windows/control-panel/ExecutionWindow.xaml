@@ -30,6 +30,7 @@
           </TextBlock>
           <DockPanel Grid.Column="1" Margin="7,0,14,0" VerticalAlignment="Center">
             <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding ParameterDisplay}" Style="{StaticResource MutedText}" MaxWidth="360" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ParameterHint}" VerticalAlignment="Center" Visibility="{Binding HasParameterDisplay, Converter={StaticResource BoolVisibility}}"/>
             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
           </DockPanel>
 		  <ContentControl Grid.Column="2" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>
@@ -42,6 +43,7 @@
 		  <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="112"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="56"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <DockPanel Margin="8,0" VerticalAlignment="Center">
             <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding ParameterDisplay}" Style="{StaticResource MutedText}" MaxWidth="360" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ParameterHint}" VerticalAlignment="Center" Visibility="{Binding HasParameterDisplay, Converter={StaticResource BoolVisibility}}"/>
             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
           </DockPanel>
 		  <ContentControl Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>
@@ -223,10 +225,10 @@
             </DockPanel>
             <TabControl x:Name="CallDetailsTabs" SelectionChanged="DetailTab_Changed" Visibility="Collapsed">
 			  <TabItem Header="调用与输出"><DockPanel>
-			    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,3,0,5"><Button Content="复制调用" Click="CopyCommand_Click" FontSize="12" ToolTip="复制当前已脱敏的调用参数页"/><Button Content="复制输出" Click="CopyOutput_Click" FontSize="12" ToolTip="复制当前已脱敏的输出页"/><Button Content="停止调用" Click="StopCall_Click" IsEnabled="{Binding CanStop}" FontSize="12"/><Button Content="审批" Click="Approve_Click" Visibility="{Binding NeedsApproval, Converter={StaticResource BoolVisibility}}" FontSize="12"/><Button Content="拒绝" Click="Reject_Click" Visibility="{Binding NeedsApproval, Converter={StaticResource BoolVisibility}}" FontSize="12"/><Button Content="重试说明" Click="RetryInstruction_Click" IsEnabled="{Binding CanRetry}" FontSize="12"/></StackPanel>
+			    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,3,0,5"><Button Content="复制完整参数" Click="CopyFullRequest_Click" FontSize="12" ToolTip="按页读取并复制完整的已脱敏调用参数"/><Button Content="复制输出" Click="CopyOutput_Click" FontSize="12" ToolTip="复制当前已脱敏的输出页"/><Button Content="停止调用" Click="StopCall_Click" IsEnabled="{Binding CanStop}" FontSize="12"/><Button Content="审批" Click="Approve_Click" Visibility="{Binding NeedsApproval, Converter={StaticResource BoolVisibility}}" FontSize="12"/><Button Content="拒绝" Click="Reject_Click" Visibility="{Binding NeedsApproval, Converter={StaticResource BoolVisibility}}" FontSize="12"/><Button Content="重试说明" Click="RetryInstruction_Click" IsEnabled="{Binding CanRetry}" FontSize="12"/></StackPanel>
 			    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
 			      <DockPanel Margin="0,0,8,0">
-			        <DockPanel DockPanel.Dock="Top"><TextBlock Text="调用" FontWeight="SemiBold" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="‹" Tag="request:previous" Click="PayloadPage_Click" MinHeight="22" Padding="5,0" IsEnabled="{Binding RequestPayload.CanReadPrevious}" ToolTip="上一段调用参数"/><Button Content="›" Tag="request:next" Click="PayloadPage_Click" MinHeight="22" Padding="5,0" IsEnabled="{Binding RequestPayload.CanReadNext}" ToolTip="下一段调用参数"/></StackPanel></DockPanel>
+			        <DockPanel DockPanel.Dock="Top"><TextBlock Text="调用参数" FontWeight="SemiBold" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="显示全部" Click="LoadAllRequest_Click" MinHeight="22" Padding="6,0" IsEnabled="{Binding RequestPayload.CanLoadAll}" Visibility="{Binding RequestPayload.HasStoredContent, Converter={StaticResource BoolVisibility}}" ToolTip="按页读取并合并完整的已脱敏调用参数"/><Button Content="‹" Tag="request:previous" Click="PayloadPage_Click" MinHeight="22" Padding="5,0" IsEnabled="{Binding RequestPayload.CanReadPrevious}" ToolTip="上一段调用参数"/><Button Content="›" Tag="request:next" Click="PayloadPage_Click" MinHeight="22" Padding="5,0" IsEnabled="{Binding RequestPayload.CanReadNext}" ToolTip="下一段调用参数"/></StackPanel></DockPanel>
 			        <TextBlock DockPanel.Dock="Top" Text="{Binding RequestPayload.Position}" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding RequestPayload.Position}"/>
 			        <Button DockPanel.Dock="Top" Content="重试读取调用" Tag="request:retry" Click="PayloadPage_Click" Visibility="{Binding RequestPayload.HasReadError, Converter={StaticResource BoolVisibility}}" ToolTip="{Binding RequestPayload.Reason}"/>
 			        <TextBox x:Name="RequestPayloadText" Text="{Binding RequestText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, Microsoft YaHei UI" VerticalScrollBarVisibility="Auto" BorderThickness="0" Padding="4,6" AutomationProperties.Name="真实调用参数"/>
@@ -242,7 +244,7 @@
 			    </Grid>
 			  </DockPanel></TabItem>
               <TabItem Header="来源" Tag="source"><TextBox x:Name="SourceDetailsText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" BorderThickness="0"/></TabItem>
-              <TabItem Header="技术"><TextBox Text="{Binding Technical, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0"/></TabItem>
+              <TabItem Header="调用元数据"><TextBox Text="{Binding Technical, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0"/></TabItem>
               <TabItem Header="耗时"><TextBox Text="{Binding TimingDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" BorderThickness="0"/></TabItem>
               <TabItem Header="文件编辑"><TextBox Text="{Binding FileEditDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0" FontFamily="Consolas"/></TabItem>
             </TabControl>

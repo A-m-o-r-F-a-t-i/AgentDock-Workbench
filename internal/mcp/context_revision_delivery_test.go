@@ -43,7 +43,9 @@ func TestContextRevisionDeliveryReturnsReferenceOnlyForExplicitMatch(t *testing.
 		t.Fatalf("mismatched revision did not return the complete context: %#v", mismatchBody)
 	}
 
-	reference := call(map[string]any{"known_context_revision": revision})
+	// The full context exceeds this page budget. Revision matching must happen
+	// before pagination changes the delivery's complete flag.
+	reference := call(map[string]any{"known_context_revision": revision, "max_response_bytes": 4096})
 	referenceBody := asMap(reference.StructuredContent)
 	if referenceBody["delivery"] != "reference" || referenceBody["unchanged"] != true || referenceBody["context_revision"] != revision {
 		t.Fatalf("matching revision did not return a reference: %#v", referenceBody)

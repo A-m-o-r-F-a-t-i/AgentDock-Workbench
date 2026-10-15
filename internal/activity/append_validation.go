@@ -23,7 +23,7 @@ func validateRawAppend(event Event) error {
 		return errors.New("raw activity event exceeds preparation budget")
 	}
 	for _, payload := range []*Payload{event.Request, event.Response, event.OutputSource} {
-		if payload != nil && !check(payload.Ref, payload.State, payload.Preview, payload.Reason) {
+		if payload != nil && !check(payload.Ref, payload.State, payload.Preview, payload.Overview, payload.Reason) {
 			return errors.New("raw activity payload exceeds preparation budget")
 		}
 	}

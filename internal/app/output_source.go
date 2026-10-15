@@ -47,7 +47,7 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 				return nil, toolError("OUTPUT_CONVERSATION_MISMATCH", "Resume the owning task before reading output from another conversation.", "permission")
 			}
 		}
-		if call.WorkspaceID != "" && bound.WorkspaceID != call.WorkspaceID {
+		if call.WorkspaceID != "" && bound.WorkspaceID != call.WorkspaceID && !r.ownsSelectedContextSource(request.Path, bound) {
 			return nil, toolError("OUTPUT_WORKSPACE_MISMATCH", "Select the original workspace before reading this retained output.", "permission")
 		}
 	}

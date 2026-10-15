@@ -178,16 +178,25 @@ var missingOutput = new ExecutionCallRow(Json("{\"tool_name\":\"agentdock_contex
 missingOutput.ApplyDetail(Json("{\"tool_name\":\"agentdock_context\",\"display_title\":\"加载上下文\",\"summary\":\"pretend output\"}"));
 Check(missingOutput.Title.Contains("agentdock_context") && missingOutput.Title.Contains("加载上下文"), "friendly label cannot hide registered tool name");
 Check(missingOutput.Output.Contains("旧记录未保存输出") && !missingOutput.Output.Contains("pretend output"), "missing output is not fabricated from summary");
-var payload = new ExecutionPayloadView("输出");
-payload.Describe(Json("{\"state\":\"complete\",\"ref\":\"blob-a\",\"bytes\":10,\"lines\":2,\"preview\":\"12345\"}"));
-Check(payload.NeedsLoad && payload.Position.Contains("10"), "bounded preview reports full size");
+var mcpParameters = new ExecutionCallRow(Json("""
+{"tool_name":"mcp_tool_call","parameter_summary":"{\"server_fingerprint\":\"digest\"}","request":{"state":"complete","ref":"blob-mcp","bytes":92,"overview":"{\"name\":\"eda:apply\",\"arguments\":{\"target\":\"board\"}}"}}
+"""));
+Check(mcpParameters.ParameterDisplay.Contains("target") && mcpParameters.ParameterDisplay.Contains("92 B") && !mcpParameters.ParameterDisplay.Contains("server_fingerprint"),
+    "MCP row did not use the real redacted request overview");
+Check(mcpParameters.ParameterHint.Contains("完整已脱敏载荷") && mcpParameters.HasParameterDisplay,
+    "parameter size and full-detail hint are missing");
+var payload = new ExecutionPayloadView("调用");
+payload.Describe(Json("{\"state\":\"complete\",\"ref\":\"blob-a\",\"bytes\":10,\"lines\":2,\"preview\":\"12345\",\"overview\":\"{\\\"arguments\\\":{\\\"target\\\":\\\"board\\\"}}\"}"));
+Check(payload.NeedsLoad && payload.CanLoadAll && payload.Position.Contains("10") && payload.Overview.Contains("target"), "bounded preview reports full size and overview");
 Check(payload.ApplyPage(Json("{\"payload\":{\"ref\":\"blob-a\"},\"offset\":0,\"next_offset\":5,\"has_more\":true,\"text\":\"12345\"}"), "blob-a", false), "first output page");
 Check(payload.RequestedOffset(false) == 5 && payload.CanReadNext && !payload.HasPrevious, "page cursor advances");
 Check(payload.ApplyPage(Json("{\"payload\":{\"ref\":\"blob-a\"},\"offset\":5,\"next_offset\":10,\"has_more\":false,\"text\":\"67890\"}"), "blob-a", false), "second output page");
 Check(payload.Text == "67890" && payload.HasPrevious && !payload.CanReadNext, "full output remains bounded to current page");
 Check(payload.RequestedOffset(true) == 0, "page back retains prior boundary");
 payload.Describe(Json("{\"state\":\"complete\",\"ref\":\"blob-a\",\"bytes\":10,\"lines\":2}"));
-Check(payload.Text == "67890" && !payload.NeedsLoad, "metadata refresh preserves current reading page");
+Check(payload.Text == "67890" && payload.Overview.Contains("target") && !payload.NeedsLoad, "metadata refresh preserves current reading page and overview");
+Check(payload.ApplyComplete("1234567890", "blob-a") && payload.IsFullyLoaded && !payload.CanLoadAll && payload.Position.Contains("全部调用参数"),
+    "full request assembly did not replace the paged view");
 payload.Describe(Json("{\"state\":\"partial\",\"ref\":\"blob-b\",\"bytes\":4,\"lines\":1}"));
 Check(!payload.ApplyPage(Json("{\"payload\":{\"ref\":\"blob-a\"},\"offset\":0,\"next_offset\":5,\"text\":\"stale\"}"), "blob-a", false), "late old blob cannot replace current result");
 Check(payload.StateLabel == "部分输出" && !payload.HasPrevious, "partial results and new blob page reset");

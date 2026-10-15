@@ -88,6 +88,7 @@ type CallQuery struct {
 	Limit             int
 	IncludeDiagnostic bool
 	IncludeOutput     bool
+	IncludeRequest    bool
 	Unattributed      bool
 	TopLevel          bool
 }
@@ -300,9 +301,9 @@ func (s *Store) projectAppendedLocked(event Event) {
 	}
 	s.projection.apply(event)
 }
-func cloneCall(call *ExecutionCall, output bool) ExecutionCall {
+func cloneCall(call *ExecutionCall, requestPreview, output bool) ExecutionCall {
 	copied := *call
-	copied.Request = call.Request.clone(output)
+	copied.Request = call.Request.clone(requestPreview || output)
 	copied.Response = call.Response.clone(output)
 	copied.OutputSource = call.OutputSource.clone(output)
 	copied.CallMeasurements = call.CallMeasurements.clone()
@@ -311,6 +312,12 @@ func cloneCall(call *ExecutionCall, output bool) ExecutionCall {
 	copied.FileEdit = call.FileEdit.clone(output)
 	copied.FileChanges = append([]FileChange(nil), call.FileChanges...)
 	if !output {
+		if copied.Response != nil {
+			copied.Response.Overview = ""
+		}
+		if copied.OutputSource != nil {
+			copied.OutputSource.Overview = ""
+		}
 		copied.OutputPreview, copied.StderrPreview = "", ""
 	}
 	return copied
@@ -332,7 +339,7 @@ func (s *Store) Call(ctx context.Context, id string) (ExecutionCall, error) {
 	if !found || call.DeletedAt != nil {
 		return ExecutionCall{}, ErrCallNotFound
 	}
-	return cloneCall(call, true), nil
+	return cloneCall(call, true, true), nil
 }
 func callMatches(call *ExecutionCall, query CallQuery) bool {
 	if !query.Updates && !callManagementMatches(call.CallManagement, query.View) {
@@ -428,7 +435,7 @@ func (s *Store) Calls(ctx context.Context, query CallQuery) (CallPage, error) {
 		candidates = candidates[:query.Limit]
 	}
 	for _, call := range candidates {
-		page.Calls = append(page.Calls, cloneCall(call, query.IncludeOutput))
+		page.Calls = append(page.Calls, cloneCall(call, query.IncludeRequest, query.IncludeOutput))
 	}
 	if len(candidates) > 0 {
 		page.NextBefore = candidates[len(candidates)-1].CreatedSeq

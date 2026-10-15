@@ -38,9 +38,9 @@ MCP 适配器使用 SDK 请求的 `Params.Meta["openai/session"]`。认证主体
 
 ## Call 查询与增量
 
-`/calls` 支持 conversation_id、unattributed、task_id、thread_id、workspace_id、parent_call_id、top_level、search、status、after、before、limit、include_output、include_diagnostic。未识别来源用 `unattributed=true`，不能构造 `conversation_id=unknown`。
+`/calls` 支持 conversation_id、unattributed、task_id、thread_id、workspace_id、parent_call_id、top_level、search、status、after、before、limit、include_request、include_output、include_diagnostic。未识别来源用 `unattributed=true`，不能构造 `conversation_id=unknown`。`include_request=true` 只附带已脱敏的请求预览；`include_output=true` 才附带响应、输出来源和文件差异预览。
 
-分页记录包含 call_id、parent_call_id、conversation_id、task_id、thread_id/task_thread_id、workspace_id、tool_name、display_title、status、started_at、completed_at、elapsed_ms、parameter_summary、output_summary、error_summary、approval_id、visibility、binding_quality 和序列号。既有兼容字段仍保留。
+分页记录包含 call_id、parent_call_id、conversation_id、task_id、thread_id/task_thread_id、workspace_id、tool_name、display_title、status、started_at、completed_at、elapsed_ms、parameter_summary、output_summary、error_summary、approval_id、visibility、binding_quality 和序列号。请求载荷描述符还包含最多 512 字节的已脱敏单行 `overview` 与完整载荷字节数，活动中心可用它显示真实业务参数概览；完整正文仍通过 `/calls/{id}/payload/request` 分页读取。既有兼容字段仍保留。
 
 普通列表默认排除 diagnostic；父子树通过 parent_call_id 展开。流式输出和审批变更更新同一 Call，不按事件条数新建卡片。`retry_of_call_id` 仅表示真正的新调用与原失败调用的关系，不改变 Conversation 归属。
 

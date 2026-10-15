@@ -37,16 +37,16 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolSessionObserve:
 		props["action"] = map[string]any{
 			"type":        "string",
-			"description": "Required command-session action. Use status with the exact session_id returned by exec_command when status=running. list is recovery-only and must not be used for conversation, task, MCP, browser, or general AgentDock state.",
+			"description": "Command-session action: status for a known running session; list only for session recovery.",
 			"enum":        []string{"list", "status"},
 		}
 		props["session_id"] = map[string]any{
 			"type":        "string",
 			"minLength":   1,
-			"description": "Exact session id returned by exec_command; required only for status.",
+			"description": "Exact session id from exec_command; required for status.",
 		}
-		props["max_output_bytes"] = boundedIntProp("Maximum stdout/stderr bytes for status. Defaults to 65536 and is capped at 4194304. Invalid for list.", 1, MaxOutputBytes)
-		props["wait_ms"] = boundedIntProp("Wait for command completion only when needed for the next decision. Omit for adaptive 5/15/60 second waits; up to 300000 ms. Completion or request cancellation returns early. Zero reads immediately. Invalid for list.", 0, MaxSessionObserveWaitMS)
+		props["max_output_bytes"] = boundedIntProp("Output byte cap for status; accepted without effect for list compatibility.", 1, MaxOutputBytes)
+		props["wait_ms"] = boundedIntProp("Status wait in milliseconds. Omit for adaptive waits; 0 reads immediately. Invalid for list.", 0, MaxSessionObserveWaitMS)
 		return sessionObserveInputSchema(props), true
 	case ToolSessionAct:
 		props["action"] = map[string]any{"type": "string", "description": "Mutating session action.", "enum": []string{"write", "kill", "kill_all"}}
@@ -65,7 +65,8 @@ func sessionObserveInputSchema(properties map[string]any) map[string]any {
 		{
 			"type": "object",
 			"properties": map[string]any{
-				"action": map[string]any{"const": "list"},
+				"action":           map[string]any{"const": "list"},
+				"max_output_bytes": properties["max_output_bytes"],
 			},
 			"required":             []string{"action"},
 			"additionalProperties": false,
@@ -108,6 +109,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"stdin_error":          stringProp("Initial remote stdin could not be acknowledged; preserve and observe the original session instead of replaying the command."),
 		"outcome_unknown":      boolProp("The remote outcome is unconfirmed; do not replay the original command."),
 		"command_ok":           boolProp("Whether a completed command exited successfully. Omitted while the command is still running."),
+		"outcome":              stringProp("Command outcome: running, command_succeeded, command_failed, timed_out, or unknown; distinct from successful tool transport."),
+		"observation_shared":   boolProp("This response shares an identical in-flight observation; the session cursor advanced only once."),
 		"command_error":        stringProp("Command process error when execution did not succeed."),
 		"exit_code":            intProp("Process exit code, when available."),
 		"elapsed_ms":           intProp("Session elapsed milliseconds."),

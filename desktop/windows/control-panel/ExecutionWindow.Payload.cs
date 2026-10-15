@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -76,6 +77,50 @@ public partial class ExecutionWindow
             if (!_closed && generation == _generation && ReferenceEquals(_detailCall, row) && policyRevision > 0 && _outputPreference is not null && policyRevision != _outputPreference.Revision)
                 await LoadPayloadPageAsync(row, kind, false, automatic: true);
         }
+    }
+    private async Task<bool> LoadEntireRequestAsync(ExecutionCallRow row)
+    {
+        var payload = row.RequestPayload;
+        if (payload.Reference.Length == 0 || payload.IsFullyLoaded) return true;
+        if (payload.Busy) return false;
+        var reference = payload.Reference;
+        var generation = _generation;
+        var content = new StringBuilder(payload.TotalBytes is > 0 and <= int.MaxValue ? (int)payload.TotalBytes : 0);
+        payload.SetBusy(true);
+        try
+        {
+            var offset = 0L;
+            while (true)
+            {
+                var page = await _client.ExecutionGetAsync("/internal/runtime/calls/" + Escape(row.Id) + "/payload/request?offset=" + offset + "&" + PayloadPageBudget.FullRead.Query, SelectionToken);
+                if (_closed || generation != _generation || !ReferenceEquals(_detailCall, row) || reference != payload.Reference) return false;
+                if (!payload.TryReadPage(page, reference, PayloadPageBudget.FullRead, out var slice)) return false;
+                if (slice.Offset != offset) throw new InvalidDataException("完整调用参数分页起点不连续。");
+                content.Append(slice.Text);
+                if (!slice.HasMore) break;
+                if (slice.NextOffset <= offset) throw new InvalidDataException("完整调用参数分页没有推进。");
+                offset = slice.NextOffset;
+            }
+            if (!payload.ApplyComplete(content.ToString(), reference)) return false;
+            await Dispatcher.InvokeAsync(() => RequestPayloadText.ScrollToHome(), DispatcherPriority.Loaded);
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or JsonException)
+        {
+            if (reference == payload.Reference) payload.ReadFailed(ex.Message);
+            return false;
+        }
+        finally { payload.SetBusy(false); }
+    }
+    private async void LoadAllRequest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_detailCall is { } row) await LoadEntireRequestAsync(row);
+    }
+    private async void CopyFullRequest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_detailCall is not { } row) return;
+        if (await LoadEntireRequestAsync(row)) CopyText(row.RequestText);
     }
     private async void PayloadPage_Click(object sender, RoutedEventArgs e)
     {

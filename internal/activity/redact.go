@@ -58,6 +58,7 @@ func (r Redactor) Event(e Event) Event {
 	for _, payload := range []*Payload{e.Request, e.Response, e.OutputSource} {
 		if payload != nil {
 			payload.Preview = r.Text(payload.Preview, PayloadPreviewBytes)
+			payload.Overview = r.Text(payload.Overview, PayloadOverviewBytes)
 			payload.Reason = r.Text(payload.Reason, 512)
 		}
 	}

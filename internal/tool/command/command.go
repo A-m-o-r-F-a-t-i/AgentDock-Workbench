@@ -293,6 +293,7 @@ func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) 
 func snapshotResult(snapshot session.Snapshot) Result {
 	result := Result{
 		"session_id": snapshot.SessionID, "status": snapshot.Status,
+		"outcome":    commandOutcome(snapshot),
 		"elapsed_ms": snapshot.ElapsedMS, "terminal": snapshot.Terminal,
 		"source_complete":      snapshot.StdoutDroppedBytes == 0 && snapshot.StderrDroppedBytes == 0,
 		"displayed_bytes":      snapshot.StdoutOutputBytes + snapshot.StderrOutputBytes,
@@ -332,6 +333,22 @@ func snapshotResult(snapshot session.Snapshot) Result {
 		result["observe_after_ms"] = sessionObserveDelay(snapshot.ElapsedMS).Milliseconds()
 	}
 	return result
+}
+
+func commandOutcome(snapshot session.Snapshot) string {
+	if snapshot.OutcomeUnknown {
+		return "unknown"
+	}
+	if !snapshot.Completed {
+		return "running"
+	}
+	if snapshot.TimedOut {
+		return "timed_out"
+	}
+	if snapshot.CommandOK {
+		return "command_succeeded"
+	}
+	return "command_failed"
 }
 
 func addStreamSnapshotResult(result Result, name, text string, outputBytes, totalBytes, droppedBytes, omittedBytes, outputLines int, truncated bool) {
