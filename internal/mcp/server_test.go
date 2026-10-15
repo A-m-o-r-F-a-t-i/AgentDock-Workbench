@@ -219,7 +219,8 @@ func TestOfficialSDKServerListsAndCallsAgentDockTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallTool() error = %v", err)
 	}
-	structured, ok := result.StructuredContent.(map[string]any)
+	structured := requiredSDKPayload(t, session, result, map[string]any{}, nil)
+	ok := structured != nil
 	runtimeInfo, runtimeOK := structured["runtime"].(map[string]any)
 	if !ok || !runtimeOK || runtimeInfo["os"] == "" || runtimeInfo["path_model"] != config.PathModel || result.IsError {
 		t.Fatalf("CallTool() result = %#v", result)

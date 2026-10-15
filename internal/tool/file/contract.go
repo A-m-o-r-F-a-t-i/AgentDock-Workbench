@@ -170,6 +170,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["modified"] = stringProp("Source modification timestamp when available.")
 		props["next_cursor"] = map[string]any{"type": "object", "properties": map[string]any{"byte_offset": intProp("Next actual delivered UTF-8 byte offset.")}}
 		props["continue_read"] = map[string]any{"type": "object", "additionalProperties": true}
+		props["file_delivery"] = map[string]any{"type": "object", "additionalProperties": true}
 		props["payload"] = map[string]any{"type": "object", "additionalProperties": true}
 	case ToolListDir:
 		props["path"] = stringProp("Listed Host directory path. Relative paths resolve from ~/AgentDock.")

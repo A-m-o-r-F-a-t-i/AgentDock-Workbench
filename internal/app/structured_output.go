@@ -51,7 +51,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 		return result
 	}
 	budget := min(toolcontract.ModelVisibleTotalChars, structuredOutputBudget(p.spec.Name, p.args))
-	businessBudget := max(1<<10, budget-2500)
+	businessBudget := max(1<<10, budget-toolcontract.ModelVisibleControlChars)
 	if chars, countErr := toolcontract.JSONChars(full); p.structuredResume == nil && countErr == nil && chars <= businessBudget {
 		return result
 	}

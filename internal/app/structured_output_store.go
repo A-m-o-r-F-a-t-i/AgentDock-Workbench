@@ -36,6 +36,7 @@ type structuredOutputSnapshot struct {
 	OversizedItems        bool
 	Required              bool
 	ContextStamp          string
+	ContextRevision       string
 	ContextWorkdir        string
 	NextPage              int
 	Delivered             bool
@@ -43,9 +44,12 @@ type structuredOutputSnapshot struct {
 	FileRuntime           string
 	FileDistribution      string
 	FileRevision          string
+	FileSequenceStart     int64
 	FileByteStart         int64
 	FileByteEnd           int64
 	FileRangeEnd          int64
+	FileFullRange         bool
+	FileDeliveredOffset   int64
 	PageBudget            int
 	PageCount             int
 	SourceDeliveredOffset int64
@@ -196,7 +200,14 @@ func (r *Runtime) authorizeStructuredSnapshot(ctx context.Context, original, cur
 		}
 	}
 	if original.WorkspaceID != "" && current.WorkspaceID != original.WorkspaceID {
-		return toolError("OUTPUT_WORKSPACE_MISMATCH", "Select the original workspace before reading this retained structured result.", "permission")
+		// Unattributed MCP calls do not persist a conversation workspace between
+		// requests. An exact cursor remains bound to the authenticated owner and
+		// immutable snapshot, so an empty current workspace may continue it.
+		ownerScopedUnattributed := original.ConversationID == "" && current.WorkspaceID == "" &&
+			original.SourceOwnerKey != "" && original.SourceOwnerKey == activity.SourceOwnerKey(ctx)
+		if !ownerScopedUnattributed {
+			return toolError("OUTPUT_WORKSPACE_MISMATCH", "Select the original workspace before reading this retained structured result.", "permission")
+		}
 	}
 	return nil
 }

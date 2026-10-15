@@ -24,8 +24,16 @@ func executionOutputSchema(original map[string]any) map[string]any {
 			properties[name] = map[string]any{"type": "object", "additionalProperties": true}
 		}
 	}
-	for _, name := range []string{"operation", "capture", "projection", "model_projection", "activity_preview", "continue_read", "range", "source_delivery"} {
+	for _, name := range []string{"operation", "capture", "model_projection", "activity_preview", "continue_read", "range", "source_delivery"} {
 		properties[name] = map[string]any{"type": "object", "additionalProperties": true}
+	}
+	properties["projection"] = map[string]any{
+		"type": "object", "required": []string{"mode", "complete"},
+		"properties": map[string]any{
+			"mode":     map[string]any{"enum": []string{"full", "semantic_page", "continuous_page", "head_tail", "compact_receipt", "source_receipt", "reference"}},
+			"complete": map[string]any{"type": "boolean"},
+		},
+		"additionalProperties": true,
 	}
 	properties["delivery"] = map[string]any{"anyOf": []any{map[string]any{"type": "string", "enum": []string{"full", "reference"}}, map[string]any{"type": "object", "required": []string{"class", "sequence_complete", "continuation_required", "continuation_available"}, "properties": map[string]any{"class": map[string]any{"enum": []string{"required_full", "recoverable_preview", "compact_receipt"}}, "sequence_complete": map[string]any{"type": "boolean"}, "continuation_required": map[string]any{"type": "boolean"}, "continuation_available": map[string]any{"type": "boolean"}}, "additionalProperties": true}}}
 	for _, name := range []string{"truncated", "source_complete", "context_ready", "has_more", "unchanged"} {
@@ -35,12 +43,24 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		properties[name] = map[string]any{"type": "string"}
 	}
 	properties["binding_updated"] = map[string]any{"type": "boolean"}
-	properties["output_policy"] = map[string]any{"type": "object", "additionalProperties": true, "description": "Budget for declared ordinary text fields, separate from control metadata and complete rules. Includes actual storage/continuation state when shortened."}
-	properties["agentdock_guidance"] = responseGuidanceSchema(properties["agentdock_guidance"])
+	properties["output_policy"] = map[string]any{"type": "object", "additionalProperties": true}
+	properties["agentdock_guidance"] = executionGuidanceSchema(properties["agentdock_guidance"])
 	// Reuse business fields as well as execution metadata. The visible union
 	// widens these three fields for approval responses, so success retains their
 	// original constraints instead of referencing the widened alternatives.
-	success["properties"] = schemaPropertyReferences(properties, "status", "executed", "approval")
+	originalProperties, _ := original["properties"].(map[string]any)
+	successProperties := make(map[string]any, len(properties))
+	for name := range properties {
+		// The root validates each field once. The success branch keeps property
+		// names only so closed business objects still admit execution metadata.
+		successProperties[name] = true
+	}
+	for _, name := range []string{"status", "executed", "approval", "context_diagnostics"} {
+		if property, exists := originalProperties[name]; exists {
+			successProperties[name] = property
+		}
+	}
+	success["properties"] = successProperties
 	pending := map[string]any{"type": "object", "properties": map[string]any{
 		"status": map[string]any{"const": "pending_approval"}, "executed": map[string]any{"const": false},
 		"approval_id": map[string]any{"type": "string", "pattern": "^approval_[a-f0-9]{32}$"},
@@ -48,9 +68,16 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	}, "required": []string{"status", "executed", "approval_id", "call_id"}, "additionalProperties": true}
 	visible := maps.Clone(properties)
 	if full, ok := properties["context_diagnostics"].(map[string]any); ok {
-		page := maps.Clone(full)
-		page["required"] = []string{"complete", "components_complete", "binding_status"}
-		visible["context_diagnostics"] = map[string]any{"anyOf": []any{full, page}}
+		_ = full
+		visible["context_diagnostics"] = map[string]any{
+			"type": "object", "required": []string{"complete", "components_complete", "binding_status"},
+			"properties": map[string]any{
+				"complete":            map[string]any{"type": "boolean"},
+				"components_complete": map[string]any{"type": "boolean"},
+				"binding_status":      map[string]any{"type": "string"},
+			},
+			"additionalProperties": true,
+		}
 	}
 
 	if old, exists := visible["status"]; exists {
@@ -64,8 +91,8 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	visible["executed"] = map[string]any{"type": "boolean"}
 	visible["approval"] = map[string]any{"type": "object"}
 	projected := map[string]any{"type": "object", "required": []string{"operation", "capture", "projection", "delivery"}, "properties": map[string]any{
-		"operation": properties["operation"], "capture": properties["capture"], "delivery": properties["delivery"],
-		"projection": map[string]any{"type": "object", "required": []string{"mode", "complete"}, "properties": map[string]any{"mode": map[string]any{"enum": []string{"semantic_page", "continuous_page", "head_tail", "compact_receipt", "source_receipt", "reference"}}, "complete": map[string]any{"type": "boolean"}}, "additionalProperties": true},
+		"operation": map[string]any{"$ref": "#/properties/operation"}, "capture": map[string]any{"$ref": "#/properties/capture"}, "delivery": map[string]any{"$ref": "#/properties/delivery"},
+		"projection": map[string]any{"$ref": "#/properties/projection"},
 	}, "additionalProperties": true}
 	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending, projected}}
 	for _, key := range []string{"$defs", "definitions"} {
@@ -73,5 +100,24 @@ func executionOutputSchema(original map[string]any) map[string]any {
 			result[key] = value
 		}
 	}
+	return result
+}
+
+// The adapter validates and constructs authenticated additions before they are
+// attached. Per-tool result schemas keep only their bounded container shape;
+// responseGuidanceSchema remains the single detailed contract for that boundary.
+func executionGuidanceSchema(original any) map[string]any {
+	input, _ := original.(map[string]any)
+	result := maps.Clone(input)
+	if result == nil {
+		result = map[string]any{"type": "object", "additionalProperties": true}
+	}
+	inputProperties, _ := result["properties"].(map[string]any)
+	properties := maps.Clone(inputProperties)
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	properties["response_additions"] = map[string]any{"type": "array", "items": map[string]any{"type": "object"}}
+	result["properties"] = properties
 	return result
 }

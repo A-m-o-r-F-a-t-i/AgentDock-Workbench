@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,13 +47,15 @@ func TestStructuredOutputPagesRetainedResultWithoutReexecution(t *testing.T) {
 		t.Fatalf("first page bytes = %d, want 1..4096", pageBytes)
 	}
 	guidance, _ := result["agentdock_guidance"].(map[string]any)
-	steps, ok := guidance["next_required"].([]map[string]any)
-	if !ok || len(steps) != 1 || steps[0]["action"] != "continue_structured_output" || steps[0]["tool"] != "search_text" {
-		t.Fatalf("first page continuation guidance = %#v", guidance["next_required"])
+	if steps, ok := guidance["next_required"].([]map[string]any); ok && len(steps) != 0 {
+		t.Fatalf("optional query continuation became mandatory: %#v", steps)
 	}
-	stepArguments, _ := steps[0]["arguments"].(map[string]any)
-	if stepArguments["cursor"] != result["next_cursor"] || stepArguments["query"] != "needle" || integerArgument(stepArguments["max_response_bytes"]) != 4096 {
-		t.Fatalf("continuation arguments = %#v", stepArguments)
+	if cursor, _ := result["next_cursor"].(string); cursor == "" {
+		t.Fatal("optional query continuation cursor missing")
+	}
+	delivery := modelObject(result["delivery"])
+	if delivery["class"] != toolcontract.OutputRecoverablePreview || delivery["continuation_required"] != false || delivery["continuation_available"] != true {
+		t.Fatalf("optional query delivery = %#v", delivery)
 	}
 
 	// Change the handler result after the first page. Cursor continuation must use
@@ -237,9 +240,13 @@ func TestStructuredOutputPagesLargeContextCollections(t *testing.T) {
 	for _, path := range paths {
 		expected[structuredPathName(path)] = len(structuredPathItems(contextResult, path))
 	}
-	seen := map[string]int{}
+	seen := map[string]map[int]bool{}
+	for path := range expected {
+		seen[path] = map[int]bool{}
+	}
 	p := &preparedExecution{spec: ToolSpec{Name: "agentdock_context"}, args: map[string]any{}, state: executionObservation{binding: binding}}
 	page := r.applyStructuredOutputPolicy(p, contextResult)
+	allowSyntheticContextPaging(t, r, page)
 	pageCount := 0
 	for {
 		pageCount++
@@ -254,11 +261,36 @@ func TestStructuredOutputPagesLargeContextCollections(t *testing.T) {
 		if !ok || meta["source_complete"] != true {
 			t.Fatalf("context page metadata = %#v", page["structured_output"])
 		}
-		if len(encoded) > integerArgument(meta["business_budget_bytes"]) {
-			t.Fatalf("context business page = %d bytes, budget = %v", len(encoded), meta["business_budget_bytes"])
+		if chars, _ := toolcontract.JSONChars(page); chars > toolcontract.ModelVisibleTotalChars {
+			t.Fatalf("context page = %d characters", chars)
 		}
-		for _, path := range paths {
-			seen[structuredPathName(path)] += len(structuredPathItems(page, path))
+		_ = encoded
+		for _, part := range page["sections"].([]semanticOutputPart) {
+			for _, path := range paths {
+				key, pointer := structuredPathName(path), "/"+strings.Join(path, "/")
+				if strings.HasPrefix(part.Path, pointer+"/") {
+					indexText := strings.SplitN(strings.TrimPrefix(part.Path, pointer+"/"), "/", 2)[0]
+					if index, err := strconv.Atoi(indexText); err == nil {
+						seen[key][index] = true
+					}
+				} else if part.Path == pointer {
+					if items, ok := part.Value.([]any); ok {
+						for index := range items {
+							seen[key][index] = true
+						}
+					}
+				} else if strings.HasPrefix(pointer, part.Path+"/") {
+					value := part.Value
+					for _, segment := range strings.Split(strings.TrimPrefix(pointer, part.Path+"/"), "/") {
+						value = modelObject(value)[segment]
+					}
+					if items, ok := value.([]any); ok {
+						for index := range items {
+							seen[key][index] = true
+						}
+					}
+				}
+			}
 		}
 		cursor, _ := page["next_cursor"].(string)
 		diagnostics, _ := page["context_diagnostics"].(map[string]any)
@@ -286,120 +318,97 @@ func TestStructuredOutputPagesLargeContextCollections(t *testing.T) {
 		t.Fatal("large context was not paged")
 	}
 	for path, count := range expected {
-		if seen[path] != count {
-			t.Fatalf("context path %s returned %d items, want %d", path, seen[path], count)
+		if len(seen[path]) != count {
+			t.Fatalf("context path %s returned %d items, want %d", path, len(seen[path]), count)
 		}
 	}
 }
 
-func TestStructuredOutputGuidanceRequiresExactContinuation(t *testing.T) {
+func TestStructuredOutputGuidanceDistinguishesRequiredAndOptional(t *testing.T) {
 	r := executionTestRuntime(t)
-	result := Result{
-		"next_cursor": "scur_test",
-		"structured_output": map[string]any{
-			"minimum_response_bytes": 32768,
-		},
+	result := Result{"next_cursor": "scur_test", "structured_output": map[string]any{"truncated": true}}
+	args := map[string]any{"name": "demo::read", "max_response_bytes": 4096, "task_id": "inherited-task"}
+	optional := r.executionGuidance("search_text", args, executionObservation{}, result, false)
+	if steps, ok := optional["next_required"].([]map[string]any); ok && len(steps) != 0 {
+		t.Fatal("optional query continuation became mandatory")
 	}
-	guidance := r.executionGuidance("search_text", map[string]any{
-		"path": ".", "query": "needle", "max_response_bytes": 4096,
-		"task_id": "inherited-task", "activity_label": "ignored",
-	}, executionObservation{}, result, false)
-	steps, ok := guidance["next_required"].([]map[string]any)
+	required := r.executionGuidance("mcp_tool_inspect", args, executionObservation{}, result, false)
+	steps, ok := required["next_required"].([]map[string]any)
 	if !ok || len(steps) != 1 {
-		t.Fatalf("next_required = %#v", guidance["next_required"])
+		t.Fatalf("required continuation=%#v", required)
 	}
-	arguments, _ := steps[0]["arguments"].(map[string]any)
-	if steps[0]["action"] != "continue_structured_output" || steps[0]["tool"] != "search_text" || arguments["cursor"] != "scur_test" || arguments["max_response_bytes"] != 32768 || arguments["path"] != "." || arguments["query"] != "needle" {
-		t.Fatalf("continuation guidance = %#v", steps[0])
+	arguments := modelObject(steps[0]["arguments"])
+	if steps[0]["tool"] != "mcp_tool_inspect" || arguments["cursor"] != "scur_test" || arguments["name"] != "demo::read" {
+		t.Fatal("required continuation lost its exact selector")
 	}
-	if _, exists := arguments["task_id"]; exists {
-		t.Fatalf("continuation leaked inherited execution metadata: %#v", arguments)
+	if arguments["task_id"] != nil {
+		t.Fatal("continuation copied inherited execution metadata")
 	}
 }
 
-func TestStructuredOutputOversizedItemRequiresActivitySourceRead(t *testing.T) {
+func TestStructuredOutputOversizedRequiredItemUsesLosslessPages(t *testing.T) {
 	r := executionTestRuntime(t)
-	ctx := activity.WithSource(context.Background(), activity.Source{
-		Principal: "structured-output-test", Namespace: "mcp", HostConversationID: "structured-output-oversized",
-	})
-	binding := activity.Binding{
-		CallID: "call_structured_oversized", WorkspaceID: "workspace-oversized", SourceOwnerKey: activity.SourceOwnerKey(ctx),
+	ctx := activity.WithSource(context.Background(), activity.Source{Principal: "structured-output-test", Namespace: "mcp", HostConversationID: "large-required-contract"})
+	binding := activity.Binding{CallID: "call_" + strings.Repeat("a", 32), SourceOwnerKey: activity.SourceOwnerKey(ctx)}
+	text := strings.Repeat("oversized-rule-", 6000)
+	p := &preparedExecution{spec: ToolSpec{Name: "agentdock_context"}, args: map[string]any{}, state: executionObservation{binding: binding}}
+	page := r.applyStructuredOutputPolicy(p, Result{"rules": []any{text}, "skills": []any{map[string]any{"name": "after-oversized"}}, "context_diagnostics": map[string]any{"complete": true, "components_complete": true, "binding_status": "updated"}})
+	allowSyntheticContextPaging(t, r, page)
+	recovered, foundSkill := "", false
+	for index := 0; index < 100; index++ {
+		meta := modelObject(page["structured_output"])
+		if meta["source"] == "" || meta["oversized_items_omitted"] == true {
+			t.Fatal("required content was omitted or has no stable source")
+		}
+		for _, part := range page["sections"].([]semanticOutputPart) {
+			if part.Path == "/rules/0" && part.Text != nil {
+				if part.ByteStart != len(recovered) {
+					t.Fatal("required string skipped bytes")
+				}
+				recovered += *part.Text
+			}
+			if part.Path == "/skills" {
+				if items, ok := part.Value.([]any); ok && len(items) == 1 {
+					foundSkill = modelObject(items[0])["name"] == "after-oversized"
+				}
+			}
+		}
+		cursor, _ := page["next_cursor"].(string)
+		if cursor == "" {
+			if recovered != text || !foundSkill || modelObject(page["context_diagnostics"])["complete"] != true {
+				t.Fatal("required sequence lost content or final completion")
+			}
+			return
+		}
+		if modelObject(page["context_diagnostics"])["complete"] != false {
+			t.Fatal("incomplete contract marked complete")
+		}
+		next := &preparedExecution{spec: ToolSpec{Name: "agentdock_context"}, args: map[string]any{"cursor": cursor}, state: executionObservation{binding: binding}}
+		full, resume, err := r.resumeStructuredOutput(ctx, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next.structuredResume = resume
+		page = r.applyStructuredOutputPolicy(next, full)
 	}
-	p := &preparedExecution{
-		spec:  ToolSpec{Name: "agentdock_context"},
-		args:  map[string]any{"max_response_bytes": toolcontract.StructuredResponseMaxBytes},
-		state: executionObservation{binding: binding},
-	}
-	page := r.applyStructuredOutputPolicy(p, Result{
-		"workspace_id":        "workspace-oversized",
-		"rules":               []any{strings.Repeat("oversized-rule-", 6000)},
-		"context_diagnostics": map[string]any{"complete": true, "components_complete": true, "binding_status": "updated"},
-	})
-	meta, ok := page["structured_output"].(map[string]any)
-	if !ok || meta["truncated"] != true || meta["oversized_item"] == nil {
-		t.Fatalf("oversized metadata = %#v", page["structured_output"])
-	}
-	source, _ := meta["source"].(string)
-	if source == "" {
-		t.Fatalf("oversized result missing retained source: %#v", meta)
-	}
-	diagnostics, _ := page["context_diagnostics"].(map[string]any)
-	if diagnostics["complete"] != false {
-		t.Fatalf("oversized context marked complete: %#v", diagnostics)
-	}
-	if cursor, _ := page["next_cursor"].(string); cursor != "" {
-		t.Fatalf("single oversized item unexpectedly returned cursor %q", cursor)
-	}
-	guidance := r.executionGuidance("agentdock_context", p.args, p.state, page, false)
-	steps, ok := guidance["next_required"].([]map[string]any)
-	if !ok || len(steps) != 1 {
-		t.Fatalf("oversized next_required = %#v", guidance["next_required"])
-	}
-	arguments, _ := steps[0]["arguments"].(map[string]any)
-	if steps[0]["action"] != "read_structured_source" || steps[0]["tool"] != "read_file" || arguments["path"] != source || arguments["offset"] != 0 {
-		t.Fatalf("oversized follow-up = %#v", steps[0])
-	}
-	if meta["oversized_items_omitted"] != true {
-		t.Fatalf("oversized omission flag = %#v", meta)
-	}
+	t.Fatal("required sequence did not finish")
+}
 
-	page = r.applyStructuredOutputPolicy(p, Result{
-		"workspace_id": "workspace-oversized",
-		"rules":        []any{strings.Repeat("oversized-rule-", 6000)},
-		"skills":       []any{map[string]any{"name": "after-oversized", "description": "must remain pageable"}},
-		"context_diagnostics": map[string]any{
-			"complete": true, "components_complete": true, "binding_status": "updated",
-		},
-	})
-	cursor, _ := page["next_cursor"].(string)
-	if cursor == "" {
-		t.Fatal("oversized item hid later pageable collections")
+func allowSyntheticContextPaging(t *testing.T, r *Runtime, page Result) {
+	t.Helper()
+	id := stringArg(modelObject(page["structured_output"]), "snapshot_id")
+	if id == "" {
+		t.Fatal("synthetic context page has no snapshot")
 	}
-	next := &preparedExecution{
-		spec:  ToolSpec{Name: "agentdock_context"},
-		args:  map[string]any{"cursor": cursor, "max_response_bytes": toolcontract.StructuredResponseMaxBytes},
-		state: executionObservation{binding: binding},
+	r.structuredOutputMu.Lock()
+	defer r.structuredOutputMu.Unlock()
+	snapshot := r.structuredSnapshots[id]
+	if snapshot == nil {
+		t.Fatal("synthetic context snapshot was not retained")
 	}
-	full, resume, err := r.resumeStructuredOutput(ctx, next)
-	if err != nil {
-		t.Fatal(err)
-	}
-	next.structuredResume = resume
-	finalPage := r.applyStructuredOutputPolicy(next, full)
-	if skills := structuredPathItems(finalPage, structuredOutputPath{"skills"}); len(skills) != 1 {
-		t.Fatalf("later pageable collection = %#v", skills)
-	}
-	finalDiagnostics, _ := finalPage["context_diagnostics"].(map[string]any)
-	if finalDiagnostics["complete"] != false {
-		t.Fatalf("context with an omitted oversized item marked complete: %#v", finalDiagnostics)
-	}
-	if finalCursor, _ := finalPage["next_cursor"].(string); finalCursor != "" {
-		t.Fatalf("final context page returned another cursor %q", finalCursor)
-	}
-	finalMeta, _ := finalPage["structured_output"].(map[string]any)
-	if finalMeta["oversized_items_omitted"] != true || finalMeta["source"] == nil {
-		t.Fatalf("final oversized source metadata = %#v", finalMeta)
-	}
+	// These fixtures validate page mechanics without running Context preparation.
+	// Real Context revision invalidation has separate coverage.
+	snapshot.ContextStamp = ""
 }
 
 func TestStructuredCursorCacheIsBoundedAndDeduplicated(t *testing.T) {
@@ -457,9 +466,9 @@ func collectStructuredToolPages(t *testing.T, r *Runtime, ctx context.Context, t
 		if err != nil {
 			t.Fatal(err)
 		}
-		budget := integerArgument(args["max_response_bytes"])
-		if len(encoded) > budget {
-			t.Fatalf("%s final page = %d bytes, exceeds %d-byte model-facing budget", tool, len(encoded), budget)
+		_ = encoded
+		if chars, _ := toolcontract.JSONChars(result); chars > toolcontract.ModelVisibleTotalChars {
+			t.Fatalf("%s final page = %d characters", tool, chars)
 		}
 		items = append(items, structuredPathItems(result, path)...)
 		cursor, _ := result["next_cursor"].(string)

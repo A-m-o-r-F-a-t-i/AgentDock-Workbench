@@ -12,7 +12,7 @@ import (
 	"github.com/uvwt/agentdock/internal/insertion"
 )
 
-func TestContextRevisionDeliveryReturnsReferenceOnlyForExplicitMatch(t *testing.T) {
+func TestContextRevisionDeliveryReusesCompletedRevision(t *testing.T) {
 	workspace := t.TempDir()
 	home := filepath.Join(t.TempDir(), ".agentdock")
 	h := newMCPAppTestHarnessWithApps(t, config.Config{AgentDockHome: home, AgentDockDefaultDir: workspace}, false)
@@ -31,15 +31,15 @@ func TestContextRevisionDeliveryReturnsReferenceOnlyForExplicitMatch(t *testing.
 	}
 
 	full := call(map[string]any{})
-	fullBody := asMap(full.StructuredContent)
+	fullBody := requiredSDKPayload(t, h.session, full, map[string]any{}, meta)
 	revision, _ := fullBody["context_revision"].(string)
-	if !strings.HasPrefix(revision, "ctxrev_") || fullBody["delivery"] != "full" || fullBody["unchanged"] != false {
+	if !strings.HasPrefix(revision, "ctxrev_") || fullBody["context_ready"] != true || fullBody["unchanged"] == true {
 		t.Fatalf("invalid complete context delivery: %#v", fullBody)
 	}
 
-	mismatch := call(map[string]any{"known_context_revision": "ctxrev_" + strings.Repeat("0", 64)})
-	mismatchBody := asMap(mismatch.StructuredContent)
-	if mismatchBody["delivery"] != "full" || mismatchBody["context_revision"] != revision || mismatchBody["rules"] == nil {
+	mismatch := call(map[string]any{"known_context_revision": "ctxrev_" + strings.Repeat("0", 64), "force_refresh": true})
+	mismatchBody := requiredSDKPayload(t, h.session, mismatch, map[string]any{"force_refresh": true}, meta)
+	if mismatchBody["context_ready"] != true || mismatchBody["context_revision"] != revision || mismatchBody["rules"] == nil {
 		t.Fatalf("mismatched revision did not return the complete context: %#v", mismatchBody)
 	}
 
@@ -47,7 +47,7 @@ func TestContextRevisionDeliveryReturnsReferenceOnlyForExplicitMatch(t *testing.
 	// before pagination changes the delivery's complete flag.
 	reference := call(map[string]any{"known_context_revision": revision, "max_response_bytes": 4096})
 	referenceBody := asMap(reference.StructuredContent)
-	if referenceBody["delivery"] != "reference" || referenceBody["unchanged"] != true || referenceBody["context_revision"] != revision {
+	if referenceBody["context_delivery"] != "reference" || referenceBody["unchanged"] != true || referenceBody["context_revision"] != revision {
 		t.Fatalf("matching revision did not return a reference: %#v", referenceBody)
 	}
 	if asMap(referenceBody["context_diagnostics"])["complete"] != true {
@@ -72,8 +72,8 @@ func TestContextRevisionDeliveryReturnsReferenceOnlyForExplicitMatch(t *testing.
 		t.Fatal(err)
 	}
 	changed := call(map[string]any{"known_context_revision": revision})
-	changedBody := asMap(changed.StructuredContent)
-	if changedBody["delivery"] != "full" || changedBody["context_revision"] == revision || changedBody["instruction_files"] == nil {
+	changedBody := requiredSDKPayload(t, h.session, changed, map[string]any{"known_context_revision": revision}, meta)
+	if changedBody["context_ready"] != true || changedBody["context_revision"] == revision || changedBody["instruction_files"] == nil {
 		t.Fatalf("changed rules reused a stale reference: %#v", changedBody)
 	}
 }
@@ -98,13 +98,20 @@ func TestProjectedContextRevisionDeliveryKeepsAdapterReference(t *testing.T) {
 	}
 
 	full := invoke(map[string]any{}, "context-full")
-	revision, _ := asMap(full["structuredContent"])["context_revision"].(string)
+	fullBody := requiredPayload(t, full, map[string]any{}, func(name string, args map[string]any) map[string]any {
+		value, err := h.server.InvokeProjected(WithStructuredContext(t.Context()), name, args, insertion.Transport{HostType: "fixture", OuterCallID: "context-page", Passthrough: true}, countOnlyProjection, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	})
+	revision, _ := fullBody["context_revision"].(string)
 	if revision == "" {
 		t.Fatal("projected complete context has no revision")
 	}
 	reference := invoke(map[string]any{"known_context_revision": revision}, "context-reference")
 	body := asMap(reference["structuredContent"])
-	if body["delivery"] != "reference" || body["unchanged"] != true || body["rules"] != nil {
+	if body["context_delivery"] != "reference" || body["unchanged"] != true || body["rules"] != nil {
 		t.Fatalf("projected host lost compact reference: %#v", body)
 	}
 }

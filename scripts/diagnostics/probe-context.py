@@ -133,12 +133,71 @@ class Probe:
         params: dict = {"name": "agentdock_context", "arguments": {"workdir": workdir} if workdir else {}}
         if summary:
             params["_meta"] = {CAPABILITY: {"structured": True, "text": "summary"}}
-        result = self.request("tools/call", params, "context")
-        if result.get("isError"):
-            raise ProbeError("context", "tool_reported_error", self.samples[-1]["request_id"])
-        structured = result.get("structuredContent")
-        if not isinstance(structured, dict):
-            raise ProbeError("context", "structured_context_missing")
+        structured: dict = {}
+        source_parts: list[str] = []
+        source_mode = False
+        snapshot = ""
+        for page_index in range(512):
+            result = self.request("tools/call", params, "context")
+            if result.get("isError"):
+                raise ProbeError("context", "tool_reported_error", self.samples[-1]["request_id"])
+            page = result.get("structuredContent")
+            if not isinstance(page, dict):
+                raise ProbeError("context", "structured_context_missing")
+            if source_mode:
+                text = page.get("content")
+                if not isinstance(text, str):
+                    raise ProbeError("context", "invalid_source_page")
+                source_parts.append(text)
+                if sum(map(len, source_parts)) > 16 << 20:
+                    raise ProbeError("context", "retained_context_exceeds_limit")
+                if not page.get("has_more"):
+                    try:
+                        structured = json.loads("".join(source_parts))
+                    except (ValueError, TypeError):
+                        raise ProbeError("context", "invalid_retained_context") from None
+                    if not isinstance(structured, dict):
+                        raise ProbeError("context", "invalid_retained_context")
+                    break
+            else:
+                for key, value in page.items():
+                    if key != "sections":
+                        structured[key] = value
+                # Validate contract presence without exporting its private text.
+                for part in page.get("sections", []):
+                    if not isinstance(part, dict) or not isinstance(part.get("path"), str):
+                        raise ProbeError("context", "invalid_semantic_page")
+                    keys = [key.replace("~1", "/").replace("~0", "~") for key in part["path"].lstrip("/").split("/")]
+                    if len(keys) == 1 and "value" in part:
+                        structured[keys[0]] = part["value"]
+                    elif len(keys) >= 2:
+                        structured.setdefault(keys[0], {})
+                        if keys[:2] == ["runtime", "version"]:
+                            structured["runtime"]["version"] = part.get("value")
+                delivery = page.get("delivery", {})
+                if isinstance(delivery, dict) and not delivery.get("continuation_required") and not page.get("has_more"):
+                    break
+                current = page.get("structured_output", {}).get("snapshot_id", "")
+                if snapshot and current and current != snapshot:
+                    raise ProbeError("context", "context_snapshot_changed")
+                snapshot = current or snapshot
+                cursor = page.get("next_cursor")
+                if isinstance(cursor, str) and cursor:
+                    if len(cursor) > 4096:
+                        raise ProbeError("context", "invalid_cursor")
+                    arguments = {"cursor": cursor}
+                    if workdir:
+                        arguments["workdir"] = workdir
+                    params = {"name": "agentdock_context", "arguments": arguments, "_meta": params.get("_meta", {})}
+                    continue
+            continuation = page.get("continue_read") or page.get("structured_output", {}).get("continue_read", {})
+            arguments = continuation.get("arguments", {})
+            if continuation.get("tool") != "read_file" or not str(arguments.get("path", "")).startswith("activity://call/"):
+                raise ProbeError("context", "required_continuation_missing")
+            source_mode = True
+            params = {"name": "read_file", "arguments": arguments, "_meta": params.get("_meta", {})}
+        else:
+            raise ProbeError("context", "context_page_limit_exceeded")
         required = ("runtime", "rules", "skills", "instruction_files", "workspace")
         if any(key not in structured for key in required):
             raise ProbeError("context", "required_context_missing")

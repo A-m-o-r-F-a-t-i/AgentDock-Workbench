@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/textutil"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
@@ -18,12 +19,33 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 	if !modelProjectionRequested(ctx) && request.SourceRevision == "" && request.Offset == nil && request.LimitChars == nil && request.EndOffset == nil {
 		return r.files.ReadFile(ctx, request)
 	}
+	policy, ok := ctx.Value(outputPolicyContextKey{}).(config.ToolOutputSettings)
+	if !ok {
+		policy = r.MCPPresentationSettings().ToolOutput
+	}
+	bodyBudget := toolcontract.ModelVisiblePayloadChars - 2000
+	if policy.Enabled && policy.MaxChars > 0 {
+		bodyBudget = min(bodyBudget, policy.MaxChars)
+	}
 	binding := activity.FromContext(ctx)
+	requiredFile := strings.HasPrefix(request.Path, "skill://")
+	if requiredFile && request.SourceRevision == "" && request.Offset == nil && request.EndOffset == nil && request.StartLine == nil && request.EndLine == nil {
+		revision, err := r.files.ReadSourceRevision(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+		if completed, err := r.completedRequiredFileSnapshot(ctx, binding, request, revision); err != nil {
+			return nil, err
+		} else if completed != nil {
+			return requiredFileReference(*completed)
+		}
+	}
 	offset := int64(0)
 	if request.Offset != nil {
 		offset = *request.Offset
 	}
 	var retained *structuredOutputSnapshot
+	var predecessor *structuredOutputSnapshot
 	if request.SourceRevision != "" {
 		revision, err := r.files.ReadSourceRevision(ctx, request)
 		if err != nil {
@@ -38,6 +60,9 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 			if candidate.Tool != "read_file" || candidate.FilePath != request.Path || candidate.FileRuntime != request.Runtime || candidate.FileDistribution != request.WSLDistribution || candidate.FileRevision != revision || !sameContextScope(candidate.Binding, binding) {
 				continue
 			}
+			if candidate.FileByteEnd == offset && (predecessor == nil || candidate.CreatedAt.After(predecessor.CreatedAt)) {
+				predecessor = cloneStructuredSnapshot(candidate)
+			}
 			if offset >= candidate.FileByteStart && (offset < candidate.FileByteEnd || offset == candidate.FileByteEnd && candidate.FileByteEnd == candidate.FileRangeEnd) {
 				if retained == nil || candidate.CreatedAt.After(retained.CreatedAt) {
 					retained = cloneStructuredSnapshot(candidate)
@@ -45,6 +70,11 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 			}
 		}
 		r.structuredOutputMu.Unlock()
+		if predecessor != nil {
+			if err := r.authorizeStructuredSnapshot(ctx, predecessor.Binding, binding); err != nil {
+				return nil, err
+			}
+		}
 	}
 	var raw Result
 	if retained != nil {
@@ -65,7 +95,7 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 		text := stringArg(raw, "content")
 		textChars := utf8.RuneCountInString(text)
 		encodedChars, countErr := toolcontract.JSONChars(raw)
-		if countErr == nil && encodedChars < 4000 && raw["has_more"] == false && (request.LimitChars == nil || *request.LimitChars >= textChars) {
+		if !requiredFile && countErr == nil && encodedChars < min(4000, bodyBudget) && raw["has_more"] == false && (request.LimitChars == nil || *request.LimitChars >= textChars) {
 			raw["capture"] = map[string]any{"state": "complete", "complete": true, "retained_with": "response"}
 			raw["projection"] = map[string]any{"mode": "continuous_page", "complete": true, "visible_chars": textChars}
 			return raw, nil
@@ -76,13 +106,19 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 		}
 		raw = encodedRaw
 		complete, reason := sourceResultComplete(raw)
+		sequenceStart := int64(integerArgument(raw["offset"]))
+		if predecessor != nil {
+			sequenceStart = predecessor.FileSequenceStart
+		}
 		retained = &structuredOutputSnapshot{
 			Tool: "read_file", Binding: binding, Encoded: encoded, SourceComplete: complete, SourceReason: reason,
-			CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL), SourceState: "complete",
+			Required: requiredFile, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL), SourceState: "complete",
 			FilePath: request.Path, FileRuntime: request.Runtime, FileDistribution: request.WSLDistribution,
-			FileRevision: stringArg(raw, "source_revision"), FileByteStart: int64(integerArgument(raw["offset"])),
+			FileRevision: stringArg(raw, "source_revision"), FileSequenceStart: sequenceStart, FileByteStart: int64(integerArgument(raw["offset"])),
 			FileByteEnd: int64(integerArgument(raw["next_offset"])), FileRangeEnd: int64(integerArgument(raw["range_end"])),
 		}
+		retained.FileDeliveredOffset = retained.FileByteStart
+		retained.FileFullRange = retained.FileSequenceStart == 0 && retained.FileRangeEnd == int64(integerArgument(raw["size_bytes"]))
 		if !complete {
 			retained.SourceState = "partial"
 		}
@@ -122,7 +158,7 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 	}
 	// Escape-aware body sizing is below the final encoder's all-fields assertion.
 	// Cursors are derived only after selecting exactly these visible bytes.
-	visible := toolcontract.JSONTextPrefix(candidate, toolcontract.ModelVisiblePayloadChars-2000)
+	visible := toolcontract.JSONTextPrefix(candidate, bodyBudget)
 	next := offset + int64(len(visible))
 	startLine := integerArgument(raw["start_line"]) + strings.Count(text[:relative], "\n")
 	endLine := startLine + strings.Count(visible, "\n")
@@ -138,6 +174,10 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 	page["returned_chars"] = utf8.RuneCountInString(visible)
 	page["projection"] = map[string]any{"mode": "continuous_page", "complete": offset == retained.FileByteStart && next == end, "visible_chars": utf8.RuneCountInString(visible), "omitted_bytes": end - next}
 	page["capture"] = map[string]any{"state": retained.SourceState, "complete": retained.SourceComplete, "retained_bytes": len(retained.Encoded), "source_ref": retained.SourceURI}
+	if retained.Required {
+		page["output_class"] = string(toolcontract.OutputRequiredFull)
+		page["file_delivery"] = map[string]any{"snapshot_id": retained.ID, "byte_start": offset, "byte_end": next, "has_more": next < end}
+	}
 	if next < end {
 		page["next_cursor"] = map[string]any{"byte_offset": next}
 		page["next_start_line"] = startLine + strings.Count(visible, "\n")

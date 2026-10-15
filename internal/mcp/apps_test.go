@@ -408,10 +408,7 @@ func TestMCPAppsBindResourcesDirectlyToBusinessTools(t *testing.T) {
 	if err != nil || contextResult.IsError {
 		t.Fatalf("agentdock_context result=%#v err=%v", contextResult, err)
 	}
-	contextStructured, ok := contextResult.StructuredContent.(map[string]any)
-	if !ok {
-		t.Fatalf("agentdock_context structuredContent = %#v", contextResult.StructuredContent)
-	}
+	contextStructured := requiredSDKPayload(t, harness.session, contextResult, map[string]any{}, nil)
 	for _, field := range []string{"skills", "dynamic_mcp", "workflow_templates", "rules"} {
 		if contextStructured[field] == nil {
 			t.Fatalf("agentdock_context structuredContent missing %s: %#v", field, contextStructured)

@@ -22,6 +22,8 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 	if maxBytes > hardViewImageBytes {
 		maxBytes = hardViewImageBytes
 	}
+	requestedMaxBytes := maxBytes
+	maxBytes = min(maxBytes, modelVisibleViewImageBytes)
 	maxWidth := intValue(request.MaxWidth, 1280)
 	maxHeight := intValue(request.MaxHeight, 1280)
 	format := request.Format
@@ -52,6 +54,9 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 			return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds max_bytes after processing", "validation", map[string]any{"bytes": len(prepared), "max_bytes": maxBytes, "auto_resize": autoResize, "warnings": warnings})
 		}
 		resized = preparedInfo.Width != info.Width || preparedInfo.Height != info.Height || len(prepared) != len(loaded.Data)
+	}
+	if requestedMaxBytes > maxBytes && len(loaded.Data) > maxBytes {
+		warnings = append(warnings, "image compressed to the final model-response attachment budget")
 	}
 	if len(prepared) > maxBytes {
 		return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds max_bytes", "validation", map[string]any{"bytes": len(prepared), "max_bytes": maxBytes, "auto_resize": autoResize, "warnings": warnings})

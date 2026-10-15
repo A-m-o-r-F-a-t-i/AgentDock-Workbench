@@ -49,6 +49,7 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 			r.retainStructuredActivitySource(p, full, &retained)
 		}
 		if isContext {
+			retained.ContextRevision = stringArg(full, "context_revision")
 			retained.ContextWorkdir = stringArg(modelObject(full["instruction_files"]), "workdir")
 			if retained.ContextWorkdir == "" {
 				retained.ContextWorkdir = stringArg(full, "workdir")
@@ -145,6 +146,7 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 // Context handler. An encoder fallback therefore cannot skip an undelivered page.
 func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Result) {
 	r.commitRequiredSource(binding, result)
+	r.commitRequiredFile(binding, result)
 	meta := modelObject(result["structured_output"])
 	id := stringArg(meta, "snapshot_id")
 	index, count := integerArgument(meta["page_index"]), integerArgument(meta["page_count"])

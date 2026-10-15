@@ -27,7 +27,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["url"] = stringProp("Absolute HTTP(S) image URL.")
 		props["max_source_bytes"] = boundedIntProp("Maximum source bytes before processing. Defaults to 20971520 and is capped at 104857600.", 1, hardImageSourceBytes)
 		props["source_timeout_ms"] = boundedIntProp("HTTP(S) source timeout in milliseconds. Defaults to 15000 and is capped at 120000.", 1, 120000)
-		props["max_bytes"] = boundedIntProp("Maximum processed image bytes returned to the model. Defaults to 750000 and is capped at 2097152.", 1, hardViewImageBytes)
+		props["max_bytes"] = boundedIntProp("Requested upper bound for processed image bytes. The fixed final model-response budget may compress the returned image further.", 1, hardViewImageBytes)
 		props["max_width"] = map[string]any{"type": "integer", "description": "Maximum image width. Defaults to 1280.", "minimum": 1}
 		props["max_height"] = map[string]any{"type": "integer", "description": "Maximum image height. Defaults to 1280.", "minimum": 1}
 		props["auto_resize"] = boolProp("Resize/compress when limits are exceeded. Defaults to true.")

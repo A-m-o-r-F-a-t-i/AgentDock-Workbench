@@ -81,7 +81,9 @@ func responseModeOption(raw any, capability string) (string, error) {
 	if mode != responseTextFull && mode != responseTextSummary {
 		return "", errors.New("invalid " + capability + " text mode")
 	}
-	return mode, nil
+	// Structured clients always receive one bounded compatibility summary. The
+	// complete result exists only in structuredContent.
+	return responseTextSummary, nil
 }
 
 func contextResponseOptions(ctx context.Context, meta map[string]any) (context.Context, error) {

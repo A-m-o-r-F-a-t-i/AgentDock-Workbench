@@ -68,10 +68,13 @@ func requiredOutputParts(full Result, budget int) []semanticOutputPart {
 		}
 		switch item := value.(type) {
 		case map[string]any:
+			// Preserve container type before its children, including numeric object keys.
+			parts = append(parts, semanticOutputPart{Path: path, Value: map[string]any{}})
 			for _, key := range semanticKeys(item) {
 				visit(semanticPointer(path, key), item[key])
 			}
 		case []any:
+			parts = append(parts, semanticOutputPart{Path: path, Value: []any{}})
 			for index, entry := range item {
 				visit(semanticPointer(path, strconv.Itoa(index)), entry)
 			}

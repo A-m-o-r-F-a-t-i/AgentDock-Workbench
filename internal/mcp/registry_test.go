@@ -114,7 +114,7 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	for _, key := range []string{"conversation_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "retry_of_call_id"} {
 		delete(businessProps, key)
 	}
-	if len(businessProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil {
+	if len(businessProps) != 5 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil || inputProps["force_refresh"] == nil {
 		t.Fatalf("agentdock_context should expose workdir, known_context_revision, and structured result paging controls: %#v", inputProps)
 	}
 	if required, _ := inputSchema("agentdock_context")["required"].([]string); len(required) != 0 {
@@ -134,8 +134,8 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 		t.Fatalf("agentdock_context output schema still exposes legacy Markdown context: %#v", outputProps)
 	}
 	alternatives, ok := output["anyOf"].([]any)
-	if !ok || len(alternatives) != 2 {
-		t.Fatal("execution output must distinguish success from pending approval")
+	if !ok || len(alternatives) != 3 {
+		t.Fatal("execution output must distinguish success, pending approval and bounded model projection")
 	}
 	success := alternatives[0].(map[string]any)
 	required, ok := success["required"].([]string)
@@ -153,7 +153,7 @@ func TestWorkspaceContextSchemaIsRequestLocalWorkspaceEntrypoint(t *testing.T) {
 		t.Fatalf("workspace_context description should explain workspace rules: %q", def.Description)
 	}
 	inputProps := schemaProperties(t, "workspace_context")
-	if len(inputProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil {
+	if len(inputProps) != 5 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil || inputProps["force_refresh"] == nil {
 		t.Fatalf("workspace_context should expose optional workdir, revision and paging controls: %#v", inputProps)
 	}
 	if required, _ := inputSchema("workspace_context")["required"].([]string); len(required) != 0 {

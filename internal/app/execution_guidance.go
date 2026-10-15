@@ -138,7 +138,14 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 	}
 	summaries, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary)
 	if !ok {
-		return nil
+		// Repeated local routes retain exact names without full descriptions.
+		names, compact := result["required_host_tools"].([]string)
+		if !compact || result["repeated"] != true {
+			return nil
+		}
+		for _, exact := range names {
+			summaries = append(summaries, toolmcp.BuiltinToolSummary{Name: exact, InvokeVia: "host"})
+		}
 	}
 	steps := []map[string]any{}
 	seen := map[string]bool{}

@@ -63,7 +63,11 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if dropped, exists := result["dropped_before_bytes"]; exists {
 		capture["dropped_bytes"] = dropped
 	}
-	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= 4000 && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
+	smallCompleteLimit := 4000
+	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
+		smallCompleteLimit = min(smallCompleteLimit, p.outputPolicy.MaxChars)
+	}
+	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
 		// A complete small result is retained by the existing final response
 		// journal. Avoid another fsync and duplicate payload for every small call.
 		capture["retained_with"] = "response"

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -49,34 +48,26 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 	if err := os.WriteFile(filepath.Join(h.runtime.Config().AgentDockDefaultDir, "AGENTS.md"), []byte(rule), 0600); err != nil {
 		t.Fatal(err)
 	}
-	var fullBytes int
 	for _, mode := range []string{"full", "summary"} {
-		meta := sdk.Meta{ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
-		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"max_response_bytes": 65536}, Meta: meta})
+		meta := sdk.Meta{"openai/session": "context-negotiation-" + mode, ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
+		args := map[string]any{"max_response_bytes": 65536}
+		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: meta})
 		if err != nil || result.IsError {
 			t.Fatalf("%s: result=%+v error=%v", mode, result, err)
 		}
-		encoded, _ := json.Marshal(result.StructuredContent)
-		if !strings.Contains(string(encoded), rule) {
-			t.Fatal("full rule omitted from structured result")
-		}
 		assertContextMeasurements(t, result)
+		wire, _ := json.Marshal(result)
+		if utf8.RuneCount(wire) > 12000 {
+			t.Fatal("negotiated response exceeded the fixed final budget")
+		}
+		full := requiredSDKPayload(t, h.session, result, args, meta)
+		encoded, _ := json.Marshal(full)
+		if !strings.Contains(string(encoded), rule) {
+			t.Fatal("required sequence lost original rules")
+		}
 		first := result.Content[0].(*sdk.TextContent).Text
-		if mode == "full" {
-			var compat any
-			if json.Unmarshal([]byte(first), &compat) != nil || !reflect.DeepEqual(compat, result.StructuredContent) {
-				t.Fatal("legacy text is no longer complete JSON")
-			}
-			data, _ := json.Marshal(result)
-			fullBytes = len(data)
-		} else {
-			if len(first) > ContextSummaryMaxBytes || strings.Contains(first, rule) {
-				t.Fatal("summary text is not bounded")
-			}
-			data, _ := json.Marshal(result)
-			if len(data) >= fullBytes {
-				t.Fatal("negotiated summary did not remove duplicate rules")
-			}
+		if mode == "summary" && (utf8.RuneCountInString(first) > 512 || strings.Contains(first, rule)) {
+			t.Fatal("summary duplicated the contract")
 		}
 	}
 }
@@ -91,8 +82,8 @@ func TestContextTransportNegotiationRejectsMalformedMetadata(t *testing.T) {
 	}
 	result := map[string]any{"rules": []string{"retain me"}}
 	normal := responseEnvelope(WithStructuredContext(t.Context()), "list_dir", result, nil)
-	if !strings.Contains(asMap(envelopeBlocks(normal["content"])[0])["text"].(string), "retain me") {
-		t.Fatal("summary affected unrelated tools")
+	if asMap(normal["structuredContent"])["rules"].([]string)[0] != "retain me" || utf8.RuneCountInString(asMap(envelopeBlocks(normal["content"])[0])["text"].(string)) > 512 {
+		t.Fatal("default summary lost its structured body or exceeded the compatibility budget")
 	}
 	failed := responseEnvelope(WithStructuredContext(t.Context()), "agentdock_context", nil, errors.New("fixed failure"))
 	if failed["isError"] != true || !strings.Contains(asMap(envelopeBlocks(failed["content"])[0])["text"].(string), "fixed failure") {
@@ -127,7 +118,13 @@ func TestContextTransportProjectionCannotStripBootstrap(t *testing.T) {
 	if err != nil || final["isError"] == true {
 		t.Fatalf("context invocation: %v %v", final, err)
 	}
-	structured := asMap(final["structuredContent"])
+	structured := requiredPayload(t, final, map[string]any{}, func(name string, args map[string]any) map[string]any {
+		value, err := h.server.InvokeProjected(WithStructuredContext(t.Context()), name, args, host, countOnlyProjection, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	})
 	for _, key := range []string{"rules", "instruction_files", "runtime", "skills", "workspace"} {
 		if structured[key] == nil {
 			t.Fatalf("projection lost %s", key)

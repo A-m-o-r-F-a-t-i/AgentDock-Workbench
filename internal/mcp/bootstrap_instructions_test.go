@@ -111,7 +111,7 @@ func TestInstructionBootstrapAndLiveContextThroughMCP(t *testing.T) {
 			if result.IsError {
 				t.Fatalf("MCP context failed: %#v", result)
 			}
-			encoded, err := json.Marshal(result.StructuredContent)
+			encoded, err := json.Marshal(requiredSDKPayload(t, session, result, map[string]any{"workdir": selected}, nil))
 			if err != nil {
 				t.Fatal(err)
 			}

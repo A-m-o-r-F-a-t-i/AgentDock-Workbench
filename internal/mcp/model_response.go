@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -14,24 +15,10 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-// Native image/audio blocks are binary transport, not a textual model
-// projection. Keep their rendering contract; bound every textual JSON field.
+// Measure the actual SDK CallToolResult wire JSON, including base64 attachment
+// data. Oversized native content is replaced by a retained-source receipt.
 func modelEnvelopeChars(envelope map[string]any) (int, error) {
-	measured := maps.Clone(envelope)
-	blocks := envelopeBlocks(envelope["content"])
-	content := make([]any, 0, len(blocks))
-	for _, block := range blocks {
-		object := asMap(block)
-		if object["type"] == "image" || object["type"] == "audio" {
-			object = maps.Clone(object)
-			object["data"] = ""
-			content = append(content, object)
-		} else {
-			content = append(content, block)
-		}
-	}
-	measured["content"] = content
-	encoded, err := json.Marshal(measured)
+	encoded, err := json.Marshal(envelope)
 	if err != nil {
 		return 0, err
 	}
@@ -59,7 +46,8 @@ func singleBodyEnvelope(name string, envelope map[string]any) map[string]any {
 // metadata. A large result remains a successful operation with a source receipt.
 func (s *Server) boundModelResponse(ctx context.Context, name string, arguments map[string]any, pending *app.ToolResponse, envelope map[string]any) (map[string]any, error) {
 	out := normalizeResponseStages(name, arguments, envelope)
-	if responseTextMode(ctx, name) == responseTextSummary {
+	nativeBytes := nativeAttachmentBytes(out)
+	if responseTextMode(ctx, name) != responseTextOnly {
 		out = singleBodyEnvelope(name, out)
 	}
 	if modern, _ := ctx.Value(contextWireProtocolKey{}).(bool); modern {
@@ -77,7 +65,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		return nil, err
 	}
 	if chars > toolcontract.ModelVisibleTotalChars {
-		source, storeErr := s.runtime.RetainResponseSource(pending, envelope["structuredContent"])
+		source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(envelope))
 		if storeErr != nil {
 			return nil, fmt.Errorf("retain completed tool output before projection: %w", storeErr)
 		}
@@ -95,7 +83,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		payload["model_projection"] = map[string]any{
 			"chars": chars, "budget_chars": toolcontract.ModelVisibleTotalChars,
 			"class":                   modelOutputClass(name, arguments, payload),
-			"native_attachment_bytes": nativeAttachmentBytes(out),
+			"native_attachment_bytes": nativeBytes,
 			"mode":                    projection["mode"], "complete": projection["complete"],
 		}
 		out["structuredContent"] = payload
@@ -108,7 +96,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			return nil, countErr
 		}
 		if next > toolcontract.ModelVisibleTotalChars {
-			source, storeErr := s.runtime.RetainResponseSource(pending, envelope["structuredContent"])
+			source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(envelope))
 			if storeErr != nil {
 				return nil, storeErr
 			}
@@ -166,9 +154,59 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 			payload[key] = toolcontract.JSONTextSuffix(text, 1500)
 		}
 	}
+	if omitted := omittedContentDescriptors(original); len(omitted) > 0 {
+		payload["content_blocks_omitted"] = omitted
+	}
 	out := maps.Clone(original)
 	out["structuredContent"] = payload
-	return singleBodyEnvelope(name, out)
+	return compactContentEnvelope(name, out)
+}
+
+func compactContentEnvelope(name string, envelope map[string]any) map[string]any {
+	out := maps.Clone(envelope)
+	content := []any{map[string]any{"type": "text", "text": toolResultSummary(name, envelope)}}
+	for _, block := range envelopeBlocks(envelope["content"]) {
+		if asMap(block)["type"] == "resource_link" {
+			content = append(content, block)
+		}
+	}
+	out["content"] = content
+	return out
+}
+
+func responseRetentionValue(envelope map[string]any) any {
+	for _, block := range envelopeBlocks(envelope["content"]) {
+		switch asMap(block)["type"] {
+		case "image", "audio", "resource":
+			return envelope
+		}
+	}
+	return envelope["structuredContent"]
+}
+
+func omittedContentDescriptors(envelope map[string]any) []map[string]any {
+	items := []map[string]any{}
+	for _, block := range envelopeBlocks(envelope["content"]) {
+		value := asMap(block)
+		kind, _ := value["type"].(string)
+		switch kind {
+		case "image", "audio":
+			data, _ := value["data"].(string)
+			items = append(items, map[string]any{
+				"type": kind, "mime_type": value["mimeType"],
+				"encoded_chars": len(data), "decoded_bytes": decodedAttachmentBytes(data),
+			})
+		case "resource":
+			resource := asMap(value["resource"])
+			text, _ := resource["text"].(string)
+			blob, _ := resource["blob"].(string)
+			items = append(items, map[string]any{
+				"type": kind, "uri": resource["uri"], "mime_type": resource["mimeType"],
+				"text_chars": len([]rune(text)), "blob_encoded_chars": len(blob),
+			})
+		}
+	}
+	return items
 }
 
 func modelOutputClass(name string, args, payload map[string]any) toolcontract.OutputClass {
@@ -190,11 +228,19 @@ func nativeAttachmentBytes(envelope map[string]any) int64 {
 		value := asMap(block)
 		if value["type"] == "image" || value["type"] == "audio" {
 			if data, ok := value["data"].(string); ok {
-				total += int64(len(data))
+				total += int64(decodedAttachmentBytes(data))
 			}
 		}
 	}
 	return total
+}
+
+func decodedAttachmentBytes(data string) int {
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return 0
+	}
+	return len(decoded)
 }
 
 func normalizeResponseStages(name string, args, envelope map[string]any) map[string]any {

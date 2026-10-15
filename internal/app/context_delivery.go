@@ -88,17 +88,32 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	if p.args["force_refresh"] == true {
 		return nil, nil, nil
 	}
-	if p.state.binding.ConversationID == "" {
+	if p.state.binding.ConversationID == "" && stringArg(p.args, "known_context_revision") == "" {
 		return nil, nil, nil
 	}
 	candidates := []*structuredOutputSnapshot{}
+	knownRevision := stringArg(p.args, "known_context_revision")
+	requestedWorkdir := stringArg(p.args, "workdir")
 	r.structuredOutputMu.Lock()
 	r.pruneStructuredOutputLocked(time.Now())
 	for _, stored := range r.structuredSnapshots {
-		if stored.Tool != p.spec.Name || !stored.Required || !sameContextScope(stored.Binding, p.state.binding) {
+		if stored.Tool != p.spec.Name || !stored.Required {
 			continue
 		}
-		if workdir := stringArg(p.args, "workdir"); workdir != "" && filepath.Clean(workdir) != filepath.Clean(stored.ContextWorkdir) {
+		scopeMatches := sameContextScope(stored.Binding, p.state.binding)
+		if !scopeMatches {
+			// An unattributed caller can recover only the exact revision it already
+			// holds. The snapshot remains owner-bound and explicit workdir requests
+			// still require the normal workspace scope.
+			scopeMatches = knownRevision != "" && requestedWorkdir == "" &&
+				stored.ContextRevision == knownRevision && stored.Binding.ConversationID == "" &&
+				p.state.binding.ConversationID == "" && p.state.binding.WorkspaceID == "" &&
+				stored.Binding.SourceOwnerKey != "" && stored.Binding.SourceOwnerKey == p.state.binding.SourceOwnerKey
+		}
+		if !scopeMatches {
+			continue
+		}
+		if requestedWorkdir != "" && filepath.Clean(requestedWorkdir) != filepath.Clean(stored.ContextWorkdir) {
 			continue
 		}
 		candidates = append(candidates, cloneStructuredSnapshot(stored))
@@ -152,7 +167,8 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 			"context_revision": result["context_revision"], "unchanged": true,
 			"context_delivery": "reference", "context_ready": diagnostics["complete"] == true,
 			"context_diagnostics": map[string]any{"complete": diagnostics["complete"], "components_complete": diagnostics["components_complete"], "binding_status": "unchanged"},
-			"capture":             result["capture"], "operation": map[string]any{"state": "completed", "ok": true, "executed": false},
+			"capture":             map[string]any{"state": "complete", "complete": true},
+			"operation":           map[string]any{"state": "completed", "ok": true, "executed": false},
 		}
 	}
 	return result, resume, nil
