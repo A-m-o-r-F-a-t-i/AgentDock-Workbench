@@ -57,7 +57,13 @@ func newCatalogFixture(t *testing.T, count int) *catalogFixture {
 			offset, _ := strconv.Atoi(cursor)
 			tools := []map[string]any{}
 			for i := offset; i < count && i < offset+75; i++ {
-				tools = append(tools, map[string]any{"name": fmt.Sprintf("tool_%03d", i), "description": "Read selected data.\nFull details remain in inspect.", "inputSchema": map[string]any{"type": "object", "$defs": map[string]any{"Text": map[string]any{"type": "string", "enum": []string{"ok", "error"}}}, "properties": map[string]any{"text": map[string]any{"$ref": "#/$defs/Text"}}, "required": []string{"text"}}, "outputSchema": map[string]any{"type": "object", "properties": map[string]any{"ok": map[string]any{"type": "boolean"}}}, "_meta": map[string]any{"vendor/key": "retained"}})
+				tools = append(tools, map[string]any{
+					"name": fmt.Sprintf("tool_%03d", i), "description": "Read selected data.\nFull details remain in inspect.",
+					"inputSchema":  map[string]any{"type": "object", "$defs": map[string]any{"Text": map[string]any{"type": "string", "enum": []string{"ok", "error"}}}, "properties": map[string]any{"text": map[string]any{"$ref": "#/$defs/Text"}}, "required": []string{"text"}},
+					"outputSchema": map[string]any{"type": "object", "properties": map[string]any{"ok": map[string]any{"type": "boolean"}}},
+					"icons":        []map[string]any{{"mimeType": "image/png", "src": "data:image/png;base64,AAAA"}},
+					"_meta":        map[string]any{"vendor/key": "retained", "ui": map[string]any{"resourceUri": "ui://fixture/tool"}},
+				})
 			}
 			result["tools"] = tools
 			if offset+75 < count {
@@ -129,6 +135,10 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 		previous = name
 		if tool["input_schema"].(map[string]any)["$defs"] == nil || tool["output_schema"] == nil || tool["metadata"] == nil {
 			t.Fatal("full schema data missing")
+		}
+		metadata, _ := json.Marshal(tool["metadata"])
+		if strings.Contains(string(metadata), "data:image") || strings.Contains(string(metadata), "resourceUri") || strings.Contains(string(metadata), "\"icons\"") || strings.Contains(string(metadata), "\"ui\"") || !strings.Contains(string(metadata), "vendor/key") {
+			t.Fatalf("schema metadata projection is invalid: %s", metadata)
 		}
 	}
 	if one.lists.Load() != 3 || two.lists.Load() != 1 {
@@ -202,8 +212,26 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	if _, err := r.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Call(ctx, "mcp_tool_list", map[string]any{"server": "fixture"}); err != nil {
+	firstList, err := r.Call(ctx, "mcp_tool_list", map[string]any{"server": "fixture"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	secondList, err := r.Call(ctx, "mcp_tool_list", map[string]any{"server": "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forcedList, err := r.Call(ctx, "mcp_tool_list", map[string]any{"server": "fixture", "force_full": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstList["delivery"] != "full" || catalogCount(firstList["tools"]) != 3 {
+		t.Fatalf("first list omitted its catalog: %#v", firstList)
+	}
+	if secondList["delivery"] != "reference" || secondList["tools_omitted"] != true || secondList["tools"] != nil {
+		t.Fatalf("repeat list duplicated its catalog: %#v", secondList)
+	}
+	if forcedList["delivery"] != "full" || catalogCount(forcedList["tools"]) != 3 {
+		t.Fatalf("force_full list did not restore the catalog: %#v", forcedList)
 	}
 	call := func(callCtx context.Context) map[string]any {
 		result, err := r.Call(callCtx, "mcp_tool_call", map[string]any{"name": "fixture:tool_000", "arguments": map[string]any{"text": "ok"}})
@@ -214,8 +242,8 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	}
 	first := call(ctx)
 	second := call(ctx)
-	if first["delivery"] != "full" || first["tools_omitted"] != false || catalogCount(first["tools"]) != 3 {
-		t.Fatalf("first trusted call omitted its catalog: %#v", first)
+	if first["delivery"] != "reference" || first["tools_omitted"] != true || first["tools"] != nil {
+		t.Fatalf("business call duplicated the catalog delivered by list: %#v", first)
 	}
 	if second["delivery"] != "reference" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
 		t.Fatalf("repeated trusted call duplicated its catalog: %#v", second)
@@ -229,6 +257,52 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	}
 	if legacy := call(t.Context()); legacy["delivery"] != "full" || catalogCount(legacy["tools"]) != 3 {
 		t.Fatalf("client without trusted metadata lost the full catalog: %#v", legacy)
+	}
+}
+
+func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
+	fixture := newCatalogFixture(t, 1)
+	cfg := config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := newUnrestrictedTestRuntime(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, err := r.Call(t.Context(), "mcp_manage", map[string]any{"action": "add", "name": "fixture", "description": "schema delivery fixture", "transport": "streamable_http", "url": fixture.server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := activity.WithSource(t.Context(), activity.Source{Principal: "schema-test", Namespace: "mcp", HostConversationID: "schema-repeat"})
+	if _, err := r.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	inspect := func(force bool) map[string]any {
+		args := map[string]any{"names": []string{"fixture:tool_000"}}
+		if force {
+			args["force_full"] = true
+		}
+		result, err := r.Call(ctx, "mcp_tool_inspect", args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	first := inspect(false)
+	second := inspect(false)
+	forced := inspect(true)
+	firstTool := first["tools"].([]map[string]any)[0]
+	secondTool := second["tools"].([]map[string]any)[0]
+	forcedTool := forced["tools"].([]map[string]any)[0]
+	if first["schema_full_count"] != 1 || first["schema_reference_count"] != 0 || firstTool["delivery"] != "full" || firstTool["input_schema"] == nil {
+		t.Fatalf("first schema inspection was not complete: %#v", first)
+	}
+	if second["schema_full_count"] != 0 || second["schema_reference_count"] != 1 || secondTool["delivery"] != "reference" || secondTool["schema_omitted"] != true || secondTool["input_schema"] != nil {
+		t.Fatalf("repeat schema inspection was not compact: %#v", second)
+	}
+	if forced["schema_full_count"] != 1 || forced["schema_reference_count"] != 0 || forcedTool["delivery"] != "full" || forcedTool["input_schema"] == nil {
+		t.Fatalf("force_full schema inspection did not restore the schema: %#v", forced)
 	}
 }
 
