@@ -53,7 +53,10 @@ func TestBuiltinToolBundlesIsolateScopesAndGateRuntimeCalls(t *testing.T) {
 		t.Fatal("legacy unscoped client lost the complete tool directory")
 	}
 
-	_, err = runtime.Call(ctxA, "mcp_manage", map[string]any{"action": "list"})
+	if _, err := runtime.Call(ctxA, "mcp_manage", map[string]any{"action": "list"}); err != nil {
+		t.Fatalf("canonical device API was gated by model visibility: %v", err)
+	}
+	_, err = runtime.Call(WithModelProjection(ctxA), "mcp_manage", map[string]any{"action": "list"})
 	var toolErr *ToolError
 	if !errors.As(err, &toolErr) || toolErr.Code != "TOOL_BUNDLE_REQUIRED" || toolErr.Details["executed"] != false {
 		t.Fatalf("hidden direct call error = %T %#v", err, err)

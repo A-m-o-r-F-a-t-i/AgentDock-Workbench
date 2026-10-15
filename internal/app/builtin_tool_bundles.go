@@ -208,6 +208,10 @@ func (r *Runtime) BuiltinToolVisible(ctx context.Context, name string) bool {
 }
 
 func (r *Runtime) requireBuiltinToolVisible(ctx context.Context, name string) error {
+	// Visibility belongs to the MCP model projection, never to Core API authorization.
+	if !modelProjectionRequested(ctx) {
+		return nil
+	}
 	// Authenticated local control-panel APIs are not model tool-directory calls.
 	// They keep their existing direct management path and permission checks.
 	if local, _ := ctx.Value(localUserActionKey{}).(bool); local {

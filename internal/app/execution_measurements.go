@@ -59,6 +59,27 @@ func measuredInt(result Result, key string) *int {
 
 func (r *Runtime) fileEditDetails(args map[string]any, result Result, state executionObservation, failure error) *activity.FileEditDetails {
 	details := &activity.FileEditDetails{Action: stringArg(args, "action"), Path: stringArg(args, "path"), NewPath: stringArg(args, "new_path"), DryRun: args["dry_run"] == true, Recursive: args["recursive"] == true, Executed: state.executed}
+	var failureDetails map[string]any
+	var toolFailure *ToolError
+	if errors.As(failure, &toolFailure) {
+		failureDetails = toolFailure.Details
+	}
+	field := func(key string) string {
+		value := stringArg(result, key)
+		if value == "" {
+			value = stringArg(failureDetails, key)
+		}
+		return value
+	}
+	details.OperationStatus, details.EffectState, details.ErrorKind, details.Phase = field("operation_status"), field("effect_state"), field("error_kind"), field("phase")
+	if value, ok := result["retry_safe"].(bool); ok {
+		details.RetrySafe = &value
+	} else if value, ok := failureDetails["retry_safe"].(bool); ok {
+		details.RetrySafe = &value
+	}
+	if !state.executed && failure != nil {
+		details.OperationStatus, details.EffectState = "failed", "none"
+	}
 	if !state.executed || details.DryRun {
 		changed := false
 		details.Changed = &changed
