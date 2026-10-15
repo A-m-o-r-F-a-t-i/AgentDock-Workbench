@@ -34,7 +34,7 @@ func TestPayloadRoundTripRedactionBinaryMetadataAndExactIntegers(t *testing.T) {
 		"structuredContent": map[string]any{"sequence": uint64(1152921504606846979), "password": "private-password", "Authorization": "Bearer private-bearer", "env": map[string]any{"SOMETHING": "private-env"}, "normal": "kept"},
 	}
 	payload := s.CapturePayload(context.Background(), input, "complete", NewRedactor())
-	if payload.State != "complete" || payload.Ref == "" || !payload.Truncated || !utf8.ValidString(payload.Preview) {
+	if payload.State != "complete" || payload.Ref == "" || !payload.Truncated || !utf8.ValidString(payload.Preview) || payload.Overview != "" {
 		t.Fatalf("payload: %+v", payload)
 	}
 	savePayloadCall(t, s, "call_payload", payload)
@@ -78,13 +78,30 @@ func TestPayloadRoundTripRedactionBinaryMetadataAndExactIntegers(t *testing.T) {
 		t.Fatalf("output projection lost %+v %v", call, err)
 	}
 	page, err := copyStore.Calls(context.Background(), CallQuery{Limit: 10})
-	if err != nil || page.Calls[0].Response.Preview != "" {
+	if err != nil || page.Calls[0].Response.Preview != "" || page.Calls[0].Response.Overview != "" {
 		t.Fatal("list unnecessarily included output preview")
 	}
 	// Reading and replaying output do not manufacture new call events.
 	events, err := copyStore.Query(context.Background(), Query{CallID: "call_payload"})
 	if err != nil || len(events.Events) != 2 {
 		t.Fatalf("read generated activity %+v %v", events, err)
+	}
+}
+
+func TestRequestPayloadOverviewIsBoundedRedactedAndRequestOnly(t *testing.T) {
+	s := testStore(t, Options{})
+	input := map[string]any{
+		"activity_label": "Apply board changes",
+		"name":           "eda:apply",
+		"arguments":      map[string]any{"target": "board", "token": "fixture-secret"},
+	}
+	request := s.CaptureRequestPayload(t.Context(), input, "complete", NewRedactor())
+	if request.Overview == "" || len(request.Overview) > PayloadOverviewBytes || !utf8.ValidString(request.Overview) || !strings.Contains(request.Overview, "target") || !strings.Contains(request.Overview, "[REDACTED]") || strings.Contains(request.Overview, "fixture-secret") {
+		t.Fatalf("unsafe or incomplete request overview: %q", request.Overview)
+	}
+	response := s.CapturePayload(t.Context(), input, "complete", NewRedactor())
+	if response.Overview != "" {
+		t.Fatalf("response unexpectedly retained an overview: %q", response.Overview)
 	}
 }
 

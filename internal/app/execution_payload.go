@@ -24,7 +24,12 @@ func (r *Runtime) executionPayloadEvent(ctx context.Context, binding activity.Bi
 	if r.activity == nil || binding.CallID == "" || binding.ParentCallID != "" || binding.Visibility == "diagnostic" {
 		return activity.Event{}, false
 	}
-	payload := r.activity.CapturePayload(ctx, value, "complete", redactor)
+	var payload *activity.Payload
+	if kind == "request" {
+		payload = r.activity.CaptureRequestPayload(ctx, value, "complete", redactor)
+	} else {
+		payload = r.activity.CapturePayload(ctx, value, "complete", redactor)
+	}
 	event := activity.Event{Binding: binding, Kind: "call.payload", ToolName: name}
 	if kind == "request" {
 		event.Request = payload

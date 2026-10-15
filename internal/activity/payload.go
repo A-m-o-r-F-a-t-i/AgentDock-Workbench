@@ -23,6 +23,7 @@ import (
 const MaxPayloadBytes = 16 << 20
 const MaxPayloadStorageBytes = 256 << 20
 const PayloadPreviewBytes = 2048
+const PayloadOverviewBytes = 512
 const payloadPublicationGrace = 5 * time.Minute
 const payloadPublicationSafety = time.Minute
 
@@ -36,6 +37,7 @@ type Payload struct {
 	Bytes     int64  `json:"bytes,omitempty"`
 	Lines     int    `json:"lines,omitempty"`
 	Preview   string `json:"preview,omitempty"`
+	Overview  string `json:"overview,omitempty"`
 	Truncated bool   `json:"truncated,omitempty"`
 	Reason    string `json:"reason,omitempty"`
 }
@@ -62,9 +64,19 @@ func (payload *Payload) clone(preview bool) *Payload {
 	return &copy
 }
 
-// CapturePayload applies the same credential policy before disk, previews and
-// copyable text. Storage failures cannot re-run or change the business outcome.
+// CapturePayload applies the same credential policy before disk and copyable
+// output. Storage failures cannot re-run or change the business outcome.
 func (s *Store) CapturePayload(ctx context.Context, value any, state string, redactor Redactor) *Payload {
+	return s.capturePayload(ctx, value, state, redactor, false)
+}
+
+// CaptureRequestPayload additionally stores a bounded redacted overview for
+// activity lists. Responses and output sources keep their existing compact form.
+func (s *Store) CaptureRequestPayload(ctx context.Context, value any, state string, redactor Redactor) *Payload {
+	return s.capturePayload(ctx, value, state, redactor, true)
+}
+
+func (s *Store) capturePayload(ctx context.Context, value any, state string, redactor Redactor, requestOverview bool) *Payload {
 	result := &Payload{State: state, Format: "json"}
 	failure := func(reason string) *Payload {
 		result.State = "not_stored"
@@ -88,7 +100,15 @@ func (s *Store) CapturePayload(ctx context.Context, value any, state string, red
 	if err := decoder.Decode(&decoded); err != nil {
 		return failure("结果序列化失败。")
 	}
-	data, err = json.MarshalIndent(redactor.PayloadValue(decoded), "", "  ")
+	redacted := redactor.PayloadValue(decoded)
+	var overview []byte
+	if requestOverview {
+		overview, err = json.Marshal(redacted)
+		if err != nil {
+			return failure("脱敏结果编码失败。")
+		}
+	}
+	data, err = json.MarshalIndent(redacted, "", "  ")
 	if err != nil {
 		return failure("脱敏结果编码失败。")
 	}
@@ -98,6 +118,9 @@ func (s *Store) CapturePayload(ctx context.Context, value any, state string, red
 	result.Bytes = int64(len(data))
 	result.Lines = strings.Count(string(data), "\n") + 1
 	result.Preview = textutil.SafeTruncateString(string(data), PayloadPreviewBytes).Text
+	if requestOverview {
+		result.Overview = textutil.SafeTruncateString(string(overview), PayloadOverviewBytes).Text
+	}
 	result.Truncated = len(result.Preview) < len(data)
 	if s == nil || s.root == "" {
 		return failure("当前活动日志没有可持久化的存储目录。")
