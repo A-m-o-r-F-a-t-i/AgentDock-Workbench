@@ -23,7 +23,7 @@ var outputContractCoverageInventory = map[string]outputContractCoverageEntry{
 	"read_file":         {Variants: []string{"success"}},
 	"list_dir":          {Variants: []string{"success"}},
 	"search_text":       {Variants: []string{"success"}},
-	"file_edit":         {Variants: []string{"replace", "patch", "add", "move", "delete"}},
+	"apply_patch":       {Variants: []string{"success"}},
 	"exec_command":      {Variants: []string{"success"}},
 	// Real Runtime calls in android_device_test.go validate these output variants.
 	"android_device_read": {Variants: []string{"status", "packages"}},
@@ -71,12 +71,12 @@ func TestOutputContractCoverageGuardDetectsMissingAndInvalidEntries(t *testing.T
 		inventory[name] = entry
 	}
 	delete(inventory, "agentdock_context")
-	inventory["file_edit"] = outputContractCoverageEntry{Variants: []string{"future_action"}}
+	inventory["mcp_manage"] = outputContractCoverageEntry{Variants: []string{"future_action"}}
 
 	findings := strings.Join(outputContractCoverageFindings(ToolDefinitions(), inventory), "\n")
 	for _, want := range []string{
 		"agentdock_context: missing coverage",
-		`file_edit: variant "future_action" is not in action enum`,
+		`mcp_manage: variant "future_action" is not in action enum`,
 	} {
 		if !strings.Contains(findings, want) {
 			t.Fatalf("coverage guard findings missing %q:\n%s", want, findings)

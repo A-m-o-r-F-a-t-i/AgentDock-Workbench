@@ -21,10 +21,12 @@ var (
 )
 
 type ServerConfig struct {
-	SourceType  string `json:"-"`
-	PluginName  string `json:"-"`
-	DisplayName string `json:"-"`
-	StorageKey  string `json:"-"`
+	Lazy          bool   `json:"lazy,omitempty"`
+	RecoverySkill string `json:"recovery_skill,omitempty"`
+	SourceType    string `json:"-"`
+	PluginName    string `json:"-"`
+	DisplayName   string `json:"-"`
+	StorageKey    string `json:"-"`
 
 	PluginVersion   string `json:"-"`
 	revision        string
@@ -125,6 +127,7 @@ func newError(code, message string, retryable bool, details map[string]any, caus
 func normalizeServerConfig(cfg ServerConfig) ServerConfig {
 	cfg.Name = strings.TrimSpace(cfg.Name)
 	cfg.Description = strings.TrimSpace(cfg.Description)
+	cfg.RecoverySkill = strings.TrimSpace(cfg.RecoverySkill)
 	cfg.Transport = strings.ToLower(strings.TrimSpace(cfg.Transport))
 	cfg.URL = strings.TrimSpace(cfg.URL)
 	cfg.Command = strings.TrimSpace(cfg.Command)

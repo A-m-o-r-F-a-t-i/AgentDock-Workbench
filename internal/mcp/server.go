@@ -439,6 +439,11 @@ func toolEnvelope(name string, structured any, err error) map[string]any {
 			payload["category"] = toolErr.Category
 			payload["retryable"] = toolErr.Retryable
 			payload["details"] = toolErr.Details
+			for _, key := range []string{"operation_status", "error_kind", "effect_state", "retry_safe", "execution_performed", "message", "required_action", "recovery", "origin_call_id", "repeat_count"} {
+				if value, exists := toolErr.Details[key]; exists {
+					payload[key] = value
+				}
+			}
 			if toolErr.Code == "PERMISSION_REQUIRED" {
 				payload["permission_request"] = map[string]any{
 					"tool_name":  name,
@@ -467,6 +472,7 @@ func dynamicMCPToolEnvelope(structured any) map[string]any {
 	payload := asMap(structured)
 	remote, _ := payload["result"].(map[string]any)
 	isError, _ := remote["isError"].(bool)
+	isError = isError || payload["operation_status"] == "failed"
 	content, ok := remote["content"]
 	if !ok {
 		content = []map[string]any{{"type": "text", "text": pretty(payload)}}

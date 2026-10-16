@@ -229,7 +229,7 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {
 		// Diagnostics and binding details remain in the canonical activity source.
 		compact := Result{}
-		for _, key := range []string{"session_id", "status", "operation_status", "changed", "waited_ms", "offset", "next_offset", "exit_code", "command_ok", "already_delivered", "output_source", "source_complete", "outcome_unknown", "activity_warning"} {
+		for _, key := range []string{"session_id", "status", "operation_status", "effect_state", "execution_performed", "operation", "capture", "delivery", "routine_observation", "changed", "waited_ms", "offset", "next_offset", "exit_code", "command_ok", "already_delivered", "output_source", "source_complete", "outcome_unknown", "activity_warning"} {
 			if value, exists := result[key]; exists {
 				compact[key] = value
 			}

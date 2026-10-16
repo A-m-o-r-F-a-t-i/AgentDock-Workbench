@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
@@ -43,7 +44,8 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 		return Result{"action": action, "server": server}, nil
 	case "add":
 		cfg := mcpclient.ServerConfig{
-			Name:        request.Name,
+			Name: request.Name,
+			Lazy: request.Lazy, RecoverySkill: request.RecoverySkill,
 			Description: request.Description,
 			Transport:   request.Transport,
 			URL:         request.URL,
@@ -186,6 +188,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		complete := found.ArgumentsComplete
 		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
 		result["catalog_state"] = found.Selected["catalog_state"]
+		result["managed_target"] = managedTarget(ctx, stringValue(found.Selected["server"]), stringValue(found.Selected["catalog_revision"]), "registered_selection")
 	} else if len(found.Tools) == 0 {
 		result["resolution_status"] = "not_found"
 		if !found.AbsenceAuthoritative {
@@ -227,7 +230,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 		catalog = map[string]any{"server": validated.serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
 	catalog = s.catalogDeliveries.prepare(ctx, catalog, false)
-	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
+	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog, "managed_target": managedTarget(ctx, validated.serverName, stringValue(catalog["catalog_revision"]), "qualified_business_call")}
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if class, mode := prepared.OutputPolicy(); class != "" {
 			response["output_class"] = class
@@ -299,3 +302,12 @@ func cloneStringMap(values map[string]string) map[string]string {
 	}
 	return out
 }
+
+func managedTarget(ctx context.Context, server, revision, source string) map[string]any {
+	result := map[string]any{"server": server, "catalog_revision": revision, "selection_source": source}
+	if workspace := activity.FromContext(ctx).WorkspaceID; workspace != "" {
+		result["workspace_id"] = workspace
+	}
+	return result
+}
+func stringValue(value any) string { text, _ := value.(string); return text }

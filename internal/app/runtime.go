@@ -40,6 +40,8 @@ import (
 type Result = toolcore.Result
 
 type Runtime struct {
+	prerequisiteMu           sync.Mutex
+	prerequisites            map[string]*prerequisiteReceipt
 	androidExecutor          *androidbridge.Broker
 	sidebarHistory           sidebarHistoryCache
 	pluginStore              *pluginregistry.Store
@@ -247,7 +249,13 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		if resolved.SourceType == "managed" {
 			envName = resolved.Name
 		}
-		return toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}, nil
+		lease := toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}
+		if resolved.RecoveryMCPServer != "" {
+			lease.AuthorizeRecovery = func(ctx context.Context, origin string) error {
+				return runtime.authorizeMCPRecoverySkill(ctx, origin, resolved.RecoveryMCPServer, resolved.SkillRef)
+			}
+		}
+		return lease, nil
 	}, runtime.commandExecutionContext)
 	runtime.androidExecutor = androidbridge.New(instance)
 	runtime.command.SetAndroidBroker(runtime.androidExecutor)

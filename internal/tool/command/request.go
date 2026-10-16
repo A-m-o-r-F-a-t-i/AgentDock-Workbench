@@ -13,6 +13,7 @@ type RuntimeOptions struct {
 
 // ExecRequest is the stable exec_command input contract.
 type ExecRequest struct {
+	OriginCallID     string   `json:"origin_call_id,omitempty"`
 	AuditToolName    string   `json:"-"`
 	AuditSecrets     []string `json:"-"`
 	Backend          string   `json:"backend,omitempty"`

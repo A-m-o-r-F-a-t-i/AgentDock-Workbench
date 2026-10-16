@@ -15,12 +15,13 @@ import (
 type ConfigProvider func() config.Config
 
 type SkillLease struct {
-	PluginName string
-	Name       string
-	Root       string
-	EnvName    string
-	RuntimeEnv map[string]string
-	Release    func()
+	AuthorizeRecovery func(context.Context, string) error
+	PluginName        string
+	Name              string
+	Root              string
+	EnvName           string
+	RuntimeEnv        map[string]string
+	Release           func()
 }
 
 type SkillResolver func(ctx context.Context, skillRef string) (SkillLease, error)

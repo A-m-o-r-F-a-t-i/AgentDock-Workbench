@@ -9,6 +9,9 @@ import (
 func dynamicMCPToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{Name: "mcp_manage", Contract: mcpToolContract, Title: "Manage dynamic MCP servers", Description: "Register, inspect, enable, disable, refresh, remove, or manage the isolated environment of dynamic MCP servers. Dynamic MCP tools remain separate from AgentDock built-in tools.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_manage", func(ctx context.Context, r *Runtime, request toolmcp.ManageRequest) (Result, error) {
+			if request.Action == "recover" {
+				return r.recoverManagedMCP(ctx, request)
+			}
 			return r.dynamicMCP.Manage(ctx, request)
 		})},
 		{Name: "mcp_tool_list", Contract: mcpToolContract, Title: "List an MCP catalog", Description: "Return a known server's two-column catalog once per conversation and revision; repeats are compact references. Use force_full after model-context loss.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_list", func(ctx context.Context, r *Runtime, request toolmcp.ListRequest) (Result, error) {

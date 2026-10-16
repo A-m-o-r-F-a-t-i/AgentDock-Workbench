@@ -31,7 +31,7 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 		return invocation, nil
 
 	case "wsl":
-		lease, err := svc.acquireSkill(ctx, request.SkillRef)
+		lease, err := svc.acquireSkill(ctx, request.SkillRef, request.OriginCallID)
 		if err != nil {
 			return commandInvocation{}, err
 		}

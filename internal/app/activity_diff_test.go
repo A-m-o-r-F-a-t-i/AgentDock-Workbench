@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,8 +16,11 @@ func TestActivityCurrentDiffIsBoundedRedactedAndTaskScoped(t *testing.T) {
 		t.Skip("git unavailable")
 	}
 	r := newRuntimeValidationTestRuntime(t)
-	ctx := context.Background()
+	ctx := scopeHost("current-task-diff")
 	record, id := workspaceTask(t, r)
+	if _, err := r.Call(ctx, "task_manage", map[string]any{"action": "resume", "task_id": id}); err != nil {
+		t.Fatal(err)
+	}
 	git := func(arguments ...string) {
 		t.Helper()
 		args := append([]string{"-C", record.Root}, arguments...)
@@ -35,7 +37,7 @@ func TestActivityCurrentDiffIsBoundedRedactedAndTaskScoped(t *testing.T) {
 	}
 	git("add", "source.txt")
 	git("-c", "user.email=fixture@example.test", "-c", "user.name=Fixture", "commit", "-m", "fixture")
-	if _, err := r.Call(ctx, "file_edit", map[string]any{"action": "replace", "task_id": id, "path": "source.txt", "old": "initial", "new": "updated\npassword=private-diff-secret", "expected_matches": 1}); err != nil {
+	if _, err := r.Call(ctx, "apply_patch", map[string]any{"patch": "*** Begin Patch\n*** Update File: source.txt\n@@\n-initial\n+updated\n+password=private-diff-secret\n*** End Patch\n"}); err != nil {
 		t.Fatal(err)
 	}
 	page, err := r.activity.Query(ctx, activity.Query{TaskID: id})

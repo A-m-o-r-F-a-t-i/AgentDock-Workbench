@@ -7,6 +7,9 @@ import (
 
 // ManageRequest 是 mcp_manage 进入动态 MCP capability 后的稳定输入契约。
 type ManageRequest struct {
+	OriginCallID     string                `json:"origin_call_id,omitempty"`
+	Lazy             bool                  `json:"lazy,omitempty"`
+	RecoverySkill    string                `json:"recovery_skill,omitempty"`
 	Patch            mcpclient.ConfigPatch `json:"patch,omitempty"`
 	Scope            string                `json:"scope,omitempty"`
 	ExpectedRevision string                `json:"expected_revision,omitempty"`

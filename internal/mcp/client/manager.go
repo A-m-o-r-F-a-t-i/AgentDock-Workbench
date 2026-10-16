@@ -18,6 +18,7 @@ import (
 )
 
 type Manager struct {
+	catalogCacheMu          sync.Mutex
 	catalogContext          context.Context
 	cancelCatalog           context.CancelFunc
 	catalogMu               sync.Mutex
@@ -50,6 +51,7 @@ type Manager struct {
 type ExternalServerProvider func(context.Context) (map[string]ServerConfig, error)
 
 type serverState struct {
+	catalogRetained      func(indexSnapshot)
 	catalogChanged       func(protocolClient)
 	catalogPublished     func()
 	catalogRefreshQueued atomic.Bool
@@ -94,7 +96,7 @@ func NewManager(agentDockHome string, provided ...*envstore.Store) (*Manager, er
 	catalogContext, cancelCatalog := context.WithCancel(context.Background())
 	manager := &Manager{catalogContext: catalogContext, cancelCatalog: cancelCatalog, store: registry, envs: envs, servers: servers, states: states, overridePath: overridePath(agentDockHome), runtimeOverrides: map[string]ConfigPatch{}, revisionInstance: instance, retired: map[*serverState]bool{}}
 	for name, cfg := range manager.servers {
-		manager.bindCatalogNotifications(name, manager.states[name])
+		manager.states[name] = manager.newCatalogState(cfg)
 		cfg.revision = manager.nextRevisionLocked()
 		cfg.overrideSource = "default"
 		manager.servers[name] = cfg
@@ -289,8 +291,7 @@ func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serv
 		if previousState := m.states[name]; previousState != nil {
 			stale = append(stale, previousState)
 		}
-		states[name] = &serverState{}
-		m.bindCatalogNotifications(name, states[name])
+		states[name] = m.newCatalogState(cfg)
 	}
 	for name, state := range m.states {
 		if _, exists := servers[name]; !exists && state != nil {
@@ -485,6 +486,9 @@ func (m *Manager) Refresh(ctx context.Context, name string) (ServerSummary, []To
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
 	defer cancel()
+	if err = checkExpectedMCPRefresh(ctx, runtimeCfg); err != nil {
+		return ServerSummary{}, nil, err
+	}
 	tools, err := refreshStateLocked(ctx, runtimeCfg, state)
 	summary := summaryForLocked(cfg, state)
 	if err != nil {
@@ -705,7 +709,7 @@ func (m *Manager) ensureTools(ctx context.Context, name string) (map[string]Tool
 	}
 	if cached, fresh, err := m.catalogSnapshot(name); err != nil {
 		return nil, err
-	} else if fresh {
+	} else if fresh || cached.cachedCallable() {
 		return cloneTools(cached.Tools), nil
 	}
 	cfg, state, unlockState, err := m.lockServerContext(ctx, name)

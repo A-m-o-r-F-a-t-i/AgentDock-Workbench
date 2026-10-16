@@ -37,6 +37,17 @@ func validateRawAppend(event Event) error {
 			}
 		}
 	}
+	if detail := event.ToolExecution; detail != nil {
+		if !check(detail.Server, detail.QualifiedName, detail.ServerRevision, detail.ServerFingerprint, detail.CatalogRevision, detail.CatalogState, detail.MatchKind, detail.SchemaDigest, detail.AnnotationsDigest, detail.OperationStatus, detail.RouteStatus, detail.ErrorKind, detail.EffectState, detail.OriginCallID) {
+			return errors.New("raw tool execution details exceed preparation budget")
+		}
+		if action := detail.RequiredAction; action != nil && !check(action.Category, action.Tool, action.ReasonCode, action.Arguments) {
+			return errors.New("raw required action exceeds preparation budget")
+		}
+		if recovery := detail.Recovery; recovery != nil && !check(recovery.CallID, recovery.RetryID, recovery.SkillRef, recovery.State) {
+			return errors.New("raw recovery details exceed preparation budget")
+		}
+	}
 	return nil
 }
 

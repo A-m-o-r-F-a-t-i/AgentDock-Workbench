@@ -33,6 +33,9 @@ func publishStateLocked(state *serverState) {
 	previous := state.snapshot.Load()
 	snapshot := stateSnapshotLocked(state)
 	state.snapshot.Store(&snapshot)
+	if state.catalogRetained != nil {
+		state.catalogRetained(snapshot)
+	}
 	if state.catalogPublished != nil && (previous == nil || previous.Revision != snapshot.Revision || previous.Known != snapshot.Known || previous.ClientGeneration != snapshot.ClientGeneration || previous.Generation != snapshot.Generation) {
 		state.catalogPublished()
 	}
@@ -150,7 +153,7 @@ func (m *Manager) DirectoryRevision() string {
 // Freshness and connection availability are independent: retained schemas survive
 // refresh failures, and a cold/lazy directory never proves a tool is absent.
 func catalogStateForSnapshot(cfg ServerConfig, snapshot indexSnapshot) CatalogState {
-	state := CatalogState{State: "stale", CatalogRevision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerRevision: cfg.revision, Lazy: !snapshot.Ready}
+	state := CatalogState{State: "stale", CatalogRevision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerRevision: cfg.revision, Lazy: cfg.Lazy && !snapshot.Ready}
 	if !snapshot.RefreshedAt.IsZero() {
 		state.RefreshedAt = snapshot.RefreshedAt.Format(time.RFC3339Nano)
 	}
@@ -164,7 +167,7 @@ func catalogStateForSnapshot(cfg ServerConfig, snapshot indexSnapshot) CatalogSt
 		}
 	case catalogFresh(&snapshot):
 		state.State, state.AbsenceAuthoritative = "fresh", cfg.Enabled
-	case snapshot.Known && !snapshot.Ready:
+	case snapshot.Known && !snapshot.Ready && time.Since(snapshot.RefreshedAt) >= 0 && time.Since(snapshot.RefreshedAt) < catalogCacheMaxAge:
 		state.State = "cached"
 	}
 	return state

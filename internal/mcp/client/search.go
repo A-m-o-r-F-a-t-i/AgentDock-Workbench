@@ -109,6 +109,9 @@ func (m *Manager) SearchCatalogs(ctx context.Context, query, server string, limi
 		if err != nil {
 			return result, err
 		}
+		if server != "" && !refresh && catalog.cachedCallable() {
+			result.CacheOnly = true
+		}
 		attempted := !result.CacheOnly
 		if attempted {
 			var current Catalog

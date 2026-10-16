@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var recoveryMCPServerPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 var portableSkillNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`)
 
 // LoadPortableSkillDocument reads Agent Skills without requiring the host's
@@ -73,7 +74,7 @@ func ParsePortableSkillDocument(data []byte) (SkillDocument, error) {
 			}
 		}
 	}
-	version := ""
+	version, recoveryServer := "", ""
 	if value, exists := fields["metadata"]; exists {
 		metadata, ok := value.(map[string]any)
 		if !ok {
@@ -83,6 +84,12 @@ func ParsePortableSkillDocument(data []byte) (SkillDocument, error) {
 			text, ok := value.(string)
 			if !ok {
 				return SkillDocument{}, errors.New("metadata values must be strings")
+			}
+			if key == "mcp-recovery-server" {
+				recoveryServer = strings.TrimSpace(text)
+				if !recoveryMCPServerPattern.MatchString(recoveryServer) {
+					return SkillDocument{}, errors.New("metadata.mcp-recovery-server must name one configured MCP server")
+				}
 			}
 			if key == "version" {
 				version = text
@@ -94,5 +101,5 @@ func ParsePortableSkillDocument(data []byte) (SkillDocument, error) {
 	if version == "" {
 		version, _ = fields["version"].(string)
 	}
-	return SkillDocument{Name: name, Description: description, Version: version, Body: strings.TrimSpace(strings.Join(lines[end+1:], "\n"))}, nil
+	return SkillDocument{Name: name, Description: description, Version: version, RecoveryMCPServer: recoveryServer, Body: strings.TrimSpace(strings.Join(lines[end+1:], "\n"))}, nil
 }

@@ -19,9 +19,12 @@ func InputSchema(name string) (map[string]any, bool) {
 
 	switch name {
 	case ToolManage:
-		props["action"] = map[string]any{"type": "string", "description": "Dynamic MCP server or isolated environment action.", "enum": []string{"list", "inspect", "add", "remove", "enable", "disable", "env_set", "env_unset", "env_list", "refresh", "update", "reset_override"}}
+		props["action"] = map[string]any{"type": "string", "description": "Dynamic MCP server or isolated environment action.", "enum": []string{"list", "inspect", "add", "remove", "enable", "disable", "env_set", "env_unset", "env_list", "refresh", "update", "reset_override", "recover"}}
 		props["name"] = stringProp("Dynamic MCP server name. Use a stable short identifier such as figma or github.")
 		props["description"] = stringProp("Short capability description shown in agentdock_context.")
+		props["origin_call_id"] = map[string]any{"type": "string", "maxLength": 37, "pattern": "^call_[a-f0-9]{32}$", "description": "Required for recover: original connection-failed business call in this conversation and workspace."}
+		props["lazy"] = boolProp("Resolve from a retained catalog until the first selected business call starts this server.")
+		props["recovery_skill"] = map[string]any{"type": "string", "maxLength": 512, "description": "Optional exact registered recovery Skill reference. That Skill must declare its matching MCP server."}
 		props["transport"] = map[string]any{"type": "string", "description": "MCP transport for action=add.", "enum": []string{"streamable_http", "stdio"}}
 		props["url"] = stringProp("Absolute MCP endpoint URL for transport=streamable_http.")
 		props["command"] = stringProp("Executable name or path for transport=stdio.")
@@ -34,7 +37,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["enabled"] = boolProp("Enable the server after registration. Defaults to true.")
 		props["timeout_ms"] = boundedIntProp("Per-request timeout. Defaults to 30000 and is capped at 300000.", 1, 300000)
 		patchProps := map[string]any{}
-		for _, field := range []string{"description", "transport", "url", "command", "args", "cwd", "header_env", "env_from_env", "timeout_ms"} {
+		for _, field := range []string{"description", "transport", "url", "command", "args", "cwd", "header_env", "env_from_env", "timeout_ms", "lazy", "recovery_skill"} {
 			patchProps[field] = props[field]
 		}
 		props["patch"] = map[string]any{"type": "object", "description": "Editable host overlay fields for update. Does not rewrite plugin files, permissions, enabled state or discovered facts.", "properties": patchProps, "additionalProperties": false, "minProperties": 1}
@@ -70,6 +73,9 @@ func InputSchema(name string) (map[string]any, bool) {
 		toolcontract.StructuredPagingInput(props)
 	}
 	schema := toolcontract.InputObject(props, required...)
+	if name == ToolManage {
+		schema["allOf"] = []map[string]any{{"if": map[string]any{"properties": map[string]any{"action": map[string]any{"const": "recover"}}, "required": []string{"action"}}, "then": map[string]any{"required": []string{"origin_call_id", "name"}}}}
+	}
 	if name == ToolInspect {
 		schema["oneOf"] = []map[string]any{{"required": []string{"names"}}, {"required": []string{"name"}}}
 	}
@@ -98,6 +104,11 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["key"] = stringProp("Environment variable name. Secret values are never returned.")
 		props["configured"] = boolProp("Whether the environment variable has a non-empty configured value.")
 		props["items"] = arrayProp("Environment variable names and configured status without values.")
+		props["origin_call_id"] = stringProp("Original failed business call.")
+		props["recovery"] = objectProp("Original Activity claim, expiry, recovery step and single retry state.")
+		props["retry"] = objectProp("Actual result of the fixed original MCP retry, including pending approval when applicable.")
+		props["retry_performed"] = boolProp("Whether the original operation was dispatched, rather than merely queued for approval.")
+		props["required_action"] = objectProp("Recovery, authorization or independent readback needed next.")
 	case ToolSearch:
 		props["query"] = stringProp("Capability query used.")
 		props["server"] = stringProp("Optional server filter used.")
@@ -180,6 +191,9 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["mcp_catalog"] = toolcontract.OutputObject(catalogSchemaProperties())
 	default:
 		return nil, false
+	}
+	if name == ToolSearch || name == ToolCall {
+		props["managed_target"] = objectProp("Selected registered MCP target, workspace, catalog revision and selection source.")
 	}
 	if name == ToolSearch || name == ToolList || name == ToolInspect {
 		toolcontract.StructuredPagingOutput(props)

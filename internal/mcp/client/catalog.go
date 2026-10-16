@@ -88,7 +88,7 @@ func (m *Manager) Catalog(ctx context.Context, server string) (Catalog, error) {
 	if err != nil {
 		return Catalog{}, err
 	}
-	if !fresh {
+	if !fresh && !catalog.cachedCallable() {
 		if _, err := m.ensureTools(ctx, server); err != nil {
 			return Catalog{}, err
 		}

@@ -41,28 +41,18 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		if route.Code != want {
 			t.Fatalf("classification=%v want %s", route.Code, want)
 		}
-		var view struct {
-			Executed bool  `json:"execution_performed"`
-			Errors   []any `json:"errors"`
-			Guidance struct {
-				Next []struct {
-					Action    string         `json:"action"`
-					Tool      string         `json:"tool"`
-					Via       string         `json:"invoke_via"`
-					Arguments map[string]any `json:"arguments"`
-				} `json:"next_required"`
-			} `json:"agentdock_guidance"`
+		candidates, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary)
+		action := modelObject(route.Details["required_action"])
+		if !ok || len(candidates) != test.count || route.Details["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
+			t.Fatalf("missing exact non-executing handoff: %#v", route.Details)
 		}
-		if err := remarshal(route.Details, &view); err != nil {
-			t.Fatal(err)
-		}
-		if route.Details["execution_performed"] != false || view.Executed || len(view.Errors) != 0 || len(view.Guidance.Next) != test.count {
-			t.Fatalf("discovery did not terminate with a host handoff: %#v", route.Details)
-		}
-		for _, step := range view.Guidance.Next {
-			if step.Action != "call_host_tool" || step.Via != "host" || step.Tool == "" || step.Arguments != nil {
-				t.Fatalf("handoff fabricated execution arguments or repeated discovery: %+v", step)
+		for _, candidate := range candidates {
+			if candidate.Name == "" || candidate.InvokeVia != "host" {
+				t.Fatalf("invalid host candidate: %+v", candidate)
 			}
+		}
+		if action["category"] != "protocol" && action["category"] != "model_decision" {
+			t.Fatalf("wrong host prerequisite: %#v", action)
 		}
 		id := stringArg(route.Details, "call_id")
 		if id == "" || ids[id] {
@@ -113,8 +103,7 @@ func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
 		"builtin_tools": []toolmcp.BuiltinToolSummary{{Name: "exec_command", InvokeVia: "host"}},
 	}}
 	guidance := rt.executionErrorGuidance(executionObservation{}, fake)
-	steps := guidance["next_required"].([]map[string]any)
-	if len(steps) != 1 || steps[0]["action"] != "inspect" {
+	if len(guidance) != 0 {
 		t.Fatalf("forged error created host recovery: %#v", guidance)
 	}
 }

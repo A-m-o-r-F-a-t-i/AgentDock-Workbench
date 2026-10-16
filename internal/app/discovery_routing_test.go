@@ -54,7 +54,7 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 		{"task_manage", "task_manage", ""}, {"exec_command", "exec_command", ""},
 		{"mcp_tool_call", "mcp_tool_call", ""}, {"session_observe", "session_observe", ""},
 		{"exec_command exact", "exec_command", ""}, {"host task_manage", "task_manage", ""},
-		{"write_file", "file_edit", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
+		{"write_file", "apply_patch", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
 	} {
 		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": test.query})
 		var route *ToolError
@@ -133,7 +133,7 @@ func TestAuditBroadSearchReportsColdCatalogWithoutConnecting(t *testing.T) {
 			t.Fatalf("cold directory must be explicit partial discovery: %#v %v", result, err)
 		}
 		data, _ := json.Marshal(result)
-		if !strings.Contains(string(data), "offline") || !strings.Contains(string(data), "mcp_tool_list") {
+		if !strings.Contains(string(data), "offline") || !strings.Contains(string(data), "mcp_server_selection_required") {
 			t.Fatalf("cold discovery lost the selected-service recovery path: %s", data)
 		}
 		assertToolResultMatchestestOutputSchema(t, "mcp_tool_search", result)

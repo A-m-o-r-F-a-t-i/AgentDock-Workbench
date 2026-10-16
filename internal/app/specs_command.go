@@ -11,6 +11,9 @@ func commandToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{Name: "exec_command", Contract: commandToolContract, Title: "Run command", Description: toolcommand.Description(), Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("exec_command", func(ctx context.Context, r *Runtime, request toolcommand.ExecRequest) (Result, error) {
 			request.Binding = activity.FromContext(ctx)
+			if request.OriginCallID != "" && request.Backend != "" && request.Backend != "default" {
+				return nil, toolErrorDetails("MCP_RECOVERY_SKILL_REQUIRED", "Recovery uses the declared host Skill without switching execution backend", "validation", map[string]any{"executed": false})
+			}
 			if modelProjectionRequested(ctx) {
 				ctx = toolcommand.WithModelOutputProjection(ctx)
 			}

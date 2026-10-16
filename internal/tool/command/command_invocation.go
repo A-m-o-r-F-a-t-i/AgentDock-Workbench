@@ -36,9 +36,12 @@ func (invocation commandInvocation) start(ctx context.Context, timeout time.Dura
 	return session.StartWithShellTTY(ctx, invocation.shell, invocation.command, invocation.workdir, invocation.env, timeout, tty, prepare)
 }
 
-func (svc *Service) acquireSkill(ctx context.Context, skillRef string) (SkillLease, error) {
+func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID string) (SkillLease, error) {
 	skillRef = strings.TrimSpace(skillRef)
 	if skillRef == "" {
+		if originCallID != "" {
+			return SkillLease{}, toolError("MCP_RECOVERY_SKILL_REQUIRED", "origin_call_id requires a declared recovery Skill", "validation")
+		}
 		return SkillLease{}, nil
 	}
 	if svc.resolveSkill == nil {
@@ -55,11 +58,20 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef string) (SkillLea
 		lease.Release()
 		return SkillLease{}, toolErrorDetails("SKILL_CONTEXT_INVALID", "resolved Skill context is incomplete", "runtime", map[string]any{"skill_ref": skillRef})
 	}
+	if lease.AuthorizeRecovery != nil {
+		if err = lease.AuthorizeRecovery(ctx, originCallID); err != nil {
+			lease.Release()
+			return SkillLease{}, err
+		}
+	} else if originCallID != "" {
+		lease.Release()
+		return SkillLease{}, toolError("MCP_RECOVERY_SKILL_REQUIRED", "Selected Skill does not declare a recovery MCP server", "validation")
+	}
 	return lease, nil
 }
 
 func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRequest) (commandInvocation, error) {
-	lease, err := svc.acquireSkill(ctx, request.SkillRef)
+	lease, err := svc.acquireSkill(ctx, request.SkillRef, request.OriginCallID)
 	if err != nil {
 		return commandInvocation{}, err
 	}

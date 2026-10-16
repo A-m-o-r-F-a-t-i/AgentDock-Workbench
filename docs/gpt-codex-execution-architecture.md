@@ -49,19 +49,30 @@
 
 　　MCP initialize 只交付稳定设备契约与 operator instructions；AGENTS.md 经 Context 按作用域交付。设备契约说明精确解析、目录刷新、业务优先、连接错误后恢复和未知效果核对。可信插入仍沿用既有认证与回执边界。
 
+## Managed MCP 恢复与统一结果
+
+　　真实 `mcp_tool_call` 只有在业务调用返回受控连接类错误、且实际效果为 `none` 时，才在原 Activity 上建立十分钟恢复资格。资格校验固定认证所有者、Conversation、Workspace、server、执行配置指纹与工具 Schema；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
+
+　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复完成后只重试原业务参数一次，目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。未知副作用只允许恢复连接，仍要求独立业务读回。
+
+　　Canonical Result 统一记录 `operation_status`、`error_kind`、`effect_state`、`execution_performed`、`retry_safe` 和分类 `required_action`。相同认证作用域、Workspace、参数、原因和目录 revision 的重复协议前置条件失败，返回首个 origin、原恢复动作与递增 `repeat_count`；完整结果先留存，再生成模型短回执。
+
+## 惰性目录缓存与 Activity/UI
+
+　　成功发现的完整 MCP 目录可保存在受管缓存中，单项上限 8 MiB、最多 32 项、有效期 24 小时。`lazy=true` 的服务只在缓存身份与当前执行配置匹配时使用缓存 Schema；首次实际业务调用才启动提供者并重新校验当前 Schema。过期、缓存限定与刷新失败的零命中保持 `absence_authoritative=false`。
+
+　　Activity 新增有界的 catalog、route、match、required action、业务效果和 recovery 字段。Windows 活动摘要与悬停详情、macOS 技术详情已显示 catalog state/revision、匹配方式、Host 刷新要求、恢复 origin 及消费状态；历史记录缺失字段保持未知，不补成成功或零值。
+
 ## 验证状态与剩余工作
 
-　　已完成各批修改的差异审查和 `git diff --check`。当前设备执行使用独立工作树，生产 Core 未替换。上轮离线补丁已写回设备并提交，不再仅为沙箱附件。本轮未运行额外本地测试或安装操作。
+　　本批源码已完成格式化、差异审查和 `git diff --check`。使用独立缓存 Go 1.26.5 工具链重新编译 `cmd/agentdock` 成功，候选 Core 位于设备任务产物目录；生产 Core 未替换，未安装候选版本。
 
-　　GitHub Actions 已随提交触发。提交 44766e6 的 Ubuntu CI 中，`internal/mcp/client` 包通过；整体 CI 仍在 Test 阶段失败，不能据此判定整项计划通过。初始化常量、Patch 请求类型和跨平台公开参数断言已迁移，其他失败仍需逐项区分契约变化与运行时问题。
+　　Windows 界面本机构建未进入项目编译阶段，原因是设备仅安装 .NET Runtime、未安装 .NET SDK；不为本次修改额外安装 SDK。Windows 与 macOS 的原生编译继续由仓库现有 GitHub Actions 完成。
 
 待完成项：
 
-- 迁移余下 `file_edit` 调用夹具、Context/Session/工具发现断言及协议探针，保留实际权限、审批和审计要求，完成现有 Actions 复验。
-- 基于原 Activity 校验 Conversation、Workspace、server、连接错误及有效期的 managed-MCP 恢复资格、消费记录和一次性原调用重试。目前仅具备设备契约指导，未实现该运行时机制。
-- 重复 Bundle/前置条件失败的稳定 origin reference、repeat_count 和短回执，以及统一错误、副作用字段与完整输出 Schema 验证。
-- Lazy 缓存持久化与首次业务启动校验的完整生命周期核对、恢复 Skill 的 origin call 约束及正常业务路径迁移。
-- Activity/UI 的 catalog、路由、required action 和 recovery origin 展示，以及其余平台专用展示。
-- 使用候选构建完成真实 managed-MCP 业务读取、最小编辑和独立读回回归。当前运行设备的旧 Core 不计作新代码验收。
+- 推送本批实现，完成 PR #126 的现有 GitHub Actions，按真实失败修正剩余契约或平台编译问题。
+- 使用候选版本完成一条真实 EasyEDA managed-MCP 业务读取、最小编辑和独立读回，记录首次业务调用前诊断数、恢复次数与工具发现路径。
+- Actions 与真实回归通过后完成最终代码审查，合并 PR #126，启动 1.1.9 正式预发布构建并核对发布资产。
 
-　　PR #126 尚未合并、发布或安装。实现存在上述缺口，完整验收状态保持未完成。
+　　当前仍为 PR #126 草稿状态，尚未合并、发布或替换设备生产 Core；本地候选编译成功不等同于 GitHub Actions、原生界面构建或真实 MCP 回归通过。

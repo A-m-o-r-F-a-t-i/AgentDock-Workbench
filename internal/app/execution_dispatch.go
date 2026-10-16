@@ -108,6 +108,10 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 			value := map[string]any{"result": result, "isError": returnErr != nil || resultReportsFailure(result)}
 			if returnErr != nil {
 				value["error"] = returnErr.Error()
+				var detailed *ToolError
+				if errors.As(returnErr, &detailed) {
+					value["error_details"] = detailed.Details
+				}
 			}
 			r.recordExecutionPayload(binding, spec.Name, "response", value, redactor)
 			if auditErr := r.recordRPCReturn(binding, spec.Name, received, result, returnErr); auditErr != nil {
@@ -123,9 +127,15 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		}
 	}()
 	fail := func(failure error) (Result, error) {
+		_, failure, metadata := r.executionOutcome(spec.Name, original, nil, failure, state, nil)
 		event := activity.Event{Binding: state.binding, Kind: "call.completed", Status: "failed", ToolName: spec.Name, Title: spec.Title, ElapsedMS: time.Since(state.started).Milliseconds(), Summary: r.executionRedactor(original).Text(failure.Error(), 4096)}
 		if event.Binding.Validate() != nil {
 			event.Binding = initial
+		}
+		event.ToolExecution = metadata
+		event.Title = executionErrorTitle(spec.Name, spec.Title, failure)
+		if errors.Is(failure, context.Canceled) {
+			event.Status = "cancelled"
 		}
 		var toolErr *ToolError
 		if errors.As(failure, &toolErr) {
@@ -136,6 +146,9 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		}
 		if auditErr := r.appendExecution(event); auditErr != nil {
 			failure = errors.Join(failure, fmt.Errorf("rejected call could not be persisted: %w", auditErr))
+		}
+		if spec.Name == "mcp_tool_call" {
+			r.finishManagedMCPRetry(state.binding, original, event.Status)
 		}
 		return nil, r.executionError(failure, state)
 	}
@@ -393,7 +406,7 @@ func (r *Runtime) executionError(err error, state executionObservation) error {
 	if state.binding.ConversationID != "" {
 		copy.Details["conversation_id"] = state.binding.ConversationID
 	}
-	if toolErr.Category != "validation" || toolErr.Code == "TOOL_BUNDLE_REQUIRED" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err) {
+	if copy.Details["required_action"] == nil && (toolErr.Category != "validation" || toolErr.Code == "TOOL_BUNDLE_REQUIRED" || state.binding.TaskID != "" || state.binding.WorkspaceID != "" || toolmcp.IsBuiltinDiscoveryError(err)) {
 		if guidance := r.executionErrorGuidance(state, err); len(guidance) > 0 {
 			copy.Details["agentdock_guidance"] = guidance
 		}
@@ -446,7 +459,7 @@ func (r *Runtime) describeExecution(name string, args map[string]any, state exec
 // arbitrary third-party nested data. The fixed request stays in memory.
 func (r *Runtime) executionParameters(args map[string]any) string {
 	selected := map[string]any{}
-	for _, key := range []string{"action", "name", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms", "package", "component", "namespace", "key", "operation", "mode", "permission", "capture_dir", "x", "y", "x2", "y2", "keycode"} {
+	for _, key := range []string{"action", "name", "origin_call_id", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms", "package", "component", "namespace", "key", "operation", "mode", "permission", "capture_dir", "x", "y", "x2", "y2", "keycode"} {
 		if value, found := args[key]; found {
 			selected[key] = value
 		}
@@ -618,6 +631,10 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 			value := map[string]any{"result": result, "isError": returnErr != nil || resultReportsFailure(result)}
 			if returnErr != nil {
 				value["error"] = returnErr.Error()
+				var detailed *ToolError
+				if errors.As(returnErr, &detailed) {
+					value["error_details"] = detailed.Details
+				}
 			}
 			r.recordExecutionPayload(p.state.binding, p.spec.Name, "response", value, r.executionRedactor(p.args))
 		}
@@ -745,6 +762,10 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	return r.finishPrepared(p, result, err, status)
 }
 func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
+	result, err, metadata := r.executionOutcome(p.spec.Name, p.args, result, err, p.state, p.mcpCall)
+	if businessOutcomeFailure(p.spec.Name, result) && status == "succeeded" {
+		status = "failed"
+	}
 	title := executionResultTitle(p.spec.Name, r.describeExecution(p.spec.Name, p.args, p.state), result)
 	if err != nil {
 		title = executionErrorTitle(p.spec.Name, title, err)
@@ -769,6 +790,8 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 		}
 	}
 	event := activity.Event{Binding: p.state.binding, Kind: "call.completed", Status: status, ToolName: p.spec.Name, Title: title, ApprovalID: p.approvalID, PermissionMode: p.decision.Mode, RuleID: p.decision.RuleID, ParameterSummary: preparedMCPExecutionSummary(p), ElapsedMS: time.Since(p.state.started).Milliseconds(), Summary: summary}
+	event.ToolExecution = metadata
+	event.ErrorCode = stringArg(result, "error_code")
 	event.OperationElapsedMS = &event.ElapsedMS
 	event.CommandObservation = r.commandObservation(p, result, err)
 	event.ExecutionElapsedMS, event.WaitElapsedMS = p.state.executionMS, p.state.waitMS
@@ -788,6 +811,9 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 			result = Result{}
 		}
 		result["activity_warning"] = "The actual tool returned, but its final journal event could not be persisted. Verify side effects before retrying."
+	}
+	if p.spec.Name == "mcp_tool_call" {
+		r.finishManagedMCPRetry(p.state.binding, p.args, status)
 	}
 	if p.approvalID != "" {
 		final := status
@@ -811,6 +837,7 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 	projected := result
 	if p.modelOutput {
 		result = r.prepareModelOutput(p, result)
+		result = compactPrerequisiteProjection(result)
 		projected = r.applyStructuredOutputPolicy(p, result)
 	}
 	decorated := maps.Clone(projected)

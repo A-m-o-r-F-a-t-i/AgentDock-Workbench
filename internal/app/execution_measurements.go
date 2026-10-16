@@ -59,6 +59,9 @@ func measuredInt(result Result, key string) *int {
 
 func (r *Runtime) fileEditDetails(args map[string]any, result Result, state executionObservation, failure error) *activity.FileEditDetails {
 	details := &activity.FileEditDetails{Action: stringArg(args, "action"), Path: stringArg(args, "path"), NewPath: stringArg(args, "new_path"), DryRun: args["dry_run"] == true, Recursive: args["recursive"] == true, Executed: state.executed}
+	if details.Action == "" && stringArg(args, "patch") != "" {
+		details.Action = "patch"
+	}
 	var failureDetails map[string]any
 	var toolFailure *ToolError
 	if errors.As(failure, &toolFailure) {

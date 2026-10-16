@@ -51,6 +51,7 @@ func (r Redactor) Text(value string, limit int) string {
 }
 
 func (r Redactor) Event(e Event) Event {
+	e.ToolExecution = r.toolExecution(e.ToolExecution)
 	e.CallMeasurements = e.CallMeasurements.clone()
 	e.Request = e.Request.clone(true)
 	e.Response = e.Response.clone(true)

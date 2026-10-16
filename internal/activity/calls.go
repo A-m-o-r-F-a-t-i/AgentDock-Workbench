@@ -22,6 +22,7 @@ type FileChange struct {
 	StatsKnown bool   `json:"stats_known"`
 }
 type ExecutionCall struct {
+	ToolExecution *ToolExecutionDetails `json:"tool_execution,omitempty"`
 	*OutputStages
 	OutputSourceVersions []*Payload `json:"output_source_versions,omitempty"`
 	CommandObservation
@@ -305,6 +306,7 @@ func (s *Store) projectAppendedLocked(event Event) {
 }
 func cloneCall(call *ExecutionCall, requestPreview, output bool) ExecutionCall {
 	copied := *call
+	copied.ToolExecution = call.ToolExecution.clone()
 	copied.OutputStages = call.OutputStages.clone()
 	copied.Request = call.Request.clone(requestPreview || output)
 	copied.Response = call.Response.clone(output)
