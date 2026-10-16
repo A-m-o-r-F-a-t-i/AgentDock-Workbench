@@ -263,6 +263,7 @@ func (m *Manager) SetEnabled(name string, enabled bool) (ServerSummary, error) {
 }
 
 func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serverState {
+	registryChanged := len(servers) != len(m.servers)
 	states := make(map[string]*serverState, len(servers))
 	stale := make([]*serverState, 0)
 	for name, cfg := range servers {
@@ -273,6 +274,7 @@ func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serv
 				states[name] = m.states[name]
 				continue
 			}
+			registryChanged = true
 			cfg.revision = m.nextRevisionLocked()
 			servers[name] = cfg
 			if sameConnection(previous, cfg) {
@@ -280,6 +282,7 @@ func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serv
 				continue
 			}
 		} else {
+			registryChanged = true
 			cfg.revision = m.nextRevisionLocked()
 			servers[name] = cfg
 		}
@@ -296,6 +299,9 @@ func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serv
 	}
 	m.servers = servers
 	m.states = states
+	if registryChanged {
+		m.queueCatalogNotice()
+	}
 	return stale
 }
 

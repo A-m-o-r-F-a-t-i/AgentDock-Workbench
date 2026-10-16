@@ -29,10 +29,12 @@ func (m *Manager) bindCatalogNotifications(name string, state *serverState) {
 // Notifications pin one server state and client. Retired connections cannot
 // refresh a replacement generation, and a burst has only one pending worker.
 func (m *Manager) queueCatalogRefresh(name string, state *serverState, client protocolClient) {
-	m.catalogMu.Lock()
 	m.mu.RLock()
 	active := m.states[name] == state && m.servers[name].Enabled
 	m.mu.RUnlock()
+	// Do not hold catalogMu while reading the registry. Publishers may enqueue
+	// notices under mu; the worker revalidates identity after acquiring state.mu.
+	m.catalogMu.Lock()
 	if m.closed.Load() || !active || !state.catalogRefreshQueued.CompareAndSwap(false, true) {
 		m.catalogMu.Unlock()
 		return
