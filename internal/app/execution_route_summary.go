@@ -15,6 +15,11 @@ func isHostBuiltinRoute(tool string, result Result) bool {
 }
 
 func executionResultTitle(tool, fallback string, result Result) string {
+	if tool == toolmcp.ToolResultContinue || tool == toolmcp.ToolResultRaw {
+		if name := stringArg(result, "name"); name != "" {
+			return fallback + " · " + name
+		}
+	}
 	if !isHostBuiltinRoute(tool, result) {
 		return fallback
 	}

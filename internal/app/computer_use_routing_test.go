@@ -130,10 +130,17 @@ func TestComputerUsePluginIsExplicitAndLaunchAppRequiresIntent(t *testing.T) {
 	if structured["launched"] != true {
 		t.Fatalf("explicit launch_app result = %#v", called)
 	}
-	catalog, _ := called["mcp_catalog"].(map[string]any)
+	summary, _ := called["mcp_catalog"].(map[string]any)
+	if summary["delivery"] != "summary" || summary["tools"] != nil {
+		t.Fatalf("business result duplicated its tool catalog: %#v", summary)
+	}
+	catalog, err := rt.Call(context.Background(), "mcp_tool_list", map[string]any{"server": "cua-driver"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	catalogJSON, _ := json.Marshal(catalog)
 	if !strings.Contains(string(catalogJSON), "不得用于能力探测") {
-		t.Fatalf("business response catalog lost launch boundary: %s", catalogJSON)
+		t.Fatalf("explicit tool catalog lost launch boundary: %s", catalogJSON)
 	}
 }
 
