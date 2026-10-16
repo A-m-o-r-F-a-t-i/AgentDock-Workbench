@@ -18,23 +18,30 @@ import (
 )
 
 type Manager struct {
-	overridePath     string
-	runtimeOverrides map[string]ConfigPatch
-	revisionInstance string
-	revisionSequence uint64
-	retiredMu        sync.Mutex
-	retired          map[*serverState]bool
-	retiredWG        sync.WaitGroup
-	callObserver     atomic.Pointer[toolCallObserver]
-	registryMu       sync.Mutex
-	closed           atomic.Bool
-	mu               sync.RWMutex
-	store            *store
-	envs             *envstore.Store
-	external         ExternalServerProvider
-	externalPrepare  func(context.Context, ServerConfig) error
-	servers          map[string]ServerConfig
-	states           map[string]*serverState
+	catalogContext          context.Context
+	cancelCatalog           context.CancelFunc
+	catalogMu               sync.Mutex
+	catalogWG               sync.WaitGroup
+	catalogObserver         atomic.Pointer[catalogChangeObserver]
+	catalogNoticeGeneration atomic.Uint64
+	catalogNoticeQueued     atomic.Bool
+	overridePath            string
+	runtimeOverrides        map[string]ConfigPatch
+	revisionInstance        string
+	revisionSequence        uint64
+	retiredMu               sync.Mutex
+	retired                 map[*serverState]bool
+	retiredWG               sync.WaitGroup
+	callObserver            atomic.Pointer[toolCallObserver]
+	registryMu              sync.Mutex
+	closed                  atomic.Bool
+	mu                      sync.RWMutex
+	store                   *store
+	envs                    *envstore.Store
+	external                ExternalServerProvider
+	externalPrepare         func(context.Context, ServerConfig) error
+	servers                 map[string]ServerConfig
+	states                  map[string]*serverState
 }
 
 // ExternalServerProvider supplies dynamic MCP definitions owned by direct
@@ -43,18 +50,21 @@ type Manager struct {
 type ExternalServerProvider func(context.Context) (map[string]ServerConfig, error)
 
 type serverState struct {
-	catalogGeneration uint64
-	clientGeneration  uint64
-	snapshot          atomic.Pointer[indexSnapshot]
-	discovered        bool
-	indexRevision     uint64
-	serverVersion     string
-	mu                sync.Mutex
-	client            protocolClient
-	tools             map[string]Tool
-	lastError         string
-	lastErrorCode     string
-	refreshedAt       time.Time
+	catalogChanged       func(protocolClient)
+	catalogPublished     func()
+	catalogRefreshQueued atomic.Bool
+	catalogGeneration    uint64
+	clientGeneration     uint64
+	snapshot             atomic.Pointer[indexSnapshot]
+	discovered           bool
+	indexRevision        uint64
+	serverVersion        string
+	mu                   sync.Mutex
+	client               protocolClient
+	tools                map[string]Tool
+	lastError            string
+	lastErrorCode        string
+	refreshedAt          time.Time
 }
 
 func NewManager(agentDockHome string, provided ...*envstore.Store) (*Manager, error) {
@@ -81,13 +91,16 @@ func NewManager(agentDockHome string, provided ...*envstore.Store) (*Manager, er
 	if err != nil {
 		return nil, err
 	}
-	manager := &Manager{store: registry, envs: envs, servers: servers, states: states, overridePath: overridePath(agentDockHome), runtimeOverrides: map[string]ConfigPatch{}, revisionInstance: instance, retired: map[*serverState]bool{}}
+	catalogContext, cancelCatalog := context.WithCancel(context.Background())
+	manager := &Manager{catalogContext: catalogContext, cancelCatalog: cancelCatalog, store: registry, envs: envs, servers: servers, states: states, overridePath: overridePath(agentDockHome), runtimeOverrides: map[string]ConfigPatch{}, revisionInstance: instance, retired: map[*serverState]bool{}}
 	for name, cfg := range manager.servers {
+		manager.bindCatalogNotifications(name, manager.states[name])
 		cfg.revision = manager.nextRevisionLocked()
 		cfg.overrideSource = "default"
 		manager.servers[name] = cfg
 	}
 	if err = manager.syncRegistry(); err != nil {
+		cancelCatalog()
 		return nil, err
 	}
 	return manager, nil
@@ -274,6 +287,7 @@ func (m *Manager) replaceRegistryLocked(servers map[string]ServerConfig) []*serv
 			stale = append(stale, previousState)
 		}
 		states[name] = &serverState{}
+		m.bindCatalogNotifications(name, states[name])
 	}
 	for name, state := range m.states {
 		if _, exists := servers[name]; !exists && state != nil {
@@ -541,7 +555,13 @@ func (m *Manager) Call(ctx context.Context, qualifiedName string, arguments map[
 func (m *Manager) Close() error {
 	m.registryMu.Lock()
 	defer m.registryMu.Unlock()
-	if m.closed.Swap(true) {
+	m.catalogMu.Lock()
+	alreadyClosed := m.closed.Swap(true)
+	if m.cancelCatalog != nil {
+		m.cancelCatalog()
+	}
+	m.catalogMu.Unlock()
+	if alreadyClosed {
 		return nil
 	}
 	m.mu.RLock()
@@ -554,6 +574,7 @@ func (m *Manager) Close() error {
 	for _, state := range states {
 		result = errors.Join(result, closeState(state))
 	}
+	m.catalogWG.Wait()
 	m.retiredWG.Wait()
 	return result
 }
@@ -715,6 +736,9 @@ func initializeStateLocked(ctx context.Context, cfg ServerConfig, state *serverS
 	if err != nil {
 		recordStateError(state, err)
 		return nil, err
+	}
+	if notifier, ok := client.(interface{ setCatalogChanged(func()) }); ok && state.catalogChanged != nil {
+		notifier.setCatalogChanged(func() { state.catalogChanged(client) })
 	}
 	if err := client.initialize(ctx); err != nil {
 		_ = client.close()

@@ -36,6 +36,7 @@ type sdkProtocolClient struct {
 	progressMu       sync.Mutex
 	progressSinks    map[string]activity.ProgressSink
 	toolsRevision    atomic.Uint64
+	catalogChanged   func()
 	cfg              ServerConfig
 	session          *mcpsdk.ClientSession
 	command          *exec.Cmd
@@ -66,6 +67,9 @@ func (c *sdkProtocolClient) initialize(ctx context.Context) error {
 		return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
 			if method == "notifications/tools/list_changed" {
 				c.toolsRevision.Add(1)
+				if c.catalogChanged != nil {
+					c.catalogChanged()
+				}
 			}
 			return next(ctx, method, request)
 		}
@@ -395,6 +399,9 @@ func (b *tailBuffer) String() string {
 	defer b.mu.Unlock()
 	return strings.TrimSpace(string(b.data))
 }
+
+// setCatalogChanged runs before initialize starts the SDK receive goroutine.
+func (c *sdkProtocolClient) setCatalogChanged(callback func()) { c.catalogChanged = callback }
 
 // ServerVersion reports initialize metadata, never a version parsed from prose.
 func (c *sdkProtocolClient) ToolsRevision() uint64 { return c.toolsRevision.Load() }

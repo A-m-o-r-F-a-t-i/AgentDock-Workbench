@@ -62,6 +62,7 @@ func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
 		runtime.OnDisplaySettingsChanged(server.refreshPresentation)
 		runtime.OnToolAvailabilityChanged(server.refreshToolAvailability)
 		runtime.OnBuiltinToolDirectoryChanged(server.refreshBuiltinToolDirectory)
+		runtime.OnMCPCatalogChanged(server.refreshBuiltinToolDirectory)
 		server.refreshPresentation()
 	}
 	server.httpHandler = mcpsdk.NewStreamableHTTPHandler(
