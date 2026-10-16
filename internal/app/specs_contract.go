@@ -105,14 +105,27 @@ func compactMCPPublicInput(schema map[string]any) map[string]any {
 }
 
 func stripSchemaDescriptions(value any) {
-	switch current := value.(type) {
-	case map[string]any:
-		delete(current, "description")
-		for _, child := range current {
-			stripSchemaDescriptions(child)
-		}
-	case []any:
-		for _, child := range current {
+	schema, ok := value.(map[string]any)
+	if !ok {
+		return
+	}
+	delete(schema, "description")
+	// Names in properties and definitions are data, including the name "description".
+	for key, child := range schema {
+		switch key {
+		case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas":
+			if entries, ok := child.(map[string]any); ok {
+				for _, entry := range entries {
+					stripSchemaDescriptions(entry)
+				}
+			}
+		case "allOf", "anyOf", "oneOf", "prefixItems":
+			if entries, ok := child.([]any); ok {
+				for _, entry := range entries {
+					stripSchemaDescriptions(entry)
+				}
+			}
+		case "items", "additionalItems", "additionalProperties", "unevaluatedProperties", "unevaluatedItems", "contains", "propertyNames", "not", "if", "then", "else":
 			stripSchemaDescriptions(child)
 		}
 	}

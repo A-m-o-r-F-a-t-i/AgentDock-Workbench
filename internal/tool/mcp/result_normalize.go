@@ -258,12 +258,21 @@ func buildFragmentResultPages(encoded []byte) []resultPage {
 		for low <= high {
 			mid := low + (high-low)/2
 			end := mid
-			for end > 0 && end < len(encoded) && encoded[end]&0xC0 == 0x80 { end-- }
+			for end > 0 && end < len(encoded) && encoded[end]&0xC0 == 0x80 {
+				end--
+			}
 			candidate := map[string]any{"format": "application/json; host-fragment=v1", "fragment_index": len(pages), "fragment_count": len(encoded), "json_fragment": string(encoded[:end])}
 			data, _ := json.Marshal(candidate)
-			if len(data) <= limit { fit = max(fit, end); low = mid+1 } else { high = mid-1 }
+			if len(data) <= limit {
+				fit = max(fit, end)
+				low = mid + 1
+			} else {
+				high = mid - 1
+			}
 		}
-		if fit == 0 { fit = min(len(encoded), 4) }
+		if fit == 0 {
+			fit = min(len(encoded), 4)
+		}
 		data := map[string]any{"format": "application/json; host-fragment=v1", "fragment_index": len(pages), "fragment_count": 0, "json_fragment": string(encoded[:fit])}
 		pages = append(pages, resultPage{Data: data, Mode: "json_fragment"})
 		encoded = encoded[fit:]

@@ -211,6 +211,10 @@ func OutputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+	if name == ToolCall || name == ToolResultContinue || name == ToolResultRaw {
+		props["result_call_id"] = stringProp("Original MCP result identity; call_id identifies this current host invocation.")
+		props["continue_result"] = objectProp("Exact host continuation tool and arguments for this retained result.")
+	}
 	if name == ToolSearch || name == ToolList || name == ToolInspect {
 		toolcontract.StructuredPagingOutput(props)
 	}
@@ -227,6 +231,6 @@ func catalogSchemaProperties() map[string]any {
 		"delivery":      toolcontract.String("full when tools are included, reference when this trusted scope already received the same revision."),
 		"tools_omitted": toolcontract.Boolean("True only for a compact reference to a complete catalog already delivered in the same trusted scope."),
 		"refresh_tool":  toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
-		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}}}},
+		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
 	}
 }

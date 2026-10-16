@@ -11,6 +11,7 @@ func testSchema(revision string) map[string]any {
 	return map[string]any{
 		"name": "fixture:read", "server": "fixture", "tool_name": "read",
 		"catalog_revision": revision, "server_version": "1.0.0",
+		"server_fingerprint": "fixture-server", "schema_digest": "fixture-schema", "annotations_digest": "fixture-annotations",
 		"input_schema": map[string]any{"type": "object"},
 		"description":  "Read fixture data.",
 	}

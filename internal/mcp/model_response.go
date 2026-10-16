@@ -130,6 +130,26 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	if payload["operation"] == nil {
 		payload["operation"] = map[string]any{"state": "returned", "ok": original["isError"] != true}
 	}
+	if (name == "mcp_tool_call" || name == "mcp_result_continue") && full["host_page"] != nil || name == "mcp_result_raw" {
+		// The MCP pager already bounded this page. Keep its body and exact cursor.
+		for _, key := range []string{"name", "result", "isError", "result_call_id", "continue_result", "host_page", "host_cursor", "content_kinds", "json_text_parsed", "raw_result_ref", "offset", "next_offset", "limit", "data", "complete", "raw_reads", "raw_read_limit", "replayed", "content_returned", "resume_cursor", "result_retained", "projection_budget_exhausted", "budget_scope", "message"} {
+			if value, exists := full[key]; exists {
+				payload[key] = value
+			}
+		}
+		page := asMap(full["host_page"])
+		complete := page["complete"] != false
+		if name == "mcp_result_raw" {
+			complete = full["complete"] != false
+		}
+		payload["projection"] = map[string]any{"mode": "mcp_result_page", "complete": complete}
+		payload["delivery"] = map[string]any{"class": toolcontract.OutputRecoverablePreview, "sequence_complete": true, "continuation_required": false, "continuation_available": full["host_cursor"] != nil}
+		payload["continuation_required"] = false
+		payload["continuation_available"] = full["host_cursor"] != nil
+		out := maps.Clone(original)
+		out["structuredContent"] = payload
+		return compactContentEnvelope(name, out)
+	}
 	payload["projection"] = map[string]any{"mode": "source_receipt", "complete": false}
 	payload["truncated"] = true
 	payload["truncation_stage"] = "projection"
@@ -205,7 +225,8 @@ func projectDynamicMCPResult(payload map[string]any) map[string]any {
 	if !exists || structured == nil {
 		return payload
 	}
-	projected := map[string]any{"structuredContent": structured}
+	projected := maps.Clone(result)
+	delete(projected, "content")
 	if value, exists := result["isError"]; exists {
 		projected["isError"] = value
 	}
@@ -237,25 +258,7 @@ func canonicalDynamicMCPContent(value, structured any) []any {
 }
 
 func redundantDynamicMCPText(text string, structured any) bool {
-	if jsonTextMatches(text, structured) {
-		return true
-	}
-	var receipt map[string]any
-	if json.Unmarshal([]byte(text), &receipt) != nil {
-		return false
-	}
-	marker, _ := receipt["structuredContent"].(bool)
-	if !marker {
-		return false
-	}
-	for key := range receipt {
-		switch key {
-		case "ok", "structuredContent", "transportOk", "outcome", "requestStatus", "schema", "resultId", "receiptId", "total", "nextOffset", "coverageComplete", "error":
-		default:
-			return false
-		}
-	}
-	return true
+	return jsonTextMatches(text, structured)
 }
 
 func omittedContentDescriptors(envelope map[string]any) []map[string]any {

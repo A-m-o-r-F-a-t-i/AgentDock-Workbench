@@ -16,7 +16,7 @@ const (
 )
 
 type schemaDeliveryKey struct {
-	owner, conversation, serverFingerprint, revision, tool, schemaDigest string
+	owner, conversation, serverFingerprint, revision, tool, schemaDigest, annotationsDigest string
 }
 
 type schemaDeliveryState struct {
@@ -39,6 +39,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	revision, _ := schema["catalog_revision"].(string)
 	tool, _ := schema["tool_name"].(string)
 	schemaDigest, _ := schema["schema_digest"].(string)
+	annotationsDigest, _ := schema["annotations_digest"].(string)
 	if binding.ConversationID == "" || server == "" || serverFingerprint == "" || revision == "" || tool == "" || schemaDigest == "" || schema["input_schema"] == nil {
 		return full
 	}
@@ -49,7 +50,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	}
 	key := schemaDeliveryKey{
 		owner: binding.SourceOwnerKey, conversation: binding.ConversationID,
-		serverFingerprint: serverFingerprint, revision: revision, tool: tool, schemaDigest: schemaDigest,
+		serverFingerprint: serverFingerprint, revision: revision, tool: tool, schemaDigest: schemaDigest, annotationsDigest: annotationsDigest,
 	}
 
 	s.mu.Lock()

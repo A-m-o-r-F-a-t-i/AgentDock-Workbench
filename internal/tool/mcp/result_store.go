@@ -199,7 +199,20 @@ func (s *resultStore) rawResult(ctxBinding activity.Binding, request ResultRawRe
 	}
 	if end == offset && end < len(entry.RawBytes) {
 		end = offset + 1
-		for end < len(entry.RawBytes) && entry.RawBytes[end]&0xC0 == 0x80 { end++ }
+		for end < len(entry.RawBytes) && entry.RawBytes[end]&0xC0 == 0x80 {
+			end++
+		}
+	}
+	// A raw fragment is still sent inside JSON; account for escaping before advancing.
+	for end > offset {
+		encoded, _ := json.Marshal(string(entry.RawBytes[offset:end]))
+		if len(encoded)+resultMetadataReserve <= resultPageBudget {
+			break
+		}
+		end = offset + (end-offset)/2
+		for end > offset && end < len(entry.RawBytes) && entry.RawBytes[end]&0xC0 == 0x80 {
+			end--
+		}
 	}
 	entry.RawHighWater, entry.RawReads = end, entry.RawReads+1
 	result := Result{
@@ -330,7 +343,8 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 	page := entry.Pages[pageIndex]
 	remaining := max(0, len(entry.Pages)-pageIndex-1)
 	result := Result{
-		"call_id": entry.CallID, "name": entry.Name, "result": cloneResultMap(page.Data),
+		"call_id": entry.CallID, "result_call_id": entry.CallID, "name": entry.Name, "result": cloneResultMap(page.Data),
+		"isError":                entry.Raw["isError"] == true,
 		"content_kinds":          append([]string{}, entry.ContentKinds...),
 		"json_text_parsed":       entry.ParsedJSONText,
 		"continuation_available": nextCursor != "", "continuation_required": false,
@@ -342,6 +356,7 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 	}
 	if nextCursor != "" {
 		result["host_cursor"] = nextCursor
+		result["continue_result"] = map[string]any{"tool": ToolResultContinue, "arguments": map[string]any{"call_id": entry.CallID, "cursor": nextCursor}}
 	}
 	if entry.RawReference != "" {
 		result["raw_result_ref"] = entry.RawReference
@@ -351,7 +366,8 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 
 func resultBudgetProjection(entry *storedMCPResult, scope string) Result {
 	return Result{
-		"call_id": entry.CallID, "name": entry.Name, "result_retained": true,
+		"call_id": entry.CallID, "result_call_id": entry.CallID, "name": entry.Name, "result_retained": true,
+		"isError":                entry.Raw["isError"] == true,
 		"continuation_available": false, "continuation_required": false,
 		"projection_budget_exhausted": true, "budget_scope": scope,
 		"message":   "The result is retained, but the automatic MCP projection budget is exhausted. Narrow the original MCP request by fields, objects, region or page size.",
@@ -361,7 +377,7 @@ func resultBudgetProjection(entry *storedMCPResult, scope string) Result {
 
 func resultBudgetError(entry *storedMCPResult) error {
 	return toolErrorDetails("MCP_RESULT_BUDGET_EXHAUSTED", "The result is retained, but the automatic MCP projection budget is exhausted. Narrow the original MCP request by fields, objects, region or page size.", "validation", map[string]any{
-		"call_id": entry.CallID, "projected_bytes": entry.ProjectedBytes,
+		"call_id": entry.CallID, "result_call_id": entry.CallID, "projected_bytes": entry.ProjectedBytes,
 		"per_call_budget_bytes": resultCallProjectionBudget, "root_task_budget_bytes": resultRootProjectionBudget,
 		"result_retained": true, "continuation_required": false,
 	})

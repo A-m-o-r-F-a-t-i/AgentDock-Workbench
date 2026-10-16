@@ -120,7 +120,7 @@ func TestDynamicMCPModelProjectionUsesCanonicalStructuredResult(t *testing.T) {
 	}
 }
 
-func TestDynamicMCPModelProjectionKeepsUniqueTextAndDropsCompatibilityReceipt(t *testing.T) {
+func TestDynamicMCPModelProjectionPreservesNonEquivalentTextAndMetadata(t *testing.T) {
 	business := map[string]any{"number": 42, "url": "https://example.invalid/issues/42"}
 	envelope := map[string]any{
 		"structuredContent": map[string]any{
@@ -140,14 +140,14 @@ func TestDynamicMCPModelProjectionKeepsUniqueTextAndDropsCompatibilityReceipt(t 
 	projected := normalizeResponseStages("mcp_tool_call", nil, envelope)
 	result := asMap(asMap(projected["structuredContent"])["result"])
 	content := envelopeBlocks(result["content"])
-	if len(content) != 2 || asMap(content[0])["text"] != `{"structuredContent":true,"domain":"business"}` || asMap(content[1])["text"] != "Created issue #42" {
+	if len(content) != 3 || asMap(content[0])["text"] != `{"ok":true,"structuredContent":true,"resultId":"42"}` || asMap(content[1])["text"] != `{"structuredContent":true,"domain":"business"}` || asMap(content[2])["text"] != "Created issue #42" {
 		t.Fatalf("unique business text was not preserved exactly: %#v", content)
 	}
-	if result["_meta"] != nil {
-		t.Fatalf("upstream internal metadata remained in model projection: %#v", result["_meta"])
+	if asMap(result["_meta"])["large_internal_metadata"] != strings.Repeat("x", 2000) {
+		t.Fatalf("upstream standard metadata was altered: %#v", result["_meta"])
 	}
 	retained := asMap(responseRetentionValue("mcp_tool_call", envelope))
-	if !reflect.DeepEqual(retained["structuredContent"], business) || len(envelopeBlocks(retained["content"])) != 2 {
+	if !reflect.DeepEqual(retained["structuredContent"], business) || len(envelopeBlocks(retained["content"])) != 3 {
 		t.Fatalf("canonical retained result lost unique business text: %#v", retained)
 	}
 }
