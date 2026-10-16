@@ -169,7 +169,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["tool_name"] = stringProp("Upstream MCP tool name.")
 		props["catalog_revision"] = stringProp("Revision of the inspected catalog.")
 		props["server_version"] = stringProp("Version reported by initialize, empty when unknown.")
-		props["delivery"] = stringProp("full when schemas are included, reference when the same revision was already delivered to this conversation.")
+		props["delivery"] = stringProp("Legacy schema delivery marker retained for direct Runtime callers.")
+		props["schema_delivery"] = stringProp("full, summary, or reference; remains available after the host execution delivery envelope is added.")
 		props["schema_omitted"] = boolProp("True only for a compact same-revision schema reference.")
 		props["refresh_tool"] = stringProp("Use mcp_tool_inspect with force_full=true when the referenced schema is absent from current model context.")
 		props["title"] = stringProp("Tool title.")
@@ -224,13 +225,14 @@ func OutputSchema(name string) (map[string]any, bool) {
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
 		"server": toolcontract.String("Dynamic MCP server."), "catalog_revision": toolcontract.String("Referenced complete catalog generation."),
-		"complete":      toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
-		"stale":         toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
-		"total":         toolcontract.Integer("Total tools in the referenced catalog."),
-		"error":         toolcontract.String("Catalog attachment problem; never changes the business outcome."),
-		"delivery":      toolcontract.String("full when tools are included, summary for call metadata only, reference for an already delivered catalog."),
-		"tools_omitted": toolcontract.Boolean("True when catalog entries are omitted; delivery distinguishes a summary from a delivered reference."),
-		"refresh_tool":  toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
-		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
+		"complete":         toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
+		"stale":            toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
+		"total":            toolcontract.Integer("Total tools in the referenced catalog."),
+		"error":            toolcontract.String("Catalog attachment problem; never changes the business outcome."),
+		"delivery":         toolcontract.String("Legacy catalog delivery marker retained for direct Runtime callers."),
+		"catalog_delivery": toolcontract.String("full, summary, or reference; remains available after the host execution delivery envelope is added."),
+		"tools_omitted":    toolcontract.Boolean("True when catalog entries are omitted; delivery distinguishes a summary from a delivered reference."),
+		"refresh_tool":     toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
+		"tools":            map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
 	}
 }

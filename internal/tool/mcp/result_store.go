@@ -132,7 +132,7 @@ func (s *resultStore) continueResult(ctxBinding activity.Binding, callID, cursor
 	}
 	if cursor == entry.LastCursor && state.PageIndex == entry.LastPage {
 		return Result{
-			"call_id": callID, "cursor": cursor, "replayed": true, "content_returned": false,
+			"call_id": callID, "result_call_id": callID, "cursor": cursor, "replayed": true, "content_returned": false,
 			"complete": entry.NextPage >= len(entry.Pages), "resume_cursor": entry.NextCursor,
 		}, nil
 	}

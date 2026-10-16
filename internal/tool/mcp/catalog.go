@@ -219,6 +219,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 				}
 			} else {
 				entry["delivery"] = "summary"
+				entry["schema_delivery"] = "summary"
 				entry["schema_omitted"] = true
 				schemaSummaries++
 			}

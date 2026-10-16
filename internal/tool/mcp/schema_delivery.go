@@ -31,6 +31,7 @@ type schemaDeliveryState struct {
 func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(schema)
 	full["delivery"] = "full"
+	full["schema_delivery"] = "full"
 	full["schema_omitted"] = false
 
 	binding := activity.FromContext(ctx)
@@ -70,7 +71,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 			"name": schema["name"], "server": server, "tool_name": tool,
 			"server_fingerprint": serverFingerprint, "catalog_revision": revision, "server_version": schema["server_version"],
 			"schema_digest": schemaDigest, "annotations_digest": schema["annotations_digest"],
-			"delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
+			"delivery": "reference", "schema_delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
 		}
 	}
 	if len(s.entries) >= schemaDeliveryCapacity {
