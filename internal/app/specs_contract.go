@@ -83,7 +83,39 @@ func skillToolContract(name string, _ config.Config) (ToolContract, bool) {
 }
 
 func mcpToolContract(name string, _ config.Config) (ToolContract, bool) {
-	return staticToolContract(name, toolmcp.InputSchema, toolmcp.OutputSchema)
+	inputSchema, ok := toolmcp.InputSchema(name)
+	if !ok {
+		return ToolContract{}, false
+	}
+	outputSchema, ok := toolmcp.OutputSchema(name)
+	if !ok {
+		return ToolContract{}, false
+	}
+	outputSchema = cloneJSONSchemaMap(outputSchema)
+	stripSchemaDescriptions(outputSchema)
+	contract := newToolContract(name, inputSchema, outputSchema)
+	contract.PublicInputSchema = compactMCPPublicInput(inputSchema)
+	return contract, true
+}
+
+func compactMCPPublicInput(schema map[string]any) map[string]any {
+	value := cloneJSONSchemaMap(schema)
+	stripSchemaDescriptions(value)
+	return value
+}
+
+func stripSchemaDescriptions(value any) {
+	switch current := value.(type) {
+	case map[string]any:
+		delete(current, "description")
+		for _, child := range current {
+			stripSchemaDescriptions(child)
+		}
+	case []any:
+		for _, child := range current {
+			stripSchemaDescriptions(child)
+		}
+	}
 }
 
 func pluginToolContract(name string, _ config.Config) (ToolContract, bool) {

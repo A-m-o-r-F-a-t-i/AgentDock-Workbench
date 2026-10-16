@@ -31,9 +31,20 @@ func (s *Service) catalogResult(catalog mcpclient.Catalog, fresh bool) Result {
 		tool := catalog.Tools[name]
 		qualifiedName := catalog.Server + ":" + name
 		description := capabilityrouting.ToolDescription(pluginName, qualifiedName, tool.Description)
-		tools = append(tools, map[string]any{"name": qualifiedName, "description": mcpclient.OneLineDescription(description)})
+		schemaDigest, _ := mcpclient.ToolSchemaDigest(tool)
+		annotationsDigest, _ := mcpclient.ToolAnnotationsDigest(tool)
+		entry := map[string]any{
+			"server": catalog.Server, "name": qualifiedName, "tool_name": name,
+			"title": tool.Title, "description": mcpclient.OneLineDescription(description),
+			"server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision,
+			"schema_digest": schemaDigest, "annotations_digest": annotationsDigest,
+		}
+		if tool.Annotations != nil {
+			entry["annotations"] = tool.Annotations
+		}
+		tools = append(tools, entry)
 	}
-	return Result{"server": catalog.Server, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "total": len(tools), "tools": tools, "stale": !fresh}
+	return Result{"server": catalog.Server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "total": len(tools), "tools": tools, "stale": !fresh}
 }
 
 // Inspect normalizes the legacy single selector once, then runs the same grouped
@@ -47,6 +58,12 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	}
 	if len(names) == 0 || (len(request.Names) > 0 && request.Name != "") {
 		return nil, toolErrorDetails("MCP_TOOL_NAMES_REQUIRED", "use names for tool selectors or service:*", "validation", nil)
+	}
+	includeSchema := request.ForceFull
+	if request.IncludeSchema != nil {
+		includeSchema = includeSchema || *request.IncludeSchema
+	} else if legacy || (len(names) == 1 && !strings.HasSuffix(strings.TrimSpace(names[0]), ":*")) {
+		includeSchema = true
 	}
 	selected := map[string][]string{}
 	invalid := []map[string]any{}
@@ -114,7 +131,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	tools := []map[string]any{}
 	catalogs := []map[string]any{}
 	problems := invalid
-	fullSchemas, schemaReferences := 0, 0
+	fullSchemas, schemaReferences, schemaSummaries := 0, 0, 0
 	var singleError error
 	for _, server := range servers {
 		value := results[server]
@@ -147,7 +164,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			continue
 		}
 		catalog := value.catalog
-		catalogs = append(catalogs, map[string]any{"server": server, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "complete": true, "total": len(catalog.Tools)})
+		catalogs = append(catalogs, map[string]any{"server": server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "complete": true, "total": len(catalog.Tools)})
 		chosen := map[string]bool{}
 		for _, name := range selected[server] {
 			if name == "*" {
@@ -174,9 +191,14 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			}
 			qualifiedName := server + ":" + name
 			description := capabilityrouting.ToolDescription(s.pluginName(server), qualifiedName, tool.Description)
-			entry := map[string]any{"name": qualifiedName, "server": server, "tool_name": name, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "title": tool.Title, "description": description, "input_schema": tool.InputSchema}
-			if tool.OutputSchema != nil {
-				entry["output_schema"] = tool.OutputSchema
+			schemaDigest, _ := mcpclient.ToolSchemaDigest(tool)
+			annotationsDigest, _ := mcpclient.ToolAnnotationsDigest(tool)
+			entry := map[string]any{
+				"name": qualifiedName, "server": server, "tool_name": name,
+				"server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision,
+				"server_version": catalog.ServerVersion, "title": tool.Title,
+				"description":   mcpclient.OneLineDescription(description),
+				"schema_digest": schemaDigest, "annotations_digest": annotationsDigest,
 			}
 			if tool.Annotations != nil {
 				entry["annotations"] = tool.Annotations
@@ -184,11 +206,21 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			if metadata := projectToolMetadata(tool.StandardMetadata); len(metadata) > 0 {
 				entry["metadata"] = metadata
 			}
-			entry = s.schemaDeliveries.prepare(ctx, entry, request.ForceFull)
-			if entry["delivery"] == "reference" {
-				schemaReferences++
+			if includeSchema {
+				entry["input_schema"] = tool.InputSchema
+				if tool.OutputSchema != nil {
+					entry["output_schema"] = tool.OutputSchema
+				}
+				entry = s.schemaDeliveries.prepare(ctx, entry, request.ForceFull)
+				if entry["delivery"] == "reference" {
+					schemaReferences++
+				} else {
+					fullSchemas++
+				}
 			} else {
-				fullSchemas++
+				entry["delivery"] = "summary"
+				entry["schema_omitted"] = true
+				schemaSummaries++
 			}
 			tools = append(tools, entry)
 		}
@@ -222,7 +254,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		"tools": tools, "count": len(tools), "total": len(tools),
 		"complete": len(problems) == 0, "errors": problems, "catalogs": catalogs,
 		"builtin_match_count": len(builtins), "dynamic_match_count": len(tools),
-		"schema_full_count": fullSchemas, "schema_reference_count": schemaReferences,
+		"schema_full_count": fullSchemas, "schema_reference_count": schemaReferences, "schema_summary_count": schemaSummaries,
 	}
 	if len(builtins) == 0 {
 		result["route_kind"] = routeKindDynamicMCP

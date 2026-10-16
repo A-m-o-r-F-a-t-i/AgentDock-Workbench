@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
@@ -208,7 +209,16 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 		}
 	}
 	if result != nil {
-		response["result"] = result
+		normalized, contentKinds, parsedJSONText := normalizeDynamicMCPResult(result)
+		projected, projectionErr := s.results.store(activity.FromContext(ctx), validated.qualifiedName, result, normalized, contentKinds, parsedJSONText)
+		if projectionErr != nil {
+			response["result"] = normalized
+			response["result_projection_error"] = projectionErr.Error()
+		} else {
+			for key, value := range projected {
+				response[key] = value
+			}
+		}
 	}
 	if err != nil {
 		if errorReportsNotExecuted(err) {

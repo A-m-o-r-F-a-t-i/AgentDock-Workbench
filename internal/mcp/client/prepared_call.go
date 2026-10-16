@@ -91,8 +91,16 @@ func toolSchemaDigest(tool Tool) (string, error) {
 	}{Input: tool.InputSchema, Output: tool.OutputSchema})
 }
 
+func ToolSchemaDigest(tool Tool) (string, error) {
+	return toolSchemaDigest(tool)
+}
+
 func toolAnnotationsDigest(tool Tool) (string, error) {
 	return digestJSON(tool.Annotations)
+}
+
+func ToolAnnotationsDigest(tool Tool) (string, error) {
+	return toolAnnotationsDigest(tool)
 }
 
 // The prepared catalog revision excludes registry presentation metadata. The

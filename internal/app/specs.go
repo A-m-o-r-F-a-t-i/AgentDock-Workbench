@@ -107,7 +107,7 @@ func (s ToolSpec) definition(cfg config.Config) ToolDefinition {
 		FileResultRewritePaths: append([]string(nil), s.FileResultRewritePaths...),
 		InputSchema:            contract.PublicInputSchema,
 		OutputSchema:           publishedToolOutputSchema(contract.PublicOutputSchema),
-		ValidationOutputSchema: executionOutputSchema(contract.ValidationOutputSchema),
+		ValidationOutputSchema: executionOutputSchemaForTool(s.Name, contract.ValidationOutputSchema),
 		Annotations:            annotations,
 	}
 }
