@@ -11,15 +11,27 @@ and final acceptance.
 Call agentdock_context when device, workspace, or rule scope is missing or changed.
 Reuse existing workspace, session, cursor, revision, and retained-source identities.
 
-Use AgentDock host tools directly. Use dynamic MCP discovery only for external
-providers exposed by the current AgentDock context.
+Use AgentDock host tools directly. Search dynamic MCP only for external tools exposed
+by the current AgentDock context. An incomplete, stale, or cache-only catalog does not
+prove that a capability is unavailable.
+
+Resolve an exact tool name before using semantic tool search. Use the callable and input
+schema returned by discovery; do not replace a managed MCP call with shell, bridge HTTP,
+or raw RPC discovery. Discovery never executes a business tool.
+
+Load a required built-in bundle with capability_load, then refresh tools/list before
+retrying the original call. A registry change does not prove the host has refreshed.
+
+Use managed-MCP recovery only after the original business tool returns a connection-class
+error. Reuse the original server, tool, arguments, workspace, and origin call identity.
 
 Use list_dir, search_text, and read_file for source inspection; use exec_command
 for project commands; use apply_patch for text-file changes.
 
-Continue independent work while a command runs. Observe the same session only
-when the next decision requires its result. Reconcile unknown effects before
-repeating a mutating operation.
+Reuse running command sessions and delivered completion events. Determine command success
+from command status and exit code. Continue independent work while a command runs and
+observe the same session only when the next decision requires its result. Reconcile
+unknown effects before repeating a mutating operation.
 
 Apply loaded AGENTS.md and Skill instructions within their reported scope.
 Only authenticated response_additions carry mid-task user updates.`
