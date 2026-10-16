@@ -105,7 +105,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"count":                       intProp("Command session count when a list or bulk action returns multiple sessions."),
 		"session_id":                  stringProp("Command session id."),
 		"status":                      stringProp("Process status: running, exited, timeout, cancelled, lost or outcome_unknown."),
-		"operation_status":            stringProp("Dispatch/observation status, independent of the command exit code."),
+		"operation_status":            stringProp("Command result status: running, succeeded, failed or outcome_unknown. Successful observation does not imply successful execution."),
 		"changed":                     boolProp("Whether this observation contains new output or a terminal state."),
 		"waited_ms":                   intProp("Actual bounded wait for this observation."),
 		"unchanged_observation_count": intProp("Consecutive unchanged observations for this authenticated scope and cursor."),

@@ -299,9 +299,8 @@ func sessionObserveWait(requested *int, elapsedMS int64) (time.Duration, error) 
 func snapshotResult(snapshot session.Snapshot) Result {
 	result := Result{
 		"session_id": snapshot.SessionID, "status": publicCommandStatus(snapshot.Status),
-		"operation_status": "succeeded",
-		"outcome":          commandOutcome(snapshot),
-		"elapsed_ms":       snapshot.ElapsedMS, "terminal": snapshot.Terminal,
+		"outcome":    commandOutcome(snapshot),
+		"elapsed_ms": snapshot.ElapsedMS, "terminal": snapshot.Terminal,
 		"source_complete":      snapshot.StdoutDroppedBytes == 0 && snapshot.StderrDroppedBytes == 0,
 		"displayed_bytes":      snapshot.StdoutOutputBytes + snapshot.StderrOutputBytes,
 		"total_output_bytes":   snapshot.StdoutTotalBytes + snapshot.StderrTotalBytes,
@@ -345,6 +344,7 @@ func snapshotResult(snapshot session.Snapshot) Result {
 	if snapshot.Status == "running" {
 		result["observe_after_ms"] = sessionObserveDelay(snapshot.ElapsedMS).Milliseconds()
 	}
+	setCommandOperationStatus(result)
 	return result
 }
 
@@ -358,7 +358,7 @@ func commandOutcome(snapshot session.Snapshot) string {
 	if snapshot.TimedOut {
 		return "timed_out"
 	}
-	if snapshot.CommandOK {
+	if snapshot.CommandOK && snapshot.Status == "exited" && snapshot.ExitCode == 0 {
 		return "command_succeeded"
 	}
 	return "command_failed"
@@ -494,7 +494,7 @@ func (svc *Service) killAll() (Result, error) {
 		case <-s.Done:
 			summary := s.Summary()
 			s.Cancel()
-			items = append(items, map[string]any{"session_id": s.ID, "status": summary.Status})
+			items = append(items, map[string]any{"session_id": s.ID, "status": publicCommandStatus(summary.Status)})
 		default:
 			_, killErr := s.Kill()
 			if killErr != nil {
@@ -505,7 +505,7 @@ func (svc *Service) killAll() (Result, error) {
 	}
 	completed, timedOut := waitForSessionsCompletion(running, sessionKillWait)
 	for _, s := range completed {
-		items = append(items, map[string]any{"session_id": s.ID, "status": s.Summary().Status})
+		items = append(items, map[string]any{"session_id": s.ID, "status": publicCommandStatus(s.Summary().Status)})
 	}
 	if len(killFailures) > 0 {
 		details := map[string]any{"sessions": killFailures}
@@ -658,7 +658,7 @@ func (svc *Service) listSessions() (Result, error) {
 	items := make([]map[string]any, 0)
 	for _, s := range svc.sessions.List() {
 		summary := s.Summary()
-		item := map[string]any{"session_id": summary.ID, "status": summary.Status, "elapsed_ms": summary.ElapsedMS, "timed_out": summary.TimedOut}
+		item := map[string]any{"session_id": summary.ID, "status": publicCommandStatus(summary.Status), "elapsed_ms": summary.ElapsedMS, "timed_out": summary.TimedOut}
 		addBindingResult(item, summary.Binding)
 		if summary.Runtime != "" {
 			item["runtime"] = summary.Runtime

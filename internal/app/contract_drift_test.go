@@ -100,7 +100,7 @@ func TestTypedToolRequestFieldsMatchPublishedSchemas(t *testing.T) {
 		{name: toolfile.ToolReadFile, request: toolfile.ReadRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution"}},
 		{name: toolfile.ToolListDir, request: toolfile.ListRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution"}},
 		{name: toolfile.ToolSearchText, request: toolfile.SearchRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution"}},
-		{name: toolfile.ToolFileEdit, request: toolfile.EditRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution"}},
+		{name: toolfile.ToolApplyPatch, request: toolfile.ApplyPatchRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution", "workdir", "expected_patch_revision"}},
 		{name: toolcommand.ToolExecCommand, request: toolcommand.ExecRequest{}, exact: true, allowExtra: []string{"runtime", "wsl_distribution"}},
 		{name: toolcommand.ToolSessionObserve, request: toolcommand.SessionObserveRequest{}, exact: true},
 		{name: toolcommand.ToolSessionAct, request: toolcommand.SessionActRequest{}, exact: true},
@@ -278,4 +278,32 @@ func dereferenceType(value reflect.Type) reflect.Type {
 		value = value.Elem()
 	}
 	return value
+}
+
+// Runtime and workspace are inherited for every host, including Windows/WSL.
+func TestApplyPatchPublicInputIsPatchOnly(t *testing.T) {
+	var patch *ToolDefinition
+	for _, definition := range toolDefinitionsForConfig(config.Config{}) {
+		if definition.Name == "file_edit" {
+			t.Fatal("legacy file_edit must not be model-facing")
+		}
+		if definition.Name == "apply_patch" {
+			copy := definition
+			patch = &copy
+		}
+	}
+	if patch == nil {
+		t.Fatal("apply_patch is missing from the model directory")
+	}
+	properties, _ := patch.InputSchema["properties"].(map[string]any)
+	if len(properties) != 1 || properties["patch"] == nil {
+		t.Fatalf("apply_patch must inherit execution metadata: %#v", properties)
+	}
+	validator, err := toolcontract.CompileInputSchema(patch.InputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validator.Validate(map[string]any{}); err == nil {
+		t.Fatal("apply_patch accepted a missing patch")
+	}
 }

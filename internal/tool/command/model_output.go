@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+
 	"github.com/uvwt/agentdock/internal/activity"
 )
 
@@ -37,7 +38,7 @@ func (s *Service) persistedSessionResult(ctx context.Context, id string) (Result
 	if call.TimedOut {
 		status = "timeout"
 	}
-	result := Result{"session_id": id, "status": status, "operation_status": "succeeded", "terminal_retained": true, "no_change": true, "elapsed_ms": call.ElapsedMS, "runtime": call.Runtime, "workdir": call.Workdir}
+	result := Result{"session_id": id, "status": status, "terminal_retained": true, "no_change": true, "elapsed_ms": call.ElapsedMS, "runtime": call.Runtime, "workdir": call.Workdir}
 	if call.ExitCode != nil {
 		result["exit_code"] = *call.ExitCode
 	}
@@ -58,6 +59,7 @@ func (s *Service) persistedSessionResult(ctx context.Context, id string) (Result
 		result["source_ref"] = source
 		result["output_source"] = source
 	}
+	setCommandOperationStatus(result)
 	addBindingResult(result, call.Binding)
 	return result, nil
 }
@@ -65,4 +67,26 @@ func (s *Service) persistedSessionResult(ctx context.Context, id string) (Result
 // TerminalReceipt reads persisted facts without consuming or replaying output.
 func (s *Service) TerminalReceipt(ctx context.Context, id string) (Result, error) {
 	return s.persistedSessionResult(ctx, id)
+}
+
+// Observation success must not masquerade as a successful child process. Only
+// a known completed command can publish succeeded; unknown effects stay unknown.
+func setCommandOperationStatus(result Result) {
+	switch result["status"] {
+	case "running":
+		result["operation_status"] = "running"
+	case "timeout", "cancelled":
+		result["operation_status"] = "failed"
+	case "lost", "outcome_unknown", "unknown":
+		result["operation_status"] = "outcome_unknown"
+	default:
+		ok, known := result["command_ok"].(bool)
+		if !known {
+			result["operation_status"] = "outcome_unknown"
+		} else if ok {
+			result["operation_status"] = "succeeded"
+		} else {
+			result["operation_status"] = "failed"
+		}
+	}
 }
