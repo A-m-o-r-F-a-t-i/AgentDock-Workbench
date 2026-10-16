@@ -38,7 +38,7 @@ func runExternalAgentCommand(args []string, stdout, stderr io.Writer) error {
 	if resolvedEndpoint == "" || autoAuth {
 		cfg, err = config.FromEnv()
 		if err != nil {
-			return fmt.Errorf("读取 AgentDock 运行配置失败: %w", err)
+			return fmt.Errorf("读取 ACTOVO 运行配置失败: %w", err)
 		}
 	}
 

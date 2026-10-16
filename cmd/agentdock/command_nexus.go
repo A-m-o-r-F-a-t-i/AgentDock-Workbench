@@ -48,7 +48,7 @@ func runNexusPairCommand(ctx context.Context, args []string, stdout, stderr io.W
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "AgentDock 已配对到 NexusDock，node_id=%s；重启 AgentDock 后自动连接。\n", identity.NodeID)
+	fmt.Fprintf(stdout, "ACTOVO 已配对到 NexusDock，node_id=%s；重启 ACTOVO 后自动连接。\n", identity.NodeID)
 	return nil
 }
 func runNexusStatusCommand(args []string, stdout, stderr io.Writer) error {
@@ -76,10 +76,10 @@ func runNexusStatusCommand(args []string, stdout, stderr io.Writer) error {
 		return json.NewEncoder(stdout).Encode(status)
 	}
 	if !status.Paired {
-		_, err = fmt.Fprintln(stdout, "AgentDock 尚未与 NexusDock 配对。")
+		_, err = fmt.Fprintln(stdout, "ACTOVO 尚未与 NexusDock 配对。")
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "AgentDock 已配对到 %s，node_id=%s，Device Token 已保存。\n", status.Endpoint, status.NodeID)
+	_, err = fmt.Fprintf(stdout, "ACTOVO 已配对到 %s，node_id=%s，Device Token 已保存。\n", status.Endpoint, status.NodeID)
 	return err
 }
 func nexusCommandUsageError() error {

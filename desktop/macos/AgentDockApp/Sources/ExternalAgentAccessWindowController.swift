@@ -226,7 +226,7 @@ final class ExternalAgentAccessWindowController: NSWindowController, NSWindowDel
                 for: client,
                 endpoint: endpoint,
                 authMode: authMode,
-                agentSetupPromptTemplate: L10n.text("Connect to AgentDock Workbench through the Streamable HTTP MCP server at %@. Register it as \"agentdock\". %@ After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect AgentDock workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files."),
+                agentSetupPromptTemplate: L10n.text("Connect to ACTOVO through the Streamable HTTP MCP server at %@. Register it as \"agentdock\". %@ After connecting, call agentdock_context once, then reuse the returned context while context_diagnostics.complete=true. Respect ACTOVO workspace, approval, and permission boundaries. Never copy access credentials into prompts, logs, chat history, or project files."),
                 authenticationInstruction: authenticationInstruction)
             copyEndpointButton.isEnabled = true
             copyConfigurationButton.isEnabled = true

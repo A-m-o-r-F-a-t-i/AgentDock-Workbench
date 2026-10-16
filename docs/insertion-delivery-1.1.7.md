@@ -1,4 +1,4 @@
-# AgentDock Workbench 1.1.7 插入投递补充
+# ACTOVO 1.1.7 插入投递补充
 
 ## 修改范围
 
@@ -8,7 +8,7 @@
 
 ## 信任与实施边界
 
-本仓库持有 AgentDock Runtime、SDK/Invoke 适配器、Windows 客户端及本地 Bridge；用户报告的 ChatGPT functions.exec 选择性投影发生在外部宿主。AgentDock 不能通过内层输出强制外部宿主保留任意字段。本版提供供宿主集成的受信任投影接口，并在未接入时保留 delivery_unknown，不声称已修改外部执行器。
+本仓库持有 ACTOVO Runtime、SDK/Invoke 适配器、Windows 客户端及本地 Bridge；用户报告的 ChatGPT functions.exec 选择性投影发生在外部宿主。ACTOVO 不能通过内层输出强制外部宿主保留任意字段。本版提供供宿主集成的受信任投影接口，并在未接入时保留 delivery_unknown，不声称已修改外部执行器。
 
 宿主协商、投递回执及业务结果必须分开。能够在最终模型结果提交后回报 context_committed 的宿主可以形成宿主确认。普通直接调用可用收到的回执令牌确认接收，记录为 receiver_receipt，不冒充宿主上下文提交。响应正文或第三方 MCP 仿造同名字段没有授权效力。
 

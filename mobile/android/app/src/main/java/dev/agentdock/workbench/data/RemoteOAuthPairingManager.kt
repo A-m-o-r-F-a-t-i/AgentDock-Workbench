@@ -209,7 +209,7 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
             val registrationResult = postJson(
                 registration,
                 JSONObject()
-                    .put("client_name", "AgentDock Workbench Android")
+                    .put("client_name", "ACTOVO Android")
                     .put("redirect_uris", org.json.JSONArray().put(redirect.toString()))
                     .put("token_endpoint_auth_method", "none")
                     .put("grant_types", org.json.JSONArray().put("authorization_code"))
@@ -333,7 +333,7 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
                 throw OAuthAuthorizationRejectedException("OAuth 授权失败：${decision.value}")
             }
             is OAuthCallbackDecision.Code -> {
-                respond(client, 200, "AgentDock Workbench authorization completed. Return to the app.")
+                respond(client, 200, "ACTOVO authorization completed. Return to the app.")
                 decision.value
             }
         }
@@ -363,7 +363,7 @@ class RemoteOAuthPairingManager(private val credentials: CredentialStore) {
     }
 
     private fun respond(socket: Socket, status: Int, text: String) {
-        val body = ("<!doctype html><meta charset=\"utf-8\"><title>AgentDock Workbench</title><p>" +
+        val body = ("<!doctype html><meta charset=\"utf-8\"><title>ACTOVO</title><p>" +
             text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</p>").toByteArray(StandardCharsets.UTF_8)
         val reason = if (status == 200) "OK" else if (status == 404) "Not Found" else "Bad Request"
         socket.getOutputStream().use { output ->

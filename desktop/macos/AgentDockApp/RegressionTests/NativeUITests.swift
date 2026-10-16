@@ -40,7 +40,7 @@ final class NativeUITests: XCTestCase {
         let original = try XCTUnwrap(controller.window)
         controller.present()
         XCTAssertTrue(controller.window === original)
-        XCTAssertEqual(original.title, "AgentDock Workbench")
+        XCTAssertEqual(original.title, "ACTOVO")
         let all = descendants(try XCTUnwrap(original.contentView))
         XCTAssertNotNil(all.first { $0.accessibilityIdentifier() == "workbench.search.conversations" })
         XCTAssertNotNil(all.first { $0.accessibilityIdentifier() == "workbench.timeline" })

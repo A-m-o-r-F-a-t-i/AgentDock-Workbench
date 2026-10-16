@@ -15,7 +15,7 @@ import tempfile
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-PRODUCT = "AgentDock Workbench"
+PRODUCT = "ACTOVO"
 LICENSE_ID = "Apache-2.0"
 
 
@@ -43,7 +43,7 @@ def linux_packages(stage: Path, output: Path, version: str, arch: str) -> list[P
         documentation.mkdir(parents=True)
         shutil.copy2(ROOT/'LICENSE', documentation/'copyright')
         (documentation/'README').write_text(
-            'AgentDock Workbench\n\nThe package installs the runtime and core Skills. '
+            'ACTOVO\n\nThe package installs the runtime and core Skills. '
             'It does not start a service or change existing user configuration.\n'
             'Run agentdock --version to inspect the build. Use the release install.sh '
             'for interactive service/tunnel configuration. Existing ~/.agentdock data is retained.\n', encoding='utf-8')
@@ -51,9 +51,9 @@ def linux_packages(stage: Path, output: Path, version: str, arch: str) -> list[P
         control.mkdir()
         (control/'control').write_text(
             f'Package: agentdock-workbench\nVersion: {version}\nArchitecture: {arch}\n'
-            'Maintainer: AgentDock Workbench contributors\nSection: devel\nPriority: optional\n'
+            'Maintainer: ACTOVO contributors\nSection: devel\nPriority: optional\n'
             'Homepage: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench\n'
-            'Description: AgentDock Workbench MCP runtime\n Local tool runtime with tasks, approvals and recoverable execution.\n', encoding='utf-8')
+            'Description: ACTOVO MCP runtime\n Local tool runtime with tasks, approvals and recoverable execution.\n', encoding='utf-8')
         deb = output/f'agentdock-workbench_{version}_{arch}.deb'
         run('dpkg-deb','--build','--root-owner-group',str(package),str(deb))
         if run('dpkg-deb','--field',str(deb),'Architecture') != arch:
@@ -72,13 +72,13 @@ def linux_packages(stage: Path, output: Path, version: str, arch: str) -> list[P
 Name: agentdock-workbench
 Version: {version}
 Release: 1
-Summary: AgentDock Workbench MCP runtime
+Summary: ACTOVO MCP runtime
 License: {LICENSE_ID}
 URL: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
 BuildArch: {rpmarch}
 AutoReqProv: no
 %description
-AgentDock Workbench runtime and core Skills. No service is started automatically.
+ACTOVO runtime and core Skills. No service is started automatically.
 %install
 mkdir -p "%{{buildroot}}/usr"
 cp -a "{package}/usr/." "%{{buildroot}}/usr/"

@@ -30,15 +30,15 @@ docs/releases/vX.Y.Z-主题.md
 　　GitHub Runner 使用 `go.mod` 指定的 Go 版本和 .NET 8 SDK，调用仓库现有的 `packaging/windows/build-windows-release.ps1`，只构建 `windows/amd64`：
 
 ```text
-AgentDock-Workbench-Setup-amd64.exe
-AgentDock-Workbench-Setup-amd64.exe.sha256
+ACTOVO-Setup-amd64.exe
+ACTOVO-Setup-amd64.exe.sha256
 agentdock_windows_amd64.zip
 agentdock_windows_amd64.zip.sha256
 install.ps1
 install.ps1.sha256
 ```
 
-　　构建脚本下载官方 cloudflared 兼容载荷并验证其 Authenticode 签名。当前仓库没有配置 Windows 代码签名证书，因此 AgentDock EXE、ZIP 和 Setup 按未签名资产发布；工作流会明确验证并记录该状态，不会把未签名包描述为已签名包。
+　　构建脚本下载官方 cloudflared 兼容载荷并验证其 Authenticode 签名。当前仓库没有配置 Windows 代码签名证书，因此 ACTOVO EXE、ZIP 和 Setup 按未签名资产发布；工作流会明确验证并记录该状态，不会把未签名包描述为已签名包。
 
 ## 4. 发布门禁
 
