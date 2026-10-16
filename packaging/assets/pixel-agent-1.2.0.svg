@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">AgentDock Workbench 1.2.0 · Pixel Agent</title>
+  <desc id="desc">Wide square-headed pixel robot with ivory shell, dark faceplate, twin cyan vertical eyes, an orange L-shaped right-top terminal and an integrated orange dock connector.</desc>
+  <!-- 48x48 logical-pixel master. No filters, strokes, gradients or external assets. -->
+  <path fill="#111C30" d="M8 0 H40 V1 H43 V3 H45 V5 H47 V8 H48 V40 H47 V43 H45 V45 H43 V47 H40 V48 H8 V47 H5 V45 H3 V43 H1 V40 H0 V8 H1 V5 H3 V3 H5 V1 H8 Z"/>
+  <g shape-rendering="crispEdges">
+    <path fill="#08111F" d="M13 8 H34 V7 H38 V9 H41 V12 H43 V17 H43 V33 H41 V36 H39 V38 H36 V40 H12 V39 H9 V37 H6 V34 H5 V17 H6 V13 H8 V11 H10 V9 H13 Z"/>
+    <path fill="#F4F6F9" d="M13 10 H33 V11 H37 V13 H39 V15 H40 V33 H38 V35 H36 V37 H12 V36 H10 V34 H8 V32 H8 V17 H10 V14 H12 V12 H13 Z"/>
+    <path fill="#AEBED2" d="M38 17 H40 V33 H38 V35 H36 V37 H12 V36 H10 V34 H34 V35 H36 V33 H37 V17 Z"/>
+    <path fill="#AEBED2" d="M8 24 H9 V31 H10 V34 H12 V36 H10 V34 H8 V32 Z"/>
+    <path fill="#08111F" d="M33 5 H41 V7 H42 V9 H43 V14 H39 V14 H39 V12 H36 V12 H36 V14 H32 V14 H32 V7 H33 Z"/>
+    <path fill="#FF9D32" d="M34 6 H40 V8 H41 V12 H39 V12 H39 V10 H36 V10 H36 V12 H34 Z"/>
+    <path fill="#08111F" d="M13 16 H35 V18 H37 V29 H35 V31 H13 V29 H11 V18 H13 Z"/>
+    <path fill="#17283F" d="M14 18 H34 V19 H35 V28 H34 V29 H14 V28 H13 V19 H14 Z"/>
+    <path fill="#27E0EC" d="M18 20 H21 V26 H18 Z M27 20 H30 V26 H27 Z"/>
+    <path fill="#08111F" d="M18 34 H30 V37 H29 V38 H19 V37 H18 Z"/>
+    <path fill="#FF9D32" d="M21 35 H27 V37 H21 Z"/>
+  </g>
+</svg>
