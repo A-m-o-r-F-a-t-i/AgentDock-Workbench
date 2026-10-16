@@ -42,6 +42,11 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 }
 
 func structuredOutputFollowups(name string, args map[string]any, result Result) []map[string]any {
+	// Bootstrap already supports routing. Its explicit detail action is not a
+	// conversation-wide prerequisite, and does not need a second guidance copy.
+	if name == "agentdock_context" && result["bootstrap_complete"] == true {
+		return nil
+	}
 	if toolcontract.ResolveOutputClass(name, args, result) != toolcontract.OutputRequiredFull {
 		return nil
 	}

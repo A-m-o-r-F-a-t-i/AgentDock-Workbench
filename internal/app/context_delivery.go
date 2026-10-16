@@ -162,6 +162,7 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	}
 	resume := &structuredOutputResume{Snapshot: *selected, ItemIndex: selected.NextPage, Reference: selected.Delivered}
 	if selected.Delivered {
+		original := result
 		diagnostics := modelObject(result["context_diagnostics"])
 		result = Result{
 			"context_revision": result["context_revision"], "unchanged": true,
@@ -169,6 +170,9 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 			"context_diagnostics": map[string]any{"complete": diagnostics["complete"], "components_complete": diagnostics["components_complete"], "binding_status": "unchanged"},
 			"capture":             map[string]any{"state": "complete", "complete": true},
 			"operation":           map[string]any{"state": "completed", "ok": true, "executed": false},
+		}
+		if p.spec.Name == "agentdock_context" {
+			r.refreshContextBootstrapReference(ctx, result, original)
 		}
 	}
 	if selected.Delivered && p.spec.Name == "agentdock_context" {

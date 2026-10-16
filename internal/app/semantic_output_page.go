@@ -25,9 +25,11 @@ func semanticKeyRank(key string) int {
 	order := []string{
 		"runtime", "workspace", "workspace_id", "workdir", "workspace_root", "conversation_state",
 		"operation", "capture", "permission", "host_tools", "context_revision", "schema_revision",
+		"resolution_status", "match_kind", "selected", "next_call",
 		"name", "tool_name", "qualified_name", "type", "required", "additionalProperties", "input_schema", "inputSchema",
+		"instruction_files", "instructions",
 		"builtin_tool_bundles", "plugins", "dynamic_mcp", "tools", "skills", "common_skills",
-		"tasks", "instructions", "instruction_files", "rules", "properties",
+		"tasks", "rules", "properties",
 	}
 	for index, item := range order {
 		if item == key {
@@ -114,7 +116,7 @@ func requiredOutputParts(full Result, budget int) []semanticOutputPart {
 // plugin preparation is repeated while selecting a continuation page.
 func requiredPageHeader(full Result, first bool) Result {
 	page := Result{"semantic_format": "json_pointer_parts"}
-	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture"} {
+	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "bootstrap_complete"} {
 		if value, exists := full[key]; exists {
 			page[key] = value
 		}
@@ -137,7 +139,7 @@ func requiredPageHeader(full Result, first bool) Result {
 
 func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, int) {
 	body := maps.Clone(full)
-	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "host_tools"} {
+	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "host_tools", "bootstrap_complete"} {
 		delete(body, key)
 	}
 	if _, bootstrap := full["host_tools"]; bootstrap {

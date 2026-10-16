@@ -108,7 +108,7 @@ func compactPublicToolDescriptions(name string, properties map[string]any) {
 	case "mcp_tool_search":
 		setSchemaDescription(properties, "query", "Dynamic MCP query; call host tools directly.")
 		setSchemaDescription(properties, "server", "Optional dynamic MCP server.")
-		setSchemaDescription(properties, "limit", "Max matches; default 10.")
+		setSchemaDescription(properties, "limit", "Max ranked candidates; default 5. Exact matches are retained.")
 	case "mcp_tool_list":
 		setSchemaDescription(properties, "server", "Enabled dynamic MCP server.")
 		setSchemaDescription(properties, "force_full", "Return the full catalog.")

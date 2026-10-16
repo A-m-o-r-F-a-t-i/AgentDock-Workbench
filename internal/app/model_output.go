@@ -30,6 +30,7 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 		}
 		out["host_tools"], out["permission"] = routes, p.decision
 		r.prepareContextBootstrap(ctx, out, p.state.binding)
+		out["bootstrap_complete"] = modelObject(out["context_diagnostics"])["complete"] == true
 		result = out
 	}
 	if capture := modelObject(result["capture"]); capture != nil && p.spec.Name == "read_file" {
@@ -182,8 +183,12 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	hasMore := stringArg(result, "next_cursor") != "" || result["has_more"] == true
 	available := hasMore || !complete && stringArg(capture, "source_ref") != ""
 	required := class == toolcontract.OutputRequiredFull && hasMore
+	bootstrapReady := p.spec.Name == "agentdock_context" && result["bootstrap_complete"] == true
+	if bootstrapReady {
+		required = false
+	}
 	delivery := map[string]any{
-		"class": class, "sequence_complete": !required,
+		"class": class, "sequence_complete": class != toolcontract.OutputRequiredFull || !hasMore,
 		"continuation_required": required, "continuation_available": available,
 	}
 	for _, key := range []string{"snapshot_id", "page_index", "page_count", "received_sections"} {
@@ -209,9 +214,16 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	result["truncation_stage"] = stage
 	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
 		diagnostics := modelObject(result["context_diagnostics"])
-		result["context_ready"] = diagnostics["complete"] == true && (!required || p.spec.Name == "agentdock_context")
-		if required && p.spec.Name == "agentdock_context" {
-			result["required_action"] = map[string]any{"category": "detail", "action": "continue_structured_output", "tool": p.spec.Name, "arguments": map[string]any{"cursor": result["next_cursor"], "known_context_revision": result["context_revision"]}, "execution_performed": false, "reason_code": "context_details_paged"}
+		result["context_ready"] = diagnostics["complete"] == true && (!required || bootstrapReady)
+		if hasMore && p.spec.Name == "agentdock_context" {
+			action := map[string]any{"category": "detail", "required": !bootstrapReady, "execution_performed": false, "reason_code": "context_details_paged"}
+			if cursor := stringArg(result, "next_cursor"); cursor != "" {
+				action["action"], action["tool"] = "continue_structured_output", p.spec.Name
+				action["arguments"] = map[string]any{"cursor": cursor, "known_context_revision": result["context_revision"]}
+			} else if continuation := modelObject(structured["continue_read"]); continuation != nil {
+				action["action"], action["tool"], action["arguments"] = "read_context_details", continuation["tool"], continuation["arguments"]
+			}
+			result["required_action"] = action
 		}
 	}
 	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {

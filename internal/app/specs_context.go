@@ -61,6 +61,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["android_executor"] = androidExecutorStatusSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
 	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
+	output["bootstrap_complete"] = toolcontract.Boolean("Routing bootstrap is complete independently of optional detail delivery.")
 	output["host_tools"] = toolcontract.ObjectArray("Exact currently visible host tool routes.")
 	output["dynamic_mcp_summary"] = toolcontract.OpenObject("Non-connecting catalog summary; zero candidates are authoritative only in a complete fresh selected catalog.")
 	output["task_binding"] = toolcontract.OpenObject("Current task, thread and workspace binding.")

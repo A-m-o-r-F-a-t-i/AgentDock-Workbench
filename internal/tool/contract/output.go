@@ -99,7 +99,10 @@ func jsonRuneChars(value rune) int {
 
 // Explicit declarations only alter presentation, never execution admission.
 func ResolveOutputClass(name string, args, result map[string]any) OutputClass {
-	if name == "mcp_tool_call" || name == "read_file" {
+	if name == "mcp_tool_search" && result["selected"] != nil {
+		return OutputRequiredFull
+	}
+	if name == "mcp_tool_call" || name == "read_file" || name == "mcp_tool_search" {
 		declared, _ := result["output_class"].(string)
 		switch OutputClass(declared) {
 		case OutputRequiredFull, OutputRecoverablePreview, OutputCompactReceipt:

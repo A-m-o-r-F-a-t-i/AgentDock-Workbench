@@ -136,8 +136,13 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	}
 	page["structured_output"] = meta
 	page["has_more"] = hasMore
+	if p.spec.Name == "mcp_tool_search" {
+		// Inline schemas use the same lossless delivery as inspect, including on continuation pages.
+		page["output_class"] = string(toolcontract.OutputRequiredFull)
+	}
 	if isContext {
-		setContextDeliveryComplete(page, !hasMore && retained.SourceComplete)
+		bootstrapReady := p.spec.Name == "agentdock_context" && page["bootstrap_complete"] == true
+		setContextDeliveryComplete(page, retained.SourceComplete && (!hasMore || bootstrapReady))
 	}
 	return page
 }
