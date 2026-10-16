@@ -590,6 +590,7 @@ jobs:
           $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
           $assetName = @(
             'ACTOVO-Setup-amd64.exe'
+            'AgentDock-Workbench-Setup-amd64.exe'
             'AgentDockSetup-amd64.exe'
           ) | Where-Object { $release.assets.name -contains $_ } | Select-Object -First 1
           if ([string]::IsNullOrWhiteSpace($assetName)) {
