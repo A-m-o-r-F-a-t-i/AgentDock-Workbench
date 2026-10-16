@@ -94,7 +94,7 @@ func mcpToolContract(name string, _ config.Config) (ToolContract, bool) {
 	outputSchema = cloneJSONSchemaMap(outputSchema)
 	stripSchemaDescriptions(outputSchema)
 	contract := newToolContract(name, inputSchema, outputSchema)
-	contract.PublicInputSchema = compactMCPPublicInput(inputSchema)
+	contract.PublicInputSchema = compactMCPPublicInput(contract.PublicInputSchema)
 	return contract, true
 }
 

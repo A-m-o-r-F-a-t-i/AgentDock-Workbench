@@ -113,11 +113,11 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 	}
 	for _, entry := range list["tools"].([]any) {
 		tool := entry.(map[string]any)
-		if len(tool) != 2 || tool["description"] != "Read selected data." {
-			t.Fatalf("not a two-column summary: %#v", tool)
+		if tool["description"] != "Read selected data." || tool["schema_digest"] == "" || tool["server_fingerprint"] == "" || tool["input_schema"] != nil || tool["output_schema"] != nil {
+			t.Fatalf("invalid lightweight summary: %#v", tool)
 		}
 	}
-	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}})
+	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}, "include_schema": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,21 +242,21 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	}
 	first := call(ctx)
 	second := call(ctx)
-	if first["delivery"] != "reference" || first["tools_omitted"] != true || first["tools"] != nil {
+	if first["delivery"] != "summary" || first["tools_omitted"] != true || first["tools"] != nil {
 		t.Fatalf("business call duplicated the catalog delivered by list: %#v", first)
 	}
-	if second["delivery"] != "reference" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
+	if second["delivery"] != "summary" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
 		t.Fatalf("repeated trusted call duplicated its catalog: %#v", second)
 	}
 	other := activity.WithSource(t.Context(), activity.Source{Principal: "catalog-test", Namespace: "mcp", HostConversationID: "catalog-other"})
 	if _, err := r.Call(other, "agentdock_context", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	if isolated := call(other); isolated["delivery"] != "full" || catalogCount(isolated["tools"]) != 3 {
-		t.Fatalf("another conversation inherited the compact reference: %#v", isolated)
+	if isolated := call(other); isolated["delivery"] != "summary" || isolated["tools_omitted"] != true || isolated["tools"] != nil {
+		t.Fatalf("another conversation received a duplicated call catalog: %#v", isolated)
 	}
-	if legacy := call(t.Context()); legacy["delivery"] != "full" || catalogCount(legacy["tools"]) != 3 {
-		t.Fatalf("client without trusted metadata lost the full catalog: %#v", legacy)
+	if legacy := call(t.Context()); legacy["delivery"] != "summary" || legacy["tools_omitted"] != true || legacy["tools"] != nil {
+		t.Fatalf("unattributed business call duplicated its catalog: %#v", legacy)
 	}
 }
 

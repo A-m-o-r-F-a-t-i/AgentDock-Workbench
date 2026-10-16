@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -200,7 +201,9 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if catalogErr != nil {
 		catalog = map[string]any{"server": validated.serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
-	catalog = s.catalogDeliveries.prepare(ctx, catalog, false)
+	catalog = maps.Clone(catalog)
+	delete(catalog, "tools")
+	catalog["delivery"], catalog["tools_omitted"], catalog["refresh_tool"] = "summary", true, ToolList
 	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if class, mode := prepared.OutputPolicy(); class != "" {

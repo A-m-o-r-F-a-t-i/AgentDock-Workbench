@@ -228,8 +228,8 @@ func catalogSchemaProperties() map[string]any {
 		"stale":         toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
 		"total":         toolcontract.Integer("Total tools in the referenced catalog."),
 		"error":         toolcontract.String("Catalog attachment problem; never changes the business outcome."),
-		"delivery":      toolcontract.String("full when tools are included, reference when this trusted scope already received the same revision."),
-		"tools_omitted": toolcontract.Boolean("True only for a compact reference to a complete catalog already delivered in the same trusted scope."),
+		"delivery":      toolcontract.String("full when tools are included, summary for call metadata only, reference for an already delivered catalog."),
+		"tools_omitted": toolcontract.Boolean("True when catalog entries are omitted; delivery distinguishes a summary from a delivered reference."),
 		"refresh_tool":  toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
 		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
 	}
