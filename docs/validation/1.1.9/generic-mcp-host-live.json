@@ -1,0 +1,71 @@
+{
+  "schema": "agentdock-generic-mcp-live-validation/v1",
+  "executed_at": "2026-10-17T02:06:24.361Z",
+  "source_commit": "0a52f31960c9ef13a51b0d4e04fd378928411726",
+  "host": {
+    "version": "1.1.9",
+    "built_from_pr_source": true,
+    "build_vcs_stamp": false,
+    "isolated_agentdock_home": true,
+    "public_tool_count": 25,
+    "continuation_tools_present": true
+  },
+  "services": [
+    {
+      "kind": "generic_text_mcp",
+      "tool_count": 1,
+      "catalog_complete": true,
+      "result_marker_preserved": true,
+      "executed": true
+    },
+    {
+      "kind": "client_neutral_structured_mcp",
+      "tool_count": 14,
+      "catalog_complete": true,
+      "connected_target_count": 1,
+      "executed": true,
+      "content_kinds": [
+        "structured",
+        "text"
+      ]
+    }
+  ],
+  "checks": {
+    "schema_delivery": {
+      "first": "full",
+      "second": "reference",
+      "second_schema_omitted": true,
+      "same_digest": true
+    },
+    "cursor_separation": {
+      "domain_cursor_prefix": "pcursor_",
+      "host_cursor_prefix": "hostcursor_",
+      "distinct": true,
+      "host_page_count": 7
+    },
+    "continuation": {
+      "page_index": 1,
+      "content_returned": true,
+      "next_cursor_available": true,
+      "replayed_cursor_returns_body": false,
+      "replayed_receipt": true
+    },
+    "raw_diagnostics": {
+      "offset": 0,
+      "next_offset": 1024,
+      "returned_bytes": 1024,
+      "complete": false
+    },
+    "activity": {
+      "continuation_parent_is_source_call": true,
+      "continuation_visible_top_level": false,
+      "continuation_payload_duplicated": false,
+      "raw_diagnostic_visible_top_level": true
+    }
+  },
+  "limitations": [
+    "The host validation used a locally built PR binary and an isolated temporary AGENTDOCK_HOME, not an installed release package.",
+    "The generic host validation did not execute a mutating MCP operation. The client-neutral EasyEDA repository records its separate reversible live write and readback.",
+    "The raw result check read only the first 1024 UTF-8 bytes and did not consume the complete diagnostic source."
+  ]
+}
