@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/uvwt/agentdock/internal/fs/securepath"
@@ -48,7 +49,8 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 		release()
 		return err
 	}
-	if data != cfg.PluginData {
+	configuredData, err := containedPath(s.root, cfg.PluginData, true)
+	if err != nil || !sameFilesystemPath(data, configuredData) {
 		release()
 		return errors.New("plugin data target changed; refresh the service before dispatch")
 	}
@@ -63,7 +65,11 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 	visibleRoot := filepath.Join(s.root, cfg.PluginName)
 	validRoot := sameFilesystemPath(root, generationRoot) || sameFilesystemPath(root, visibleRoot)
 	if !validRoot {
-		runtimeRoot := filepath.Join(s.root, ".runtime", cfg.PluginName)
+		runtimeRoot, runtimeErr := containedPath(s.root, filepath.Join(s.root, ".runtime", cfg.PluginName), true)
+		if runtimeErr != nil {
+			release()
+			return runtimeErr
+		}
 		relative, relErr := filepath.Rel(runtimeRoot, root)
 		validRoot = relErr == nil && filepath.IsLocal(relative) && filepath.Dir(relative) == "." &&
 			strings.HasPrefix(filepath.Base(relative), "generation-"+state.Generation+"-")
@@ -94,7 +100,7 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 	if err != nil {
 		return err
 	}
-	if after != data {
+	if !sameFilesystemPath(after, data) {
 		return errors.New("plugin data directory changed during preparation")
 	}
 	if err := securepath.EnsurePrivate(data); err != nil {
@@ -104,5 +110,28 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 }
 
 func sameFilesystemPath(left, right string) bool {
-	return filepath.Clean(left) == filepath.Clean(right)
+	leftResolved, leftErr := resolvedPath(left, true)
+	rightResolved, rightErr := resolvedPath(right, true)
+	if leftErr == nil && rightErr == nil {
+		leftClean := filepath.Clean(leftResolved)
+		rightClean := filepath.Clean(rightResolved)
+		if runtime.GOOS == "windows" {
+			return strings.EqualFold(leftClean, rightClean)
+		}
+		return leftClean == rightClean
+	}
+	leftInfo, leftStatErr := os.Stat(left)
+	rightInfo, rightStatErr := os.Stat(right)
+	if leftStatErr == nil && rightStatErr == nil {
+		return os.SameFile(leftInfo, rightInfo)
+	}
+	leftAbs, leftAbsErr := filepath.Abs(left)
+	rightAbs, rightAbsErr := filepath.Abs(right)
+	if leftAbsErr != nil || rightAbsErr != nil {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(filepath.Clean(leftAbs), filepath.Clean(rightAbs))
+	}
+	return filepath.Clean(leftAbs) == filepath.Clean(rightAbs)
 }
