@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -62,6 +63,54 @@ func TestIntArgAcceptsOnlyIntegralInRangeValues(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := IntArg(map[string]any{"value": test.value}, "value", fallback); got != test.want {
 				t.Fatalf("IntArg(%T(%v)) = %d, want %d", test.value, test.value, got, test.want)
+			}
+		})
+	}
+}
+
+func TestJSONArgumentsPreserveNumbersAndTypedBounds(t *testing.T) {
+	var decoded struct {
+		Limit int            `json:"limit"`
+		Args  map[string]any `json:"arguments"`
+	}
+	input := `{"limit":7,"arguments":{"id":9007199254740993,"amount":0.10000000000000001,"items":[18446744073709551615]}}`
+	if err := DecodeJSON(strings.NewReader(input), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Limit != 7 || decoded.Args["id"] != json.Number("9007199254740993") || decoded.Args["amount"] != json.Number("0.10000000000000001") || decoded.Args["items"].([]any)[0] != json.Number("18446744073709551615") {
+		t.Fatalf("numbers changed at the JSON boundary: %#v", decoded)
+	}
+	var cloned map[string]any
+	if err := Remarshal(decoded.Args, &cloned); err != nil {
+		t.Fatal(err)
+	}
+	decoded.Args["items"].([]any)[0] = json.Number("0")
+	if cloned["id"] != json.Number("9007199254740993") || cloned["items"].([]any)[0] != json.Number("18446744073709551615") {
+		t.Fatalf("JSON clone changed or aliased the accepted arguments: %#v", cloned)
+	}
+	for _, invalid := range []string{input + ` {}`, input + ` trailing`, `{"limit":0.5}`, `{"limit":18446744073709551615}`} {
+		if err := DecodeJSON(strings.NewReader(invalid), &decoded); err == nil {
+			t.Fatalf("accepted invalid typed input or trailing JSON: %s", invalid)
+		}
+	}
+}
+
+func TestJSONTextEquivalentRequiresExactNumbersAndCompleteValue(t *testing.T) {
+	structured := map[string]any{"id": json.Number("9007199254740993"), "label": "board"}
+	for _, test := range []struct {
+		name string
+		text string
+		want bool
+	}{
+		{"identical value", ` { "label":"board", "id":9007199254740993 } `, true},
+		{"adjacent large integer", `{"id":9007199254740992,"label":"board"}`, false},
+		{"different receipt", `{"structuredContent":true,"id":9007199254740993}`, false},
+		{"trailing value", `{"label":"board","id":9007199254740993} {}`, false},
+		{"trailing junk", `{"label":"board","id":9007199254740993} receipt`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := JSONTextEquivalent(test.text, structured); got != test.want {
+				t.Fatalf("equivalent = %v, want %v", got, test.want)
 			}
 		})
 	}

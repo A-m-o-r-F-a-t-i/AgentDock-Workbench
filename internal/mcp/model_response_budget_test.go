@@ -151,3 +151,26 @@ func TestDynamicMCPModelProjectionPreservesNonEquivalentTextAndMetadata(t *testi
 		t.Fatalf("canonical retained result lost unique business text: %#v", retained)
 	}
 }
+
+func TestDynamicMCPProjectionKeepsAdjacentLargeIntegerText(t *testing.T) {
+	const distinct = `{"id":9007199254740993}`
+	metadata := map[string]any{"revision": json.Number("18446744073709551615")}
+	image := map[string]any{"type": "image", "data": "AQID", "mimeType": "image/png", "_meta": metadata}
+	blocks := []any{map[string]any{"type": "text", "text": distinct}, image}
+	envelope := map[string]any{
+		"content": blocks,
+		"structuredContent": map[string]any{
+			"name": "fixture:write",
+			"result": map[string]any{
+				"structuredContent": map[string]any{"id": json.Number("9007199254740992")},
+				"content":           blocks,
+				"_meta":             metadata,
+			},
+		},
+	}
+	projected := compactToolEnvelopeText("mcp_tool_call", normalizeResponseStages("mcp_tool_call", nil, envelope))
+	result := asMap(asMap(projected["structuredContent"])["result"])
+	if !reflect.DeepEqual(result["content"], blocks) || !reflect.DeepEqual(projected["content"], blocks) || !reflect.DeepEqual(result["_meta"], metadata) {
+		t.Fatalf("projection treated adjacent numbers as the same business result: %#v", projected)
+	}
+}

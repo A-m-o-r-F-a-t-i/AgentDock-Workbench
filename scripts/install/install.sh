@@ -580,8 +580,9 @@ case "$PLATFORM" in
       --payload-dir "$PAYLOAD_DIR" --service-name "$SERVICE_NAME" \
       --service-user "$SERVICE_USER" --service-group "$SERVICE_GROUP" \
       --service-manager "$SERVICE_MANAGER" --data-dir "$DATA_DIR" \
-      --agentdock-home "$AGENTDOCK_HOME_DIR" --agentdock-default-dir "$AGENTDOCK_DEFAULT_DIR_VALUE" \
       --systemd-dir "$SYSTEMD_DIR" --openrc-dir "$OPENRC_DIR"
+    if [ "$INSTALLER_AGENTDOCK_HOME_EXPLICIT" = true ]; then set -- "$@" --agentdock-home "$AGENTDOCK_HOME_DIR"; fi
+    if [ "$INSTALLER_DEFAULT_DIR_EXPLICIT" = true ]; then set -- "$@" --agentdock-default-dir "$AGENTDOCK_DEFAULT_DIR_VALUE"; fi
     if [ "$SERVICE_MANAGER" = none ] || [ "$NO_START" = true ]; then set -- "$@" --no-start --skip-health; fi
     ;;
   darwin)

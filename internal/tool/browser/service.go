@@ -165,7 +165,10 @@ func (s *Service) start(ctx context.Context, req StartRequest) (StartResult, err
 			context.Background(),
 			localExecAllocatorOptions(executable.Path, profileDir, req)...,
 		)
-		browserCtx, browserCancel := chromedp.NewContext(allocatorCtx)
+		browserCtx, browserCancel := chromedp.NewContext(
+			allocatorCtx,
+			chromedp.WithBrowserOption(chromedp.WithDialTimeout(req.Timeout)),
+		)
 		sess = &session{
 			id:               newSessionID(),
 			kind:             executable.Kind,

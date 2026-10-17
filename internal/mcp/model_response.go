@@ -18,15 +18,11 @@ import (
 // Measure the actual SDK CallToolResult wire JSON, including base64 attachment
 // data. Oversized native content is replaced by a retained-source receipt.
 func modelEnvelopeChars(envelope map[string]any) (int, error) {
-	encoded, err := json.Marshal(envelope)
+	result, err := sdkToolResult(envelope)
 	if err != nil {
 		return 0, err
 	}
-	var result mcpsdk.CallToolResult
-	if err := json.Unmarshal(encoded, &result); err != nil {
-		return 0, err
-	}
-	encoded, err = json.Marshal(&result)
+	encoded, err := json.Marshal(result)
 	return utf8.RuneCount(encoded), err
 }
 

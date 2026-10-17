@@ -1,12 +1,12 @@
 package mcp
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
+
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 const (
@@ -37,9 +37,7 @@ func normalizeDynamicMCPResult(raw map[string]any) (map[string]any, []string, bo
 		if block["type"] == "text" {
 			if text, ok := block["text"].(string); ok {
 				var parsed any
-				decoder := json.NewDecoder(strings.NewReader(text))
-				decoder.UseNumber()
-				if decoder.Decode(&parsed) == nil && decoder.Decode(new(any)) == io.EOF {
+				if toolcore.DecodeJSON(strings.NewReader(text), &parsed) == nil {
 					structured, hasStructured, parsedText = parsed, true, true
 					result["structuredContent"] = parsed
 				}
@@ -78,25 +76,7 @@ func normalizeDynamicMCPResult(raw map[string]any) (map[string]any, []string, bo
 }
 
 func jsonTextEquivalent(text string, structured any) bool {
-	if strings.TrimSpace(text) == "" {
-		return false
-	}
-	var parsed any
-	decoder := json.NewDecoder(strings.NewReader(text))
-	decoder.UseNumber()
-	if decoder.Decode(&parsed) != nil || decoder.Decode(new(any)) != io.EOF {
-		return false
-	}
-	left, err := canonicalResultJSON(parsed)
-	if err != nil {
-		return false
-	}
-	right, err := canonicalResultJSON(structured)
-	return err == nil && bytes.Equal(left, right)
-}
-
-func canonicalResultJSON(value any) ([]byte, error) {
-	return json.Marshal(cloneResultValue(value))
+	return toolcore.JSONTextEquivalent(text, structured)
 }
 
 func resultContentBlocks(value any) []any {

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -22,6 +23,7 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/requesttrace"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 type Server struct {
@@ -256,7 +258,7 @@ func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.Call
 	}
 	arguments := map[string]any{}
 	if request != nil && request.Params != nil && len(request.Params.Arguments) > 0 && string(request.Params.Arguments) != "null" {
-		if err := json.Unmarshal(request.Params.Arguments, &arguments); err != nil {
+		if err := toolcore.DecodeJSON(bytes.NewReader(request.Params.Arguments), &arguments); err != nil {
 			slog.Warn("tool params invalid", "tool", name, "duration_ms", time.Since(started).Milliseconds())
 			_, _ = s.runtime.RejectToolCall(ctx, name, "tool arguments must be a JSON object")
 			requesttrace.Stage(ctx, "mcp_arguments")
@@ -278,6 +280,10 @@ func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.Call
 	if finishErr != nil {
 		return nil, finishErr
 	}
+	return sdkToolResult(envelope)
+}
+
+func sdkToolResult(envelope map[string]any) (*mcpsdk.CallToolResult, error) {
 	encoded, encodeErr := json.Marshal(envelope)
 	if encodeErr != nil {
 		return nil, fmt.Errorf("encode MCP tool result: %w", encodeErr)
@@ -285,6 +291,14 @@ func (s *Server) callTool(ctx context.Context, name string, request *mcpsdk.Call
 	var response mcpsdk.CallToolResult
 	if decodeErr := json.Unmarshal(encoded, &response); decodeErr != nil {
 		return nil, fmt.Errorf("decode MCP tool result: %w", decodeErr)
+	}
+	// The SDK validates and converts native content above, but its decoder uses
+	// float64 for dynamic fields. Keep the canonical structured result and metadata.
+	response.StructuredContent = envelope["structuredContent"]
+	if meta, exists := envelope["_meta"]; exists {
+		if err := toolcore.Remarshal(meta, &response.Meta); err != nil {
+			return nil, fmt.Errorf("decode MCP tool result metadata: %w", err)
+		}
 	}
 	return &response, nil
 }

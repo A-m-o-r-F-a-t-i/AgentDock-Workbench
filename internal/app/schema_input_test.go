@@ -1,12 +1,14 @@
 package app
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/config"
 	toolcommand "github.com/uvwt/agentdock/internal/tool/command"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	toolrecall "github.com/uvwt/agentdock/internal/tool/recall"
 )
 
@@ -244,5 +246,32 @@ func TestViewImageInputSchemaDeclaresObjectTypeForEveryOneOfBranch(t *testing.T)
 		if !ok || len(required) != 1 || required[0] == "" {
 			t.Fatalf("oneOf[%d] required = %#v", index, branch["required"])
 		}
+	}
+}
+
+func TestDynamicMCPArgumentCloneAndTypedInputPreserveNumbers(t *testing.T) {
+	arguments := map[string]any{
+		"name": "fixture:write",
+		"arguments": map[string]any{
+			"id":     json.Number("9007199254740993"),
+			"values": []any{json.Number("18446744073709551615"), json.Number("0.10000000000000001")},
+		},
+	}
+	accepted, err := cloneExecutionArguments(arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	arguments["arguments"].(map[string]any)["id"] = json.Number("9007199254740992")
+	var request toolmcp.CallRequest
+	if err := decodeToolInput("mcp_tool_call", accepted, &request); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(request.Arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"id":9007199254740993,"values":[18446744073709551615,0.10000000000000001]}`
+	if request.Name != "fixture:write" || string(encoded) != want {
+		t.Fatalf("accepted arguments changed before capability dispatch: %s", encoded)
 	}
 }

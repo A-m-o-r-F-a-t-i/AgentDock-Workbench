@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
+
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 // decodeToolInput 是动态 JSON 参数进入强类型 capability 的唯一转换点。
@@ -15,25 +15,8 @@ func decodeToolInput(tool string, args map[string]any, target any) error {
 	if err != nil {
 		return toolErrorDetails("INVALID_ARGUMENT", "tool arguments cannot be encoded", "validation", map[string]any{"tool": tool, "reason": err.Error()})
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(target); err != nil {
+	if err := toolcore.DecodeJSON(bytes.NewReader(data), target); err != nil {
 		return toolErrorDetails("INVALID_ARGUMENT", "tool arguments cannot be decoded", "validation", map[string]any{"tool": tool, "reason": err.Error()})
-	}
-	if decoder.More() {
-		return toolErrorDetails("INVALID_ARGUMENT", "tool arguments contain trailing JSON data", "validation", map[string]any{"tool": tool})
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		return toolErrorDetails("INVALID_ARGUMENT", "tool arguments contain trailing JSON data", "validation", map[string]any{"tool": tool, "reason": err.Error()})
-	}
-	return nil
-}
-
-func ensureJSONEOF(decoder *json.Decoder) error {
-	var extra any
-	if err := decoder.Decode(&extra); err == nil {
-		return fmt.Errorf("unexpected trailing JSON value")
-	} else if err != io.EOF {
-		return err
 	}
 	return nil
 }
