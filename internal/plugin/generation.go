@@ -128,7 +128,10 @@ func packageDigestAt(path string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", true, errors.New("Plugin package path is a symbolic link")
+	}
+	if !info.IsDir() {
 		return "", true, errors.New("Plugin package path is not a regular directory")
 	}
 	digest, err := skills.DigestPackageContent(path)
