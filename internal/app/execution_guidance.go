@@ -111,7 +111,10 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 			return nil
 		}
 		for _, exact := range names {
-			summaries = append(summaries, toolmcp.BuiltinToolSummary{Name: exact, InvokeVia: "host"})
+			summaries = append(summaries, toolmcp.BuiltinToolSummary{
+				Name: exact, Scope: toolmcp.ScopeAgentDockBuiltin, Origin: toolmcp.ScopeAgentDockBuiltin,
+				InvokeVia: toolmcp.InvokeDirect,
+			})
 		}
 	}
 	steps := []map[string]any{}
@@ -125,8 +128,9 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 		}
 		seen[summary.Name] = true
 		steps = append(steps, map[string]any{
-			"action": "call_host_tool", "tool": summary.Name, "invoke_via": "host",
-			"text": "Call this AgentDock host tool directly from the caller tools/list namespace. Stop dynamic MCP search and inspect. No business action ran.",
+			"action": "call_host_tool", "tool": summary.Name, "invoke_via": toolmcp.InvokeDirect,
+			"scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin,
+			"text": "Call this AgentDock device built-in directly from the caller tools/list namespace. Stop dynamic MCP search and inspect. No business action ran.",
 		})
 	}
 	return steps
