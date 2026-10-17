@@ -350,12 +350,14 @@ func (s *Store) prepareRuntimeMCPPackage(pkg RuntimePackage, releaseGeneration f
 			break
 		}
 	}
-	if runtimeRoot != pkg.Root {
-		for name, cfg := range pkg.MCPServers {
-			pkg.MCPServers[name] = rebaseServerConfig(cfg, pkg.Root, runtimeRoot, cfg.PluginData, cfg.PluginData)
+	for name, cfg := range pkg.MCPServers {
+		original := mcpclient.NormalizeServerConfig(cfg)
+		if runtimeRoot != pkg.Root {
+			cfg = rebaseServerConfig(cfg, pkg.Root, runtimeRoot, cfg.PluginData, cfg.PluginData)
 		}
-		pkg.Root = runtimeRoot
+		pkg.MCPServers[name] = mcpclient.WithPluginCatalogSource(cfg, original, pkg.Generation, pkg.PackageDigest)
 	}
+	pkg.Root = runtimeRoot
 	var once sync.Once
 	release := func() {
 		once.Do(func() {

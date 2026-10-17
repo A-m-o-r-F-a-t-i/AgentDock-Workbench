@@ -29,6 +29,7 @@ type ServerConfig struct {
 	StorageKey    string `json:"-"`
 
 	PluginVersion   string `json:"-"`
+	catalogSource   *pluginCatalogSource
 	revision        string
 	overrideSource  string
 	overlayRevision uint64

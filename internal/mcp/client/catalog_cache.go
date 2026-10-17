@@ -35,7 +35,7 @@ func catalogCacheIdentity(cfg ServerConfig) (string, error) {
 	// credentials and the live schema are revalidated before every business call.
 	cfg.TimeoutMS = 0
 	cfg.RuntimeEnv = nil
-	return definitionFingerprint(cfg)
+	return retainedDefinitionFingerprint(cfg)
 }
 func (catalog Catalog) cachedCallable() bool {
 	age := time.Since(catalog.RefreshedAt)
