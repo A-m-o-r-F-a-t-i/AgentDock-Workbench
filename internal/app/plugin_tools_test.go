@@ -179,9 +179,9 @@ func TestPluginComponentsEnterExistingRuntimeAndSkillExecUsesPluginData(t *testi
 		t.Fatalf("Plugin Skill resource = %#v", resource)
 	}
 
-	command := "test -n \"$PLUGIN_DATA_DIR\" && test -z \"$SKILL_DATA_DIR\" && printf %s \"$PLUGIN_DATA_DIR\""
+	command := "printf runtime > generated-by-skill.txt && test -n \"$PLUGIN_DATA_DIR\" && test -z \"$SKILL_DATA_DIR\" && printf %s \"$PLUGIN_DATA_DIR\""
 	if goruntime.GOOS == "windows" {
-		command = "if (-not $env:PLUGIN_DATA_DIR -or $env:SKILL_DATA_DIR) { exit 1 }; [Console]::Write($env:PLUGIN_DATA_DIR)"
+		command = "Set-Content -LiteralPath 'generated-by-skill.txt' -Value 'runtime' -NoNewline; if (-not $env:PLUGIN_DATA_DIR -or $env:SKILL_DATA_DIR) { exit 1 }; [Console]::Write($env:PLUGIN_DATA_DIR)"
 	}
 	executed, err := rt.Call(context.Background(), "exec_command", map[string]any{
 		"cmd": command, "skill_ref": skillRef, "execution_mode": "sync",
@@ -199,6 +199,14 @@ func TestPluginComponentsEnterExistingRuntimeAndSkillExecUsesPluginData(t *testi
 	if _, err := os.Stat(wantData); err != nil {
 		t.Fatalf("Plugin data dir not created: %v", err)
 	}
+	resolvedAfterCommand, releaseRead, err := rt.skills.Acquire(t.Context(), skillRef)
+	if err != nil {
+		t.Fatalf("command writes invalidated the immutable Plugin generation: %v", err)
+	}
+	defer releaseRead()
+	if _, err := os.Stat(filepath.Join(resolvedAfterCommand.Root, "generated-by-skill.txt")); !os.IsNotExist(err) {
+		t.Fatalf("command wrote into the Plugin Skill resource directory: %v", err)
+	}
 
 	_, err = rt.Call(context.Background(), "exec_command", map[string]any{
 		"cmd": commandNoopForTest(), "skill_ref": skillRef,
@@ -211,6 +219,50 @@ func TestPluginComponentsEnterExistingRuntimeAndSkillExecUsesPluginData(t *testi
 	})
 	if mcp["plugin_name"] != "demo.plugin" || mcp["name"] != pluginruntime.RuntimeMCPName("demo.plugin", "remote") {
 		t.Fatalf("Plugin MCP provenance = %#v", mcp)
+	}
+}
+
+func TestPluginRecoverySkillRequiresOriginBeforeCommandStarts(t *testing.T) {
+	rt, root := newPluginTestRuntime(t)
+	source := writeAppPluginForTest(t, root, "1.0.0")
+	document := "---\nname: plugin-skill\ndescription: Plugin recovery integration test.\nmetadata:\n  mcp-recovery-server: recovery-test\n---\n\n# Recover the selected MCP server.\n"
+	if err := os.WriteFile(filepath.Join(source, "skills", "plugin-skill", "SKILL.md"), []byte(document), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Call(t.Context(), "plugin_manage", map[string]any{
+		"action": "install", "source": source, "review_token": reviewAppPluginForTest(t, rt, source).ReviewToken,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	const skillRef = "skill://plugin/demo.plugin/plugin-skill"
+	resolved, release, err := rt.skills.Acquire(t.Context(), skillRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	if resolved.RecoveryMCPServer != "recovery-test" || resolved.PluginGeneration == "" || resolved.PluginPackageDigest == "" {
+		t.Fatalf("Plugin lease lost its recovery declaration or generation identity: %+v", resolved)
+	}
+	command := "printf started > recovery-started.txt"
+	if goruntime.GOOS == "windows" {
+		command = "Set-Content -LiteralPath 'recovery-started.txt' -Value 'started' -NoNewline"
+	}
+	result, err := rt.Call(t.Context(), "exec_command", map[string]any{
+		"cmd": command, "skill_ref": skillRef, "workdir": root, "execution_mode": "sync",
+	})
+	assertToolErrorCode(t, err, "MCP_RECOVERY_ORIGIN_REQUIRED")
+	if result["session_id"] != nil {
+		t.Fatalf("unauthorized recovery returned a command session: %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(root, "recovery-started.txt")); !os.IsNotExist(err) {
+		t.Fatalf("recovery command ran without its origin: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(rt.cfg.AgentDockHome, "plugins", ".runtime", "demo.plugin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("rejected recovery retained its command runtime lease: %v", entries)
 	}
 }
 

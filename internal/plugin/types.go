@@ -1,6 +1,10 @@
 package plugin
 
-import mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
+import (
+	"time"
+
+	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
+)
 
 const (
 	ManifestDirectory  = ""
@@ -60,6 +64,9 @@ type MCPHostConfig struct {
 type State struct {
 	Source        *Source         `json:"source,omitempty"`
 	Compatibility *Compatibility  `json:"compatibility,omitempty"`
+	Generation    string          `json:"generation,omitempty"`
+	PackageDigest string          `json:"package_digest,omitempty"`
+	InstalledAt   time.Time       `json:"installed_at,omitempty"`
 	Enabled       bool            `json:"enabled"`
 	Heavy         *bool           `json:"heavy,omitempty"`
 	Skills        map[string]bool `json:"skills,omitempty"`
@@ -73,6 +80,8 @@ type Definition struct {
 	Description   string         `json:"description"`
 	Version       string         `json:"version"`
 	Path          string         `json:"path"`
+	Generation    string         `json:"generation,omitempty"`
+	PackageDigest string         `json:"package_digest,omitempty"`
 	Enabled       bool           `json:"enabled"`
 	Heavy         bool           `json:"heavy"`
 	Skills        []string       `json:"skills,omitempty"`
@@ -87,12 +96,14 @@ type Membership struct {
 }
 
 type SkillMember struct {
-	Heavy       bool   `json:"heavy,omitempty"`
-	Description string `json:"description,omitempty"`
-	Name        string `json:"name"`
-	Plugin      string `json:"plugin"`
-	Path        string `json:"path"`
-	Enabled     bool   `json:"enabled"`
+	Generation    string `json:"generation,omitempty"`
+	PackageDigest string `json:"-"`
+	Heavy         bool   `json:"heavy,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Name          string `json:"name"`
+	Plugin        string `json:"plugin"`
+	Path          string `json:"path"`
+	Enabled       bool   `json:"enabled"`
 }
 
 type MCPMember struct {
