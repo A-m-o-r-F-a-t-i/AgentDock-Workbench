@@ -53,6 +53,11 @@ func assertToolAnnotation(t *testing.T, descriptor map[string]any, readOnly, des
 	assertBoolPointer("openWorldHint", openWorld)
 }
 
+func TestBrowserSnapshotDescriptorReflectsArtifactAndCloseSideEffects(t *testing.T) {
+	descriptor := toolDescriptorsForConfig(t, []string{"browser_snapshot"}, config.Config{BrowserEnabled: true})[0]
+	assertToolAnnotation(t, descriptor, false, false, true)
+}
+
 func TestFilePublishDescriptorExposesFileRewritePath(t *testing.T) {
 	descriptors := toolDescriptorsForConfig(t, []string{"file_publish"}, config.Config{})
 	byName := map[string]map[string]any{}
