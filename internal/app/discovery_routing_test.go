@@ -103,7 +103,7 @@ func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T)
 			t.Fatalf("host members lost: %#v", route.Details)
 		}
 		for _, item := range builtins {
-			if item.InvokeVia != "host" {
+			if item.Scope != toolmcp.ScopeAgentDockBuiltin || item.Origin != toolmcp.ScopeAgentDockBuiltin || item.InvokeVia != toolmcp.InvokeDirect {
 				t.Fatalf("wrong host route: %+v", item)
 			}
 		}

@@ -232,6 +232,11 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 		})
 	}
 	t.Run("marker_symlink_target", func(t *testing.T) {
+		// kqueue can follow a symlink while watching directory members; deleting
+		// its target may invalidate watcher health. That must reject old cursors.
+		// Keep the source fixed here to isolate the marker's own Lstat identity,
+		// then verify source invalidation separately through the same paging path.
+		tracker := replaceContextTracker(t, &rt.contextSnapshots.ruleFiles)
 		if err := os.RemoveAll(git); err != nil {
 			t.Fatal(err)
 		}
@@ -241,5 +246,9 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 		}
 		// The marker is still a symlink after its unrelated target disappears.
 		checkMarker(t, func() error { return os.Remove(target) }, false)
+		checkMarker(t, func() error {
+			tracker.generation.Add(1)
+			return nil
+		}, true)
 	})
 }

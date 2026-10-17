@@ -303,6 +303,9 @@ func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
 	firstTool := first["tools"].([]map[string]any)[0]
 	secondTool := second["tools"].([]map[string]any)[0]
 	forcedTool := forced["tools"].([]map[string]any)[0]
+	for _, tool := range []map[string]any{firstTool, secondTool, forcedTool} {
+		assertNestedMCPRoute(t, tool, "fixture", "fixture:tool_000")
+	}
 	if first["schema_full_count"] != 1 || first["schema_reference_count"] != 0 || firstTool["delivery"] != "full" || firstTool["input_schema"] == nil {
 		t.Fatalf("first schema inspection was not complete: %#v", first)
 	}
@@ -311,6 +314,14 @@ func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
 	}
 	if forced["schema_full_count"] != 1 || forced["schema_reference_count"] != 0 || forcedTool["delivery"] != "full" || forcedTool["input_schema"] == nil {
 		t.Fatalf("force_full schema inspection did not restore the schema: %#v", forced)
+	}
+	legacy, err := r.Call(ctx, "mcp_tool_inspect", map[string]any{"name": "fixture:tool_000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNestedMCPRoute(t, legacy, "fixture", "fixture:tool_000")
+	if legacy["schema_delivery"] != "reference" || fixture.lists.Load() != 1 || fixture.calls.Load() != 0 {
+		t.Fatalf("schema reference repeated discovery or execution: %#v lists=%d calls=%d", legacy, fixture.lists.Load(), fixture.calls.Load())
 	}
 }
 
