@@ -109,9 +109,14 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 		"builtin_tools": builtins, "required_host_tools": names,
 		"next_action": "call_host_tool", "repeated": repeated,
 		"route_code": code, "route_status": "blocked",
+		"resolution_status": "wrong_scope", "wrong_scope": true,
+		"scope": ScopeAgentDockBuiltin, "origin": ScopeAgentDockBuiltin,
+		"requested_scope": ScopeAgentDockMCP, "invoke_via": InvokeDirect,
+		"direct_tools":           names,
 		"route_summary":          "错误工具命名空间 · " + label,
 		"wrong_namespace_search": true, "wrong_namespace_repeat_count": repeatCount,
 		"host_schema_state":          "caller_managed",
+		"direct_schema_state":        "caller_managed",
 		"host_discovery_method":      "tools/list",
 		"filesystem_lookup_required": false,
 		"dynamic_discovery_required": false,
@@ -129,6 +134,6 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 	}
 
 	return toolErrorCause(code,
-		"AgentDock host tool "+label+" cannot be searched or inspected as dynamic MCP. Call it directly from the caller tools/list namespace. No business action ran.",
+		"AgentDock direct device built-in "+label+" cannot be searched or inspected as nested dynamic MCP. Invoke the already exposed AgentDock tool directly. No business action ran.",
 		"validation", details, errBuiltinDiscovery)
 }

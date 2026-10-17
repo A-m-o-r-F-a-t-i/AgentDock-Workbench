@@ -15,6 +15,7 @@ import (
 	"github.com/uvwt/agentdock/internal/contextguide"
 	pluginregistry "github.com/uvwt/agentdock/internal/plugin"
 	"github.com/uvwt/agentdock/internal/taskstate"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	tooltask "github.com/uvwt/agentdock/internal/tool/task"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
@@ -92,7 +93,7 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 			"需要真实执行命令或检查环境时，先用 exec_command 查看现状，再修改，修改后真实验证。",
 			"先根据 Skill 索引的 name、description 和来源选择相关 Skill，再用 read_file 读取宿主返回的 file；需要绑定命令时直接使用宿主返回的 skill_ref，不自行按名称拼接或重新解析。",
 			"workspace_skills、skills 和 common_skills 中的同名项是不同来源候选，不静默覆盖；当前项目通常优先考虑 workspace Skill，但必须使用所选候选自己的 skill_ref/file。若 common_skills.truncated=true 且当前索引未命中，可 list_dir 查看 common_skills.root 后再通过 workspace/共享 Skill 索引取得精确引用。",
-			"宿主侧 AgentDock 工具加载与 AgentDock 内部动态 MCP 发现是两个独立命名空间。exec_command、read_file、file_edit、task_manage 等内置工具由宿主加载后直接调用，裸名称不得送入 mcp_tool_search 或 mcp_tool_inspect。动态 MCP 服务已知时用 mcp_tool_list 一次读取整套摘要，再用 mcp_tool_inspect 的 names 批量读取本批所需完整 Schema，随后持续 mcp_tool_call；响应已有摘要或 Schema 未变时跳过重复查询，mcp_tool_search 仅用于未知外部能力定位。",
+			"AgentDock 设备内置工具与设备内动态 MCP 是两个独立命名空间。host_tools 中 scope=agentdock_builtin 的条目必须按 invoke_via=direct 直接调用；它们不是 ChatGPT 宿主工具，也不是设备内动态 MCP，裸名称不得送入 mcp_tool_search 或 mcp_tool_inspect。dynamic_mcp 中 scope=agentdock_mcp 的服务使用 mcp_tool_list 读取已知目录、mcp_tool_search 定位未知能力、mcp_tool_inspect 读取 Schema，并以 server:tool 经 mcp_tool_call 调用。两个域不得交叉搜索、检查或调用。",
 			"已取得本项目规则时直接继续操作，不另做 workspace_context；仅工作区规则或项目级 Skill 作用域变化时定向刷新。",
 		},
 	}
@@ -283,6 +284,11 @@ type capabilityCommonSkillItem struct {
 }
 
 type capabilityDynamicMCPItem struct {
+	Scope          string `json:"scope,omitempty"`
+	Origin         string `json:"origin,omitempty"`
+	DiscoverVia    string `json:"discover_via,omitempty"`
+	InspectVia     string `json:"inspect_via,omitempty"`
+	InvokeVia      string `json:"invoke_via,omitempty"`
 	SourceType     string `json:"source_type,omitempty"`
 	PluginName     string `json:"plugin_name,omitempty"`
 	Revision       string `json:"revision,omitempty"`
@@ -390,13 +396,18 @@ func (r *Runtime) dynamicMCPCapabilityIndexContext(ctx context.Context, includeP
 		}
 		var known *bool
 		revision, version := "", ""
+		scope, origin, discoverVia, inspectVia, invokeVia := "", "", "", "", ""
 		if !includePluginMembers {
 			value := server.ToolCountKnown
 			known = &value
 			revision = server.Revision
 			version = server.ServerVersion
+			scope = toolmcp.ScopeAgentDockMCP
+			origin = toolmcp.ScopeAgentDockMCP + ":" + server.Name
+			discoverVia, inspectVia, invokeVia = toolmcp.ToolList, toolmcp.ToolInspect, toolmcp.ToolCall
 		}
 		items = append(items, capabilityDynamicMCPItem{
+			Scope: scope, Origin: origin, DiscoverVia: discoverVia, InspectVia: inspectVia, InvokeVia: invokeVia,
 			Name:     server.Name,
 			Revision: revision, ServerVersion: version, ToolCountKnown: known,
 			Description:   truncateString(capabilityrouting.ServerDescription(server.Plugin, server.Name, server.Description), 240),

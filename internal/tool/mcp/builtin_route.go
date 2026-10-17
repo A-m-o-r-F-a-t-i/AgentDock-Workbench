@@ -76,9 +76,9 @@ func (s *Service) lookupBuiltinCandidate(candidate string) (builtinRouteMatch, b
 	if !available {
 		return builtinRouteMatch{}, false
 	}
-	if tool.InvokeVia == "" {
-		tool.InvokeVia = "host"
-	}
+	tool.Scope = ScopeAgentDockBuiltin
+	tool.Origin = ScopeAgentDockBuiltin
+	tool.InvokeVia = InvokeDirect
 	return builtinRouteMatch{Tool: tool, Alias: alias}, true
 }
 

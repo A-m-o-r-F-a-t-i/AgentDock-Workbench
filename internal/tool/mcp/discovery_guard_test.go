@@ -42,6 +42,11 @@ func expectBuiltinRouteError(t *testing.T, err error, code string) *ToolError {
 	if got.Details["route_status"] != "blocked" || got.Details["next_action"] != "call_host_tool" || got.Details["wrong_namespace_search"] != true {
 		t.Fatalf("routing error lost terminal machine-readable state: %#v", got.Details)
 	}
+	if got.Details["scope"] != ScopeAgentDockBuiltin || got.Details["origin"] != ScopeAgentDockBuiltin ||
+		got.Details["requested_scope"] != ScopeAgentDockMCP || got.Details["invoke_via"] != InvokeDirect ||
+		got.Details["resolution_status"] != "wrong_scope" || got.Details["wrong_scope"] != true {
+		t.Fatalf("routing error lost canonical tool-domain metadata: %#v", got.Details)
+	}
 	if code == "ROUTING_LOOP_BLOCKED" {
 		count, _ := got.Details["wrong_namespace_repeat_count"].(int)
 		if count < 1 {

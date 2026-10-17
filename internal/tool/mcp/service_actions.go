@@ -166,6 +166,11 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 			pluginName = s.pluginName(found.Tools[index].Server)
 		}
 		found.Tools[index].Description = capabilityrouting.ToolDescription(pluginName, found.Tools[index].QualifiedName, found.Tools[index].Description)
+		annotateDynamicMCPToolSummary(&found.Tools[index])
+	}
+	for _, catalog := range found.Catalogs {
+		server, _ := catalog["server"].(string)
+		annotateDynamicMCPRoute(catalog, server)
 	}
 	result := Result{
 		"query": found.Query, "server": found.Server, "tools": found.Tools, "count": len(found.Tools),
@@ -173,6 +178,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		"cache_only": found.CacheOnly, "route_kind": routeKindDynamicMCP,
 		"builtin_match_count": 0, "dynamic_match_count": len(found.Tools), "match_kind": found.MatchKind,
 	}
+	annotateDynamicMCPRoute(result, found.Server)
 	if !found.Complete {
 		result["next_action"] = "Select a server from catalogs and use mcp_tool_list; an undiscovered or stale catalog is not evidence that a capability is absent."
 	}
@@ -204,7 +210,9 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	catalog = maps.Clone(catalog)
 	delete(catalog, "tools")
 	catalog["delivery"], catalog["tools_omitted"], catalog["refresh_tool"] = "summary", true, ToolList
-	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog}
+	annotateDynamicMCPRoute(catalog, validated.serverName)
+	response := Result{"name": validated.qualifiedName, "qualified_name": validated.qualifiedName, "mcp_catalog": catalog}
+	annotateDynamicMCPTool(response, validated.serverName, validated.qualifiedName)
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if class, mode := prepared.OutputPolicy(); class != "" {
 			response["output_class"] = class

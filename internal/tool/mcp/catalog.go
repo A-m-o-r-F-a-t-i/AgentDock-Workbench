@@ -39,12 +39,15 @@ func (s *Service) catalogResult(catalog mcpclient.Catalog, fresh bool) Result {
 			"server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision,
 			"schema_digest": schemaDigest, "annotations_digest": annotationsDigest,
 		}
+		annotateDynamicMCPTool(entry, catalog.Server, qualifiedName)
 		if tool.Annotations != nil {
 			entry["annotations"] = tool.Annotations
 		}
 		tools = append(tools, entry)
 	}
-	return Result{"server": catalog.Server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "total": len(tools), "tools": tools, "stale": !fresh}
+	result := Result{"server": catalog.Server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "total": len(tools), "tools": tools, "stale": !fresh}
+	annotateDynamicMCPRoute(result, catalog.Server)
+	return result
 }
 
 // Inspect normalizes the legacy single selector once, then runs the same grouped
@@ -164,7 +167,9 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			continue
 		}
 		catalog := value.catalog
-		catalogs = append(catalogs, map[string]any{"server": server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "complete": true, "total": len(catalog.Tools)})
+		catalogEntry := map[string]any{"server": server, "server_fingerprint": catalog.ServerFingerprint, "catalog_revision": catalog.Revision, "server_version": catalog.ServerVersion, "complete": true, "total": len(catalog.Tools)}
+		annotateDynamicMCPRoute(catalogEntry, server)
+		catalogs = append(catalogs, catalogEntry)
 		chosen := map[string]bool{}
 		for _, name := range selected[server] {
 			if name == "*" {
@@ -200,6 +205,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 				"description":   mcpclient.OneLineDescription(description),
 				"schema_digest": schemaDigest, "annotations_digest": annotationsDigest,
 			}
+			annotateDynamicMCPTool(entry, server, qualifiedName)
 			if tool.Annotations != nil {
 				entry["annotations"] = tool.Annotations
 			}
@@ -236,7 +242,9 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 			problems = append(problems, map[string]any{
 				"selector": item.Name, "code": typed.Code, "status": "host_builtin",
 				"message": typed.Message, "retryable": false,
-				"required_host_tool": item.Name, "invoke_via": "host",
+				"required_host_tool": item.Name, "invoke_via": InvokeDirect,
+				"scope": ScopeAgentDockBuiltin, "origin": ScopeAgentDockBuiltin,
+				"requested_scope": ScopeAgentDockMCP, "resolution_status": "wrong_scope", "wrong_scope": true,
 			})
 		}
 	}
@@ -257,6 +265,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		"builtin_match_count": len(builtins), "dynamic_match_count": len(tools),
 		"schema_full_count": fullSchemas, "schema_reference_count": schemaReferences, "schema_summary_count": schemaSummaries,
 	}
+	annotateDynamicMCPRoute(result, "")
 	if len(builtins) == 0 {
 		result["route_kind"] = routeKindDynamicMCP
 		return result, nil
