@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	registry "github.com/uvwt/agentdock/internal/plugin"
 	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
@@ -50,6 +51,48 @@ func TestManageInstallsAndLoadsDirectPluginMembers(t *testing.T) {
 	unavailable, ok := loaded["unavailable_members"].([]map[string]any)
 	if !ok || len(unavailable) != 0 {
 		t.Fatalf("unavailable members = %#v", loaded["unavailable_members"])
+	}
+}
+
+func TestReconcileRetainsUnchangedMCPGeneration(t *testing.T) {
+	home := t.TempDir()
+	store, err := registry.New(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manager, err := mcpclient.NewManager(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := testPluginService(store, false)
+	service.SetMCPManager(manager)
+	defer service.ReleaseMCPLeases()
+	defer manager.Close()
+	source := writeToolPluginPackage(t, t.TempDir(), "retained", []string{"retained-skill"}, []string{"retained-mcp"})
+	if _, err := service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewTokenForSource(t, service, source)}); err != nil {
+		t.Fatal(err)
+	}
+	before, summaryBefore, err := manager.Inspect("retained-mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := writeToolPluginPackage(t, t.TempDir(), "unrelated", nil, []string{"unrelated-mcp"})
+	if _, err := service.Manage(t.Context(), ManageRequest{Action: "install", Source: other, ReviewToken: reviewTokenForSource(t, service, other)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Manage(t.Context(), ManageRequest{Action: "member_disable", Name: "retained", MemberType: "skill", Member: "retained-skill"}); err != nil {
+		t.Fatal(err)
+	}
+	after, summaryAfter, err := manager.Inspect("retained-mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.PluginRoot != after.PluginRoot || summaryBefore.Revision != summaryAfter.Revision {
+		t.Fatalf("unrelated change replaced MCP generation: root=%q -> %q revision=%q -> %q", before.PluginRoot, after.PluginRoot, summaryBefore.Revision, summaryAfter.Revision)
+	}
+	if err := store.PrepareMCPData(t.Context(), after); err != nil {
+		t.Fatalf("retained runtime lease was released during reconcile: %v", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package skill
 
 import (
+	"context"
 	"strings"
 	"sync"
 
@@ -16,14 +17,17 @@ const runtimeAPISource = "agentdock-api"
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
 
 type PluginSkill struct {
-	Name    string
-	Plugin  string
-	Path    string
-	Enabled bool
+	Generation    string
+	PackageDigest string
+	Name          string
+	Plugin        string
+	Path          string
+	Enabled       bool
 }
 
 type PluginSkillLookup func(string) (PluginSkill, bool, error)
 type PluginSkillsLookup func() ([]PluginSkill, error)
+type PluginSkillAcquire func(context.Context, string, string) (PluginSkill, func(), error)
 
 type Service struct {
 	workspaceMu       sync.RWMutex
@@ -38,6 +42,7 @@ type Service struct {
 	pluginMembership PluginMembershipLookup
 	pluginSkill      PluginSkillLookup
 	pluginSkills     PluginSkillsLookup
+	pluginAcquire    PluginSkillAcquire
 }
 
 func New(cfg config.Config, ws *workspace.Workspace, envs *envstore.Store) (*Service, error) {
@@ -58,6 +63,10 @@ func New(cfg config.Config, ws *workspace.Workspace, envs *envstore.Store) (*Ser
 
 func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {
 	s.pluginMembership = lookup
+}
+
+func (s *Service) SetPluginSkillAcquire(acquire PluginSkillAcquire) {
+	s.pluginAcquire = acquire
 }
 
 func (s *Service) SetPluginSkillProvider(lookup PluginSkillLookup, list PluginSkillsLookup) error {

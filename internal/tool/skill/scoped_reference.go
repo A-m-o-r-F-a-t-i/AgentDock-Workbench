@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	plugins "github.com/uvwt/agentdock/internal/plugin"
 	skills "github.com/uvwt/agentdock/internal/skill"
@@ -23,14 +24,16 @@ const (
 )
 
 type ResolvedSkill struct {
-	RecoveryMCPServer string
-	Name              string
-	SkillRef          string
-	SourceType        string
-	SourceID          string
-	PluginName        string
-	Root              string
-	ContentDigest     string
+	RecoveryMCPServer   string
+	Name                string
+	SkillRef            string
+	SourceType          string
+	SourceID            string
+	PluginName          string
+	PluginGeneration    string
+	PluginPackageDigest string
+	Root                string
+	ContentDigest       string
 }
 
 func ManagedSkillRef(name string) string {
@@ -292,6 +295,35 @@ func (s *Service) acquirePlugin(ctx context.Context, ref parsedSkillRef) (Resolv
 	if err := ctx.Err(); err != nil {
 		return ResolvedSkill{}, nil, err
 	}
+	if s.pluginAcquire != nil {
+		member, release, err := s.pluginAcquire(ctx, ref.SourceID, ref.Name)
+		if err != nil {
+			return ResolvedSkill{}, nil, pluginSkillLeaseError(err)
+		}
+		ok := false
+		defer func() {
+			if !ok {
+				release()
+			}
+		}()
+		if member.Plugin != ref.SourceID || member.Name != ref.Name {
+			return ResolvedSkill{}, nil, toolErrorDetails("SKILL_CONTEXT_INVALID", "Plugin Skill lease does not match its source identity", "runtime", map[string]any{"skill": ref.Name, "plugin": ref.SourceID})
+		}
+		if !member.Enabled {
+			return ResolvedSkill{}, nil, toolErrorDetails("PLUGIN_MEMBER_DISABLED", "Plugin Skill is disabled", "permission", map[string]any{"skill": ref.Name, "plugin": ref.SourceID})
+		}
+		recoveryServer, err := verifyResolvedSkillDocument(member.Path, ref.Name)
+		if err != nil {
+			return ResolvedSkill{}, nil, err
+		}
+		ok = true
+		return ResolvedSkill{
+			Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name),
+			SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID,
+			PluginGeneration: member.Generation, PluginPackageDigest: member.PackageDigest,
+			Root: member.Path, RecoveryMCPServer: recoveryServer,
+		}, release, nil
+	}
 	if s.pluginSkill == nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_NOT_AVAILABLE", "Plugin Skill runtime is unavailable", "not_found", nil)
 	}
@@ -310,6 +342,21 @@ func (s *Service) acquirePlugin(ctx context.Context, ref parsedSkillRef) (Resolv
 		return ResolvedSkill{}, nil, err
 	}
 	return ResolvedSkill{Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name), SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID, Root: member.Path, RecoveryMCPServer: recoveryServer}, func() {}, nil
+}
+
+func pluginSkillLeaseError(err error) error {
+	var pluginErr *plugins.Error
+	if !errors.As(err, &pluginErr) {
+		return toolErrorCause("PLUGIN_STATE_INVALID", "acquire Plugin Skill generation", "runtime", nil, err)
+	}
+	category := "runtime"
+	switch pluginErr.Code {
+	case "PLUGIN_MEMBER_DISABLED", "PLUGIN_DISABLED":
+		category = "validation"
+	case "PLUGIN_MEMBER_NOT_FOUND", "PLUGIN_NOT_FOUND", "PLUGIN_GENERATION_MISSING":
+		category = "not_found"
+	}
+	return toolErrorCause(pluginErr.Code, pluginErr.Message, category, pluginErr.Details, err)
 }
 
 func verifyResolvedSkillDocument(root, expectedName string) (string, error) {

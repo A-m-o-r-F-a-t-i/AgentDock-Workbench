@@ -119,7 +119,8 @@ func readPackageContext(ctx context.Context, root string, installed, lazy bool, 
 	record.definition = Definition{
 		Source: state.Source, Compatibility: state.Compatibility,
 		Name: manifest.Name, Description: manifest.Description, Version: manifest.Version,
-		Path: root, Enabled: state.Enabled, Heavy: heavy, Skills: sortedKeys(skillPaths), MCPServers: sortedKeys(configs), Diagnostics: diagnostics,
+		Path: root, Generation: state.Generation, PackageDigest: state.PackageDigest,
+		Enabled: state.Enabled, Heavy: heavy, Skills: sortedKeys(skillPaths), MCPServers: sortedKeys(configs), Diagnostics: diagnostics,
 	}
 	if err := ctx.Err(); err != nil {
 		return packageRecord{}, err

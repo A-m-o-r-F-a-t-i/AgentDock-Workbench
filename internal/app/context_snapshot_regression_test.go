@@ -165,4 +165,81 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 	if !errors.As(err, &failure) || failure.Code != "CONTEXT_REVISION_CHANGED" {
 		t.Fatalf("changed rules did not reject the retained cursor: %v", err)
 	}
+	checkMarker := func(t *testing.T, change func() error, wantConflict bool) {
+		t.Helper()
+		first, err := rt.Call(ctx, "agentdock_context", map[string]any{
+			"workdir": root, "max_response_bytes": 12000, "force_refresh": true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cursor := stringArg(first, "next_cursor")
+		if cursor == "" {
+			t.Fatal("fixture needs a retained page for marker validation")
+		}
+		if err := change(); err != nil {
+			t.Fatal(err)
+		}
+		next, err := rt.Call(ctx, "agentdock_context", map[string]any{
+			"workdir": root, "max_response_bytes": 12000, "cursor": cursor,
+		})
+		if wantConflict {
+			var failure *ToolError
+			if !errors.As(err, &failure) || failure.Code != "CONTEXT_REVISION_CHANGED" {
+				t.Fatalf("changed marker boundary did not reject the retained cursor: %v", err)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("unchanged marker boundary invalidated the retained cursor: %v", err)
+		}
+		firstMeta, nextMeta := modelObject(first["structured_output"]), modelObject(next["structured_output"])
+		if stringArg(nextMeta, "snapshot_id") != stringArg(firstMeta, "snapshot_id") || integerArgument(nextMeta["page_index"]) != integerArgument(firstMeta["page_index"])+1 {
+			t.Fatalf("marker bookkeeping rebuilt or skipped the original snapshot: %#v", nextMeta)
+		}
+	}
+	for _, test := range []struct {
+		name         string
+		initial      string
+		change       func() error
+		wantConflict bool
+	}{
+		{"marker_removed", "directory", func() error { return os.RemoveAll(git) }, true},
+		{"marker_created", "", func() error { return os.WriteFile(git, []byte("gitdir: worktree-before"), 0600) }, true},
+		{"gitfile_bookkeeping", "file", func() error { return os.WriteFile(git, []byte("gitdir: worktree-after-with-a-different-size"), 0600) }, false},
+		{"marker_type_changed", "file", func() error {
+			if err := os.Remove(git); err != nil {
+				return err
+			}
+			return os.Mkdir(git, 0700)
+		}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := os.RemoveAll(git); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			switch test.initial {
+			case "directory":
+				err = os.Mkdir(git, 0700)
+			case "file":
+				err = os.WriteFile(git, []byte("gitdir: worktree-before"), 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkMarker(t, test.change, test.wantConflict)
+		})
+	}
+	t.Run("marker_symlink_target", func(t *testing.T) {
+		if err := os.RemoveAll(git); err != nil {
+			t.Fatal(err)
+		}
+		target := t.TempDir()
+		if err := os.Symlink(target, git); err != nil {
+			t.Skipf("symlink creation is unavailable: %v", err)
+		}
+		// The marker is still a symlink after its unrelated target disappears.
+		checkMarker(t, func() error { return os.Remove(target) }, false)
+	})
 }

@@ -59,9 +59,17 @@ func (r *Runtime) contextContinuationStamp(ctx context.Context, workdir string, 
 			rulePaths = append(rulePaths, path)
 			continue
 		}
-		// The loader uses .git only as an ancestor boundary. Git routinely
-		// changes directory size/mtime without changing that boundary.
-		info, err := os.Lstat(path)
+		// MetadataPaths generates fixed .git leaves for selected-workdir
+		// ancestors. Pin each such directory before inspecting that leaf;
+		// a marker symlink must not expose its target's metadata.
+		// The loader uses .git only as an ancestor boundary; Git bookkeeping
+		// changes its size/mtime without changing that boundary.
+		var info os.FileInfo
+		directory, err := os.OpenRoot(filepath.Dir(path))
+		if err == nil {
+			info, err = directory.Lstat(".git")
+			_ = directory.Close()
+		}
 		switch {
 		case err == nil:
 			markers[path] = fmt.Sprintf("exists:%d", info.Mode().Type())
