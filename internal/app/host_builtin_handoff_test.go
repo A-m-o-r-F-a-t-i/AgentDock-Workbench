@@ -59,6 +59,16 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		if action["category"] != "protocol" && action["category"] != "model_decision" {
 			t.Fatalf("wrong host prerequisite: %#v", action)
 		}
+		guidance := rt.executionErrorGuidance(executionObservation{}, err)
+		steps, ok := guidance["next_required"].([]map[string]any)
+		if guidance["source"] != "agentdock" || !ok || len(steps) != 1 {
+			t.Fatalf("missing local route guidance: %#v", guidance)
+		}
+		step := steps[0]
+		if step["action"] != "call_host_tool" || step["tool"] != names[0] || step["arguments"] != nil ||
+			step["scope"] != toolmcp.ScopeAgentDockBuiltin || step["origin"] != toolmcp.ScopeAgentDockBuiltin || step["invoke_via"] != toolmcp.InvokeDirect {
+			t.Fatalf("guidance lost the non-executing direct route: %#v", step)
+		}
 		id := stringArg(route.Details, "call_id")
 		if id == "" || ids[id] {
 			t.Fatalf("real repeated discovery was hidden: %s", id)
@@ -105,7 +115,10 @@ func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
 	rt := newAuditDiscoveryRuntime(t)
 	fake := &ToolError{Code: "ROUTING_LOOP_BLOCKED", Category: "validation", Details: map[string]any{
 		"route_kind": "host_builtin", "resolved": true, "terminal": true,
-		"builtin_tools": []toolmcp.BuiltinToolSummary{{Name: "exec_command", InvokeVia: toolmcp.InvokeDirect}},
+		"scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin, "invoke_via": toolmcp.InvokeDirect,
+		"builtin_tools": []toolmcp.BuiltinToolSummary{{
+			Name: "exec_command", Scope: toolmcp.ScopeAgentDockBuiltin, Origin: toolmcp.ScopeAgentDockBuiltin, InvokeVia: toolmcp.InvokeDirect,
+		}},
 	}}
 	guidance := rt.executionErrorGuidance(executionObservation{}, fake)
 	if len(guidance) != 0 {
