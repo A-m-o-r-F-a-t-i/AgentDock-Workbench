@@ -43,7 +43,7 @@ func TestNormalPluginDirectDisclosureAndHeavySwitch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "skills", "pcb-layout", "SKILL.md"), []byte("---\nname: pcb-layout\ndescription: |\n  Plan and verify PCB layout.\n---\n# Layout\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rt.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source}); err != nil {
+	if _, err := rt.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source, "review_token": reviewAppPluginForTest(t, rt, source).ReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 	installed := filepath.Join(cfg.AgentDockHome, "plugins", "pcb", "plugin.json")
@@ -146,7 +146,7 @@ func TestPortableFixtureStandardStdioMCPRoundTrip(t *testing.T) {
 		details, _ := json.Marshal(err)
 		t.Fatalf("portable stdio %s failed after %s (node=%q, root=%q): %v; details=%s", stage, time.Since(started), node, root, err, details)
 	}
-	if _, err := rt.Call(ctx, "plugin_manage", map[string]any{"action": "install", "source": source}); err != nil {
+	if _, err := rt.Call(ctx, "plugin_manage", map[string]any{"action": "install", "source": source, "review_token": reviewAppPluginForTest(t, rt, source).ReviewToken}); err != nil {
 		failFixture("install", err)
 	}
 	if _, err := rt.Call(ctx, "plugin_load", map[string]any{"name": "portable-demo"}); err != nil {

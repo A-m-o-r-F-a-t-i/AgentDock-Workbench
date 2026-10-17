@@ -32,7 +32,7 @@ func TestHeavyPluginProgressiveDisclosureAndAvailabilityOverlay(t *testing.T) {
 	defer mcpServer.Close()
 	pluginSource := writeAppPluginPackage(t, root, mcpServer.URL)
 	if _, err := rt.Call(context.Background(), "plugin_manage", map[string]any{
-		"action": "install", "source": pluginSource,
+		"action": "install", "source": pluginSource, "review_token": reviewAppPluginForTest(t, rt, pluginSource).ReviewToken,
 	}); err != nil {
 		t.Fatalf("install plugin: %v", err)
 	}

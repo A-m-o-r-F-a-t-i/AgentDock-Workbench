@@ -22,9 +22,9 @@ func TestRuntimePluginConfirmationForwarding(t *testing.T) {
 		want map[string]any
 	}{
 		{"legacy update", `{"action":"update","name":"demo","source":"new.zip"}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip"}},
-		{"reviewed install", `{"action":"install","source":"new.zip","confirmed":true}`, map[string]any{"action": "install", "source": "new.zip", "confirmed": true}},
-		{"reviewed update is not rebind consent", `{"action":"update","name":"demo","source":"new.zip","confirmed":true}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip", "confirmed": true}},
-		{"explicit source change", `{"action":"update","name":"demo","source":"new.zip","confirmed":true,"confirmed_source_change":true}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip", "confirmed": true, "confirmed_source_change": true}},
+		{"reviewed install", `{"action":"install","source":"new.zip","review_token":"review-v1:test","confirmed":true}`, map[string]any{"action": "install", "source": "new.zip", "review_token": "review-v1:test", "confirmed": true}},
+		{"reviewed update is not rebind consent", `{"action":"update","name":"demo","source":"new.zip","review_token":"review-v1:test","confirmed":true}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip", "review_token": "review-v1:test", "confirmed": true}},
+		{"explicit source change", `{"action":"update","name":"demo","source":"new.zip","review_token":"review-v1:test","confirmed":true,"confirmed_source_change":true}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip", "review_token": "review-v1:test", "confirmed": true, "confirmed_source_change": true}},
 		{"explicit false", `{"action":"update","name":"demo","source":"new.zip","confirmed":false,"confirmed_source_change":false}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip", "confirmed": false, "confirmed_source_change": false}},
 		{"null never grants consent", `{"action":"update","name":"demo","source":"new.zip","confirmed":null,"confirmed_source_change":null}`, map[string]any{"action": "update", "name": "demo", "source": "new.zip"}},
 		{"ordinary member action unchanged", `{"action":"member_disable","name":"demo","member_type":"skill","member":"reader"}`, map[string]any{"action": "member_disable", "name": "demo", "member_type": "skill", "member": "reader"}},
@@ -46,6 +46,7 @@ func TestRuntimePluginConfirmationForwarding(t *testing.T) {
 func TestRuntimePluginConfirmationKeepsRequestBoundary(t *testing.T) {
 	bodies := []string{
 		`{"action":"update","name":"demo","source":"new.zip","confirmed":"true"}`,
+		`{"action":"update","name":"demo","source":"new.zip","review_token":1}`,
 		`{"action":"update","name":"demo","source":"new.zip","confirmed_source_change":1}`,
 		`{"action":"update","name":"demo","source":"new.zip","confirmed_source_change":{}}`,
 		`{"action":"update","name":"demo","source":"new.zip","confirmed_source_change":true,"unknown":true}`,
@@ -73,13 +74,17 @@ func TestRuntimePluginConfirmationMatchesNativeToolContract(t *testing.T) {
 		t.Fatal("native plugin contract missing")
 	}
 	properties := schema["properties"].(map[string]any)
+	reviewProperty, ok := properties["review_token"].(map[string]any)
+	if !ok || reviewProperty["type"] != "string" {
+		t.Fatalf("native review_token property = %#v", properties["review_token"])
+	}
 	for _, key := range []string{"confirmed", "confirmed_source_change"} {
 		property, ok := properties[key].(map[string]any)
 		if !ok || property["type"] != "boolean" {
 			t.Fatalf("native property %s = %#v", key, properties[key])
 		}
 	}
-	args, err := decodeRuntimePluginRequest([]byte(`{"action":"update","name":"demo","source":"new.zip","confirmed":true,"confirmed_source_change":true}`))
+	args, err := decodeRuntimePluginRequest([]byte(`{"action":"update","name":"demo","source":"new.zip","review_token":"review-v1:test","confirmed":true,"confirmed_source_change":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +96,8 @@ func TestRuntimePluginConfirmationMatchesNativeToolContract(t *testing.T) {
 	if err = json.Unmarshal(encoded, &native); err != nil {
 		t.Fatal(err)
 	}
-	if !native.Confirmed || !native.ConfirmedSourceChange {
-		t.Fatalf("confirmation lost during native request conversion: %#v", native)
+	if native.ReviewToken != "review-v1:test" || !native.Confirmed || !native.ConfirmedSourceChange {
+		t.Fatalf("review or confirmation lost during native request conversion: %#v", native)
 	}
 }
 
@@ -146,8 +151,28 @@ func TestRuntimePluginSourceChangeRequiresExplicitConsent(t *testing.T) {
 		}
 		return Dispatch(context.Background(), runtime, Request{Method: "POST", Path: "/internal/runtime/plugins", Body: body})
 	}
+	reviewToken := func(source string) string {
+		t.Helper()
+		validated, validateErr := dispatch(map[string]any{"action": "validate", "source": source})
+		if validateErr != nil {
+			t.Fatal(validateErr)
+		}
+		encoded, marshalErr := json.Marshal(validated["review"])
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		var review registry.Review
+		if unmarshalErr := json.Unmarshal(encoded, &review); unmarshalErr != nil {
+			t.Fatal(unmarshalErr)
+		}
+		if !review.Valid || review.ReviewToken == "" {
+			t.Fatalf("validate = %#v", validated)
+		}
+		return review.ReviewToken
+	}
 	oldSource, newSource := confirmationPackage(t, "1.0.0"), confirmationPackage(t, "1.1.0")
-	if _, err = dispatch(map[string]any{"action": "install", "source": oldSource}); err != nil {
+	oldReviewToken := reviewToken(oldSource)
+	if _, err = dispatch(map[string]any{"action": "install", "source": oldSource, "review_token": oldReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = store.SetEnabled("confirmation-demo", false); err != nil {
@@ -157,18 +182,14 @@ func TestRuntimePluginSourceChangeRequiresExplicitConsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	newReviewToken := reviewToken(newSource)
 	for _, args := range []map[string]any{
-		{"action": "validate", "source": newSource},
-		{"action": "update", "name": "confirmation-demo", "source": newSource},
-		{"action": "update", "name": "confirmation-demo", "source": newSource, "confirmed": true},
-		{"action": "update", "name": "confirmation-demo", "source": newSource, "confirmed_source_change": false},
+		{"action": "update", "name": "confirmation-demo", "source": newSource, "review_token": newReviewToken},
+		{"action": "update", "name": "confirmation-demo", "source": newSource, "review_token": newReviewToken, "confirmed": true},
+		{"action": "update", "name": "confirmation-demo", "source": newSource, "review_token": newReviewToken, "confirmed_source_change": false},
 	} {
 		_, err = dispatch(args)
-		if args["action"] == "validate" {
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else if err == nil || !strings.Contains(err.Error(), "confirmed_source_change") {
+		if err == nil || !strings.Contains(err.Error(), "confirmed_source_change") {
 			t.Fatalf("unconfirmed rebind should remain rejected: %v", err)
 		}
 		actual, readErr := store.Get("confirmation-demo")
@@ -179,7 +200,7 @@ func TestRuntimePluginSourceChangeRequiresExplicitConsent(t *testing.T) {
 			t.Fatalf("review/rejected update changed installed state: %#v", actual)
 		}
 	}
-	if _, err = dispatch(map[string]any{"action": "update", "name": "confirmation-demo", "source": newSource, "confirmed": true, "confirmed_source_change": true}); err != nil {
+	if _, err = dispatch(map[string]any{"action": "update", "name": "confirmation-demo", "source": newSource, "review_token": newReviewToken, "confirmed": true, "confirmed_source_change": true}); err != nil {
 		t.Fatal(err)
 	}
 	actual, err := store.Get("confirmation-demo")
