@@ -813,7 +813,7 @@ function Stop-ProcessesForUpgrade {
     param(
         [string] $ProcessName,
         [string] $BinaryPath,
-        [ref] $ObservedRunning = $null,
+        [ref] $ObservedRunning,
         [ValidateRange(1, 15000)][int] $TimeoutMilliseconds = 15000
     )
 
@@ -865,15 +865,18 @@ function Stop-ProcessesForUpgrade {
 function Stop-AgentDockForUpgrade {
     param(
         [string] $BinaryPath,
-        [ref] $ObservedRunning = $null,
+        [ref] $ObservedRunning,
         [int] $TimeoutMilliseconds = 15000
     )
     $processName = [IO.Path]::GetFileNameWithoutExtension($BinaryPath)
     if ([string]::IsNullOrWhiteSpace($processName)) {
         throw "Unable to resolve AgentDock process name from path: $BinaryPath"
     }
+    # PowerShell 5.1 accepts an omitted ref, but cannot bind an explicit null.
+    $observationArguments = @{}
+    if ($null -ne $ObservedRunning) { $observationArguments.ObservedRunning = $ObservedRunning }
     return Stop-ProcessesForUpgrade -ProcessName $processName -BinaryPath $BinaryPath `
-        -ObservedRunning $ObservedRunning -TimeoutMilliseconds $TimeoutMilliseconds
+        @observationArguments -TimeoutMilliseconds $TimeoutMilliseconds
 }
 
 function Stop-CloudflaredForUpgrade {
@@ -884,11 +887,13 @@ function Stop-CloudflaredForUpgrade {
 function Stop-AgentDockTrayForUpgrade {
     param(
         [string] $BinaryPath,
-        [ref] $ObservedRunning = $null,
+        [ref] $ObservedRunning,
         [int] $TimeoutMilliseconds = 15000
     )
+    $observationArguments = @{}
+    if ($null -ne $ObservedRunning) { $observationArguments.ObservedRunning = $ObservedRunning }
     return Stop-ProcessesForUpgrade -ProcessName 'agentdock-tray' -BinaryPath $BinaryPath `
-        -ObservedRunning $ObservedRunning -TimeoutMilliseconds $TimeoutMilliseconds
+        @observationArguments -TimeoutMilliseconds $TimeoutMilliseconds
 }
 
 function Stop-AgentDockRuntimeForUpgrade {
@@ -896,8 +901,8 @@ function Stop-AgentDockRuntimeForUpgrade {
         [string] $StableCorePath,
         [string] $StableTrayPath,
         [string[]] $GenerationDirectories = @(),
-        [ref] $CoreWasRunning = $null,
-        [ref] $TrayWasRunning = $null
+        [ref] $CoreWasRunning,
+        [ref] $TrayWasRunning
     )
 
     # Old background shims release their generation children. Stop and wait for
@@ -921,12 +926,14 @@ function Stop-AgentDockRuntimeForUpgrade {
         foreach ($target in $targets) {
             $remainingMilliseconds = 15000 - $stopwatch.ElapsedMilliseconds
             if ($remainingMilliseconds -le 0) { throw 'Unable to stop the AgentDock runtime before the deadline.' }
+            $observationArguments = @{}
+            if ($null -ne $target.Observed) { $observationArguments.ObservedRunning = $target.Observed }
             if ($target.IsCore) {
                 [void] (Stop-AgentDockForUpgrade -BinaryPath $target.Path `
-                    -ObservedRunning $target.Observed -TimeoutMilliseconds $remainingMilliseconds)
+                    @observationArguments -TimeoutMilliseconds $remainingMilliseconds)
             } else {
                 [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $target.Path `
-                    -ObservedRunning $target.Observed -TimeoutMilliseconds $remainingMilliseconds)
+                    @observationArguments -TimeoutMilliseconds $remainingMilliseconds)
             }
         }
         $remaining = $false
