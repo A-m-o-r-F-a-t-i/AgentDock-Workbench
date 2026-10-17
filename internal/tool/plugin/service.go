@@ -71,15 +71,24 @@ func (s *Service) SetMCPManager(manager *mcpclient.Manager) {
 }
 
 func (s *Service) ReconcileMCP(ctx context.Context) error {
-	return s.reconcileMCP(ctx, "", "", "")
-}
-
-func (s *Service) reconcileMCP(ctx context.Context, excludedPlugin, activationPlugin, activationOwner string) error {
-	if s == nil || s.mcpClients == nil {
+	if s == nil {
 		return nil
 	}
 	s.mcpReconcileMu.Lock()
 	defer s.mcpReconcileMu.Unlock()
+	return s.reconcileMCPLocked(ctx, "", "", "")
+}
+
+// Callers retain mcpReconcileMu until the matching formal-state change commits
+// or rolls back. Otherwise a second reconcile can publish a directory that
+// omits an activation whose candidate is not visible in the store yet.
+func (s *Service) reconcileMCPLocked(ctx context.Context, excludedPlugin, activationPlugin, activationOwner string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.mcpClients == nil {
+		return nil
+	}
 
 	configs, leases, err := s.buildMCPSet(ctx, excludedPlugin, activationPlugin, activationOwner)
 	if err != nil {
@@ -220,24 +229,31 @@ func (s *Service) MCPMembership(name string) (registry.Membership, bool, error) 
 }
 
 func (s *Service) activatePreparedCandidate(ctx context.Context, candidate registry.PreparedSource, reviewToken string, replace, confirmSourceChange bool) (registry.Definition, error) {
+	s.mcpReconcileMu.Lock()
+	defer s.mcpReconcileMu.Unlock()
 	activation, err := s.store.BeginPreparedActivation(ctx, candidate, reviewToken, replace, confirmSourceChange)
 	if err != nil {
 		return registry.Definition{}, err
 	}
 	if activation.OwnerID == "" {
-		if err := s.ReconcileMCP(ctx); err != nil {
+		if err := s.reconcileMCPLocked(ctx, "", "", ""); err != nil {
 			return registry.Definition{}, err
 		}
 		return activation.Definition, nil
 	}
-	if err := s.reconcileMCP(ctx, "", activation.Name, activation.OwnerID); err != nil {
+	if err := s.reconcileMCPLocked(ctx, "", activation.Name, activation.OwnerID); err != nil {
 		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
-		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
 		return registry.Definition{}, errors.Join(err, abortErr, restoreErr)
+	}
+	if err := ctx.Err(); err != nil {
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		return registry.Definition{}, errors.Join(err, restoreErr, abortErr)
 	}
 	definition, err := s.store.FinalizeActivation(activation.Name, activation.OwnerID)
 	if err != nil {
-		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
 		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
 		return registry.Definition{}, errors.Join(err, restoreErr, abortErr)
 	}
@@ -245,17 +261,24 @@ func (s *Service) activatePreparedCandidate(ctx context.Context, candidate regis
 }
 
 func (s *Service) removePlugin(ctx context.Context, name string) error {
+	s.mcpReconcileMu.Lock()
+	defer s.mcpReconcileMu.Unlock()
 	activation, err := s.store.BeginRemoval(ctx, name)
 	if err != nil {
 		return err
 	}
-	if err := s.reconcileMCP(ctx, activation.Name, "", ""); err != nil {
+	if err := s.reconcileMCPLocked(ctx, activation.Name, "", ""); err != nil {
 		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
-		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
 		return errors.Join(err, abortErr, restoreErr)
 	}
+	if err := ctx.Err(); err != nil {
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		return errors.Join(err, restoreErr, abortErr)
+	}
 	if err := s.store.FinalizeRemoval(activation.Name, activation.OwnerID); err != nil {
-		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		restoreErr := s.reconcileMCPLocked(context.WithoutCancel(ctx), "", "", "")
 		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
 		return errors.Join(err, restoreErr, abortErr)
 	}
@@ -325,11 +348,16 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 		}
 		return Result{"action": action, "name": strings.TrimSpace(request.Name), "removed": true}, nil
 	case "enable", "disable":
+		s.mcpReconcileMu.Lock()
+		defer s.mcpReconcileMu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		definition, err := s.store.SetEnabled(request.Name, action == "enable")
 		if err != nil {
 			return nil, pluginToolError(err)
 		}
-		if err := s.ReconcileMCP(ctx); err != nil {
+		if err := s.reconcileMCPLocked(ctx, "", "", ""); err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "plugin": definition}, nil
@@ -340,11 +368,16 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 		}
 		return Result{"action": action, "plugin": definition}, nil
 	case "member_enable", "member_disable":
+		s.mcpReconcileMu.Lock()
+		defer s.mcpReconcileMu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		definition, err := s.store.SetMemberEnabled(request.Name, request.MemberType, request.Member, action == "member_enable")
 		if err != nil {
 			return nil, pluginToolError(err)
 		}
-		if err := s.ReconcileMCP(ctx); err != nil {
+		if err := s.reconcileMCPLocked(ctx, "", "", ""); err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "plugin": definition, "member_type": request.MemberType, "member": request.Member}, nil

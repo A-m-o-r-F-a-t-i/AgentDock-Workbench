@@ -179,9 +179,9 @@ func TestPluginComponentsEnterExistingRuntimeAndSkillExecUsesPluginData(t *testi
 		t.Fatalf("Plugin Skill resource = %#v", resource)
 	}
 
-	command := "test -n \"$PLUGIN_DATA_DIR\" && test -z \"$SKILL_DATA_DIR\" && printf %s \"$PLUGIN_DATA_DIR\""
+	command := "printf runtime > generated-by-skill.txt && test -n \"$PLUGIN_DATA_DIR\" && test -z \"$SKILL_DATA_DIR\" && printf %s \"$PLUGIN_DATA_DIR\""
 	if goruntime.GOOS == "windows" {
-		command = "if (-not $env:PLUGIN_DATA_DIR -or $env:SKILL_DATA_DIR) { exit 1 }; [Console]::Write($env:PLUGIN_DATA_DIR)"
+		command = "Set-Content -LiteralPath 'generated-by-skill.txt' -Value 'runtime' -NoNewline; if (-not $env:PLUGIN_DATA_DIR -or $env:SKILL_DATA_DIR) { exit 1 }; [Console]::Write($env:PLUGIN_DATA_DIR)"
 	}
 	executed, err := rt.Call(context.Background(), "exec_command", map[string]any{
 		"cmd": command, "skill_ref": skillRef, "execution_mode": "sync",
@@ -198,6 +198,14 @@ func TestPluginComponentsEnterExistingRuntimeAndSkillExecUsesPluginData(t *testi
 	}
 	if _, err := os.Stat(wantData); err != nil {
 		t.Fatalf("Plugin data dir not created: %v", err)
+	}
+	resolvedAfterCommand, releaseRead, err := rt.skills.Acquire(t.Context(), skillRef)
+	if err != nil {
+		t.Fatalf("command writes invalidated the immutable Plugin generation: %v", err)
+	}
+	defer releaseRead()
+	if _, err := os.Stat(filepath.Join(resolvedAfterCommand.Root, "generated-by-skill.txt")); !os.IsNotExist(err) {
+		t.Fatalf("command wrote into the Plugin Skill resource directory: %v", err)
 	}
 
 	_, err = rt.Call(context.Background(), "exec_command", map[string]any{

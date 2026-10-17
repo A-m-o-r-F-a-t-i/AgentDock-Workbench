@@ -230,7 +230,8 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 			return toolskill.PluginSkill{}, nil, acquireErr
 		}
 		return toolskill.PluginSkill{
-			Generation: member.Generation, Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
+			PackageDigest: member.PackageDigest,
+			Generation:    member.Generation, Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
 		}, release, nil
 	})
 	runtime.command = toolcommand.New(func() config.Config { return runtime.cfg }, ws, envs, func(ctx context.Context, ref string) (toolcommand.SkillLease, error) {
@@ -242,7 +243,19 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		if resolved.SourceType == "managed" {
 			envName = resolved.Name
 		}
-		return toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}, nil
+		commandRoot := resolved.Root
+		if resolved.PluginName != "" {
+			runtimeRoot, runtimeRelease, runtimeErr := pluginStore.CreateSkillRuntime(ctx, pluginregistry.SkillMember{
+				Plugin: resolved.PluginName, Name: resolved.Name, Path: resolved.Root, Enabled: true,
+				Generation: resolved.PluginGeneration, PackageDigest: resolved.PluginPackageDigest,
+			})
+			release()
+			if runtimeErr != nil {
+				return toolcommand.SkillLease{}, runtimeErr
+			}
+			commandRoot, release = runtimeRoot, runtimeRelease
+		}
+		return toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: commandRoot, EnvName: envName, Release: release}, nil
 	}, runtime.commandExecutionContext)
 	runtime.androidExecutor = androidbridge.New(instance)
 	runtime.command.SetAndroidBroker(runtime.androidExecutor)

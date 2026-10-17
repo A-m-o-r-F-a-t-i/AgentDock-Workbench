@@ -64,24 +64,25 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 	// private runtime copies, but preparation still validates the visible path.
 	visibleRoot := filepath.Join(s.root, cfg.PluginName)
 	validRoot := sameFilesystemPath(root, generationRoot) || sameFilesystemPath(root, visibleRoot)
-	if !validRoot {
-		runtimeRoot, runtimeErr := containedPath(s.root, filepath.Join(s.root, ".runtime", cfg.PluginName), true)
-		if runtimeErr != nil {
-			release()
-			return runtimeErr
-		}
-		relative, relErr := filepath.Rel(runtimeRoot, root)
-		validRoot = relErr == nil && filepath.IsLocal(relative) && filepath.Dir(relative) == "." &&
-			strings.HasPrefix(filepath.Base(relative), "generation-"+state.Generation+"-")
-	}
-	if !validRoot {
+	runtimeCopy := !validRoot && s.ownsRuntimeGeneration(cfg.PluginName, state.Generation, root)
+	if !validRoot && !runtimeCopy {
 		release()
 		return errors.New("plugin filesystem target changed; refresh the service before dispatch")
 	}
-	digest, exists, err := packageDigestAt(root)
+	digestRoot := root
+	if runtimeCopy {
+		digestRoot = generationRoot
+	}
+	digest, exists, err := packageDigestAt(digestRoot)
 	if err != nil || !exists || digest != state.PackageDigest {
 		release()
 		return errors.New("plugin runtime package no longer matches formal state")
+	}
+	if runtimeCopy {
+		if err := validateRuntimePackageFiles(ctx, generationRoot, root); err != nil {
+			release()
+			return err
+		}
 	}
 	record, err := readPackage(root, false)
 	if err != nil || record.manifest.Name != cfg.PluginName || record.manifest.Version != cfg.PluginVersion {

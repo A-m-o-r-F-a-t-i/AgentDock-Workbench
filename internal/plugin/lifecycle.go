@@ -35,7 +35,17 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 		return ActivationCandidate{}, err
 	}
 
-	release, err := s.acquire()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return ActivationCandidate{}, err
+	}
+	retained := false
+	defer func() {
+		if !retained {
+			releaseLifecycle()
+		}
+	}()
+	release, err := s.acquireContext(ctx)
 	if err != nil {
 		return ActivationCandidate{}, err
 	}
@@ -43,7 +53,7 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 		s.Invalidate()
 		release()
 	}()
-	if err := s.rejectPendingLifecycleUnlocked(pkg.Manifest.Name); err != nil {
+	if err := s.recoverLifecycleTransactionsUnlocked(); err != nil {
 		return ActivationCandidate{}, err
 	}
 	installed, err := s.scanUnlocked()
@@ -91,6 +101,9 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 	}
 	state.PackageDigest = pkg.PackageDigest
 	state.InstalledAt = time.Now().UTC()
+	if err := ctx.Err(); err != nil {
+		return ActivationCandidate{}, err
+	}
 
 	if exists && previous != nil && previous.PackageDigest == pkg.PackageDigest && existing.manifest.Version == pkg.Manifest.Version {
 		state.Generation = previous.Generation
@@ -149,7 +162,10 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 
 	cleanupPrepared := func(cause error) (ActivationCandidate, error) {
 		generationPath, _ := s.generationPath(pkg.Manifest.Name, generation)
-		cleanupErr := errors.Join(os.RemoveAll(work), os.RemoveAll(generationPath), s.deleteLifecycleTransaction(pkg.Manifest.Name))
+		cleanupErr := errors.Join(os.RemoveAll(work), os.RemoveAll(generationPath))
+		if cleanupErr == nil {
+			cleanupErr = s.deleteLifecycleTransaction(pkg.Manifest.Name)
+		}
 		return ActivationCandidate{}, errors.Join(cause, cleanupErr)
 	}
 	if err := os.MkdirAll(work, 0o700); err != nil {
@@ -175,6 +191,9 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 			return cleanupPrepared(newError("PLUGIN_CANDIDATE_DRIFT", "staged Plugin candidate does not match reviewed content", map[string]any{"plugin": pkg.Manifest.Name, "stage": label}, digestErr))
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return cleanupPrepared(err)
+	}
 	transaction.Phase = lifecyclePhaseCandidateStaged
 	if err := s.saveLifecycleTransaction(transaction); err != nil {
 		return cleanupPrepared(err)
@@ -183,6 +202,8 @@ func (s *Store) beginPreparedActivation(ctx context.Context, candidate PreparedS
 	if err != nil {
 		return cleanupPrepared(err)
 	}
+	s.retainLifecycleClaim(pkg.Manifest.Name, owner, releaseLifecycle)
+	retained = true
 	return ActivationCandidate{
 		OwnerID: owner, Name: pkg.Manifest.Name, Operation: operation, Generation: generation,
 		PackageDigest: pkg.PackageDigest, Definition: cloneDefinition(record.definition),
@@ -241,6 +262,17 @@ func (s *Store) FinalizeActivation(name, owner string) (Definition, error) {
 	generationDigest, generationExists, err := packageDigestAt(generationPath)
 	if err != nil || !generationExists || generationDigest != transaction.CandidateDigest {
 		return Definition{}, newError("PLUGIN_CANDIDATE_DRIFT", "Plugin activation generation is unavailable or changed", map[string]any{"plugin": name}, err)
+	}
+	installed, err := s.scanUnlocked()
+	if err != nil {
+		return Definition{}, err
+	}
+	candidateRecord, err := readPackage(generationPath, false)
+	if err != nil {
+		return Definition{}, err
+	}
+	if err := ensureUniqueOwnership(installed, candidateRecord, name); err != nil {
+		return Definition{}, err
 	}
 
 	if transaction.Phase == lifecyclePhaseCandidateStaged {
@@ -315,7 +347,17 @@ func (s *Store) BeginRemoval(ctx context.Context, name string) (ActivationCandid
 	if err := ctx.Err(); err != nil {
 		return ActivationCandidate{}, err
 	}
-	release, err := s.acquire()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return ActivationCandidate{}, err
+	}
+	retained := false
+	defer func() {
+		if !retained {
+			releaseLifecycle()
+		}
+	}()
+	release, err := s.acquireContext(ctx)
 	if err != nil {
 		return ActivationCandidate{}, err
 	}
@@ -323,7 +365,7 @@ func (s *Store) BeginRemoval(ctx context.Context, name string) (ActivationCandid
 		s.Invalidate()
 		release()
 	}()
-	if err := s.rejectPendingLifecycleUnlocked(name); err != nil {
+	if err := s.recoverLifecycleTransactionsUnlocked(); err != nil {
 		return ActivationCandidate{}, err
 	}
 	record, err := s.readInstalledUnlocked(name)
@@ -366,9 +408,10 @@ func (s *Store) BeginRemoval(ctx context.Context, name string) (ActivationCandid
 		return ActivationCandidate{}, err
 	}
 	if err := os.MkdirAll(work, 0o700); err != nil {
-		_ = s.deleteLifecycleTransaction(name)
-		return ActivationCandidate{}, err
+		return ActivationCandidate{}, errors.Join(err, s.deleteLifecycleTransaction(name))
 	}
+	s.retainLifecycleClaim(name, owner, releaseLifecycle)
+	retained = true
 	return ActivationCandidate{OwnerID: owner, Name: name, Operation: "remove", Generation: state.Generation, PackageDigest: state.PackageDigest, Definition: cloneDefinition(record.definition)}, nil
 }
 
@@ -442,17 +485,8 @@ func (s *Store) loadOwnedLifecycle(name, owner string) (LifecycleTransaction, er
 		}
 		return LifecycleTransaction{}, err
 	}
-	if owner == "" || transaction.OwnerID != owner {
+	if owner == "" || transaction.OwnerID != owner || !s.ownsLifecycleClaim(name, owner) {
 		return LifecycleTransaction{}, newError("PLUGIN_ACTIVATION_OWNER_MISMATCH", "Plugin lifecycle transaction owner does not match", map[string]any{"plugin": name}, nil)
 	}
 	return transaction, nil
-}
-
-func (s *Store) rejectPendingLifecycleUnlocked(name string) error {
-	if _, err := s.loadLifecycleTransaction(name); err == nil {
-		return newError("PLUGIN_ACTIVATION_IN_PROGRESS", "Plugin lifecycle transaction is already in progress", map[string]any{"plugin": name}, nil)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return nil
 }

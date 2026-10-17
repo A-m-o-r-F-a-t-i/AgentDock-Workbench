@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/fs/atomicfile"
@@ -43,11 +44,15 @@ type packageRecord struct {
 }
 
 type Store struct {
-	snapshots *storeSnapshots
-	budget    time.Duration
-	root      string
-	lockPath  string
-	tempRoot  string
+	lifecycleMu    sync.Mutex
+	lifecycleClaim *lifecycleClaim
+	runtimeMu      sync.Mutex
+	runtimeCopies  map[runtimeGenerationKey]*runtimeGeneration
+	snapshots      *storeSnapshots
+	budget         time.Duration
+	root           string
+	lockPath       string
+	tempRoot       string
 }
 
 func New(agentDockHome string, budgets ...time.Duration) (*Store, error) {
@@ -237,12 +242,17 @@ func (s *Store) updateState(name string, mutate func(packageRecord, *State) erro
 	if err := validateIdentifier("plugin", name); err != nil {
 		return Definition{}, err
 	}
+	releaseLifecycle, err := s.acquireLifecycle(context.Background())
+	if err != nil {
+		return Definition{}, err
+	}
+	defer releaseLifecycle()
 	release, err := s.acquire()
 	if err != nil {
 		return Definition{}, err
 	}
 	defer func() { s.Invalidate(); release() }()
-	if err := s.rejectPendingLifecycleUnlocked(name); err != nil {
+	if err := s.recoverLifecycleTransactionsUnlocked(); err != nil {
 		return Definition{}, err
 	}
 	record, err := s.readInstalledUnlocked(name)
@@ -749,7 +759,11 @@ func cloneDefinition(value Definition) Definition {
 }
 
 func (s *Store) acquire() (func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	return s.acquireContext(context.Background())
+}
+
+func (s *Store) acquireContext(ctx context.Context) (func(), error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	release, err := filelock.Acquire(ctx, s.lockPath)
 	if err != nil {

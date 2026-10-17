@@ -101,9 +101,13 @@ func newStoreSnapshots(root string, budget time.Duration) *storeSnapshots {
 }
 func (s *storeSnapshots) Close() { s.once.Do(func() { s.cache.Close(); s.files.Close() }) }
 func (s *Store) Close() {
-	if s != nil && s.snapshots != nil {
+	if s == nil {
+		return
+	}
+	if s.snapshots != nil {
 		s.snapshots.Close()
 	}
+	s.closeLifecycleClaim()
 }
 func (s *Store) Invalidate() {
 	if s.snapshots == nil {

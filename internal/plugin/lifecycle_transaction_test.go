@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLifecycleRecoveryUsesFormalStateToResolveInterruptedActivation(t *testing.T) {
@@ -123,6 +124,111 @@ func TestLifecycleOwnerCASAndDigestMismatchPreserveRecoveryMaterial(t *testing.T
 	})
 }
 
+func TestLifecycleWriterSerializesPluginOwnership(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	first := writePluginPackage(t, t.TempDir(), "first-owner", "1.0.0", []string{"shared-skill"}, nil)
+	second := writePluginPackage(t, t.TempDir(), "second-owner", "1.0.0", []string{"shared-skill"}, nil)
+	firstCandidate, err := store.PrepareSource(t.Context(), legacyLocalSourceRequest(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer firstCandidate.Cleanup()
+	secondCandidate, err := store.PrepareSource(t.Context(), legacyLocalSourceRequest(second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondCandidate.Cleanup()
+	activation, err := store.BeginPreparedActivation(t.Context(), firstCandidate, firstCandidate.Review.ReviewToken, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginPreparedActivation(t.Context(), secondCandidate, secondCandidate.Review.ReviewToken, false, false); pluginErrorCode(err) != "PLUGIN_ACTIVATION_IN_PROGRESS" {
+		t.Fatalf("second Plugin started while first ownership was pending: %v", err)
+	}
+	if _, err := store.FinalizeActivation(activation.Name, activation.OwnerID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginPreparedActivation(t.Context(), secondCandidate, secondCandidate.Review.ReviewToken, false, false); pluginErrorCode(err) != "PLUGIN_MEMBER_CONFLICT" {
+		t.Fatalf("second Plugin did not recheck committed ownership: %v", err)
+	}
+	if _, err := store.SetHeavy(activation.Name, false); err != nil {
+		t.Fatalf("failed Begin retained its writer claim: %v", err)
+	}
+}
+
+func TestLifecycleStartupWaitsForLiveOwner(t *testing.T) {
+	home, store, activation, _ := preparePluginUpdateTransaction(t)
+	defer store.Close()
+	opened := make(chan error, 1)
+	go func() {
+		peer, err := New(home)
+		if peer != nil {
+			peer.Close()
+		}
+		opened <- err
+	}()
+	select {
+	case err := <-opened:
+		t.Fatalf("another Store recovered a live lifecycle: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if _, err := store.FinalizeActivation(activation.Name, activation.OwnerID); err != nil {
+		t.Fatalf("live owner could not finalize after another Store opened: %v", err)
+	}
+	select {
+	case err := <-opened:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("another Store did not continue after the lifecycle completed")
+	}
+}
+
+func TestLifecycleRollbackRetainsCandidateReaders(t *testing.T) {
+	for _, restart := range []bool{false, true} {
+		name := "abort"
+		if restart {
+			name = "startup recovery"
+		}
+		t.Run(name, func(t *testing.T) {
+			home, store, activation, _ := preparePluginUpdateTransaction(t)
+			defer store.Close()
+			pkg, release, err := store.AcquireActivationRuntime(t.Context(), activation.Name, activation.OwnerID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			if restart {
+				store.Close()
+				store.Close()
+				recovered, err := New(home)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer recovered.Close()
+			} else if err := store.AbortActivation(activation.Name, activation.OwnerID); err != nil {
+				t.Fatal(err)
+			}
+			content, err := os.ReadFile(filepath.Join(pkg.Root, "skills", "transaction-skill", "candidate.txt"))
+			if err != nil || string(content) != "candidate" {
+				t.Fatalf("rollback removed a leased candidate: content=%q error=%v", content, err)
+			}
+			if _, err := store.loadLifecycleTransaction(activation.Name); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("resolved lifecycle remains pending: %v", err)
+			}
+			release()
+			if _, err := os.Stat(pkg.Root); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("abandoned candidate remains after its last reader: %v", err)
+			}
+		})
+	}
+}
+
 func TestPluginSkillLeasePinsPreviousGenerationAcrossUpdate(t *testing.T) {
 	home := t.TempDir()
 	store, err := New(home)
@@ -142,6 +248,7 @@ func TestPluginSkillLeasePinsPreviousGenerationAcrossUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer release()
 	v2 := writePluginPackage(t, t.TempDir(), "lease-demo", "2.0.0", []string{"leased-skill"}, nil)
 	if err := os.WriteFile(filepath.Join(v2, "skills", "leased-skill", "marker.txt"), []byte("new generation"), 0o600); err != nil {
 		release()
@@ -164,7 +271,28 @@ func TestPluginSkillLeasePinsPreviousGenerationAcrossUpdate(t *testing.T) {
 		release()
 		t.Fatalf("leased Skill path became unavailable: %v", err)
 	}
+	commandRoot, releaseCommand, err := store.CreateSkillRuntime(t.Context(), member)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseCommand()
+	if sameFilesystemPath(commandRoot, member.Path) {
+		t.Fatal("Skill command uses its immutable generation as its working directory")
+	}
+	if _, err := os.Stat(filepath.Join(commandRoot, "marker.txt")); !os.IsNotExist(err) {
+		t.Fatalf("Skill command switched to the newly installed generation: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(commandRoot, "command-cache.txt"), []byte("runtime"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if digest, exists, err := packageDigestAt(previousPath); err != nil || !exists || digest != previous.PackageDigest {
+		t.Fatalf("Skill command changed its immutable generation: digest=%q exists=%v error=%v", digest, exists, err)
+	}
 	release()
+	if _, err := os.Stat(previousPath); err != nil {
+		t.Fatalf("command lease did not retain its selected generation: %v", err)
+	}
+	releaseCommand()
 	if _, err := os.Stat(previousPath); !os.IsNotExist(err) {
 		t.Fatalf("previous generation remains after final reader release: %v", err)
 	}
@@ -212,6 +340,28 @@ func TestStdioRuntimeGenerationCannotMutateInstalledDigest(t *testing.T) {
 		release()
 		t.Fatal(err)
 	}
+	if err := store.PrepareMCPData(t.Context(), pkg.MCPServers["runtime-mcp"]); err != nil {
+		release()
+		t.Fatalf("runtime-generated file prevented MCP preparation: %v", err)
+	}
+	for _, root := range []string{pkg.Root, generationPath} {
+		manifestPath := filepath.Join(root, ManifestFilename)
+		original, err := os.ReadFile(manifestPath)
+		if err != nil {
+			release()
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manifestPath, append(append([]byte(nil), original...), '\n'), 0o600); err != nil {
+			release()
+			t.Fatal(err)
+		}
+		prepareErr := store.PrepareMCPData(t.Context(), pkg.MCPServers["runtime-mcp"])
+		restoreErr := os.WriteFile(manifestPath, original, 0o600)
+		if prepareErr == nil || restoreErr != nil {
+			release()
+			t.Fatalf("changed package accepted or restore failed: root=%q prepare=%v restore=%v", root, prepareErr, restoreErr)
+		}
+	}
 	after, exists, err := packageDigestAt(generationPath)
 	if err != nil || !exists {
 		release()
@@ -222,7 +372,22 @@ func TestStdioRuntimeGenerationCannotMutateInstalledDigest(t *testing.T) {
 		t.Fatalf("installed digest changed: before=%q after=%q state=%q", before, after, state.PackageDigest)
 	}
 	runtimeRoot := pkg.Root
+	retained, releaseRetained, err := store.RuntimeMCPPackage(t.Context(), "runtime-demo")
+	if err != nil {
+		release()
+		t.Fatal(err)
+	}
+	if retained.Root != runtimeRoot {
+		release()
+		releaseRetained()
+		t.Fatalf("unchanged generation moved runtime root: %q != %q", retained.Root, runtimeRoot)
+	}
 	release()
+	if _, err := os.Stat(runtimeRoot); err != nil {
+		releaseRetained()
+		t.Fatalf("runtime generation disappeared while retained: %v", err)
+	}
+	releaseRetained()
 	if _, err := os.Stat(runtimeRoot); !os.IsNotExist(err) {
 		t.Fatalf("runtime generation remains after release: %v", err)
 	}

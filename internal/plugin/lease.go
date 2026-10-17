@@ -32,6 +32,15 @@ func generationLeaseKey(name, generation string) (string, error) {
 }
 
 func (s *Store) AcquireGenerationRead(ctx context.Context, name, generation string) (func(), error) {
+	release, err := s.acquireContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return s.acquireGenerationReadUnlocked(ctx, name, generation)
+}
+
+func (s *Store) acquireGenerationReadUnlocked(ctx context.Context, name, generation string) (func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -141,6 +150,15 @@ func (s *Store) generationReadersEmpty(name, generation string) (bool, error) {
 }
 
 func (s *Store) cleanupObsoleteGeneration(name, generation string) error {
+	release, err := s.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return s.cleanupObsoleteGenerationUnlocked(name, generation)
+}
+
+func (s *Store) cleanupObsoleteGenerationUnlocked(name, generation string) error {
 	if generation == "" {
 		return nil
 	}
@@ -159,6 +177,10 @@ func (s *Store) cleanupObsoleteGeneration(name, generation string) error {
 	} else if !errors.Is(txErr, os.ErrNotExist) {
 		return txErr
 	}
+	return s.removeUnleasedGenerationUnlocked(name, generation)
+}
+
+func (s *Store) removeUnleasedGenerationUnlocked(name, generation string) error {
 	empty, err := s.generationReadersEmpty(name, generation)
 	if err != nil || !empty {
 		return err

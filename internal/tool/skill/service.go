@@ -17,11 +17,12 @@ const runtimeAPISource = "agentdock-api"
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
 
 type PluginSkill struct {
-	Generation string
-	Name       string
-	Plugin     string
-	Path       string
-	Enabled    bool
+	Generation    string
+	PackageDigest string
+	Name          string
+	Plugin        string
+	Path          string
+	Enabled       bool
 }
 
 type PluginSkillLookup func(string) (PluginSkill, bool, error)

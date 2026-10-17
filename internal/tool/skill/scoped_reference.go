@@ -24,13 +24,15 @@ const (
 )
 
 type ResolvedSkill struct {
-	Name          string
-	SkillRef      string
-	SourceType    string
-	SourceID      string
-	PluginName    string
-	Root          string
-	ContentDigest string
+	Name                string
+	SkillRef            string
+	SourceType          string
+	SourceID            string
+	PluginName          string
+	PluginGeneration    string
+	PluginPackageDigest string
+	Root                string
+	ContentDigest       string
 }
 
 func ManagedSkillRef(name string) string {
@@ -310,7 +312,7 @@ func (s *Service) acquirePlugin(ctx context.Context, ref parsedSkillRef) (Resolv
 			return ResolvedSkill{}, nil, err
 		}
 		ok = true
-		return ResolvedSkill{Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name), SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID, Root: member.Path}, release, nil
+		return ResolvedSkill{Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name), SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID, PluginGeneration: member.Generation, PluginPackageDigest: member.PackageDigest, Root: member.Path}, release, nil
 	}
 	if s.pluginSkill == nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_NOT_AVAILABLE", "Plugin Skill runtime is unavailable", "not_found", nil)

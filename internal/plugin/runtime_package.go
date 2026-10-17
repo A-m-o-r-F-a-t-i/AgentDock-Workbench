@@ -164,7 +164,8 @@ func (s *Store) runtimePackageForState(name string, state State) (RuntimePackage
 	}
 	for skillName, path := range record.skillPaths {
 		pkg.Skills[skillName] = SkillMember{
-			Generation: state.Generation, Heavy: record.definition.Heavy, Description: record.skillDescriptions[skillName],
+			PackageDigest: state.PackageDigest,
+			Generation:    state.Generation, Heavy: record.definition.Heavy, Description: record.skillDescriptions[skillName],
 			Name: skillName, Plugin: name, Path: path, Enabled: state.Enabled && memberEnabled(state.Skills, skillName),
 		}
 	}
@@ -188,7 +189,7 @@ func (s *Store) AcquireRuntimePackage(ctx context.Context, name string) (Runtime
 	if err := ctx.Err(); err != nil {
 		return RuntimePackage{}, nil, err
 	}
-	releaseStore, err := s.acquire()
+	releaseStore, err := s.acquireContext(ctx)
 	if err != nil {
 		return RuntimePackage{}, nil, err
 	}
@@ -197,7 +198,7 @@ func (s *Store) AcquireRuntimePackage(ctx context.Context, name string) (Runtime
 		releaseStore()
 		return RuntimePackage{}, nil, err
 	}
-	releaseGeneration, err := s.AcquireGenerationRead(ctx, name, state.Generation)
+	releaseGeneration, err := s.acquireGenerationReadUnlocked(ctx, name, state.Generation)
 	releaseStore()
 	if err != nil {
 		return RuntimePackage{}, nil, err
@@ -214,7 +215,7 @@ func (s *Store) AcquireActivationRuntime(ctx context.Context, name, owner string
 	if err := ctx.Err(); err != nil {
 		return RuntimePackage{}, nil, err
 	}
-	releaseStore, err := s.acquire()
+	releaseStore, err := s.acquireContext(ctx)
 	if err != nil {
 		return RuntimePackage{}, nil, err
 	}
@@ -228,7 +229,7 @@ func (s *Store) AcquireActivationRuntime(ctx context.Context, name, owner string
 		return RuntimePackage{}, nil, newError("PLUGIN_ACTIVATION_NOT_FOUND", "Plugin lifecycle has no activation candidate", map[string]any{"plugin": name}, nil)
 	}
 	state := *transaction.Candidate
-	releaseGeneration, err := s.AcquireGenerationRead(ctx, name, state.Generation)
+	releaseGeneration, err := s.acquireGenerationReadUnlocked(ctx, name, state.Generation)
 	releaseStore()
 	if err != nil {
 		return RuntimePackage{}, nil, err
@@ -256,6 +257,63 @@ func (s *Store) AcquireSkillMember(ctx context.Context, pluginName, skillName st
 		return SkillMember{}, nil, newError("PLUGIN_MEMBER_DISABLED", "plugin Skill member is disabled", map[string]any{"plugin": pluginName, "member": skillName}, nil)
 	}
 	return member, release, nil
+}
+
+// CreateSkillRuntime copies the already selected Skill generation for command
+// execution. Resource and rule reads continue to use the immutable member path.
+// The returned lease independently pins that generation, including when an
+// update commits between resolving the Skill and preparing its command.
+func (s *Store) CreateSkillRuntime(ctx context.Context, member SkillMember) (string, func(), error) {
+	if !member.Enabled {
+		return "", nil, newError("PLUGIN_MEMBER_DISABLED", "plugin Skill member is disabled", map[string]any{"plugin": member.Plugin, "member": member.Name}, nil)
+	}
+	generationRoot, err := s.generationPath(member.Plugin, member.Generation)
+	if err != nil {
+		return "", nil, err
+	}
+	releaseGeneration, err := s.AcquireGenerationRead(ctx, member.Plugin, member.Generation)
+	if err != nil {
+		return "", nil, err
+	}
+	releaseOnError := true
+	defer func() {
+		if releaseOnError {
+			releaseGeneration()
+		}
+	}()
+	digest, exists, err := packageDigestAt(generationRoot)
+	if err != nil || !exists || member.PackageDigest == "" || digest != member.PackageDigest {
+		return "", nil, newError("PLUGIN_GENERATION_DRIFT", "Plugin Skill generation no longer matches the selected package", map[string]any{"plugin": member.Plugin, "generation": member.Generation}, err)
+	}
+	record, err := readPackage(generationRoot, false)
+	if err != nil {
+		return "", nil, err
+	}
+	skillPath, found := record.skillPaths[member.Name]
+	if !found || record.manifest.Name != member.Plugin || !sameFilesystemPath(skillPath, member.Path) {
+		return "", nil, newError("PLUGIN_MEMBER_NOT_FOUND", "Plugin Skill does not belong to the selected generation", map[string]any{"plugin": member.Plugin, "member": member.Name}, nil)
+	}
+	relative, err := filepath.Rel(generationRoot, skillPath)
+	if err != nil || !filepath.IsLocal(relative) {
+		return "", nil, errors.New("Plugin Skill path escapes its generation")
+	}
+	runtimeRoot, releaseRuntime, err := s.CreateRuntimeGeneration(member.Plugin, member.Generation, generationRoot)
+	if err != nil {
+		return "", nil, err
+	}
+	if err := validateRuntimePackageFiles(ctx, generationRoot, runtimeRoot); err != nil {
+		releaseRuntime()
+		return "", nil, err
+	}
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			releaseRuntime()
+			releaseGeneration()
+		})
+	}
+	releaseOnError = false
+	return filepath.Join(runtimeRoot, relative), release, nil
 }
 
 func (s *Store) RuntimeMCPPackage(ctx context.Context, name string) (RuntimePackage, func(), error) {

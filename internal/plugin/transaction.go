@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/fs/atomicfile"
+	"github.com/uvwt/agentdock/internal/fs/filelock"
 )
 
 const (
@@ -47,6 +49,67 @@ type ActivationCandidate struct {
 	Generation    string
 	PackageDigest string
 	Definition    Definition
+}
+
+// The lifecycle lock spans staging, MCP reconciliation and publication. The
+// shorter store lock must be released during reconciliation because acquiring
+// runtime packages takes it again. filelock retains a live-process owner and
+// heartbeat so another Core cannot recover an operation that is still running.
+type lifecycleClaim struct {
+	name    string
+	owner   string
+	release func()
+}
+
+func (s *Store) acquireLifecycle(ctx context.Context) (func(), error) {
+	s.lifecycleMu.Lock()
+	claim := s.lifecycleClaim
+	s.lifecycleMu.Unlock()
+	if claim != nil {
+		return nil, newError("PLUGIN_ACTIVATION_IN_PROGRESS", "Plugin lifecycle transaction is already in progress", map[string]any{"plugin": claim.name}, nil)
+	}
+	lockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	release, err := filelock.Acquire(lockCtx, filepath.Join(s.root, ".locks", "lifecycle.lock"))
+	if err != nil {
+		return nil, newError("PLUGIN_STORE_LOCK_FAILED", "lock Plugin lifecycle", nil, err)
+	}
+	return release, nil
+}
+
+func (s *Store) retainLifecycleClaim(name, owner string, release func()) {
+	s.lifecycleMu.Lock()
+	s.lifecycleClaim = &lifecycleClaim{name: name, owner: owner, release: release}
+	s.lifecycleMu.Unlock()
+}
+
+func (s *Store) ownsLifecycleClaim(name, owner string) bool {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	claim := s.lifecycleClaim
+	return claim != nil && claim.name == name && claim.owner == owner
+}
+
+func (s *Store) releaseLifecycleClaim(name, owner string) {
+	s.lifecycleMu.Lock()
+	claim := s.lifecycleClaim
+	if claim == nil || claim.name != name || claim.owner != owner {
+		s.lifecycleMu.Unlock()
+		return
+	}
+	s.lifecycleClaim = nil
+	s.lifecycleMu.Unlock()
+	claim.release()
+}
+
+func (s *Store) closeLifecycleClaim() {
+	s.lifecycleMu.Lock()
+	claim := s.lifecycleClaim
+	s.lifecycleClaim = nil
+	s.lifecycleMu.Unlock()
+	if claim != nil {
+		claim.release()
+	}
 }
 
 func (s *Store) saveLifecycleTransaction(transaction LifecycleTransaction) error {
@@ -182,11 +245,20 @@ func (s *Store) deleteLifecycleTransaction(name string) error {
 }
 
 func (s *Store) recoverLifecycleTransactions() error {
+	releaseLifecycle, err := s.acquireLifecycle(context.Background())
+	if err != nil {
+		return err
+	}
+	defer releaseLifecycle()
 	release, err := s.acquire()
 	if err != nil {
 		return err
 	}
 	defer release()
+	return s.recoverLifecycleTransactionsUnlocked()
+}
+
+func (s *Store) recoverLifecycleTransactionsUnlocked() error {
 	root := filepath.Join(s.root, ".state", "transactions")
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -287,8 +359,9 @@ func (s *Store) commitRecoveredLifecycle(transaction LifecycleTransaction) error
 	if err := s.deleteLifecycleTransaction(transaction.Name); err != nil {
 		return err
 	}
+	s.releaseLifecycleClaim(transaction.Name, transaction.OwnerID)
 	if transaction.PreviousGeneration != "" {
-		_ = s.cleanupObsoleteGeneration(transaction.Name, transaction.PreviousGeneration)
+		_ = s.cleanupObsoleteGenerationUnlocked(transaction.Name, transaction.PreviousGeneration)
 	}
 	return nil
 }
@@ -360,7 +433,9 @@ func (s *Store) rollbackRecoveredLifecycle(transaction LifecycleTransaction) err
 			if digest != transaction.CandidateDigest {
 				return newError("PLUGIN_RECOVERY_REQUIRED", "candidate Plugin generation changed during interrupted activation", map[string]any{"plugin": transaction.Name, "generation": transaction.CandidateGeneration}, nil)
 			}
-			if err := os.RemoveAll(generationPath); err != nil {
+			// Keep the journal if reclaiming an unused candidate fails. An
+			// active reader instead retains the generation until its release.
+			if err := s.removeUnleasedGenerationUnlocked(transaction.Name, transaction.CandidateGeneration); err != nil {
 				return err
 			}
 		}
@@ -368,7 +443,11 @@ func (s *Store) rollbackRecoveredLifecycle(transaction LifecycleTransaction) err
 	if err := os.RemoveAll(work); err != nil {
 		return err
 	}
-	return s.deleteLifecycleTransaction(transaction.Name)
+	if err := s.deleteLifecycleTransaction(transaction.Name); err != nil {
+		return err
+	}
+	s.releaseLifecycleClaim(transaction.Name, transaction.OwnerID)
+	return nil
 }
 
 func (s *Store) resolveLifecyclePath(relative string) (string, error) {
