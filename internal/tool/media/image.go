@@ -25,6 +25,12 @@ type imageCrop struct {
 	Height int
 }
 
+const (
+	minImageJPEGQuality     = 35
+	imageJPEGQualityStep    = 10
+	imageBudgetSafetyFactor = 0.94
+)
+
 func imageCropFromRequest(request *CropRequest) *imageCrop {
 	if request == nil {
 		return nil
@@ -32,7 +38,7 @@ func imageCropFromRequest(request *CropRequest) *imageCrop {
 	return &imageCrop{X: request.X, Y: request.Y, Width: request.Width, Height: request.Height}
 }
 
-func prepareImageBytes(data []byte, crop *imageCrop, maxBytes, maxWidth, maxHeight int, format string, quality int) ([]byte, imageInfo, map[string]any, []string, bool) {
+func prepareImageBytes(data []byte, crop *imageCrop, maxBytes, maxWidth, maxHeight int, format string, quality int, autoResize bool) ([]byte, imageInfo, map[string]any, []string, bool) {
 	warnings := []string{}
 	if maxBytes <= 0 {
 		maxBytes = 750000
@@ -49,8 +55,8 @@ func prepareImageBytes(data []byte, crop *imageCrop, maxBytes, maxWidth, maxHeig
 	if quality > 95 {
 		quality = 95
 	}
-	if quality < 35 {
-		quality = 35
+	if quality < minImageJPEGQuality {
+		quality = minImageJPEGQuality
 	}
 
 	img, inputFormat, err := image.Decode(bytes.NewReader(data))
@@ -73,7 +79,7 @@ func prepareImageBytes(data []byte, crop *imageCrop, maxBytes, maxWidth, maxHeig
 		}
 	}
 
-	if maxWidth > 0 && maxHeight > 0 && (bounds.Dx() > maxWidth || bounds.Dy() > maxHeight) {
+	if autoResize && maxWidth > 0 && maxHeight > 0 && (bounds.Dx() > maxWidth || bounds.Dy() > maxHeight) {
 		scale := math.Min(float64(maxWidth)/float64(bounds.Dx()), float64(maxHeight)/float64(bounds.Dy()))
 		if scale > 0 && scale < 1 {
 			newW := int(math.Max(1, math.Floor(float64(bounds.Dx())*scale)))
@@ -92,35 +98,70 @@ func prepareImageBytes(data []byte, crop *imageCrop, maxBytes, maxWidth, maxHeig
 		outFormat = "jpeg"
 	}
 
-	for attempt := 0; attempt < 8; attempt++ {
-		encoded, info, ok := encodeImageBytes(img, outFormat, quality)
+	currentQuality := quality
+	for {
+		encoded, info, ok := encodeImageBytes(img, outFormat, currentQuality)
 		if !ok {
 			return nil, imageInfo{}, original, append(warnings, "image encode failed"), false
 		}
-		if len(encoded) <= maxBytes || attempt == 7 {
-			if len(encoded) > maxBytes {
-				warnings = append(warnings, "encoded image still exceeds max_bytes after downscaling")
-			}
-			info.Width = img.Bounds().Dx()
-			info.Height = img.Bounds().Dy()
-			return encoded, info, original, warnings, len(encoded) <= maxBytes
+		info.Width, info.Height = img.Bounds().Dx(), img.Bounds().Dy()
+		dimensionsExceeded := info.Width > maxWidth || info.Height > maxHeight
+		bytesExceeded := len(encoded) > maxBytes
+		if !dimensionsExceeded && !bytesExceeded {
+			return encoded, info, original, warnings, true
 		}
-		if outFormat == "jpeg" && quality > 45 {
-			quality -= 10
-			if quality < 45 {
-				quality = 45
+		if !autoResize {
+			if dimensionsExceeded {
+				warnings = append(warnings, "image dimensions exceed max_width/max_height and auto_resize is disabled")
+			}
+			if bytesExceeded {
+				warnings = append(warnings, "encoded image exceeds max_bytes and auto_resize is disabled")
+			}
+			return encoded, info, original, warnings, false
+		}
+		if outFormat == "jpeg" && bytesExceeded && currentQuality > minImageJPEGQuality {
+			currentQuality -= imageJPEGQualityStep
+			if currentQuality < minImageJPEGQuality {
+				currentQuality = minImageJPEGQuality
 			}
 			continue
 		}
+
 		b := img.Bounds()
-		newW := int(math.Max(1, math.Floor(float64(b.Dx())*0.82)))
-		newH := int(math.Max(1, math.Floor(float64(b.Dy())*0.82)))
-		if newW == b.Dx() && newH == b.Dy() {
-			break
+		if b.Dx() == 1 && b.Dy() == 1 {
+			warnings = append(warnings, "encoded image still exceeds max_bytes at 1x1")
+			return encoded, info, original, warnings, false
 		}
+		newW, newH := nextImageDimensions(b, len(encoded), maxBytes)
 		img = resizeBilinear(img, newW, newH)
 	}
-	return nil, imageInfo{}, original, warnings, false
+}
+
+func nextImageDimensions(bounds image.Rectangle, actualBytes, maxBytes int) (int, int) {
+	width, height := bounds.Dx(), bounds.Dy()
+	scale := imageBudgetSafetyFactor
+	if actualBytes > 0 && maxBytes > 0 {
+		scale = math.Sqrt(float64(maxBytes)/float64(actualBytes)) * imageBudgetSafetyFactor
+	}
+	if scale <= 0 || scale >= 1 || math.IsNaN(scale) || math.IsInf(scale, 0) {
+		scale = imageBudgetSafetyFactor
+	}
+	newWidth := int(math.Max(1, math.Floor(float64(width)*scale)))
+	newHeight := int(math.Max(1, math.Floor(float64(height)*scale)))
+	if newWidth >= width && width > 1 {
+		newWidth = width - 1
+	}
+	if newHeight >= height && height > 1 {
+		newHeight = height - 1
+	}
+	if newWidth == width && newHeight == height {
+		if width > 1 {
+			newWidth--
+		} else if height > 1 {
+			newHeight--
+		}
+	}
+	return newWidth, newHeight
 }
 
 func encodeImageBytes(img image.Image, format string, quality int) ([]byte, imageInfo, bool) {
