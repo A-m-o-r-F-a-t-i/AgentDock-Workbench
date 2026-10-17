@@ -25,7 +25,7 @@ type Files struct {
 	treeClose    func()
 	watcher      *fsnotify.Watcher
 	filter       func(string) bool
-	opMu         sync.Mutex
+	opMu         watchOperationMutex
 	mu           sync.Mutex
 	dirs         map[string]uint64
 	retired      map[string]uint64
@@ -35,6 +35,7 @@ type Files struct {
 	scopes       map[string]directoryScope
 	stableRoot   string
 	scopedTrees  map[string]directoryTree
+	aliases      map[string]watchAlias
 	sequence     uint64
 	revision     atomic.Uint64
 	unhealthy    atomic.Bool
@@ -66,6 +67,9 @@ func newFiles(filter func(string) bool, scoped bool) *Files {
 	f := &Files{filter: filter, dirs: map[string]uint64{}, retired: map[string]uint64{}, syncRequests: make(chan chan struct{}), done: make(chan struct{})}
 	if scoped {
 		f.scopes = make(map[string]directoryScope)
+		if needsAliasReadBarrier() {
+			f.aliases = make(map[string]watchAlias)
+		}
 		if runtime.GOOS == "windows" {
 			f.scopedTrees = make(map[string]directoryTree)
 		}
@@ -88,7 +92,7 @@ func NewTreeFiles(root string, filter func(string) bool) *Files {
 	f := NewFiles(filter)
 	if closeTree, ok := startTreeWatch(filepath.Clean(root), f.event, func() { f.unhealthy.Store(true); f.revision.Add(1) }); ok {
 		f.treeRoot = filepath.Clean(root)
-		f.treeResolved, _ = filepath.EvalSymlinks(root)
+		f.treeResolved, _ = watchPathTarget(root)
 		f.treeClose = closeTree
 	}
 	return f
@@ -174,81 +178,125 @@ func (f *Files) Add(path string) {
 	if f == nil || f.watcher == nil {
 		return
 	}
+	f.opMu.Lock()
+	defer f.opMu.Unlock()
+	if f.closed {
+		return
+	}
+	if err := f.addPathLocked(path); err != nil {
+		f.unhealthy.Store(true)
+	}
+}
+
+// addPathLocked is shared by metadata builds and the alias read barrier. Only
+// this owner installs directory subscriptions; the event reader never takes
+// opMu or performs filesystem lookups.
+func (f *Files) addPathLocked(path string) error {
 	path = filepath.Clean(path)
 	resolved := ""
 	var linkParents, linkTargets []string
+	f.sequence++
 	if f.scopes != nil {
 		var err error
 		path, err = filepath.Abs(path)
 		if err != nil {
-			f.unhealthy.Store(true)
-			return
+			return err
 		}
-		resolved = resolveWatchPath(path)
 		for candidate := path; ; candidate = filepath.Dir(candidate) {
-			if info, err := os.Lstat(candidate); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			info, statErr := os.Lstat(candidate)
+			if statErr != nil && !os.IsNotExist(statErr) {
+				return statErr
+			}
+			alias := false
+			if statErr == nil {
+				alias, err = isWatchAlias(candidate, info)
+				if err != nil {
+					return err
+				}
+			}
+			if alias {
 				linkParents = append(linkParents, filepath.Dir(candidate))
-				if target, err := filepath.EvalSymlinks(candidate); err == nil {
-					linkTargets = append(linkTargets, target)
-				} else {
-					f.unhealthy.Store(true)
+				state, err := readWatchAlias(candidate)
+				if err != nil {
+					return err
+				}
+				f.rememberAlias(candidate, path, state)
+				if state.target != "" {
+					linkTargets = append(linkTargets, state.target)
 				}
 			}
 			if filepath.Dir(candidate) == candidate {
 				break
 			}
 		}
-	}
-	f.opMu.Lock()
-	defer f.opMu.Unlock()
-	if f.closed {
-		return
-	}
-	f.sequence++
-	if f.scopes != nil {
+		resolved, err = resolveWatchPath(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		resolved = f.selectDirectory(path, resolved)
 	}
 	// Register both names before checking tree coverage. A lexical path below
 	// UserHome may point at a Common package outside that tree.
 	if f.scopedTrees != nil {
-		f.coverScopedPath(path)
+		if err := f.coverScopedPath(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		if resolved != "" {
-			f.coverScopedPath(resolved)
+			if err := f.coverScopedPath(resolved); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 		}
 		for _, target := range linkTargets {
-			f.coverScopedPath(target)
+			if err := f.coverScopedPath(target); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 		}
 		for _, parent := range linkParents {
-			f.ensureScopedTree(parent)
+			if err := f.ensureScopedTree(parent); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 		}
-		return
+		return nil
 	}
 	if f.treeRoot != "" {
 		if insideWatchRoot(f.treeRoot, path) {
-			return
+			return nil
 		}
 		// Safety checks may canonicalize a Windows 8.3 path. Reuse the
 		// existing recursive handle rather than opening a member handle.
 		if f.treeResolved != "" {
-			if actual, err := filepath.EvalSymlinks(path); err == nil && insideWatchRoot(f.treeResolved, actual) {
-				return
+			if actual, err := watchPathTarget(path); err == nil && insideWatchRoot(f.treeResolved, actual) {
+				return nil
 			}
 		}
 	}
-	f.addDirectory(path)
+	if err := f.addDirectory(path); err != nil {
+		return err
+	}
 	if f.scopes != nil {
-		f.addDirectory(filepath.Dir(path))
+		if err := f.addDirectory(filepath.Dir(path)); err != nil {
+			return err
+		}
 		for _, parent := range linkParents {
-			f.addDirectory(parent)
+			if err := f.addDirectory(parent); err != nil {
+				return err
+			}
 		}
 		if resolved != "" && resolved != path {
-			f.addDirectory(resolved)
-			f.addDirectory(filepath.Dir(resolved))
+			if err := f.addDirectory(resolved); err != nil {
+				return err
+			}
+			if err := f.addDirectory(filepath.Dir(resolved)); err != nil {
+				return err
+			}
 		}
 		for _, target := range linkTargets {
-			f.addDirectory(filepath.Dir(target))
+			if err := f.addDirectory(filepath.Dir(target)); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // selectDirectory keeps only ranges not already covered by selected sources.
@@ -308,37 +356,41 @@ func (f *Files) selectDirectory(path, resolved string) string {
 // addDirectory runs under opMu, which the event reader never takes. Windows
 // Add/Remove use the same platform thread that delivers Events, so no platform
 // operation may hold the state or scope lock needed by that reader.
-func (f *Files) addDirectory(path string) {
+func (f *Files) addDirectory(path string) error {
 	f.mu.Lock()
 	hasRetired := len(f.retired) != 0
 	f.mu.Unlock()
 	if hasRetired && !f.removeRetired() {
-		return
+		return fmt.Errorf("retire previous directory watches: %w", os.ErrInvalid)
 	}
 	if f.useDirectory(path) {
-		return
+		return nil
 	}
 	for {
 		info, err := os.Lstat(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		if err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
 			break
 		}
 		parent := filepath.Dir(path)
 		if parent == path {
-			f.unhealthy.Store(true)
-			return
+			return fmt.Errorf("find existing watch directory %q: %w", path, os.ErrNotExist)
 		}
 		path = parent
 		if f.useDirectory(path) {
-			return
+			return nil
 		}
 	}
 	if f.scopes != nil {
-		if actual, err := filepath.EvalSymlinks(path); err == nil {
-			path = actual
+		actual, err := watchPathTarget(path)
+		if err != nil {
+			return err
 		}
+		path = actual
 		if f.useDirectory(path) {
-			return
+			return nil
 		}
 	}
 	f.mu.Lock()
@@ -357,7 +409,7 @@ func (f *Files) addDirectory(path string) {
 	}
 	f.mu.Unlock()
 	if !f.removeRetired() {
-		return
+		return fmt.Errorf("retire previous directory watches: %w", os.ErrInvalid)
 	}
 	f.mu.Lock()
 	f.pending, f.pendingGone = path, false
@@ -375,13 +427,13 @@ func (f *Files) addDirectory(path string) {
 	}
 	f.mu.Unlock()
 	if err != nil {
-		f.unhealthy.Store(true)
-		return
+		return err
 	}
 	if removed {
 		f.revision.Add(1)
 		f.removeRetired()
 	}
+	return nil
 }
 
 func (f *Files) useDirectory(path string) bool {
@@ -477,24 +529,49 @@ func sameWatchPath(first, second string) bool {
 // resolveWatchPath retains a canonical alias even when the selected leaf does
 // not exist yet. No filesystem lookup is needed when processing a later rename
 // or deletion notification, when EvalSymlinks on the removed path would fail.
-func resolveWatchPath(path string) string {
+func resolveWatchPath(path string) (string, error) {
 	for candidate := path; ; candidate = filepath.Dir(candidate) {
-		if resolved, err := filepath.EvalSymlinks(candidate); err == nil {
+		resolved, err := watchPathTarget(candidate)
+		if err == nil {
 			relative, err := filepath.Rel(candidate, path)
-			if err == nil {
-				return filepath.Join(resolved, relative)
+			if err != nil {
+				return "", err
 			}
-			return ""
+			if relative != "." {
+				info, err := os.Stat(resolved)
+				if err != nil {
+					return "", err
+				}
+				if !info.IsDir() {
+					return "", fmt.Errorf("resolve watch target %q: ancestor %q is not a directory: %w", path, candidate, os.ErrInvalid)
+				}
+			}
+			return filepath.Join(resolved, relative), nil
 		}
-		if info, err := os.Lstat(candidate); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			return ""
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		info, statErr := os.Lstat(candidate)
+		if statErr == nil {
+			alias, aliasErr := isWatchAlias(candidate, info)
+			if aliasErr != nil {
+				return "", aliasErr
+			}
+			if alias {
+				return "", err
+			}
+		} else if !os.IsNotExist(statErr) {
+			return "", statErr
 		}
 		if filepath.Dir(candidate) == candidate {
-			return ""
+			return "", err
 		}
 	}
 }
 func (f *Files) Sync(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if f == nil || f.watcher == nil {
 		return nil
 	}
@@ -512,7 +589,9 @@ func (f *Files) Sync(ctx context.Context) error {
 	case <-f.done:
 		return nil
 	case <-reply:
-		return nil
+		// The reader must not wait for opMu: Windows platform Add/Remove may
+		// itself wait for that reader. Alias I/O belongs to this caller.
+		return f.syncAliases(ctx)
 	}
 }
 

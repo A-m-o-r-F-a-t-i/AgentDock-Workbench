@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -22,7 +23,7 @@ func (f *Files) SetStableRoot(root string) {
 		f.unhealthy.Store(true)
 		return
 	}
-	root, err = filepath.EvalSymlinks(root)
+	root, err = watchPathTarget(root)
 	if err != nil {
 		f.unhealthy.Store(true)
 		return
@@ -37,49 +38,56 @@ func (f *Files) SetStableRoot(root string) {
 	}
 	f.stableRoot = root
 	if f.scopedTrees != nil {
-		f.ensureScopedTree(root)
+		if err := f.ensureScopedTree(root); err != nil {
+			f.unhealthy.Store(true)
+		}
 		return
 	}
-	f.addDirectory(root)
+	if err := f.addDirectory(root); err != nil {
+		f.unhealthy.Store(true)
+	}
 }
 
 // coverScopedPath runs under opMu. External aliases use their actual target's
 // immediate parent so replacing that target does not fight a nested handle.
-func (f *Files) coverScopedPath(path string) {
-	resolved := resolveWatchPath(path)
-	if resolved == "" {
-		f.unhealthy.Store(true)
-		return
+func (f *Files) coverScopedPath(path string) error {
+	resolved, err := resolveWatchPath(path)
+	if err != nil {
+		return err
 	}
 	for root, tree := range f.scopedTrees {
 		if insideWatchRoot(root, resolved) && (!sameWatchPath(root, resolved) || sameWatchPath(resolved, f.stableRoot)) {
 			tree.used = f.sequence
 			f.scopedTrees[root] = tree
-			return
+			return nil
 		}
 	}
-	f.ensureScopedTree(filepath.Dir(resolved))
+	return f.ensureScopedTree(filepath.Dir(resolved))
 }
 
 // ensureScopedTree keeps the recursive roots disjoint and within the existing
 // directory budget. It never falls back to nested Windows fsnotify handles:
 // those handles prevent the directory replacements this watcher must observe.
-func (f *Files) ensureScopedTree(root string) {
-	root, err := filepath.EvalSymlinks(root)
-	if err != nil || filepath.Dir(root) == root {
-		f.unhealthy.Store(true)
-		return
+func (f *Files) ensureScopedTree(root string) error {
+	root, err := watchPathTarget(root)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(root) == root {
+		return fmt.Errorf("watch volume root %q: %w", root, os.ErrInvalid)
 	}
 	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		f.unhealthy.Store(true)
-		return
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("watch root %q is not a directory: %w", root, os.ErrInvalid)
 	}
 	for existing, tree := range f.scopedTrees {
 		if insideWatchRoot(existing, root) {
 			tree.used = f.sequence
 			f.scopedTrees[existing] = tree
-			return
+			return nil
 		}
 	}
 	for existing, tree := range f.scopedTrees {
@@ -97,8 +105,7 @@ func (f *Files) ensureScopedTree(root string) {
 			}
 		}
 		if victim == "" {
-			f.unhealthy.Store(true)
-			return
+			return fmt.Errorf("watch tree capacity reached: %w", os.ErrInvalid)
 		}
 		f.scopedTrees[victim].close()
 		delete(f.scopedTrees, victim)
@@ -110,8 +117,8 @@ func (f *Files) ensureScopedTree(root string) {
 		f.revision.Add(1)
 	})
 	if !ok {
-		f.unhealthy.Store(true)
-		return
+		return fmt.Errorf("start watch tree %q: %w", root, os.ErrInvalid)
 	}
 	f.scopedTrees[root] = directoryTree{close: closeTree, used: f.sequence}
+	return nil
 }

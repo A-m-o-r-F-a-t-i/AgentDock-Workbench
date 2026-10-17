@@ -234,6 +234,9 @@ func TestCommonContextCacheTracksSymlinkTargets(t *testing.T) {
 			}
 			deadline = time.Now().Add(time.Second)
 			for files.Revision() == revision && time.Now().Before(deadline) {
+				if err := files.Sync(t.Context()); err != nil {
+					t.Fatal(err)
+				}
 				time.Sleep(time.Millisecond)
 			}
 			if files.Revision() == revision {
