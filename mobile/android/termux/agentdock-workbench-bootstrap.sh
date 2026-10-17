@@ -3,7 +3,7 @@ set -eu
 umask 077
 
 # Run manually inside the official external Termux app after exporting the complete
-# bridge bundle from AgentDock Workbench. The bundle carries the matching ARM64 Core.
+# bridge bundle from ACTOVO. The bundle carries the matching ARM64 Core.
 SELF_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 BRIDGE="$SELF_DIR/agentdock-workbench"
 MODULE="$SELF_DIR/agentdock_workbench.py"
@@ -76,5 +76,5 @@ proot-distro login debian -- /bin/sh -lc '
 printf '%s\n' 'Termux bridge, Debian PRoot and the APK-bundled Android Core are ready.'
 printf 'User workspace: %s\n' "$WORKSPACE"
 printf 'User artifacts: %s\n' "$ARTIFACTS"
-printf '%s\n' 'Return to AgentDock Workbench, grant RUN_COMMAND, then run Probe/Bootstrap.'
+printf '%s\n' 'Return to ACTOVO, grant RUN_COMMAND, then run Probe/Bootstrap.'
 printf '%s\n' 'Use Install & Update to deploy the ARM64 Core included in this APK.'

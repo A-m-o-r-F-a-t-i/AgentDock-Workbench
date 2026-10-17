@@ -25,7 +25,7 @@ import (
 func runTaskCoreHost(args []string) (int, error) {
 	flags := flag.NewFlagSet("task-core-host", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	runtimeRootFlag := flags.String("runtime-root", "", "AgentDock runtime root")
+	runtimeRootFlag := flags.String("runtime-root", "", "ACTOVO runtime root")
 	if err := flags.Parse(args); err != nil {
 		return 1, err
 	}
@@ -35,11 +35,11 @@ func runTaskCoreHost(args []string) (int, error) {
 
 	executable, err := os.Executable()
 	if err != nil {
-		return 1, fmt.Errorf("resolve AgentDock task host entry: %w", err)
+		return 1, fmt.Errorf("resolve ACTOVO task host entry: %w", err)
 	}
 	executable, err = filepath.Abs(executable)
 	if err != nil {
-		return 1, fmt.Errorf("resolve AgentDock task host entry path: %w", err)
+		return 1, fmt.Errorf("resolve ACTOVO task host entry path: %w", err)
 	}
 	if !strings.EqualFold(filepath.Base(executable), updateengine.StableTrayShimName) {
 		return 1, fmt.Errorf("task core host requires the stable GUI entry %s", updateengine.StableTrayShimName)
@@ -71,7 +71,7 @@ func runTaskCoreHost(args []string) (int, error) {
 		if err == nil {
 			err = errors.New("path is a directory")
 		}
-		return 1, fmt.Errorf("resolve active AgentDock Core %s: %w", coreBinary, err)
+		return 1, fmt.Errorf("resolve active ACTOVO Core %s: %w", coreBinary, err)
 	}
 
 	compatibilityCtx, compatibilityCancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -93,13 +93,13 @@ func runTaskCoreHost(args []string) (int, error) {
 	command.Stderr = nullFile
 
 	if err := command.Start(); err != nil {
-		return 1, fmt.Errorf("start active AgentDock Core from task host: %w", err)
+		return 1, fmt.Errorf("start active ACTOVO Core from task host: %w", err)
 	}
 	controller, err := processctl.Attach(command)
 	if err != nil {
 		_ = command.Process.Kill()
 		_ = command.Wait()
-		return 1, fmt.Errorf("attach AgentDock Core to task host Job Object: %w", err)
+		return 1, fmt.Errorf("attach ACTOVO Core to task host Job Object: %w", err)
 	}
 	defer controller.Close()
 
@@ -108,7 +108,7 @@ func runTaskCoreHost(args []string) (int, error) {
 		if errors.As(err, &exitErr) {
 			return exitErr.ExitCode(), nil
 		}
-		return 1, fmt.Errorf("wait for AgentDock Core task process: %w", err)
+		return 1, fmt.Errorf("wait for ACTOVO Core task process: %w", err)
 	}
 	return 0, nil
 }

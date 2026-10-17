@@ -36,16 +36,16 @@ struct ServiceControllerValidationTests {
         }
         try service.validateBundledServiceDefinition(
             plistName: ServiceController.corePlistName,
-            displayName: "AgentDock Core"
+            displayName: "ACTOVO Core"
         )
         try FileManager.default.removeItem(at: corePlist)
         expectFailure(L10n.format(
             "AgentDock.app is missing the background service definition for %@. Reinstall the application.",
-            "AgentDock Core"
+            "ACTOVO Core"
         )) {
             try service.validateBundledServiceDefinition(
                 plistName: ServiceController.corePlistName,
-                displayName: "AgentDock Core"
+                displayName: "ACTOVO Core"
             )
         }
 
@@ -211,7 +211,7 @@ struct ServiceControllerValidationTests {
         precondition(current.latestVersion == "v0.7.2")
 
         let available = try DesktopUpdateCheck.decode(
-            #"{"current_version":"v0.8.2","latest_version":"v0.8.3","update_available":true,"message":"发现 AgentDock App 更新"}"#
+            #"{"current_version":"v0.8.2","latest_version":"v0.8.3","update_available":true,"message":"发现 ACTOVO App 更新"}"#
         )
         precondition(available.updateAvailable)
         precondition(available.currentVersion == "v0.8.2")

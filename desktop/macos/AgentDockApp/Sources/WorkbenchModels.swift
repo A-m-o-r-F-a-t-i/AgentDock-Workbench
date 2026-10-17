@@ -585,7 +585,7 @@ struct WorkbenchSnapshot: Equatable, Sendable {
         let server = Date(timeIntervalSince1970: 1_800_000_000)
         let workspace = WorkbenchWorkspaceGroup(
             id: "wsp_fixture",
-            title: "AgentDock Workbench",
+            title: "ACTOVO",
             root: "~/AgentDock/workbench",
             total: 3,
             recentCount: 2,

@@ -21,7 +21,7 @@
       <Button x:Name="DiscoverButton" Grid.Column="1" Content="发现 Roxy" Click="Discover_Click" Margin="8,0,0,0"/>
       <Button x:Name="ReadTabsButton" Grid.Column="2" Content="读取标签页" Click="ReadTabs_Click" Margin="8,0,0,0"/>
     </Grid>
-    <TextBlock Grid.Row="2" Text="手动选择与上方 AgentDock 对话对应的 ChatGPT 标签页：" Margin="0,0,0,6"/>
+    <TextBlock Grid.Row="2" Text="手动选择与上方 ACTOVO 对话对应的 ChatGPT 标签页：" Margin="0,0,0,6"/>
     <ListBox x:Name="TabsList" Grid.Row="3" SelectionMode="Single" SelectionChanged="Tab_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
       <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="8,6">
         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
@@ -29,9 +29,9 @@
       </StackPanel></DataTemplate></ListBox.ItemTemplate>
     </ListBox>
     <StackPanel Grid.Row="4" Margin="0,12,0,8">
-      <CheckBox x:Name="ConfirmBinding" Content="我已确认所选标签页对应上方 AgentDock 对话" Margin="0,0,0,8"/>
+      <CheckBox x:Name="ConfirmBinding" Content="我已确认所选标签页对应上方 ACTOVO 对话" Margin="0,0,0,8"/>
       <CheckBox x:Name="RecoverClosed" Content="关闭标签页后，允许在同一浏览器会话中用隐藏页面接续" IsChecked="True"/>
-      <TextBlock Text="无需保持标签页打开或前台显示。Roxy 与 AgentDock 托盘进程须保持运行；任一进程重启后需重新绑定。发送后等待真实任务进展，未确认的发送不会自动重试。" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryText}" Margin="0,8,0,0"/>
+      <TextBlock Text="无需保持标签页打开或前台显示。Roxy 与 ACTOVO 托盘进程须保持运行；任一进程重启后需重新绑定。发送后等待真实任务进展，未确认的发送不会自动重试。" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryText}" Margin="0,8,0,0"/>
       <TextBlock x:Name="StatusText" TextWrapping="Wrap" Margin="0,8,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">

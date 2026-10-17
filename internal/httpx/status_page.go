@@ -66,7 +66,7 @@ var statusPageEnglish = statusPageText{
 	Subtitle:          "AI Agent task and execution workbench",
 	Online:            "Online",
 	ReadyTitle:        "Workbench instance is ready.",
-	ReadyDescription:  "This AgentDock Workbench instance is online and ready to expose local tools, tasks, and execution capabilities through MCP.",
+	ReadyDescription:  "This ACTOVO instance is online and ready to expose local tools, tasks, and execution capabilities through MCP.",
 	Version:           "Version",
 	System:            "System",
 	Capabilities:      "Capabilities",
@@ -83,7 +83,7 @@ var statusPageEnglish = statusPageText{
 	Copy:              "Copy",
 	Copied:            "Copied",
 	CopyFailed:        "Copy failed",
-	EndpointHint:      "Use this endpoint to connect AgentDock Workbench with an MCP client.",
+	EndpointHint:      "Use this endpoint to connect ACTOVO with an MCP client.",
 	Resources:         "Resources",
 	Repository:        "GitHub Repository",
 	RepositoryDesc:    "Source code, releases and issue tracking.",
@@ -91,7 +91,7 @@ var statusPageEnglish = statusPageText{
 	ReleasesDesc:      "Download platform packages and review release notes.",
 	Documentation:     "Documentation",
 	DocumentationDesc: "Architecture, permissions, installation and development notes for this fork.",
-	OpenSource:        "AgentDock Workbench · Open Source",
+	OpenSource:        "ACTOVO · Open Source",
 	License:           "MIT License",
 }
 
@@ -100,7 +100,7 @@ var statusPageChinese = statusPageText{
 	Subtitle:          "AI Agent 任务与执行工作台",
 	Online:            "在线",
 	ReadyTitle:        "工作台实例已就绪。",
-	ReadyDescription:  "当前 AgentDock Workbench 实例在线，可通过 MCP 提供本机工具、任务与执行能力。",
+	ReadyDescription:  "当前 ACTOVO 实例在线，可通过 MCP 提供本机工具、任务与执行能力。",
 	Version:           "版本",
 	System:            "系统",
 	Capabilities:      "能力",
@@ -117,7 +117,7 @@ var statusPageChinese = statusPageText{
 	Copy:              "复制",
 	Copied:            "已复制",
 	CopyFailed:        "复制失败",
-	EndpointHint:      "使用此端点将 AgentDock Workbench 连接到 MCP 客户端。",
+	EndpointHint:      "使用此端点将 ACTOVO 连接到 MCP 客户端。",
 	Resources:         "资源",
 	Repository:        "GitHub 仓库",
 	RepositoryDesc:    "源代码、版本发布与问题反馈。",
@@ -125,7 +125,7 @@ var statusPageChinese = statusPageText{
 	ReleasesDesc:      "下载安装包并查看版本说明。",
 	Documentation:     "项目文档",
 	DocumentationDesc: "查看本分支的架构、权限、安装与开发说明。",
-	OpenSource:        "AgentDock Workbench · 开源",
+	OpenSource:        "ACTOVO · 开源",
 	License:           "MIT 许可证",
 }
 

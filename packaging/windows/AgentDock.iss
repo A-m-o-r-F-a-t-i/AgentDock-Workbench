@@ -14,22 +14,22 @@
 
 #ifdef WindowsARM64
 #define PayloadArchitecture "arm64"
-#define SetupBaseFilename "AgentDock-Workbench-Setup-arm64"
+#define SetupBaseFilename "ACTOVO-Setup-arm64"
 #else
 #define PayloadArchitecture "amd64"
-#define SetupBaseFilename "AgentDock-Workbench-Setup-amd64"
+#define SetupBaseFilename "ACTOVO-Setup-amd64"
 #endif
 
 [Setup]
 AppId={{D6788C7A-4104-48D4-B5C3-F4858B5606EA}
-AppName=AgentDock Workbench
+AppName=ACTOVO
 AppVersion={#AppVersion}
-AppPublisher=AgentDock Workbench
+AppPublisher=ACTOVO
 AppPublisherURL=https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
 AppSupportURL=https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues
 AppUpdatesURL=https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases
 DefaultDirName={localappdata}\AgentDock
-DefaultGroupName=AgentDock Workbench
+DefaultGroupName=ACTOVO
 DisableProgramGroupPage=yes
 DisableDirPage=no
 PrivilegesRequired=lowest
@@ -87,7 +87,7 @@ Type: files; Name: "{app}\desktop-version.txt"
 Type: files; Name: "{userdesktop}\{code:GetLocalizedMessage|DesktopShortcutName}.lnk"
 
 [Icons]
-Name: "{group}\AgentDock Workbench"; Filename: "{app}\bin\agentdock-tray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\installer\agentdock.ico"; AppUserModelID: "com.uvwt.agentdock.controlpanel"
+Name: "{group}\ACTOVO"; Filename: "{app}\bin\agentdock-tray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\installer\agentdock.ico"; AppUserModelID: "com.uvwt.agentdock.controlpanel"
 Name: "{group}\{code:GetLocalizedMessage|DocsShortcut}"; Filename: "https://uvwt.github.io/agentdock-docs/"
 Name: "{group}\{code:GetLocalizedMessage|UninstallShortcut}"; Filename: "{uninstallexe}"
 

@@ -53,7 +53,7 @@ try {
     $signature = Get-AuthenticodeSignature -LiteralPath $CloudflaredBinary
     if ($signature.Status -ne [Management.Automation.SignatureStatus]::Valid) { throw 'The official cloudflared payload has an invalid Authenticode signature.' }
     if ($SignedBuild -and ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD))) { throw 'SignedBuild requires both Windows signing secrets.' }
-    if (-not $SignedBuild) { Write-Host 'AgentDock payloads are explicitly unsigned; cloudflared signature verification remains required.' }
+    if (-not $SignedBuild) { Write-Host 'ACTOVO payloads are explicitly unsigned; cloudflared signature verification remains required.' }
 
     $helperRoot = Join-Path $outputRoot 'wsl-helper'
     & (Join-Path $PSScriptRoot 'build-wsl-helper-payload.ps1') -OutputDirectory $helperRoot
@@ -93,7 +93,7 @@ try {
         }
         if ($SignedBuild) { $parameters.SignedBuild=$true }
         & (Join-Path $PSScriptRoot 'build-windows-offline-setup.ps1') @parameters
-        $setup = Join-Path $releaseRoot "AgentDock-Workbench-Setup-$architecture.exe"
+        $setup = Join-Path $releaseRoot "ACTOVO-Setup-$architecture.exe"
         if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Setup payload is missing: $architecture" }
         Write-Checksum $setup
         Write-Host "Windows $architecture release assets ready."

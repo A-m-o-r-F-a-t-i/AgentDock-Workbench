@@ -26,12 +26,13 @@ import (
 )
 
 const (
-	defaultReleaseAPI        = "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest"
-	maxReleaseArchiveBytes   = 256 << 20
-	maxDesktopArchiveBytes   = 512 << 20
-	maxExtractedPayloadBytes = 64 << 20
-	macOSDesktopArchiveName  = "AgentDock-macos-universal.zip"
-	coreSkillBundlePrefix    = "share/agentdock/core-skills/"
+	defaultReleaseAPI             = "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest"
+	maxReleaseArchiveBytes        = 256 << 20
+	maxDesktopArchiveBytes        = 512 << 20
+	maxExtractedPayloadBytes      = 64 << 20
+	macOSDesktopArchiveName       = "ACTOVO-macos-universal.zip"
+	legacyMacOSDesktopArchiveName = "AgentDock-macos-universal.zip"
+	coreSkillBundlePrefix         = "share/agentdock/core-skills/"
 )
 
 type release struct {
@@ -142,7 +143,7 @@ func Check(ctx context.Context) (CheckResult, error) {
 func runtimeOptions(output io.Writer) (options, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return options{}, fmt.Errorf("定位当前 AgentDock 二进制失败: %w", err)
+		return options{}, fmt.Errorf("定位当前 ACTOVO 二进制失败: %w", err)
 	}
 	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
 		executable = resolved
@@ -313,7 +314,7 @@ func run(ctx context.Context, opts options) error {
 	if result.Restarted {
 		fmt.Fprintf(opts.Output, "更新完成并已重启：%s → %s\n", currentVersion, targetVersion)
 	} else {
-		fmt.Fprintf(opts.Output, "更新完成：%s → %s。当前未检测到托管服务，请重新启动正在运行的 AgentDock。\n", currentVersion, targetVersion)
+		fmt.Fprintf(opts.Output, "更新完成：%s → %s。当前未检测到托管服务，请重新启动正在运行的 ACTOVO。\n", currentVersion, targetVersion)
 	}
 	if opts.Progress != nil {
 		opts.Progress(UpdateProgressEvent{
@@ -421,17 +422,13 @@ func inspectUpdate(ctx context.Context, opts options) (updateInspection, error) 
 	}
 
 	if opts.DesktopOnly {
-		desktopArchiveAsset, ok := findAsset(latest.Assets, macOSDesktopArchiveName)
-		if !ok {
-			return updateInspection{}, fmt.Errorf("Release %s 缺少 macOS 桌面更新文件 %s", targetVersion, macOSDesktopArchiveName)
-		}
-		desktopChecksumAsset, ok := findAsset(latest.Assets, macOSDesktopArchiveName+".sha256")
-		if !ok {
-			return updateInspection{}, fmt.Errorf("Release %s 缺少校验文件 %s.sha256", targetVersion, macOSDesktopArchiveName)
+		desktopArchiveAsset, desktopChecksumAsset, desktopErr := findMacOSDesktopAssets(latest.Assets)
+		if desktopErr != nil {
+			return updateInspection{}, fmt.Errorf("Release %s %w", targetVersion, desktopErr)
 		}
 		result.UpdateAvailable = true
 		result.DesktopUpdateAvailable = true
-		result.Message = fmt.Sprintf("发现 AgentDock App 更新：%s → %s", currentVersion, targetVersion)
+		result.Message = fmt.Sprintf("发现 ACTOVO App 更新：%s → %s", currentVersion, targetVersion)
 		return updateInspection{
 			Result:               result,
 			DesktopArchiveAsset:  desktopArchiveAsset,
@@ -457,14 +454,12 @@ func inspectUpdate(ctx context.Context, opts options) (updateInspection, error) 
 	if desktopNeedsUpdate {
 		switch opts.GOOS {
 		case "darwin":
-			desktopArchiveAsset, ok = findAsset(latest.Assets, macOSDesktopArchiveName)
-			if !ok {
-				return updateInspection{}, fmt.Errorf("Release %s 缺少 macOS 桌面更新文件 %s", targetVersion, macOSDesktopArchiveName)
+			macArchiveAsset, macChecksumAsset, desktopErr := findMacOSDesktopAssets(latest.Assets)
+			if desktopErr != nil {
+				return updateInspection{}, fmt.Errorf("Release %s %w", targetVersion, desktopErr)
 			}
-			desktopChecksumAsset, ok = findAsset(latest.Assets, macOSDesktopArchiveName+".sha256")
-			if !ok {
-				return updateInspection{}, fmt.Errorf("Release %s 缺少校验文件 %s.sha256", targetVersion, macOSDesktopArchiveName)
-			}
+			desktopArchiveAsset = macArchiveAsset
+			desktopChecksumAsset = macChecksumAsset
 		case "windows":
 			// Windows 控制面板与核心位于同一个 Release ZIP；复用已经校验过的归档，
 			// 避免同一次升级重复下载数百 MB 文件。
@@ -684,11 +679,14 @@ func verifyBinaryVersion(ctx context.Context, binaryPath, targetVersion string) 
 
 func parseVersionOutput(output []byte) (string, error) {
 	firstLine := strings.TrimSpace(strings.SplitN(string(output), "\n", 2)[0])
-	prefix := "AgentDock Workbench v"
-	if !strings.HasPrefix(firstLine, prefix) {
-		prefix = "AgentDock v"
+	prefix := ""
+	for _, candidate := range []string{"ACTOVO v", "AgentDock Workbench v", "AgentDock v"} {
+		if strings.HasPrefix(firstLine, candidate) {
+			prefix = candidate
+			break
+		}
 	}
-	if !strings.HasPrefix(firstLine, prefix) {
+	if prefix == "" {
 		return "", fmt.Errorf("无法识别版本输出 %q", firstLine)
 	}
 	version := normalizeVersion(strings.TrimPrefix(firstLine, prefix))
@@ -712,6 +710,25 @@ func platformAssetNames(goos, goarch string) (archiveName, executableName string
 	default:
 		return "", "", fmt.Errorf("当前系统暂不支持内置更新：%s/%s", goos, goarch)
 	}
+}
+
+func findMacOSDesktopAssets(assets []releaseAsset) (releaseAsset, releaseAsset, error) {
+	for _, name := range []string{macOSDesktopArchiveName, legacyMacOSDesktopArchiveName} {
+		archive, ok := findAsset(assets, name)
+		if !ok {
+			continue
+		}
+		checksum, ok := findAsset(assets, name+".sha256")
+		if !ok {
+			return releaseAsset{}, releaseAsset{}, fmt.Errorf("缺少校验文件 %s.sha256", name)
+		}
+		return archive, checksum, nil
+	}
+	return releaseAsset{}, releaseAsset{}, fmt.Errorf(
+		"缺少 macOS 桌面更新文件 %s（兼容旧名称 %s）",
+		macOSDesktopArchiveName,
+		legacyMacOSDesktopArchiveName,
+	)
 }
 
 func findAsset(assets []releaseAsset, name string) (releaseAsset, bool) {

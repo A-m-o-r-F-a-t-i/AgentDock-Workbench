@@ -287,8 +287,8 @@ jobs:
           short='${{ steps.meta.outputs.short_sha }}'
           prefix="wb06-macos-parallel-${short}-${GITHUB_RUN_ID}"
           mkdir -p dist/candidate
-          cp dist/macos-app/AgentDock-macos-universal.dmg "dist/candidate/${prefix}.dmg"
-          cp dist/macos-app/AgentDock-macos-universal.zip "dist/candidate/${prefix}.zip"
+          cp dist/macos-app/ACTOVO-macos-universal.dmg "dist/candidate/${prefix}.dmg"
+          cp dist/macos-app/ACTOVO-macos-universal.zip "dist/candidate/${prefix}.zip"
           (cd dist/candidate && shasum -a 256 "${prefix}.dmg" > "${prefix}.dmg.sha256")
           (cd dist/candidate && shasum -a 256 "${prefix}.zip" > "${prefix}.zip.sha256")
           cp dist/macos-app/verification-macos-app.json dist/candidate/
