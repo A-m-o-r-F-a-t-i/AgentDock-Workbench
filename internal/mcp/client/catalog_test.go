@@ -115,7 +115,7 @@ func TestCatalogPaginationSharedReadsAndInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value.Tools["tool_000"].InputSchema["$defs"].(map[string]any)["Number"].(map[string]any)["minimum"] != float64(1) {
+	if value.Tools["tool_000"].InputSchema["$defs"].(map[string]any)["Number"].(map[string]any)["minimum"] != json.Number("1") {
 		t.Fatal("returned schema corrupted the dispatch cache")
 	}
 	if !value.RefreshedAt.Equal(refreshedAt) {
@@ -206,5 +206,81 @@ func TestOneLineCatalogDescription(t *testing.T) {
 		if got := OneLineDescription(text); got != want {
 			t.Errorf("summary %q != %q", got, want)
 		}
+	}
+}
+
+func TestCatalogCachePreservesNumbersAndUnchangedRefreshRevision(t *testing.T) {
+	home := t.TempDir()
+	manager, err := NewManager(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = manager.Close() })
+	cfg := ServerConfig{Name: "exact", Description: "retained numeric schema fixture", Transport: TransportStreamableHTTP, URL: "http://example.invalid/mcp", Enabled: true, Lazy: true}
+	if _, err := manager.Add(cfg); err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.RLock()
+	cfg, state := manager.servers[cfg.Name], manager.states[cfg.Name]
+	manager.mu.RUnlock()
+	// Seed canonical Core metadata rather than claiming the SDK's upstream decoder
+	// preserves arbitrary numeric tokens; this regression owns the persistent cache.
+	tool := Tool{
+		Name: "read", InputSchema: map[string]any{
+			"type": "object", "required": []any{"value"},
+			"properties": map[string]any{"value": map[string]any{"type": "integer", "minimum": json.Number("9007199254740993")}},
+		},
+		OutputSchema:     map[string]any{"type": "object", "properties": map[string]any{"amount": map[string]any{"type": "number", "minimum": json.Number("0.10000000000000001")}}},
+		Annotations:      map[string]any{"readOnlyHint": true},
+		StandardMetadata: map[string]any{"_meta": map[string]any{"revision": json.Number("18446744073709551615")}},
+	}
+	compiled, err := compileCatalog(t.Context(), cfg, []Tool{tool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDigest, err := toolSchemaDigest(compiled[tool.Name])
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.mu.Lock()
+	state.client = &preparedCallTestClient{tools: []Tool{tool}}
+	state.tools, state.discovered, state.indexRevision = compiled, true, 1
+	state.refreshedAt = time.Now().UTC()
+	publishStateLocked(state)
+	state.mu.Unlock()
+	if err := manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := NewManager(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = restarted.Close() })
+	cached, fresh, err := restarted.CachedCatalog(cfg.Name)
+	if err != nil || fresh || cached.State.State != "cached" || !cached.Complete || !catalogEqual(cached.Tools, compiled) {
+		t.Fatalf("restart changed the retained catalog: state=%+v fresh=%v err=%v", cached.State, fresh, err)
+	}
+	restored := cached.Tools[tool.Name]
+	if gotDigest, err := toolSchemaDigest(restored); err != nil || gotDigest != wantDigest {
+		t.Fatalf("schema identity changed across cache persistence: %s %v", gotDigest, err)
+	}
+	if err := validateToolArguments(restored, map[string]any{"value": json.Number("9007199254740992")}); err == nil {
+		t.Fatal("cache rounding widened the integer schema boundary")
+	}
+	if err := validateToolArguments(restored, map[string]any{"value": json.Number("9007199254740993")}); err != nil {
+		t.Fatal(err)
+	}
+	restarted.mu.RLock()
+	restoredCfg, restoredState := restarted.servers[cfg.Name], restarted.states[cfg.Name]
+	restarted.mu.RUnlock()
+	client := &preparedCallTestClient{tools: []Tool{tool}}
+	restoredState.mu.Lock()
+	restoredState.client = client
+	revision := restoredState.indexRevision
+	refreshed, err := reloadCatalogLocked(t.Context(), restoredCfg, restoredState)
+	unchanged := restoredState.indexRevision == revision
+	restoredState.mu.Unlock()
+	if err != nil || !unchanged || !catalogEqual(refreshed, compiled) || client.calls.Load() != 0 {
+		t.Fatalf("unchanged live metadata became a new schema generation or business call: unchanged=%v calls=%d err=%v", unchanged, client.calls.Load(), err)
 	}
 }

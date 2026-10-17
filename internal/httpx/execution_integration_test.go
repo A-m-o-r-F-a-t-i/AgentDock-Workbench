@@ -154,8 +154,9 @@ func TestExecutionHTTPRealMCPConversationApprovalAndIsolation(t *testing.T) {
 	if err != nil || !rejected.IsError {
 		t.Fatal("conflicting explicit conversation accepted")
 	}
-	// The SDK validates the advertised pending-approval output schema here.
-	pending := f.call(t, "chat-A", "file_edit", map[string]any{"action": "add", "path": "approved.txt", "content": "fixed request"})
+	// The public patch-only request is fixed before approval and cannot be replaced.
+	patch := "*** Begin Patch\n*** Add File: approved.txt\n+fixed request\n*** End Patch\n"
+	pending := f.call(t, "chat-A", "apply_patch", map[string]any{"patch": patch})
 	if pending["status"] != "pending_approval" || pending["executed"] != false {
 		t.Fatal("not an explicit pending result")
 	}
@@ -205,7 +206,7 @@ func TestExecutionHTTPRealMCPConversationApprovalAndIsolation(t *testing.T) {
 		time.Sleep(15 * time.Millisecond)
 	}
 	content, err := os.ReadFile(filepath.Join(f.root, "approved.txt"))
-	if err != nil || string(content) != "fixed request" {
+	if err != nil || strings.ReplaceAll(string(content), "\r\n", "\n") != "fixed request\n" {
 		t.Fatal("approved fixed operation was not executed")
 	}
 	for _, id := range []string{a, b} {

@@ -15,7 +15,7 @@ func runServiceCommand(ctx context.Context, args []string, stdout, stderr io.Wri
 	if len(args) > 0 && args[0] == "launch-core" {
 		flags := flag.NewFlagSet("agentdock service launch-core", flag.ContinueOnError)
 		flags.SetOutput(stderr)
-		runtimeRoot := flags.String("runtime-root", desktopruntime.DefaultRuntimeRoot(), "AgentDock 桌面运行目录")
+		runtimeRoot := flags.String("runtime-root", desktopruntime.DefaultRuntimeRoot(), "ACTOVO 桌面运行目录")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}

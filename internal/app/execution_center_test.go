@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -78,8 +79,8 @@ func TestExecutionApprovalNoWriteUntilFixedRequestApproved(t *testing.T) {
 	if id == "" {
 		t.Fatal("missing trusted conversation binding")
 	}
-	args := map[string]any{"action": "add", "path": "fixed.txt", "content": "original"}
-	result, err := r.Call(ctx, "file_edit", args)
+	args := patchAddRequest("fixed.txt", "original")
+	result, err := r.Call(ctx, "apply_patch", args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +91,7 @@ func TestExecutionApprovalNoWriteUntilFixedRequestApproved(t *testing.T) {
 	if _, err = os.Stat(target); !os.IsNotExist(err) {
 		t.Fatal("write happened before approval")
 	}
-	args["content"] = "modified after approval snapshot"
-	args["path"] = "other.txt"
+	args["patch"] = patchAddRequest("other.txt", "modified after approval snapshot")["patch"]
 	approvalID := stringArg(result, "approval_id")
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
@@ -106,7 +106,7 @@ func TestExecutionApprovalNoWriteUntilFixedRequestApproved(t *testing.T) {
 	wg.Wait()
 	waitExecutionTerminal(t, r, stringArg(result, "call_id"))
 	data, err := os.ReadFile(target)
-	if err != nil || string(data) != "original" {
+	if err != nil || normalizePatchText(data) != "original\n" {
 		t.Fatalf("request was not immutable %q %v", data, err)
 	}
 	saved, err := r.permissions.Approval(ctx, approvalID)
@@ -136,7 +136,7 @@ func TestExecutionInvalidParamsAndPolicyRejectionAreRecorded(t *testing.T) {
 	if _, err := r.permissions.Update(ctx, permission.Change{Scope: "global", Mode: permission.ReadOnly, ExpectedRevision: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "denied.txt", "content": "no"}); err == nil {
+	if _, err := r.Call(ctx, "apply_patch", patchAddRequest("denied.txt", "no")); err == nil {
 		t.Fatal("read-only allowed a write")
 	}
 	page, err := r.activity.Calls(ctx, activity.CallQuery{Unattributed: true})
@@ -151,7 +151,7 @@ func TestExecutionInvalidParamsAndPolicyRejectionAreRecorded(t *testing.T) {
 }
 func TestExecutionBatchProtectsPendingTaskAndPreservesWorkspace(t *testing.T) {
 	r := executionTestRuntime(t)
-	ctx := context.Background()
+	ctx := scopeHost("pending-task-batch")
 	create := func(title string) string {
 		result, err := r.Call(ctx, "task_manage", map[string]any{"action": "create", "title": title, "goal": "test", "completion_conditions": []any{"verified"}})
 		if err != nil {
@@ -161,7 +161,10 @@ func TestExecutionBatchProtectsPendingTaskAndPreservesWorkspace(t *testing.T) {
 	}
 	pendingID := create("pending")
 	idleID := create("idle")
-	result, err := r.Call(ctx, "file_edit", map[string]any{"task_id": pendingID, "thread_id": "main", "action": "add", "path": "pending.txt", "content": "x"})
+	if _, err := r.Call(ctx, "task_manage", map[string]any{"action": "resume", "task_id": pendingID}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Call(ctx, "apply_patch", patchAddRequest("pending.txt", "x"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,4 +186,15 @@ func TestExecutionBatchProtectsPendingTaskAndPreservesWorkspace(t *testing.T) {
 	if _, err = os.Stat(sentinel); err != nil {
 		t.Fatal("deleting metadata affected source")
 	}
+}
+
+// Fixtures exercise the public patch-only request. Execution metadata is selected
+// through task/workspace management, just as it is for a real model caller.
+func patchAddRequest(path, content string) map[string]any {
+	body := strings.ReplaceAll(strings.TrimSuffix(content, "\n"), "\n", "\n+")
+	return map[string]any{"patch": "*** Begin Patch\n*** Add File: " + filepath.ToSlash(path) + "\n+" + body + "\n*** End Patch\n"}
+}
+
+func normalizePatchText(content []byte) string {
+	return strings.ReplaceAll(string(content), "\r\n", "\n")
 }

@@ -570,10 +570,49 @@ func (s *Session) Peek(status string, maxBytes int) Snapshot {
 func (s *Session) snapshot(status string, maxBytes int, advance bool) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stdoutOffset := s.stdoutDroppedBytes + s.stdoutCursor
-	stderrOffset := s.stderrDroppedBytes + s.stderrCursor
-	stdout, stdoutAvailable := s.stdout.stringFrom(s.stdoutCursor, maxBytes)
-	stderr, stderrAvailable := s.stderr.stringFrom(s.stderrCursor, maxBytes)
+	return s.snapshotLocked(status, maxBytes, advance, s.stdoutCursor, s.stderrCursor)
+}
+
+// SnapshotAt observes an explicit absolute cursor without consuming another
+// reader's position. A stale cursor reports the retained boundary after eviction.
+func (s *Session) SnapshotAt(status string, maxBytes int, cursor OutputCursor) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cursor.Stdout < 0 || cursor.Stderr < 0 || cursor.Stdout > s.stdoutTotalBytes || cursor.Stderr > s.stderrTotalBytes {
+		return Snapshot{}, fmt.Errorf("output cursor is outside the produced byte range")
+	}
+	out, err := outputCursorPosition(&s.stdout, cursor.Stdout, s.stdoutDroppedBytes)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	errout, err := outputCursorPosition(&s.stderr, cursor.Stderr, s.stderrDroppedBytes)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapshotLocked(status, maxBytes, false, out, errout), nil
+}
+
+func outputCursorPosition(buffer *outputBuffer, absolute, dropped int) (int, error) {
+	position := max(absolute, dropped) - dropped
+	var value [1]byte
+	for position < buffer.Len() {
+		buffer.copyRange(value[:], position, 1)
+		if value[0]&0xc0 != 0x80 {
+			break
+		}
+		if absolute >= dropped {
+			return 0, fmt.Errorf("output cursor is not on a UTF-8 byte boundary")
+		}
+		position++
+	}
+	return position, nil
+}
+
+func (s *Session) snapshotLocked(status string, maxBytes int, advance bool, stdoutCursor, stderrCursor int) Snapshot {
+	stdoutOffset := s.stdoutDroppedBytes + stdoutCursor
+	stderrOffset := s.stderrDroppedBytes + stderrCursor
+	stdout, stdoutAvailable := s.stdout.stringFrom(stdoutCursor, maxBytes)
+	stderr, stderrAvailable := s.stderr.stringFrom(stderrCursor, maxBytes)
 	if advance {
 		// Keep the undelivered suffix available, including bytes held back at a UTF-8 boundary.
 		s.stdoutCursor += len(stdout)

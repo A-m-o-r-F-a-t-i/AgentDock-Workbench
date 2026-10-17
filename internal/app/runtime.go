@@ -40,6 +40,8 @@ import (
 type Result = toolcore.Result
 
 type Runtime struct {
+	prerequisiteMu           sync.Mutex
+	prerequisites            map[string]*prerequisiteReceipt
 	androidExecutor          *androidbridge.Broker
 	sidebarHistory           sidebarHistoryCache
 	pluginStore              *pluginregistry.Store
@@ -69,34 +71,35 @@ type Runtime struct {
 	structuredCursors        map[string]structuredOutputCursor
 	structuredSnapshotBytes  int64
 
-	workspaceRegistry *workspace.Registry
-	workspaceTools    *toolworkspace.Service
-	activity          *activity.Store
-	cfg               config.Config
-	toolNames         []string
-	toolValidators    map[string]*toolcontract.InputValidator
-	ws                *workspace.Workspace
-	skills            *toolskill.Service
-	command           *toolcommand.Service
-	files             *toolfile.Service
-	dynamicMCP        *toolmcp.Service
-	plugins           *toolplugin.Service
-	media             *toolmedia.Service
-	browser           *toolbrowser.Service
-	recall            *toolrecall.Service
-	evolution         *evolution.Service
-	taskTools         *tooltask.Service
-	acp               *toolacp.Service
-	lifecycleMu       sync.RWMutex
-	commandCtx        context.Context
-	commandCancel     context.CancelFunc
-	closing           bool
-	closeOnce         sync.Once
-	closeErr          error
+	workspaceRegistry    *workspace.Registry
+	workspaceTools       *toolworkspace.Service
+	activity             *activity.Store
+	cfg                  config.Config
+	toolNames            []string
+	toolValidators       map[string]*toolcontract.InputValidator
+	toolOutputValidators map[string]*toolcontract.InputValidator
+	ws                   *workspace.Workspace
+	skills               *toolskill.Service
+	command              *toolcommand.Service
+	files                *toolfile.Service
+	dynamicMCP           *toolmcp.Service
+	plugins              *toolplugin.Service
+	media                *toolmedia.Service
+	browser              *toolbrowser.Service
+	recall               *toolrecall.Service
+	evolution            *evolution.Service
+	taskTools            *tooltask.Service
+	acp                  *toolacp.Service
+	lifecycleMu          sync.RWMutex
+	commandCtx           context.Context
+	commandCancel        context.CancelFunc
+	closing              bool
+	closeOnce            sync.Once
+	closeErr             error
 }
 
 func NewRuntime(cfg config.Config) (*Runtime, error) {
-	toolNames, toolValidators, err := compileAvailableToolContracts(cfg)
+	toolNames, toolValidators, toolOutputValidators, err := compileAvailableToolContracts(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize tool contracts: %w", err)
 	}
@@ -205,7 +208,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		structuredSnapshots: map[string]*structuredOutputSnapshot{}, structuredCursors: map[string]structuredOutputCursor{},
 		workspaceRegistry: workspaceRegistry, workspaceTools: toolworkspace.New(workspaceRegistry),
 		cfg: cfg, ws: ws, skills: skills, activity: activityStore,
-		toolNames: toolNames, toolValidators: toolValidators,
+		toolNames: toolNames, toolValidators: toolValidators, toolOutputValidators: toolOutputValidators,
 		commandCtx: commandCtx, commandCancel: commandCancel,
 		commandSettlementCtx: commandSettlementCtx, commandSettlementCancel: commandSettlementCancel,
 	}
@@ -247,7 +250,13 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		if resolved.SourceType == "managed" {
 			envName = resolved.Name
 		}
-		return toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}, nil
+		lease := toolcommand.SkillLease{PluginName: resolved.PluginName, Name: resolved.Name, Root: resolved.Root, EnvName: envName, Release: release}
+		if resolved.RecoveryMCPServer != "" {
+			lease.AuthorizeRecovery = func(ctx context.Context, origin string) error {
+				return runtime.authorizeMCPRecoverySkill(ctx, origin, resolved.RecoveryMCPServer, resolved.SkillRef)
+			}
+		}
+		return lease, nil
 	}, runtime.commandExecutionContext)
 	runtime.androidExecutor = androidbridge.New(instance)
 	runtime.command.SetAndroidBroker(runtime.androidExecutor)

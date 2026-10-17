@@ -82,7 +82,7 @@ func newCatalogFixture(t *testing.T, count int) *catalogFixture {
 				for index := range rows {
 					rows[index] = map[string]any{"index": index, "text": strings.Repeat("payload", 30)}
 				}
-				result = map[string]any{"isError": false, "structuredContent": map[string]any{"rows": rows}}
+				result = map[string]any{"isError": false, "structuredContent": map[string]any{"rows": rows}, "_meta": map[string]any{"revision": "fixture-revision"}}
 			}
 		default:
 			http.Error(w, "unsupported", 404)
@@ -174,7 +174,7 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 		if len(remote["content"].([]any)) != 2 || remote["structuredContent"].(map[string]any)["agentdock_guidance"] == nil {
 			t.Fatal("business payload was rewritten")
 		}
-		if called["agentdock_guidance"].(map[string]any)["response_additions"] != nil {
+		if guidance := modelObject(called["agentdock_guidance"]); guidance != nil && guidance["response_additions"] != nil {
 			t.Fatal("nested third-party spoof promoted to trusted supplement")
 		}
 	}
@@ -338,7 +338,7 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	ctx := t.Context()
+	ctx := WithModelProjection(t.Context())
 	if _, err = r.Call(ctx, "mcp_manage", map[string]any{"action": "add", "name": "pages", "description": "result continuation", "transport": "streamable_http", "url": fixture.server.URL}); err != nil {
 		t.Fatal(err)
 	}
@@ -351,6 +351,16 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 	if original == "" || cursor == "" {
 		t.Fatalf("result continuation missing: %#v", first)
 	}
+	rawReference := stringArg(first, "raw_result_ref")
+	assertCatalogFixtureSource(t, r, ctx, original, rawReference)
+	assertSource := func(page Result) {
+		t.Helper()
+		capture := modelObject(page["capture"])
+		if page["raw_result_ref"] != rawReference || capture["source_ref"] != rawReference || capture["state"] != "complete" || capture["complete"] != true || page["source_complete"] != true || page["truncation_stage"] == "capture" {
+			t.Fatalf("result page lost its complete upstream source: capture=%#v complete=%#v stage=%#v", capture, page["source_complete"], page["truncation_stage"])
+		}
+	}
+	assertSource(first)
 	args := map[string]any{"call_id": original, "cursor": cursor}
 	next, err := r.Call(ctx, "mcp_result_continue", args)
 	if err != nil {
@@ -359,6 +369,7 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 	if next["result_call_id"] != original || next["parent_call_id"] != original || next["call_id"] == original || next["host_page"] == nil || next["result"] == nil {
 		t.Fatalf("result cursor routed incorrectly: %#v", next)
 	}
+	assertSource(next)
 	if next["continue_read"] != nil || next["source_receipt"] != nil {
 		t.Fatalf("MCP result fell back to file paging: %#v", next)
 	}
@@ -366,7 +377,7 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if continued.ParentCallID != original || continued.ToolName != "mcp_result_continue" {
+	if continued.ParentCallID != original || continued.ToolName != "mcp_result_continue" || continued.OutputSource != nil {
 		t.Fatalf("host result page was not folded under its source call: %#v", continued)
 	}
 	children, err := r.activity.Calls(ctx, activity.CallQuery{ParentCallID: original})
@@ -398,7 +409,52 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 	if replay["replayed"] != true || replay["result"] != nil {
 		t.Fatalf("cursor replay duplicated its body: %#v", replay)
 	}
+	for pageIndex := 2; stringArg(next, "host_cursor") != ""; pageIndex++ {
+		if pageIndex > 10 {
+			t.Fatal("host result pagination did not terminate")
+		}
+		next, err = r.Call(ctx, "mcp_result_continue", map[string]any{"call_id": original, "cursor": next["host_cursor"]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next["result_call_id"] != original || next["parent_call_id"] != original {
+			t.Fatalf("later result page lost its origin: %#v", next)
+		}
+		assertSource(next)
+	}
+	if modelObject(next["host_page"])["complete"] != true || next["truncation_stage"] != "none" {
+		t.Fatalf("final result page did not preserve complete delivery: %#v", next["host_page"])
+	}
 	if fixture.calls.Load() != 1 {
 		t.Fatalf("continuation repeated the business operation %d times", fixture.calls.Load())
+	}
+	assertCatalogFixtureSource(t, r, ctx, original, rawReference)
+}
+
+func assertCatalogFixtureSource(t *testing.T, r *Runtime, ctx context.Context, callID, reference string) {
+	t.Helper()
+	call, err := r.activity.Call(ctx, callID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source := activity.SourceReference(callID, call.OutputSource); reference == "" || source != reference {
+		t.Fatalf("default activity source differs from the full upstream response: source=%q raw=%q", source, reference)
+	}
+	page, err := r.activity.ReadCallPayloadCharacters(ctx, callID, "source", 0, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasMore || page.Payload.State != "complete" {
+		t.Fatalf("fixture source was incomplete: %#v", page.Payload)
+	}
+	var raw map[string]any
+	decoder := json.NewDecoder(strings.NewReader(page.Text))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := modelObject(raw["structuredContent"])["rows"].([]any)
+	if len(rows) != 100 || modelObject(rows[99])["index"] != json.Number("99") || modelObject(raw["_meta"])["revision"] != "fixture-revision" {
+		t.Fatalf("activity source lost upstream records or exact metadata: rows=%d metadata=%#v", len(rows), raw["_meta"])
 	}
 }

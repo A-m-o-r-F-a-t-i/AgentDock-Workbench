@@ -15,7 +15,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-PRODUCT = "AgentDock Workbench"
+PRODUCT = "ACTOVO"
 MAX_JSON_BYTES = 2 * 1024 * 1024
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -151,7 +151,7 @@ def sign_candidate(
     if (
         candidate_report.get("version") != version
         or candidate_report.get("commit") != commit
-        or candidate_report.get("product_name") != "AgentDock Workbench"
+        or candidate_report.get("product_name") != "ACTOVO"
         or candidate_report.get("platform") != "android/arm64"
         or candidate_report.get("signing") != "test-signed Android debug key"
         or candidate_report.get("apk_validation") != "passed"
@@ -159,7 +159,7 @@ def sign_candidate(
     ):
         raise RuntimeError("Android candidate report is not publishable")
 
-    candidate_name = f"AgentDock-Workbench-{version}-Android-test-signed.apk"
+    candidate_name = f"ACTOVO-{version}-Android-test-signed.apk"
     assets = candidate_report.get("assets")
     if not isinstance(assets, dict) or set(assets) != {candidate_name}:
         raise RuntimeError("Android candidate report has an unexpected asset set")
@@ -193,7 +193,7 @@ def sign_candidate(
         raise RuntimeError("Android candidate does not contain the verified Linux ARM64 Core")
 
     output.mkdir(parents=True, exist_ok=True)
-    public_name = f"AgentDock-Workbench-{version}-Android.apk"
+    public_name = f"ACTOVO-{version}-Android.apk"
     public_path = output / public_name
     if public_path.is_symlink():
         raise RuntimeError("Android public output must not be a symbolic link")
@@ -231,7 +231,7 @@ def sign_candidate(
     (output / (public_name + ".sha256")).write_text(f"{checksum}  {public_name}\n", encoding="utf-8")
     report = {
         "schema_version": 1,
-        "product_name": "AgentDock Workbench",
+        "product_name": "ACTOVO",
         "version": version,
         "commit": commit,
         "platform": "android/arm64",

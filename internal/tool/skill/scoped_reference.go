@@ -23,13 +23,14 @@ const (
 )
 
 type ResolvedSkill struct {
-	Name          string
-	SkillRef      string
-	SourceType    string
-	SourceID      string
-	PluginName    string
-	Root          string
-	ContentDigest string
+	RecoveryMCPServer string
+	Name              string
+	SkillRef          string
+	SourceType        string
+	SourceID          string
+	PluginName        string
+	Root              string
+	ContentDigest     string
 }
 
 func ManagedSkillRef(name string) string {
@@ -200,13 +201,14 @@ func (s *Service) acquireManaged(ctx context.Context, ref parsedSkillRef) (Resol
 	if err != nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_NOT_AVAILABLE", "managed Skill is not installed", "not_found", map[string]any{"skill_ref": ManagedSkillRef(ref.Name)})
 	}
-	if err := verifyResolvedSkillDocument(root, ref.Name); err != nil {
+	recoveryServer, err := verifyResolvedSkillDocument(root, ref.Name)
+	if err != nil {
 		return ResolvedSkill{}, nil, err
 	}
 	ok = true
 	return ResolvedSkill{
 		Name: ref.Name, SkillRef: ManagedSkillRef(ref.Name), SourceType: managedSourceType,
-		SourceID: ref.Name, Root: root,
+		SourceID: ref.Name, Root: root, RecoveryMCPServer: recoveryServer,
 	}, release, nil
 }
 
@@ -231,12 +233,13 @@ func (s *Service) acquireShared(ctx context.Context, ref parsedSkillRef) (Resolv
 	if err != nil {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_CONTEXT_INVALID", "resolve shared Skill root: "+err.Error(), "runtime", map[string]any{"skill_ref": SharedSkillRef(ref.Name)})
 	}
-	if err := verifyResolvedSkillDocument(realRoot, ref.Name); err != nil {
+	recoveryServer, err := verifyResolvedSkillDocument(realRoot, ref.Name)
+	if err != nil {
 		return ResolvedSkill{}, nil, err
 	}
 	return ResolvedSkill{
 		Name: ref.Name, SkillRef: SharedSkillRef(ref.Name), SourceType: sharedSourceType,
-		SourceID: sharedSourceID, Root: realRoot,
+		SourceID: sharedSourceID, Root: realRoot, RecoveryMCPServer: recoveryServer,
 	}, func() {}, nil
 }
 
@@ -274,13 +277,14 @@ func (s *Service) acquireWorkspace(ctx context.Context, ref parsedSkillRef) (Res
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return ResolvedSkill{}, nil, toolErrorDetails("SKILL_PATH_ESCAPE", "workspace Skill resolves outside its workspace", "validation", map[string]any{"skill_ref": "skill://workspace/" + ref.SourceID + "/" + ref.Name})
 	}
-	if err := verifyResolvedSkillDocument(realPackageRoot, ref.Name); err != nil {
+	recoveryServer, err := verifyResolvedSkillDocument(realPackageRoot, ref.Name)
+	if err != nil {
 		return ResolvedSkill{}, nil, err
 	}
 	skillRef := "skill://workspace/" + ref.SourceID + "/" + ref.Name
 	return ResolvedSkill{
 		Name: ref.Name, SkillRef: skillRef, SourceType: workspaceSourceType,
-		SourceID: ref.SourceID, Root: realPackageRoot,
+		SourceID: ref.SourceID, Root: realPackageRoot, RecoveryMCPServer: recoveryServer,
 	}, func() {}, nil
 }
 
@@ -301,19 +305,20 @@ func (s *Service) acquirePlugin(ctx context.Context, ref parsedSkillRef) (Resolv
 	if !member.Enabled {
 		return ResolvedSkill{}, nil, toolErrorDetails("PLUGIN_MEMBER_DISABLED", "Plugin Skill is disabled", "permission", map[string]any{"skill": ref.Name, "plugin": ref.SourceID})
 	}
-	if err := verifyResolvedSkillDocument(member.Path, ref.Name); err != nil {
+	recoveryServer, err := verifyResolvedSkillDocument(member.Path, ref.Name)
+	if err != nil {
 		return ResolvedSkill{}, nil, err
 	}
-	return ResolvedSkill{Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name), SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID, Root: member.Path}, func() {}, nil
+	return ResolvedSkill{Name: ref.Name, SkillRef: PluginSkillRef(ref.SourceID, ref.Name), SourceType: pluginSourceType, SourceID: ref.SourceID, PluginName: ref.SourceID, Root: member.Path, RecoveryMCPServer: recoveryServer}, func() {}, nil
 }
 
-func verifyResolvedSkillDocument(root, expectedName string) error {
+func verifyResolvedSkillDocument(root, expectedName string) (string, error) {
 	doc, err := skills.LoadPortableSkillDocument(root)
 	if err != nil {
-		return skillToolError(err)
+		return "", skillToolError(err)
 	}
 	if doc.Name != expectedName {
-		return toolErrorDetails("SKILL_CONTEXT_INVALID", "Skill document name does not match its source identity", "runtime", map[string]any{"skill": expectedName})
+		return "", toolErrorDetails("SKILL_CONTEXT_INVALID", "Skill document name does not match its source identity", "runtime", map[string]any{"skill": expectedName})
 	}
-	return nil
+	return doc.RecoveryMCPServer, nil
 }

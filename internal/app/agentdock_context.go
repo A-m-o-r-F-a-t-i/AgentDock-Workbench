@@ -2,18 +2,21 @@ package app
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
-	"github.com/uvwt/agentdock/internal/contextguide"
+	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	pluginregistry "github.com/uvwt/agentdock/internal/plugin"
+	"github.com/uvwt/agentdock/internal/snapshot"
 	"github.com/uvwt/agentdock/internal/taskstate"
 	tooltask "github.com/uvwt/agentdock/internal/tool/task"
 	"github.com/uvwt/agentdock/internal/workspace"
@@ -33,7 +36,6 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	ctx, cancel := context.WithTimeout(ctx, r.cfg.ContextBudget())
 	defer cancel()
 	started := time.Now()
-	ruleStarted := time.Now()
 	var selectedWorkspace *workspace.Record
 	if !nexusLocalOnly {
 		selected, selectedWorkdir, err := r.selectContextWorkspace(ctx, workdir)
@@ -43,43 +45,116 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		selectedWorkspace, workdir = &selected, selectedWorkdir
 	}
 
-	instructions, err := r.InstructionFiles(ctx, workdir)
-	if err != nil {
-		return nil, err
-	}
-	ruleElapsed := time.Since(ruleStarted)
-	pluginStarted := time.Now()
-	directory, pluginInfo, directoryErr := r.pluginStore.Snapshot(ctx)
-	if directoryErr != nil {
-		details := map[string]any{"stage": "plugin_snapshot", "budget_ms": r.cfg.ContextBudget().Milliseconds(), "elapsed_ms": time.Since(pluginStarted).Milliseconds()}
-		var diagnostic interface{ DiagnosticDetails() map[string]any }
-		if errors.As(directoryErr, &diagnostic) {
-			for key, value := range diagnostic.DiagnosticDetails() {
-				if key == "stage" {
-					details["cause_stage"] = value
-				} else {
-					details[key] = value
-				}
-			}
-		}
-		return nil, toolErrorDetails("CONTEXT_PREPARATION_FAILED", directoryErr.Error(), "runtime", details)
-	}
-	pluginElapsed := time.Since(pluginStarted)
-	skillStarted := time.Now()
-	skills, skillInfo, skillErr := r.contextSkillIndex(ctx, directory, nexusLocalOnly)
-	skillElapsed := time.Since(skillStarted)
-	mcpStarted := time.Now()
-
-	dynamicMCP, dynamicMCPErr := r.dynamicMCPCapabilityIndexContext(ctx, nexusLocalOnly, directory)
-	mcpElapsed := time.Since(mcpStarted)
+	var instructions agentinstructions.Snapshot
+	var instructionErr, directoryErr, skillErr, dynamicMCPErr, commonSkillErr, indexErr, gitErr, pluginIndexErr error
+	var directory *pluginregistry.Directory
+	var pluginInfo, skillInfo, commonInfo snapshot.Info
+	var skills []capabilitySkillItem
+	var dynamicMCP []capabilityDynamicMCPItem
+	var commonSkills *capabilityCommonSkillIndex
 	plugins := []capabilityPluginItem{}
-	if !nexusLocalOnly {
-		plugins = pluginCapabilityIndexFromDirectory(directory)
+	var index taskstate.TaskIndex
+	var ruleElapsed, pluginElapsed, skillElapsed, mcpElapsed, commonElapsed, taskElapsed time.Duration
+	var git workspace.GitSnapshot
+	var gitElapsed, sessionElapsed time.Duration
+	var running, pending int
+	var sessionErr error
+	var group sync.WaitGroup
+	guard := func(failure *error, work func()) func() {
+		return func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					*failure = fmt.Errorf("context component panic: %v", recovered)
+				}
+			}()
+			work()
+		}
 	}
-	commonStarted := time.Now()
-	commonSkills, commonInfo, commonSkillErr := r.cachedCommonSkillIndex(ctx)
-	commonElapsed := time.Since(commonStarted)
-	var taskElapsed time.Duration
+	launch := func(failure *error, work func()) {
+		group.Add(1)
+		go func() { defer group.Done(); guard(failure, work)() }()
+	}
+	launch(&instructionErr, func() {
+		start := time.Now()
+		instructions, instructionErr = r.InstructionFiles(ctx, workdir)
+		ruleElapsed = time.Since(start)
+	})
+	launch(&directoryErr, func() {
+		start := time.Now()
+		directory, pluginInfo, directoryErr = r.pluginStore.Snapshot(ctx)
+		pluginElapsed = time.Since(start)
+		if directory == nil && directoryErr == nil {
+			directoryErr = fmt.Errorf("plugin snapshot returned no directory")
+		}
+		if directoryErr != nil || directory == nil {
+			skillErr, dynamicMCPErr = directoryErr, directoryErr
+			return
+		}
+		// Stage B depends only on the immutable plugin directory, not on Git,
+		// task storage or instruction-file latency from the other Stage A nodes.
+		var members sync.WaitGroup
+		members.Add(3)
+		go func() {
+			defer members.Done()
+			guard(&skillErr, func() {
+				start := time.Now()
+				skills, skillInfo, skillErr = r.contextSkillIndex(ctx, directory, nexusLocalOnly)
+				skillElapsed = time.Since(start)
+			})()
+		}()
+		go func() {
+			defer members.Done()
+			guard(&dynamicMCPErr, func() {
+				start := time.Now()
+				dynamicMCP, dynamicMCPErr = r.dynamicMCPCapabilityIndexContext(ctx, nexusLocalOnly, directory)
+				mcpElapsed = time.Since(start)
+			})()
+		}()
+		go func() {
+			defer members.Done()
+			if !nexusLocalOnly {
+				guard(&pluginIndexErr, func() { plugins = pluginCapabilityIndexFromDirectory(directory) })()
+			}
+		}()
+		members.Wait()
+	})
+	launch(&commonSkillErr, func() {
+		start := time.Now()
+		commonSkills, commonInfo, commonSkillErr = r.cachedCommonSkillIndex(ctx)
+		commonElapsed = time.Since(start)
+	})
+	if !nexusLocalOnly {
+		launch(&indexErr, func() {
+			start := time.Now()
+			indexCtx, stop := context.WithTimeout(ctx, 2*time.Second)
+			defer stop()
+			index, indexErr = r.taskTools.ContextIndexForWorkspace(indexCtx, selectedWorkspace.ID)
+			taskElapsed = time.Since(start)
+		})
+		launch(&gitErr, func() {
+			start := time.Now()
+			git = workspace.ReadGitSnapshot(ctx, selectedWorkspace.Root)
+			gitElapsed = time.Since(start)
+		})
+		launch(&sessionErr, func() {
+			start := time.Now()
+			running, pending, sessionErr = r.contextSessionCounts(ctx, activity.FromContext(ctx), selectedWorkspace.ID)
+			sessionElapsed = time.Since(start)
+		})
+	}
+	group.Wait()
+	if instructionErr != nil {
+		return nil, instructionErr
+	}
+	if directory == nil {
+		directory = &pluginregistry.Directory{}
+	}
+	if skills == nil {
+		skills = []capabilitySkillItem{}
+	}
+	if dynamicMCP == nil {
+		dynamicMCP = []capabilityDynamicMCPItem{}
+	}
 	contextResult := capabilityContext{
 		Workspace:         selectedWorkspace,
 		Skills:            skills,
@@ -88,18 +163,16 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		DynamicMCP:        dynamicMCP,
 		WorkflowTemplates: []capabilityTemplateItem{},
 		Rules: []string{
-			contextguide.Reuse,
-			"需要真实执行命令或检查环境时，先用 exec_command 查看现状，再修改，修改后真实验证。",
-			"先根据 Skill 索引的 name、description 和来源选择相关 Skill，再用 read_file 读取宿主返回的 file；需要绑定命令时直接使用宿主返回的 skill_ref，不自行按名称拼接或重新解析。",
-			"workspace_skills、skills 和 common_skills 中的同名项是不同来源候选，不静默覆盖；当前项目通常优先考虑 workspace Skill，但必须使用所选候选自己的 skill_ref/file。若 common_skills.truncated=true 且当前索引未命中，可 list_dir 查看 common_skills.root 后再通过 workspace/共享 Skill 索引取得精确引用。",
-			"宿主侧 AgentDock 工具加载与 AgentDock 内部动态 MCP 发现是两个独立命名空间。exec_command、read_file、file_edit、task_manage 等内置工具由宿主加载后直接调用，裸名称不得送入 mcp_tool_search 或 mcp_tool_inspect。动态 MCP 服务已知时用 mcp_tool_list 一次读取整套摘要，再用 mcp_tool_inspect 的 names 批量读取本批所需完整 Schema，随后持续 mcp_tool_call；响应已有摘要或 Schema 未变时跳过重复查询，mcp_tool_search 仅用于未知外部能力定位。",
-			"已取得本项目规则时直接继续操作，不另做 workspace_context；仅工作区规则或项目级 Skill 作用域变化时定向刷新。",
+			"AgentDock 宿主内置工具与 dynamic_mcp 外部工具是两个独立命名空间。宿主内置工具直接调用；动态 MCP 仅通过 mcp_tool_search、mcp_tool_inspect 和 mcp_tool_call 发现、检查和执行；宿主工具裸名称不得送入 mcp_tool_search 或 mcp_tool_inspect。",
+			"Skill 选择使用索引返回的 skill_ref/file；同名项是不同来源候选，保持各自作用域。common_skills.truncated=true 表示公共 Skill 索引不完整，不得把未列出的 Skill 判定为不存在。",
+			"仅应用 instruction_files 中 status=loaded 的文件，并按返回顺序叠加；not_found、skipped 和 error 项不视为已应用。",
+			"普通工具继承当前对话的 Workspace、Task 和 Thread。工作区外目标继续经过显式路径和权限检查；长任务使用 task_manage checkpoint 更新已有任务，不重复创建同一任务。",
 		},
 	}
 	if hasExplicitLoadPlugin(directory) {
 		contextResult.Rules = append(contextResult.Rules, capabilityrouting.ComputerUseRule)
 	}
-	if r.cfg.InstructionsFile == "" && strings.TrimSpace(r.cfg.Instructions) != "" {
+	if nexusLocalOnly && r.cfg.InstructionsFile == "" && strings.TrimSpace(r.cfg.Instructions) != "" {
 		contextResult.Rules = append(contextResult.Rules, "Additional operator instructions:\n"+r.cfg.Instructions)
 	}
 	if nexusLocalOnly {
@@ -110,15 +183,15 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		}
 	} else {
 		contextResult.InstructionFiles = &instructions
-		contextResult.Rules = append(contextResult.Rules, InsertionInstructions, "托管 MCP 简介可用 mcp_manage inspect → update/reset_override 修改宿主覆盖，携带 expected_revision 与 scope。版本和工具数量以当前发现事实为准；能力更新提示后重读目标工具 schema，不展开无关 Heavy 插件。")
-		contextResult.Rules = append(contextResult.Rules,
-			"plugins 列出 Heavy 与显式加载插件摘要。命中后调用 plugin_load(name) 展开成员；其余普通插件的已启用 Skill/MCP 直接显示在顶层 skills/dynamic_mcp。",
-			"instruction_files.files 已自动载入规则正文；只应用 status=loaded 的条目，按全局、项目根目录、子目录顺序处理。项目规则不得削弱全局安全要求。操作其他工作区或规则文件已改变时，传入对应 workdir 定向刷新；成功后续调用继承本对话工作区，已运行会话与设备全局默认目录不变。",
-		)
+		contextResult.Rules = append(contextResult.Rules, InsertionInstructions)
+		if len(plugins) > 0 {
+			contextResult.Rules = append(contextResult.Rules, "plugins 中的 Heavy/显式加载插件通过 plugin_load 展开；普通插件已启用成员直接见 skills/dynamic_mcp。")
+		}
+
 	}
 	if !nexusLocalOnly {
 		contextResult.BuiltinToolBundles = r.builtinToolBundleItems(ctx)
-		contextResult.Rules = append(contextResult.Rules, "builtin_tool_bundles 列出当前对话可按需加载的低频内置工具包。需要尚未加载的工具时，调用 capability_load 一次并刷新宿主 tools/list；加载只改变当前对话目录，不执行包内操作、不启用插件，也不改变权限。")
+		contextResult.Rules = append(contextResult.Rules, "builtin_tool_bundles 已列出可用低频工具包。仅在需要包内工具时 capability_load action=load 一次，随后刷新 Host tools/list 再调用目标工具；重复加载幂等，不改变权限或插件状态。")
 		// runtime 只保留模型操作主机所需的稳定环境事实；Nexus Bridge 已通过 Hello 持有这些节点事实，
 		// 私有 context.local 不重复传输，避免两个来源长期漂移。
 		build := buildinfo.Current()
@@ -128,17 +201,23 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 			AgentDockHome: r.cfg.AgentDockHome, AgentDockDefaultDir: r.cfg.AgentDockDefaultDir,
 			DefaultCWD: r.ws.DefaultDisplay(), PathModel: config.PathModel,
 		}
-		taskStarted := time.Now()
-		indexCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		index, indexErr := r.taskTools.ContextIndexForWorkspace(indexCtx, selectedWorkspace.ID)
-		cancel()
-		taskElapsed = time.Since(taskStarted)
 		contextResult.Tasks = &index
 		if indexErr != nil {
-			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "tasks", Message: "任务索引暂不可用；现有能力仍可使用，请检查任务存储。"})
+			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "tasks", Message: "任务索引暂不可用；普通工具仍可使用。"})
 		}
-		contextResult.Rules = append(contextResult.Rules, "恢复任务时使用 tasks 索引中的 task_id 调用 task_manage resume 或 set_current 一次；后续普通工具自动继承服务端任务和线程绑定，无需重复填写 task_id/thread_id。对话身份由接入层解析，不能通过业务参数指定。运行中的命令继续观察原 session_id。多候选无法区分时只返回候选摘要，不创建重复任务。")
-		contextResult.Rules = append(contextResult.Rules, "新任务传入本次 workspace.workspace_id；恢复任务优先使用其线程工作区。源码用 source，交付物用 artifact，临时文件用 scratch，缓存用 cache。工作区外单次目标须显式传 target_kind=external 与 external_path。注册或修订项目使用 workspace_manage；工作区路由不构成命令沙箱。")
+		if gitErr != nil {
+			git.ErrorCode = "GIT_SNAPSHOT_FAILED"
+		}
+		if git.ErrorCode != "" {
+			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "git", Message: git.ErrorCode})
+		}
+		if sessionErr != nil {
+			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "sessions", Message: "命令完成事件计数暂不可用。"})
+		}
+
+	}
+	if directoryErr != nil || pluginIndexErr != nil {
+		contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "plugins", Message: "插件目录暂不可用；当前工作区和内置工具仍可使用。"})
 	}
 	if skillErr != nil {
 		contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "skills", Message: "Skill 索引暂不可用。"})
@@ -165,9 +244,12 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	}
 
 	if requiresNexus(r.cfg) && !nexusLocalOnly {
+		contextResult.Rules = append(contextResult.Rules,
+			"需要工作流模板时先调用 workflow_template_manage match，并使用返回的 source_template_ids；需要项目事实时调用 recall_search 定位，再用 recall_read 精确读取。",
+		)
 		templates, templateErr := r.templateCapabilityIndex(ctx)
 		if templateErr != nil {
-			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "workflow_templates", Message: "工作流模板索引暂不可用；多步骤任务仍应先 workflow_template_manage match。"})
+			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "workflow_templates", Message: "工作流模板索引暂不可用。"})
 		}
 		memoryItems, memoryErr := r.memoryCapabilityIndex(ctx)
 		if memoryErr != nil {
@@ -175,23 +257,11 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		}
 		contextResult.WorkflowTemplates = templates
 		contextResult.Recall = &capabilityRecallContext{Enabled: true, Items: memoryItems}
-		contextResult.Rules = append(contextResult.Rules,
-			"涉及多步骤开发、部署、排障、迁移、Docker、VPS 或 Git 提交推送时，先 workflow_template_manage match；无合适模板时创建普通可恢复任务。",
-			"当多个工作流模板同时适合当前任务时，调用 workflow_template_manage get_many 读取详情；模型必须结合用户目标裁剪、去重、排序并生成最终 steps 和 completion_conditions，再用 source_template_ids 创建任务，服务端不会自动拼接模板。",
-			"普通项目记忆走 recall_*；private_note_manage 只在用户明确要求私密笔记，或内容明显包含 secret、凭据、个人敏感信息时使用。私密检索只返回名称、简介、标签、分类和路径等元数据；正文必须显式 read，Git 只备份 age 密文。",
-		)
+	}
+	if ctx.Err() == context.Canceled {
+		return nil, ctx.Err()
 	}
 
-	contextResult.Rules = append(contextResult.Rules, "任务执行过程中，在形成有恢复价值的断点时调用 task_manage checkpoint；可用 completed_step_ids/current_step_id 原子批量更新，final_review=pass 不会自动补全未完成步骤。")
-	if requiresNexus(r.cfg) && !nexusLocalOnly {
-		contextResult.Rules = append(contextResult.Rules,
-			"记忆启动索引只提供紧凑背景与资料入口；索引已给出具体 path 时优先 recall_read 该条目，只有索引未覆盖且任务依赖具体历史事实时才 recall_search，索引信息已足够时不要机械检索。",
-		)
-	}
-
-	if err := ctx.Err(); err != nil {
-		return nil, toolErrorDetails("CONTEXT_DEADLINE_EXCEEDED", err.Error(), "runtime", map[string]any{"budget_ms": r.cfg.ContextBudget().Milliseconds()})
-	}
 	serializeStarted := time.Now()
 	var result Result
 	if err := remarshal(contextResult, &result); err != nil {
@@ -201,9 +271,10 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		result["android_executor"] = r.androidExecutor.Status()
 	}
 	if !nexusLocalOnly {
+		result["git"], result["running_sessions"], result["terminal_completions_pending"] = git, running, pending
 		result["context_diagnostics"] = map[string]any{
 			"complete": false, "binding_status": "pending",
-			"components_complete": instructionSnapshotComplete(instructions) && skillErr == nil && dynamicMCPErr == nil,
+			"components_complete": instructionSnapshotComplete(instructions) && directoryErr == nil && pluginIndexErr == nil && skillErr == nil && dynamicMCPErr == nil && commonSkillErr == nil && indexErr == nil,
 			"rules_ms":            float64(ruleElapsed) / float64(time.Millisecond), "plugins_ms": float64(pluginElapsed) / float64(time.Millisecond),
 			"skills_ms": float64(skillElapsed) / float64(time.Millisecond), "mcp_catalog_ms": float64(mcpElapsed) / float64(time.Millisecond),
 			"serialization_ms": float64(time.Since(serializeStarted)) / float64(time.Millisecond), "context_ms": float64(time.Since(started)) / float64(time.Millisecond),
@@ -212,6 +283,7 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 			"snapshot_freshness": directory.SnapshotFreshness, "degraded_reason": directory.DegradedReason,
 			"common_skills_ms": float64(commonElapsed) / float64(time.Millisecond), "common_snapshot": commonInfo,
 			"task_index_ms": float64(taskElapsed) / float64(time.Millisecond),
+			"git_ms":        float64(gitElapsed) / float64(time.Millisecond), "sessions_ms": float64(sessionElapsed) / float64(time.Millisecond),
 		}
 	}
 	return result, nil
@@ -283,16 +355,17 @@ type capabilityCommonSkillItem struct {
 }
 
 type capabilityDynamicMCPItem struct {
-	SourceType     string `json:"source_type,omitempty"`
-	PluginName     string `json:"plugin_name,omitempty"`
-	Revision       string `json:"revision,omitempty"`
-	ServerVersion  string `json:"server_version,omitempty"`
-	ToolCountKnown *bool  `json:"tool_count_known,omitempty"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	Status         string `json:"status"`
-	ToolCount      int    `json:"tool_count"`
-	LastErrorCode  string `json:"last_error_code,omitempty"`
+	CatalogState   *mcpclient.CatalogState `json:"catalog_state,omitempty"`
+	SourceType     string                  `json:"source_type,omitempty"`
+	PluginName     string                  `json:"plugin_name,omitempty"`
+	Revision       string                  `json:"revision,omitempty"`
+	ServerVersion  string                  `json:"server_version,omitempty"`
+	ToolCountKnown *bool                   `json:"tool_count_known,omitempty"`
+	Name           string                  `json:"name"`
+	Description    string                  `json:"description"`
+	Status         string                  `json:"status"`
+	ToolCount      int                     `json:"tool_count"`
+	LastErrorCode  string                  `json:"last_error_code,omitempty"`
 }
 
 type capabilityPluginItem struct {
@@ -396,9 +469,15 @@ func (r *Runtime) dynamicMCPCapabilityIndexContext(ctx context.Context, includeP
 			revision = server.Revision
 			version = server.ServerVersion
 		}
+		var catalogState *mcpclient.CatalogState
+		if !includePluginMembers {
+			value := server.CatalogState
+			catalogState = &value
+		}
 		items = append(items, capabilityDynamicMCPItem{
-			Name:     server.Name,
-			Revision: revision, ServerVersion: version, ToolCountKnown: known,
+			CatalogState: catalogState,
+			Name:         server.Name,
+			Revision:     revision, ServerVersion: version, ToolCountKnown: known,
 			Description:   truncateString(capabilityrouting.ServerDescription(server.Plugin, server.Name, server.Description), 240),
 			SourceType:    capabilitySourceType(server.Plugin),
 			PluginName:    server.Plugin,

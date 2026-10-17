@@ -1,6 +1,9 @@
 package app
 
-import "maps"
+import (
+	"maps"
+	"strings"
+)
 
 // executionOutputSchema preserves the complete business success contract and
 // adds a separate, unmistakable not-yet-executed approval alternative.
@@ -24,6 +27,19 @@ func executionOutputSchemaForTool(name string, original map[string]any) map[stri
 }
 
 func executionOutputSchema(original map[string]any) map[string]any {
+	return buildExecutionOutputSchema(original, true)
+}
+
+// Canonical results must satisfy the business contract before projection. A
+// compact receipt must never satisfy a missing or malformed business result.
+func canonicalExecutionOutputSchema(name string, original map[string]any) map[string]any {
+	if name == "mcp_result_continue" || name == "mcp_result_raw" {
+		return executionOutputSchemaForTool(name, original)
+	}
+	return buildExecutionOutputSchema(original, false)
+}
+
+func buildExecutionOutputSchema(original map[string]any, projectedAlternatives bool) map[string]any {
 	success := maps.Clone(original)
 	if success == nil {
 		success = map[string]any{"type": "object"}
@@ -33,10 +49,16 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	if properties == nil {
 		properties = map[string]any{}
 	}
-	for _, name := range []string{"conversation_id", "call_id", "parent_call_id", "retry_of_call_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "activity_warning", "binding_quality", "binding_warning"} {
+	executionStringFields := []string{"conversation_id", "call_id", "parent_call_id", "retry_of_call_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "activity_warning", "binding_quality", "binding_warning"}
+	patternFields := make([]string, 0, len(executionStringFields))
+	for _, name := range executionStringFields {
 		if _, exists := properties[name]; !exists {
-			properties[name] = map[string]any{"type": "string"}
+			patternFields = append(patternFields, name)
 		}
+	}
+	executionStringPattern := ""
+	if len(patternFields) > 0 {
+		executionStringPattern = "^(" + strings.Join(patternFields, "|") + ")$"
 	}
 	for _, name := range []string{"agentdock_guidance", "permission", "workspace_target", "conversation_state"} {
 		if _, exists := properties[name]; !exists {
@@ -81,6 +103,15 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		}
 	}
 	success["properties"] = successProperties
+	if executionStringPattern != "" {
+		patterns, _ := success["patternProperties"].(map[string]any)
+		patterns = maps.Clone(patterns)
+		if patterns == nil {
+			patterns = map[string]any{}
+		}
+		patterns[executionStringPattern] = map[string]any{"type": "string"}
+		success["patternProperties"] = patterns
+	}
 	pending := map[string]any{"type": "object", "properties": map[string]any{
 		"status": map[string]any{"const": "pending_approval"}, "executed": map[string]any{"const": false},
 		"approval_id": map[string]any{"type": "string", "pattern": "^approval_[a-f0-9]{32}$"},
@@ -114,7 +145,14 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		"operation": map[string]any{"$ref": "#/properties/operation"}, "capture": map[string]any{"$ref": "#/properties/capture"}, "delivery": map[string]any{"$ref": "#/properties/delivery"},
 		"projection": map[string]any{"$ref": "#/properties/projection"},
 	}, "additionalProperties": true}
-	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending, projected}}
+	alternatives := []any{success}
+	if projectedAlternatives {
+		alternatives = append(alternatives, pending, projected)
+	}
+	result := map[string]any{"type": "object", "properties": visible, "anyOf": alternatives}
+	if executionStringPattern != "" {
+		result["patternProperties"] = map[string]any{executionStringPattern: map[string]any{"type": "string"}}
+	}
 	for _, key := range []string{"$defs", "definitions"} {
 		if value, exists := original[key]; exists {
 			result[key] = value

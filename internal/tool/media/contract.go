@@ -26,11 +26,11 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["max_source_bytes"] = boundedIntProp("Maximum source bytes before processing. Defaults to 20971520 and is capped at 104857600.", 1, hardImageSourceBytes)
 		props["source_timeout_ms"] = boundedIntProp("HTTP(S) source timeout in milliseconds. Defaults to 15000 and is capped at 120000.", 1, 120000)
 		props["max_bytes"] = boundedIntProp("Requested processed-image byte limit; the final response budget may lower it.", 1, hardViewImageBytes)
-		props["max_width"] = map[string]any{"type": "integer", "description": "Maximum image width. Defaults to 1280.", "minimum": 1}
-		props["max_height"] = map[string]any{"type": "integer", "description": "Maximum image height. Defaults to 1280.", "minimum": 1}
-		props["auto_resize"] = boolProp("Resize/compress when limits are exceeded. Defaults to true.")
+		props["max_width"] = map[string]any{"type": "integer", "description": "Maximum processed-image width. Defaults to 1280; auto_resize=false rejects rather than shrinks an oversized image.", "minimum": 1}
+		props["max_height"] = map[string]any{"type": "integer", "description": "Maximum processed-image height. Defaults to 1280; auto_resize=false rejects rather than shrinks an oversized image.", "minimum": 1}
+		props["auto_resize"] = boolProp("Resize or reduce JPEG quality to satisfy byte and dimension limits. Defaults to true. When false, crop and requested format/quality still apply, but exceeded limits return IMAGE_TOO_LARGE.")
 		props["format"] = map[string]any{"type": "string", "description": "Processed image format. Defaults to jpeg.", "enum": []string{"jpeg", "png"}}
-		props["quality"] = boundedIntProp("JPEG quality when format is jpeg. Defaults to 72.", 35, 95)
+		props["quality"] = boundedIntProp("JPEG quality when format is jpeg. Defaults to 72.", minImageJPEGQuality, 95)
 		props["crop"] = map[string]any{
 			"type":                 "object",
 			"description":          "Optional crop rectangle {x,y,width,height} before resizing.",
@@ -118,6 +118,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["original"] = objectProp("Original/crop metadata.")
 		props["resized"] = boolProp("Whether image bytes changed due to crop/resize/re-encode.")
 		props["warnings"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+		props["requested_max_bytes"] = intProp("Caller-requested processed-image byte limit after hard-cap normalization.")
+		props["effective_max_bytes"] = intProp("Actual byte limit after applying the final model-response attachment budget.")
 	case ToolFilePublish:
 		props["artifact_id"] = stringProp("Published artifact id.")
 		props["url"] = stringProp("Optional temporary signed download URL when a reachable base URL is available.")

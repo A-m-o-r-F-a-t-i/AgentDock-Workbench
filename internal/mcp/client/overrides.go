@@ -67,6 +67,10 @@ func patchConfig(base ServerConfig, patch ConfigPatch) (ServerConfig, error) {
 		}
 		var target any
 		switch key {
+		case "lazy":
+			target = &cfg.Lazy
+		case "recovery_skill":
+			target = &cfg.RecoverySkill
 		case "description":
 			target = &cfg.Description
 		case "transport":
@@ -111,6 +115,8 @@ func sameConnection(left, right ServerConfig) bool {
 	left.overrideSource, right.overrideSource = "", ""
 	left.overlayRevision, right.overlayRevision = 0, 0
 	left.Description, right.Description = "", ""
+	left.Lazy, right.Lazy = false, false
+	left.RecoverySkill, right.RecoverySkill = "", ""
 	left.TimeoutMS, right.TimeoutMS = 0, 0
 	return reflect.DeepEqual(left, right)
 }
@@ -147,7 +153,7 @@ func (m *Manager) readOverrides() (overrideFile, error) {
 		result.Servers = map[string]ConfigPatch{}
 	}
 	for name, patch := range result.Servers {
-		if !serverNamePattern.MatchString(name) || len(patch) > 10 {
+		if !serverNamePattern.MatchString(name) || len(patch) > 11 {
 			return result, errors.New("invalid MCP override entry")
 		}
 	}
@@ -296,15 +302,16 @@ func (m *Manager) Update(ctx context.Context, name, expected, scope string, patc
 	}
 	nextState := oldState
 	changedConnection := !sameConnection(old, selected)
-	if changedConnection {
+	restoreLazy := selected.Lazy && !old.Lazy && !summaryFor(old, oldState).ToolCountKnown
+	if changedConnection || restoreLazy {
 		m.retiredMu.Lock()
 		busy := len(m.retired) >= maxRetiredServers
 		m.retiredMu.Unlock()
 		if busy {
 			return ServerSummary{}, newError("MCP_UPDATE_BUSY", "prior MCP generations are still draining", true, nil, nil)
 		}
-		nextState = &serverState{}
-		if selected.Enabled {
+		nextState = m.newCatalogState(selected)
+		if selected.Enabled && !selected.Lazy {
 			resolved, resolveErr := m.prepareRuntimeConfig(ctx, selected)
 			if resolveErr != nil {
 				return ServerSummary{}, resolveErr
@@ -356,6 +363,7 @@ func (m *Manager) Update(ctx context.Context, name, expected, scope string, patc
 	m.servers[name], m.states[name] = selected, nextState
 	m.mu.Unlock()
 	committed = true
+	m.queueCatalogNotice()
 	if nextState != oldState {
 		m.retireState(oldState)
 	}

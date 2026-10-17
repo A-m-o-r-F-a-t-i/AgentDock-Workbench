@@ -13,6 +13,7 @@ const catalogMaxAge = time.Minute
 // Catalog is one immutable discovered generation. Exported copies do not share
 // schema maps with the validator or with another request's returned data.
 type Catalog struct {
+	State             CatalogState
 	Server            string
 	ServerFingerprint string
 	Revision          string
@@ -30,7 +31,7 @@ func protocolGeneration(client protocolClient) uint64 {
 }
 
 func catalogFresh(view *indexSnapshot) bool {
-	return view != nil && view.Ready && view.Known && !view.RefreshedAt.IsZero() &&
+	return view != nil && view.Ready && view.Known && view.LastErrorCode == "" && !view.RefreshedAt.IsZero() &&
 		time.Since(view.RefreshedAt) < catalogMaxAge && protocolGeneration(view.Client) == view.Generation
 }
 
@@ -49,17 +50,25 @@ func (m *Manager) catalogSnapshot(server string) (Catalog, bool, error) {
 	}
 	state := m.states[server]
 	if state == nil {
-		return Catalog{}, false, nil
+		return Catalog{Server: server, State: catalogStateForSnapshot(cfg, indexSnapshot{})}, false, nil
 	}
 	view := state.snapshot.Load()
-	if view == nil || !view.Known {
-		return Catalog{}, false, nil
+	if view == nil {
+		return Catalog{Server: server, State: catalogStateForSnapshot(cfg, indexSnapshot{})}, false, nil
 	}
 	fingerprint, err := definitionFingerprint(cfg)
 	if err != nil {
 		return Catalog{}, false, err
 	}
-	catalog := Catalog{Server: server, ServerFingerprint: fingerprint, Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version, Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools}
+	catalogState := catalogStateForSnapshot(cfg, *view)
+	if !view.Known {
+		return Catalog{Server: server, ServerFingerprint: fingerprint, State: catalogState}, false, nil
+	}
+	catalog := Catalog{
+		State: catalogState, Server: server, ServerFingerprint: fingerprint,
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version,
+		Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools,
+	}
 	return catalog, catalogFresh(view), nil
 }
 
@@ -89,7 +98,7 @@ func (m *Manager) Catalog(ctx context.Context, server string) (Catalog, error) {
 	if err != nil {
 		return Catalog{}, err
 	}
-	if !fresh {
+	if !fresh && !catalog.cachedCallable() {
 		if _, err := m.ensureTools(ctx, server); err != nil {
 			return Catalog{}, err
 		}
@@ -204,4 +213,45 @@ func cloneJSONValue(value any) any {
 	default:
 		return item
 	}
+}
+
+// RefreshCatalog reads tools/list on the selected connection under the existing
+// server lock. It never executes a business tool or starts bridge recovery.
+func (m *Manager) RefreshCatalog(ctx context.Context, server string) (Catalog, error) {
+	if err := m.syncRegistryContext(ctx); err != nil {
+		return Catalog{}, err
+	}
+	cfg, state, unlock, err := m.lockServerContext(ctx, strings.TrimSpace(server))
+	if err != nil {
+		return Catalog{}, err
+	}
+	defer unlock()
+	if !cfg.Enabled {
+		return Catalog{}, newError("MCP_SERVER_DISABLED", "dynamic MCP server is disabled", false, map[string]any{"server": server}, nil)
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
+	defer cancel()
+	if state.client == nil || !state.discovered {
+		runtimeCfg, prepareErr := m.prepareRuntimeConfig(ctx, cfg)
+		if prepareErr != nil {
+			recordStateError(state, prepareErr)
+			return Catalog{}, prepareErr
+		}
+		_, err = refreshStateLocked(ctx, runtimeCfg, state)
+	} else {
+		_, err = reloadCatalogLocked(ctx, cfg, state)
+	}
+	if err != nil {
+		return Catalog{}, err
+	}
+	snapshot := stateSnapshotLocked(state)
+	fingerprint, fingerprintErr := definitionFingerprint(cfg)
+	if fingerprintErr != nil {
+		return Catalog{}, fingerprintErr
+	}
+	return Catalog{
+		State: catalogStateForSnapshot(cfg, snapshot), Server: server, ServerFingerprint: fingerprint,
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerVersion: snapshot.Version,
+		Complete: snapshot.Known, RefreshedAt: snapshot.RefreshedAt, Tools: cloneTools(snapshot.Tools),
+	}, nil
 }

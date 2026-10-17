@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/uvwt/agentdock/internal/activity"
+
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
@@ -13,6 +15,11 @@ func (r *Runtime) prepareMCPExecution(ctx context.Context, prepared *preparedExe
 	}
 	var request toolmcp.CallRequest
 	if err := decodeToolInput("mcp_tool_call", prepared.args, &request); err != nil {
+		return err
+	}
+	ctx = activity.WithBinding(ctx, prepared.state.binding)
+	ctx, err := r.prepareManagedMCPRetry(ctx, prepared)
+	if err != nil {
 		return err
 	}
 	fixed, err := r.dynamicMCP.PrepareCall(ctx, request)

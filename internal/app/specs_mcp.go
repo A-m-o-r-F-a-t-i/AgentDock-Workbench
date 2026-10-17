@@ -9,12 +9,15 @@ import (
 func dynamicMCPToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{Name: "mcp_manage", Contract: mcpToolContract, Title: "Manage dynamic MCP servers", Description: "Register, inspect, enable, disable, refresh, remove, or manage the isolated environment of dynamic MCP servers. Dynamic MCP tools remain separate from AgentDock built-in tools.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_manage", func(ctx context.Context, r *Runtime, request toolmcp.ManageRequest) (Result, error) {
+			if request.Action == "recover" {
+				return r.recoverManagedMCP(ctx, request)
+			}
 			return r.dynamicMCP.Manage(ctx, request)
 		})},
 		{Name: "mcp_tool_list", Contract: mcpToolContract, Title: "List an MCP catalog", Description: "Return a known server's two-column catalog once per conversation and revision; repeats are compact references. Use force_full after model-context loss.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_list", func(ctx context.Context, r *Runtime, request toolmcp.ListRequest) (Result, error) {
 			return r.dynamicMCP.List(ctx, request)
 		})},
-		{Name: "mcp_tool_search", Contract: mcpToolContract, Title: "Search dynamic MCP tools", Description: "Search cached dynamic MCP summaries without initializing unrelated services. Searching a known AgentDock host tool is a terminal, non-retryable routing error; call that host tool directly. For a known dynamic service use mcp_tool_list.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_search", func(ctx context.Context, r *Runtime, request toolmcp.SearchRequest) (Result, error) {
+		{Name: "mcp_tool_search", Contract: mcpToolContract, Title: "Search dynamic MCP tools", Description: "Resolve exact dynamic MCP names before ranking up to 5 fuzzy candidates. A unique result includes its full input schema and next call; follow retained pages for a large schema. Cache-only or stale zero results do not prove absence. Call host tools directly.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_search", func(ctx context.Context, r *Runtime, request toolmcp.SearchRequest) (Result, error) {
 			return r.dynamicMCP.Search(ctx, request)
 		})},
 		{Name: "mcp_tool_inspect", Contract: mcpToolContract, Title: "Inspect a dynamic MCP tool", Description: "Read dynamic MCP schemas in one request using names: [server:tool, server:*, other:*]. Unqualified AgentDock host tools return a terminal routing error; mixed batches retain dynamic schemas and per-selector problems. Repeated schemas use compact revision references unless force_full=true.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_inspect", func(ctx context.Context, r *Runtime, request toolmcp.InspectRequest) (Result, error) {
@@ -28,7 +31,9 @@ func dynamicMCPToolSpecs() []ToolSpec {
 			if result != nil {
 				callID, _ := result["call_id"].(string)
 				if raw, ok := r.dynamicMCP.RawResult(callID); ok {
-					if reference := r.retainMCPRawResult(ctx, callID, "mcp_tool_call", raw, request.Arguments); reference != "" {
+					capture := r.retainMCPRawResult(ctx, callID, "mcp_tool_call", raw, request.Arguments)
+					result["capture"] = capture
+					if reference := stringArg(capture, "source_ref"); reference != "" {
 						result["raw_result_ref"] = reference
 						r.dynamicMCP.SetRawResultReference(callID, reference)
 					}

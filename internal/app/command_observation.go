@@ -1,6 +1,10 @@
 package app
 
-import "github.com/uvwt/agentdock/internal/activity"
+import (
+	"context"
+	"github.com/uvwt/agentdock/internal/activity"
+	toolcommand "github.com/uvwt/agentdock/internal/tool/command"
+)
 
 func (r *Runtime) commandObservation(p *preparedExecution, result Result, err error) activity.CommandObservation {
 	relation := activity.CommandObservation{}
@@ -47,4 +51,10 @@ func quietCommandObservation(result Result, err error) bool {
 		}
 	}
 	return true
+}
+
+func (r *Runtime) observeCommand(ctx context.Context, request toolcommand.SessionObserveRequest) (Result, error) {
+	// Completion attachment and output delivery are independent. A completion
+	// event reports terminal facts but never advances this session's byte cursor.
+	return r.command.ObserveContext(ctx, request)
 }

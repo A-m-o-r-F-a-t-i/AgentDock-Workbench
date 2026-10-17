@@ -57,7 +57,7 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 		r.structuredOutputMu.Lock()
 		r.pruneStructuredOutputLocked(time.Now())
 		for _, candidate := range r.structuredSnapshots {
-			if candidate.Tool != "read_file" || candidate.FilePath != request.Path || candidate.FileRuntime != request.Runtime || candidate.FileDistribution != request.WSLDistribution || candidate.FileRevision != revision || !sameContextScope(candidate.Binding, binding) {
+			if candidate.Tool != "read_file" || candidate.OutputFailure != nil || candidate.FilePath != request.Path || candidate.FileRuntime != request.Runtime || candidate.FileDistribution != request.WSLDistribution || candidate.FileRevision != revision || !sameContextScope(candidate.Binding, binding) {
 				continue
 			}
 			if candidate.FileByteEnd == offset && (predecessor == nil || candidate.CreatedAt.After(predecessor.CreatedAt)) {

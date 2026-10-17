@@ -1,4 +1,4 @@
-# AgentDock Workbench CLI 命令矩阵
+# ACTOVO CLI 命令矩阵
 
 本表是 WB01 的命令面冻结清单。状态含义：
 

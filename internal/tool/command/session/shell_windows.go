@@ -33,7 +33,11 @@ func windowsShellCommand(ctx context.Context, shell, command string, lookPath ex
 	default:
 		for _, name := range []string{"pwsh.exe", "powershell.exe"} {
 			if path, err := lookPath(name); err == nil {
-				return exec.CommandContext(ctx, path, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", powershellUTF8Prefix+command)
+				script := powershellUTF8Prefix + command
+				if name == "pwsh.exe" {
+					script = powershellUTF8Prefix + "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\ntry {\n& {\n" + command + "\n}\n} catch {\n[Console]::Error.WriteLine($_.ToString())\nif ($_.Exception.PSObject.Properties['ExitCode']) { exit $_.Exception.ExitCode }\nexit 1\n}\n"
+				}
+				return exec.CommandContext(ctx, path, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script)
 			}
 		}
 		return commandPromptCommand(ctx, command, lookPath)

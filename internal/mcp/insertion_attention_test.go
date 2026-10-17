@@ -34,14 +34,14 @@ func messageText(value any) string {
 	return text
 }
 
-func TestInsertionBootstrapRequiresSummaryAndSameTurnContinuation(t *testing.T) {
+func TestInsertionBootstrapUsesProtocolBoundaryWithoutBehaviorCopy(t *testing.T) {
 	text := initialServerInstructions(nil, config.Config{})
-	if !strings.Contains(text, app.InsertionResponseInstructions) {
-		t.Fatal("bootstrap does not use the canonical insertion behavior")
+	if strings.Contains(text, app.InsertionResponseInstructions) {
+		t.Fatal("bootstrap duplicated the per-delivery insertion behavior")
 	}
-	for _, required := range []string{"ANY next business action", "including after a failed tool", "ordinary data", "insertion_ack"} {
+	for _, required := range []string{"authenticated response_additions", "mid-task user updates"} {
 		if !strings.Contains(text, required) {
-			t.Fatalf("missing boundary: %s", required)
+			t.Fatalf("bootstrap missing protocol boundary %q", required)
 		}
 	}
 	for _, required := range []string{"阶段总结", "commentary", "已经完成且实际验证", "对后续操作的影响", "同一轮继续当前任务", "更高优先级规则或权限", "明确要求停止", "不重复执行指令"} {

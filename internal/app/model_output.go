@@ -12,19 +12,39 @@ import (
 // Retain the business result before any model-facing projection mutates it.
 // Device collection limits remain independent from the response character limit.
 func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result {
-	if result == nil || p.state.binding.ParentCallID != "" {
+	hostPage := modelObject(result["host_page"])
+	if result == nil || p.state.binding.ParentCallID != "" && (p.spec.Name != "mcp_result_continue" || hostPage == nil) {
 		return result
 	}
 	out := maps.Clone(result)
 	if p.structuredResume != nil {
 		return out
 	}
+	if (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") && hostPage != nil {
+		// The MCP owner retained the upstream response before returning this page.
+		// Publishing the page as another source would replace the complete default.
+		if modelObject(out["capture"]) == nil {
+			origin := ""
+			if p.spec.Name == "mcp_result_continue" && stringArg(out, "result_call_id") == stringArg(p.args, "call_id") {
+				origin = stringArg(out, "result_call_id")
+			}
+			out["capture"] = r.mcpResultSourceCapture(p.state.binding, origin, stringArg(out, "raw_result_ref"))
+		}
+		out["operation"] = modelOperation(result, p.state.executed)
+		return out
+	}
 	if p.spec.Name == "agentdock_context" {
+		ctx := activity.WithSource(activity.WithBinding(context.Background(), p.state.binding), p.source)
 		routes := []map[string]any{}
 		for _, name := range r.ToolNames() {
+			if !r.BuiltinToolVisible(ctx, name) {
+				continue
+			}
 			routes = append(routes, map[string]any{"name": name, "invoke_via": "host", "dynamic_mcp_search": false})
 		}
 		out["host_tools"], out["permission"] = routes, p.decision
+		r.prepareContextBootstrap(ctx, out, p.state.binding)
+		out["bootstrap_complete"] = modelObject(out["context_diagnostics"])["complete"] == true
 		result = out
 	}
 	if capture := modelObject(result["capture"]); capture != nil && p.spec.Name == "read_file" {
@@ -67,7 +87,7 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
 		smallCompleteLimit = min(smallCompleteLimit, p.outputPolicy.MaxChars)
 	}
-	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
+	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && p.spec.Name != "apply_patch" && !(p.spec.Name == "session_observe" && result["changed"] == false) && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
 		// A complete small result is retained by the existing final response
 		// journal. Avoid another fsync and duplicate payload for every small call.
 		capture["retained_with"] = "response"
@@ -80,8 +100,12 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if payload.Ref != "" {
 		if _, err := r.activity.Append(ctx, activity.Event{Binding: p.state.binding, Kind: "call.payload", ToolName: p.spec.Name, OutputSource: payload}); err == nil {
 			capture["source_ref"] = activity.SourceReference(p.state.binding.CallID, payload)
+			if p.spec.Name == "apply_patch" {
+				out["output_source"] = capture["source_ref"]
+			}
 			capture["retained_bytes"] = payload.Bytes
 		} else {
+			capture["state"], capture["complete"] = "not_stored", false
 			capture["storage_error"] = "The source could not be journaled. Verify the original operation before retrying."
 		}
 	}
@@ -96,6 +120,9 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	}
 	out["capture"] = capture
 	out["operation"] = modelOperation(result, p.state.executed)
+	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
+		projectContextFacts(out)
+	}
 	return out
 }
 
@@ -105,7 +132,7 @@ func modelOperation(result Result, executed bool) map[string]any {
 		state = "completed"
 	}
 	operation := map[string]any{"state": state, "executed": executed}
-	if state == "running" || state == "pending_approval" || state == "unknown" {
+	if state == "running" || state == "pending_approval" || state == "unknown" || state == "outcome_unknown" || state == "lost" {
 		operation["ok"] = nil
 	} else {
 		operation["ok"] = !resultReportsFailure(result) && result["command_ok"] != false
@@ -130,16 +157,24 @@ func modelObject(value any) map[string]any {
 }
 
 func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result {
-	if result == nil || p.state.binding.ParentCallID != "" {
+	hostPage := modelObject(result["host_page"])
+	if result == nil || p.state.binding.ParentCallID != "" && (p.spec.Name != "mcp_result_continue" || hostPage == nil) {
 		return result
 	}
-	if hostPage := modelObject(result["host_page"]); hostPage != nil && (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") {
+	if hostPage != nil && (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") {
 		complete := hostPage["complete"] != false
 		result["projection"] = map[string]any{"mode": "mcp_result_page", "complete": complete}
 		result["delivery"] = map[string]any{"class": toolcontract.OutputRecoverablePreview, "sequence_complete": true, "continuation_required": false, "continuation_available": stringArg(result, "host_cursor") != ""}
-		result["source_complete"] = true
+		capture := modelObject(result["capture"])
+		if sourceComplete, known := capture["complete"].(bool); known {
+			result["source_complete"] = sourceComplete
+		} else {
+			delete(result, "source_complete")
+		}
 		result["truncated"] = !complete
-		if complete {
+		if capture["complete"] == false {
+			result["truncation_stage"] = "capture"
+		} else if complete {
 			result["truncation_stage"] = "none"
 		} else {
 			result["truncation_stage"] = "projection"
@@ -184,8 +219,12 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	hasMore := stringArg(result, "next_cursor") != "" || result["has_more"] == true
 	available := hasMore || !complete && stringArg(capture, "source_ref") != ""
 	required := class == toolcontract.OutputRequiredFull && hasMore
+	bootstrapReady := p.spec.Name == "agentdock_context" && result["bootstrap_complete"] == true
+	if bootstrapReady {
+		required = false
+	}
 	delivery := map[string]any{
-		"class": class, "sequence_complete": !required,
+		"class": class, "sequence_complete": class != toolcontract.OutputRequiredFull || !hasMore,
 		"continuation_required": required, "continuation_available": available,
 	}
 	for _, key := range []string{"snapshot_id", "page_index", "page_count", "received_sections"} {
@@ -211,7 +250,27 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	result["truncation_stage"] = stage
 	if p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context" {
 		diagnostics := modelObject(result["context_diagnostics"])
-		result["context_ready"] = !required && diagnostics["complete"] == true
+		result["context_ready"] = diagnostics["complete"] == true && (!required || bootstrapReady)
+		if hasMore && p.spec.Name == "agentdock_context" {
+			action := map[string]any{"category": "detail", "required": !bootstrapReady, "execution_performed": false, "reason_code": "context_details_paged"}
+			if cursor := stringArg(result, "next_cursor"); cursor != "" {
+				action["action"], action["tool"] = "continue_structured_output", p.spec.Name
+				action["arguments"] = map[string]any{"cursor": cursor, "known_context_revision": result["context_revision"]}
+			} else if continuation := modelObject(structured["continue_read"]); continuation != nil {
+				action["action"], action["tool"], action["arguments"] = "read_context_details", continuation["tool"], continuation["arguments"]
+			}
+			result["required_action"] = action
+		}
+	}
+	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {
+		// Diagnostics and binding details remain in the canonical activity source.
+		compact := Result{}
+		for _, key := range []string{"session_id", "status", "operation_status", "effect_state", "execution_performed", "operation", "capture", "delivery", "routine_observation", "changed", "waited_ms", "offset", "next_offset", "exit_code", "command_ok", "already_delivered", "output_source", "source_complete", "outcome_unknown", "activity_warning"} {
+			if value, exists := result[key]; exists {
+				compact[key] = value
+			}
+		}
+		return compact
 	}
 	return result
 }
@@ -236,6 +295,17 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 	if call, err := r.activity.Call(ctx, binding.CallID); err == nil && call.OutputSource != nil && call.OutputSource.Ref != "" {
 		return activity.SourceReference(binding.CallID, call.OutputSource), nil
 	}
+	retainingMCPRaw := false
+	if name == "mcp_tool_call" {
+		if raw, ok := r.dynamicMCP.RawResult(binding.CallID); ok {
+			value, retainingMCPRaw = raw, true
+		}
+	}
+	if !retainingMCPRaw && (name == "mcp_tool_call" || name == "mcp_result_continue") && deliveredModelPayload(value)["host_page"] != nil {
+		// A host page, including a native-content envelope, cannot stand in for
+		// an unavailable complete response.
+		return "", nil
+	}
 	payload := r.activity.CapturePayload(ctx, value, "complete", redactor)
 	if payload.Ref == "" {
 		return "", nil
@@ -244,5 +314,43 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 	if err != nil {
 		return "", err
 	}
-	return activity.SourceReference(binding.CallID, payload), nil
+	reference := activity.SourceReference(binding.CallID, payload)
+	if retainingMCPRaw {
+		r.dynamicMCP.SetRawResultReference(binding.CallID, reference)
+	}
+	return reference, nil
+}
+
+func projectContextFacts(result Result) {
+	if diagnostics := modelObject(result["context_diagnostics"]); diagnostics != nil {
+		compact := map[string]any{}
+		for _, key := range []string{"complete", "components_complete", "binding_status"} {
+			if value, ok := diagnostics[key]; ok {
+				compact[key] = value
+			}
+		}
+		result["context_diagnostics"] = compact
+	}
+	delete(result, "permission")
+	for _, key := range []string{"skills", "plugins", "dynamic_mcp", "workflow_templates", "warnings", "running_sessions", "terminal_completions_pending"} {
+		value := result[key]
+		switch typed := value.(type) {
+		case []any:
+			if len(typed) == 0 {
+				delete(result, key)
+			}
+		case []string:
+			if len(typed) == 0 {
+				delete(result, key)
+			}
+		case int:
+			if typed == 0 {
+				delete(result, key)
+			}
+		case float64:
+			if typed == 0 {
+				delete(result, key)
+			}
+		}
+	}
 }

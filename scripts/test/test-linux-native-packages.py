@@ -21,7 +21,7 @@ def sha256(path: Path) -> str:
 
 def inspect_core(binary: Path,version: str,commit: str,arch: str) -> None:
     data=json.loads(command(str(binary),'version','--json').stdout)
-    if (data.get('product_name'),data.get('version'),data.get('commit'),data.get('platform'))!=('AgentDock Workbench',version,commit[:12],'linux/'+arch):
+    if (data.get('product_name'),data.get('version'),data.get('commit'),data.get('platform'))!=('ACTOVO',version,commit[:12],'linux/'+arch):
         raise RuntimeError('Installed runtime does not match verified native build')
 
 def main() -> None:

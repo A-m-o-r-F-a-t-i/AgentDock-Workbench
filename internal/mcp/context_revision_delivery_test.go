@@ -53,14 +53,19 @@ func TestContextRevisionDeliveryReusesCompletedRevision(t *testing.T) {
 	if asMap(referenceBody["context_diagnostics"])["complete"] != true {
 		t.Fatalf("reference lost complete context status: %#v", referenceBody)
 	}
-	for _, heavy := range []string{"rules", "instruction_files", "skills", "plugins", "dynamic_mcp", "tasks", "runtime"} {
+	for _, heavy := range []string{"rules", "skills", "plugins", "dynamic_mcp", "tasks", "runtime"} {
 		if referenceBody[heavy] != nil {
 			t.Fatalf("reference repeated heavy field %s: %#v", heavy, referenceBody[heavy])
 		}
 	}
+	instructions := asMap(referenceBody["instruction_files"])
+	rulesRevision, _ := instructions["revision"].(string)
+	if instructions["complete"] != true || !strings.HasPrefix(rulesRevision, "rules_") || len(instructions) != 2 {
+		t.Fatalf("reference lost bounded instruction revision: %#v", instructions)
+	}
 	encodedReference, _ := json.Marshal(referenceBody)
 	encodedFull, _ := json.Marshal(fullBody)
-	if len(encodedReference) > 2048 || len(encodedReference) >= len(encodedFull) {
+	if len(encodedReference) > 4096 || len(encodedReference) >= len(encodedFull) {
 		t.Fatalf("reference size=%d full size=%d", len(encodedReference), len(encodedFull))
 	}
 	text := reference.Content[0].(*sdk.TextContent).Text

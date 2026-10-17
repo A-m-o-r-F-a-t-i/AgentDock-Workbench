@@ -43,7 +43,9 @@ type contextSnapshots struct {
 func newContextSnapshots(cfg config.Config) *contextSnapshots {
 	ruleFilter := func(path string) bool {
 		name := filepath.Base(path)
-		return name == "AGENTS.md" || name == ".git" || path == cfg.InstructionsFile
+		// .git existence/type is checked from bounded metadata on every rules
+		// read and continuation; ordinary Git directory writes are not rule edits.
+		return name == "AGENTS.md" || path == cfg.InstructionsFile
 	}
 	skillRoot := filepath.Join(cfg.AgentDockHome, "skills")
 	skillFilter := func(path string) bool {

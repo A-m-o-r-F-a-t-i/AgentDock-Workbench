@@ -7,7 +7,10 @@ import (
 )
 
 // OutputCursor belongs to one observer. Absolute byte offsets survive ring-buffer eviction.
-type OutputCursor struct{ Stdout, Stderr int }
+type OutputCursor struct {
+	Stdout int `json:"stdout"`
+	Stderr int `json:"stderr"`
+}
 
 func (s *Session) SetActivityBinding(binding activity.Binding) {
 	s.mu.Lock()

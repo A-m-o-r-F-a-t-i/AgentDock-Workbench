@@ -11,7 +11,7 @@ public static class FileExplorerReveal
 
     public static string[] Locations(JsonElement record)
     {
-        if (record.Text("tool_name") != "file_edit" || record.Text("parent_call_id").Length > 0 ||
+        if (record.Text("tool_name") is not ("apply_patch" or "file_edit") || record.Text("parent_call_id").Length > 0 ||
             record.Text("runtime") is not ("" or "windows")) return [];
         var edit = record.Field("file_edit");
         var paths = edit.Array("affected_files").Select(file => file.Text("move_to").Length > 0 ? file.Text("move_to") : file.Text("path")).ToList();

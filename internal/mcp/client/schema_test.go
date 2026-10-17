@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 )
@@ -90,5 +91,154 @@ func TestValidateToolArgumentsReturnsAgentDockErrorDetails(t *testing.T) {
 	}
 	if mcpErr.Code != "MCP_ARGUMENT_INVALID" || mcpErr.Details["tool"] != "echo" || mcpErr.Details["reason"] == "" {
 		t.Fatalf("unexpected MCP error: %#v", mcpErr)
+	}
+}
+
+func TestPreparedOutputValidationPreservesSideEffectsAndProtocolErrors(t *testing.T) {
+	validator, err := compileToolInputSchema(map[string]any{
+		"type": "object", "required": []string{"count"},
+		"properties": map[string]any{"count": map[string]any{"type": "integer"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := &PreparedMCPCall{QualifiedName: "demo:write", outputValidator: validator}
+	result := map[string]any{"structuredContent": map[string]any{"effect_state": "complete", "count": "invalid"}}
+	err = validatePreparedOutput(prepared, result)
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Code != "MCP_OUTPUT_SCHEMA_MISMATCH" || failure.Retryable || failure.Details["executed"] != true || failure.Details["effect_state"] != "complete" {
+		t.Fatalf("unexpected output-contract failure: %#v", err)
+	}
+	if result["structuredContent"].(map[string]any)["count"] != "invalid" {
+		t.Fatal("output validation changed the raw upstream result")
+	}
+	if err := validatePreparedOutput(prepared, map[string]any{"isError": true, "content": []any{}}); err != nil {
+		t.Fatalf("protocol error was incorrectly validated as business success: %v", err)
+	}
+	for name, raw := range map[string]map[string]any{
+		"operation failed":    {"structuredContent": map[string]any{"operation_status": "failed", "code": "INVALID_DOCUMENT"}},
+		"nested error code":   {"structuredContent": map[string]any{"ok": false, "error": map[string]any{"code": "INVALID_DOCUMENT"}}},
+		"outer error code":    {"code": "INVALID_DOCUMENT", "structuredContent": map[string]any{"ok": false}},
+		"legacy text failure": {"content": []any{map[string]any{"type": "text", "text": `{"operation_status":"failed","code":"INVALID_DOCUMENT"}`}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validatePreparedOutput(prepared, raw); err != nil {
+				t.Fatalf("business error was incorrectly validated as success: %v", err)
+			}
+			details, failed := ResultFailure(raw)
+			if !failed || details["code"] != "INVALID_DOCUMENT" {
+				t.Fatalf("business error information lost: %#v %v", details, failed)
+			}
+		})
+	}
+	for name, raw := range map[string]map[string]any{
+		"error without failure":           {"structuredContent": map[string]any{"error": map[string]any{"code": "FYI"}}},
+		"ok without error code":           {"structuredContent": map[string]any{"ok": false}},
+		"text success without structured": {"content": []any{map[string]any{"type": "text", "text": `{"count":3}`}}},
+		"trailing text value":             {"content": []any{map[string]any{"type": "text", "text": `{"operation_status":"failed"} {}`}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validatePreparedOutput(prepared, raw); err == nil {
+				t.Fatal("non-failure bypassed the declared output schema")
+			}
+		})
+	}
+	if err := validatePreparedOutput(prepared, map[string]any{"content": []any{}}); err == nil {
+		t.Fatal("missing declared structured content accepted")
+	}
+	if err := validatePreparedOutput(prepared, map[string]any{"structuredContent": map[string]any{"count": 3}}); err != nil {
+		t.Fatalf("valid upstream structured result rejected: %v", err)
+	}
+}
+
+func TestSchemaValidationPreservesExactNumberBoundaries(t *testing.T) {
+	for _, test := range []struct {
+		name, kind, minimum, below string
+	}{
+		{"integer above float precision", "integer", "9007199254740993", "9007199254740992"},
+		{"maximum uint64", "integer", "18446744073709551615", "18446744073709551614"},
+		{"precise decimal", "number", "0.10000000000000001", "0.1"},
+		{"exponent beyond float range", "number", "1e309", "1e308"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			validator, err := compileToolInputSchema(map[string]any{
+				"type": "object", "properties": map[string]any{
+					"value": map[string]any{"type": test.kind, "minimum": json.Number(test.minimum)},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := validator.Validate(map[string]any{"value": json.Number(test.below)}); err == nil {
+				t.Fatal("number rounding bypassed the declared minimum")
+			}
+			if err := validator.Validate(map[string]any{"value": json.Number(test.minimum)}); err != nil {
+				t.Fatalf("exact minimum rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestSchemaValidationRejectsUnrepresentableNumbers(t *testing.T) {
+	validator, err := compileToolInputSchema(map[string]any{
+		"type": "object", "properties": map[string]any{
+			"value": map[string]any{"type": "number", "minimum": 0},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"1e1000001", "1e-1000001"} {
+		t.Run(value, func(t *testing.T) {
+			for _, arguments := range []map[string]any{
+				{"value": json.Number(value)},
+				{"nested": []any{map[string]any{"value": json.Number(value)}}},
+			} {
+				if err := validator.Validate(arguments); err == nil {
+					t.Fatal("schema validation accepted a number it cannot represent")
+				}
+			}
+		})
+	}
+}
+
+func TestSchemaCompilationRejectsUnrepresentableConstraints(t *testing.T) {
+	for _, keyword := range []string{"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "enum"} {
+		t.Run(keyword, func(t *testing.T) {
+			var constraint any = json.Number("1e1000001")
+			if keyword == "enum" {
+				constraint = []any{constraint}
+			}
+			_, err := compileToolInputSchema(map[string]any{
+				"type": "object", "properties": map[string]any{
+					"value": map[string]any{"type": "number", keyword: constraint},
+				},
+			})
+			if err == nil {
+				t.Fatal("schema compiler accepted a constraint it cannot represent")
+			}
+		})
+	}
+}
+
+func TestPreparedOutputValidationRejectsUnrepresentableNumber(t *testing.T) {
+	validator, err := compileToolInputSchema(map[string]any{
+		"type": "object", "properties": map[string]any{
+			"value": map[string]any{"type": "number", "minimum": 0},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := &PreparedMCPCall{QualifiedName: "demo:write", outputValidator: validator}
+	structured := map[string]any{"value": json.Number("1e1000001"), "effect_state": "complete"}
+	result := map[string]any{"structuredContent": structured}
+	err = validatePreparedOutput(prepared, result)
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Code != "MCP_OUTPUT_SCHEMA_MISMATCH" || failure.Retryable || failure.Details["executed"] != true || failure.Details["effect_state"] != "complete" || failure.Details["retry_safe"] != false {
+		t.Fatalf("unexpected output-contract failure: %#v", err)
+	}
+	if result["structuredContent"].(map[string]any)["value"] != json.Number("1e1000001") {
+		t.Fatal("output validation changed the retained upstream value")
 	}
 }

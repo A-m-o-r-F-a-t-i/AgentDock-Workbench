@@ -21,9 +21,12 @@ func InputSchema(name string) (map[string]any, bool) {
 
 	switch name {
 	case ToolManage:
-		props["action"] = map[string]any{"type": "string", "description": "Dynamic MCP server or isolated environment action.", "enum": []string{"list", "inspect", "add", "remove", "enable", "disable", "env_set", "env_unset", "env_list", "refresh", "update", "reset_override"}}
+		props["action"] = map[string]any{"type": "string", "description": "Dynamic MCP server or isolated environment action.", "enum": []string{"list", "inspect", "add", "remove", "enable", "disable", "env_set", "env_unset", "env_list", "refresh", "update", "reset_override", "recover"}}
 		props["name"] = stringProp("Dynamic MCP server name. Use a stable short identifier such as figma or github.")
 		props["description"] = stringProp("Short capability description shown in agentdock_context.")
+		props["origin_call_id"] = map[string]any{"type": "string", "maxLength": 37, "pattern": "^call_[a-f0-9]{32}$", "description": "Required for recover: original connection-failed business call in this conversation and workspace."}
+		props["lazy"] = boolProp("Resolve from a retained catalog until the first selected business call starts this server.")
+		props["recovery_skill"] = map[string]any{"type": "string", "maxLength": 512, "description": "Optional exact registered recovery Skill reference. That Skill must declare its matching MCP server."}
 		props["transport"] = map[string]any{"type": "string", "description": "MCP transport for action=add.", "enum": []string{"streamable_http", "stdio"}}
 		props["url"] = stringProp("Absolute MCP endpoint URL for transport=streamable_http.")
 		props["command"] = stringProp("Executable name or path for transport=stdio.")
@@ -36,7 +39,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["enabled"] = boolProp("Enable the server after registration. Defaults to true.")
 		props["timeout_ms"] = boundedIntProp("Per-request timeout. Defaults to 30000 and is capped at 300000.", 1, 300000)
 		patchProps := map[string]any{}
-		for _, field := range []string{"description", "transport", "url", "command", "args", "cwd", "header_env", "env_from_env", "timeout_ms"} {
+		for _, field := range []string{"description", "transport", "url", "command", "args", "cwd", "header_env", "env_from_env", "timeout_ms", "lazy", "recovery_skill"} {
 			patchProps[field] = props[field]
 		}
 		props["patch"] = map[string]any{"type": "object", "description": "Editable host overlay fields for update. Does not rewrite plugin files, permissions, enabled state or discovered facts.", "properties": patchProps, "additionalProperties": false, "minProperties": 1}
@@ -46,10 +49,12 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolSearch:
 		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly; misuse returns a non-retryable routing error.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
-		props["limit"] = boundedIntProp("Maximum matching tools. Defaults to 10 and is capped at 100.", 1, 100)
+		props["limit"] = boundedIntProp("Maximum ranked candidates. Defaults to 5 and is capped at 100. Exact matches are retained before applying this limit.", 1, 100)
+		props["refresh"] = boolProp("Refresh only the explicitly selected server catalog. Does not call a business tool.")
 		required = []string{"query"}
 	case ToolList:
 		props["server"] = stringProp("Known enabled MCP server. Returns every visible tool name and one-line description without a search limit.")
+		props["refresh"] = boolProp("Refresh this server's tools/list before returning its catalog. Does not call a business tool.")
 		props["force_full"] = boolProp("Return the complete catalog even when this conversation already received the same revision.")
 		required = []string{"server"}
 	case ToolInspect:
@@ -63,7 +68,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["interaction_intent"] = map[string]any{"type": "string", "enum": []string{"desktop_gui"}, "description": "Required as desktop_gui for Computer Use tools. Omit for unrelated MCP tools."}
 		props["reason"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 512, "description": "Concrete user-task reason for an explicitly selected Computer Use call. Required with interaction_intent."}
 		// arguments 的结构由上游 MCP tool schema 决定，是这里唯一需要保持开放的动态叶节点。
-		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the schema returned by mcp_tool_inspect.", "additionalProperties": true}
+		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the complete input schema returned by search or inspect.", "additionalProperties": true}
 		required = []string{"name", "arguments"}
 	case ToolResultContinue:
 		props["call_id"] = stringProp("Original mcp_tool_call activity call ID.")
@@ -82,6 +87,9 @@ func InputSchema(name string) (map[string]any, bool) {
 		toolcontract.StructuredPagingInput(props)
 	}
 	schema := toolcontract.InputObject(props, required...)
+	if name == ToolManage {
+		schema["allOf"] = []map[string]any{{"if": map[string]any{"properties": map[string]any{"action": map[string]any{"const": "recover"}}, "required": []string{"action"}}, "then": map[string]any{"required": []string{"origin_call_id", "name"}}}}
+	}
 	if name == ToolInspect {
 		schema["oneOf"] = []map[string]any{{"required": []string{"names"}}, {"required": []string{"name"}}}
 	}
@@ -110,15 +118,28 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["key"] = stringProp("Environment variable name. Secret values are never returned.")
 		props["configured"] = boolProp("Whether the environment variable has a non-empty configured value.")
 		props["items"] = arrayProp("Environment variable names and configured status without values.")
+		props["origin_call_id"] = stringProp("Original failed business call.")
+		props["recovery"] = objectProp("Original Activity claim, expiry, recovery step and single retry state.")
+		props["retry"] = objectProp("Actual result of the fixed original MCP retry, including pending approval when applicable.")
+		props["retry_performed"] = boolProp("Whether the original operation was dispatched, rather than merely queued for approval.")
+		props["required_action"] = objectProp("Recovery, authorization or independent readback needed next.")
 	case ToolSearch:
 		props["query"] = stringProp("Capability query used.")
 		props["server"] = stringProp("Optional server filter used.")
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
 		props["count"] = intProp("Matching dynamic tool count. Host-tool namespace misuse returns a terminal error instead of a success result.")
 		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
-		props["complete"] = boolProp("All visible catalogs are current and matching results fit the response limit.")
+		props["complete"] = boolProp("All visible catalogs are complete and current; candidate truncation is reported independently.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
 		props["cache_only"] = boolProp("No remote service is initialized or refreshed by this unscoped search.")
+		props["resolution_status"] = stringProp("resolved, ambiguous, incomplete or not_found. Only a complete fresh selected catalog can establish absence.")
+		props["absence_authoritative"] = boolProp("Whether zero matches establish absence within the selected complete fresh catalog.")
+		props["selected"] = objectProp("Canonical registered callable, complete input schema and the immutable catalog generation used to resolve it.")
+		props["next_call"] = objectProp("Formal MCP call template. Fill schema-required arguments before execution; discovery never executes this template.")
+		props["catalog_state"] = objectProp("Selected server catalog freshness, revision and refresh error code.")
+		props["required_action"] = objectProp("Scoped protocol refresh or model decision needed for an unresolved query.")
+		props["match_count"] = intProp("Candidate count before applying the ranking limit.")
+		props["exact_count"] = intProp("Exact canonical or registered-alias matches before ranking.")
 		props["match_kind"] = stringProp("Match classification for the highest-ranked result, such as exact_name, identifier_coverage, or none.")
 		props["route_kind"] = stringProp("Resolved namespace: host_builtin or dynamic_mcp.")
 		props["resolved"] = boolProp("Whether the request has a deterministic route.")
@@ -139,6 +160,10 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["recovery_source"] = stringProp("Trusted source of the host schema, normally caller_tools_list.")
 	case ToolList:
 		props = catalogSchemaProperties()
+		props["resolution_status"] = stringProp("incomplete when an empty retained catalog cannot establish current absence.")
+		props["absence_authoritative"] = boolProp("Whether an empty result establishes absence in the selected catalog.")
+		props["required_action"] = objectProp("Scoped tools/list refresh needed to resolve an empty retained catalog.")
+		props["execution_performed"] = boolProp("False for catalog discovery; no business action ran.")
 	case ToolInspect:
 		props["tools"] = arrayProp("Selected tool schemas or compact same-revision references. UI resources, icons and embedded image data are omitted from metadata.")
 		props["errors"] = arrayProp("Explicit per-selector errors; successful services remain present.")
@@ -168,9 +193,10 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["server"] = stringProp("Dynamic MCP server name.")
 		props["tool_name"] = stringProp("Upstream MCP tool name.")
 		props["catalog_revision"] = stringProp("Revision of the inspected catalog.")
+		props["catalog_state"] = objectProp("Current freshness and absence authority of the selected catalog, including schema references.")
 		props["server_version"] = stringProp("Version reported by initialize, empty when unknown.")
 		props["delivery"] = stringProp("Legacy schema delivery marker retained for direct Runtime callers.")
-		props["schema_delivery"] = stringProp("full, summary, or reference; remains available after the host execution delivery envelope is added.")
+		props["schema_delivery"] = stringProp("full, summary, or reference.")
 		props["schema_omitted"] = boolProp("True only for a compact same-revision schema reference.")
 		props["refresh_tool"] = stringProp("Use mcp_tool_inspect with force_full=true when the referenced schema is absent from current model context.")
 		props["title"] = stringProp("Tool title.")
@@ -212,9 +238,13 @@ func OutputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+	if name == ToolSearch || name == ToolCall {
+		props["managed_target"] = objectProp("Selected registered MCP target, workspace, catalog revision and selection source.")
+	}
 	if name == ToolCall || name == ToolResultContinue || name == ToolResultRaw {
 		props["result_call_id"] = stringProp("Original MCP result identity; call_id identifies this current host invocation.")
 		props["continue_result"] = objectProp("Exact host continuation tool and arguments for this retained result.")
+		props["upstream_failure"] = objectProp("Bounded failure facts from the original upstream invocation, preserved independently of result fragments. Omitted fields remain available from the complete raw result.")
 	}
 	if name == ToolSearch || name == ToolList || name == ToolInspect {
 		toolcontract.StructuredPagingOutput(props)
@@ -224,15 +254,25 @@ func OutputSchema(name string) (map[string]any, bool) {
 
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
-		"server": toolcontract.String("Dynamic MCP server."), "catalog_revision": toolcontract.String("Referenced complete catalog generation."),
-		"complete":         toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
-		"stale":            toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
-		"total":            toolcontract.Integer("Total tools in the referenced catalog."),
-		"error":            toolcontract.String("Catalog attachment problem; never changes the business outcome."),
-		"delivery":         toolcontract.String("Legacy catalog delivery marker retained for direct Runtime callers."),
-		"catalog_delivery": toolcontract.String("full, summary, or reference; remains available after the host execution delivery envelope is added."),
-		"tools_omitted":    toolcontract.Boolean("True when catalog entries are omitted; delivery distinguishes a summary from a delivered reference."),
-		"refresh_tool":     toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
-		"tools":            map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
+		"server": toolcontract.String("MCP server."), "catalog_revision": toolcontract.String("Catalog revision."),
+		"server_fingerprint": toolcontract.String("Server execution identity."),
+		"catalog_state":      toolcontract.OpenObject("Freshness and absence authority."),
+		"complete":           toolcontract.Boolean("Whether this catalog is complete."),
+		"stale":              toolcontract.Boolean("Whether this catalog is not fresh, including a lazy cached catalog."),
+		"total":              toolcontract.Integer("Catalog tool count."),
+		"error":              toolcontract.String("Catalog attachment error."),
+		"delivery":           toolcontract.String("Legacy delivery marker."),
+		"catalog_delivery":   toolcontract.String("full, summary, or reference."),
+		"tools_omitted":      toolcontract.Boolean("Whether tools are omitted."),
+		"refresh_tool":       toolcontract.String("Catalog refresh tool."),
+		"tools": map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{
+			"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"},
+			"title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"},
+			"qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"},
+			"server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"},
+			"schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"},
+			"source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"},
+			"annotations": toolcontract.OpenObject("MCP annotations."),
+		}}},
 	}
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentdock.dev/api/workbench/v1/activity/conversation-status.schema.json",
-  "title": "AgentDock Workbench conversation activity projection",
+  "title": "ACTOVO conversation activity projection",
   "type": "object",
   "additionalProperties": false,
   "required": [

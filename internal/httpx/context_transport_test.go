@@ -50,14 +50,14 @@ func TestContextTransportHTTPResponseAndActivityShareRequestID(t *testing.T) {
 		if err = json.Unmarshal(rec.Body.Bytes(), &response); err != nil || response.Error != nil || response.Result.IsError {
 			t.Fatalf("bad response: %s %v", rec.Body.String(), err)
 		}
-		guidance := response.Result.Structured["agentdock_guidance"].(map[string]any)
+		binding := response.Result.Structured
 		transport := response.Result.Meta["agentdock/transport"].(map[string]any)
-		call := guidance["call_id"].(string)
-		if guidance["request_id"] != id || transport["request_id"] != id || transport["call_id"] != call || transport["handler_dispatched"] != true || call == previousCall {
+		call, _ := binding["call_id"].(string)
+		if call == "" || transport["request_id"] != id || transport["call_id"] != call || transport["handler_dispatched"] != true || call == previousCall {
 			t.Fatal("correlation lost or used for execution identity")
 		}
 		previousCall = call
-		conversation, _ := guidance["conversation_id"].(string)
+		conversation, _ := binding["conversation_id"].(string)
 		if conversation == "" || conversation == previousConversation {
 			t.Fatal("request ID was used as conversation identity")
 		}
@@ -67,7 +67,7 @@ func TestContextTransportHTTPResponseAndActivityShareRequestID(t *testing.T) {
 			t.Fatal(err)
 		}
 		saved, err := store.Call(t.Context(), call)
-		if err != nil || saved.RequestID != id || saved.ConversationID != guidance["conversation_id"] || saved.Status != "succeeded" {
+		if err != nil || saved.RequestID != id || saved.ConversationID != binding["conversation_id"] || saved.Status != "succeeded" {
 			t.Fatalf("journal correlation: %+v %v", saved, err)
 		}
 	}

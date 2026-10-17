@@ -226,8 +226,12 @@ func TestAgentDockContextReportsDynamicMCPRefreshErrorCode(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.Call(context.Background(), "mcp_tool_search", map[string]any{"server": "broken", "query": "anything"}); err == nil {
-		t.Fatal("mcp_tool_search succeeded with a missing required environment variable")
+	search, err := runtime.Call(context.Background(), "mcp_tool_search", map[string]any{"server": "broken", "query": "anything"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if search["resolution_status"] != "incomplete" || search["absence_authoritative"] != false || search["required_action"] == nil {
+		t.Fatalf("refresh failure was not returned as non-authoritative discovery: %#v", search)
 	}
 
 	result, err := runtime.Call(context.Background(), "agentdock_context", map[string]any{})

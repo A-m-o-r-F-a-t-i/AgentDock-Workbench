@@ -65,6 +65,31 @@ func connectInstructionClient(t *testing.T, server *Server) *mcpsdk.ClientSessio
 	return session
 }
 
+// Scoped file assertions use the same retained-context reconstruction as the
+// transport contract tests; initialize carries only the device contract.
+func readMCPInstructionSnapshot(t *testing.T, session *mcpsdk.ClientSession, workdir string) agentinstructions.Snapshot {
+	t.Helper()
+	arguments := map[string]any{"workdir": workdir}
+	result, err := session.CallTool(t.Context(), &mcpsdk.CallToolParams{Name: "agentdock_context", Arguments: arguments})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("MCP context failed: %#v", result)
+	}
+	encoded, err := json.Marshal(requiredSDKPayload(t, session, result, arguments, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Instructions agentinstructions.Snapshot `json:"instruction_files"`
+	}
+	if err := json.Unmarshal(encoded, &got); err != nil {
+		t.Fatal(err)
+	}
+	return got.Instructions
+}
+
 func TestInstructionBootstrapAndLiveContextThroughMCP(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		name := "automatic"
@@ -87,19 +112,24 @@ func TestInstructionBootstrapAndLiveContextThroughMCP(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = rt.Close() })
 			session := connectInstructionClient(t, NewServer(rt, cfg))
-			initial := session.InitializeResult().Instructions
-			for _, invariant := range []string{"task_id/thread_id", "workspace_id", "session_id", "command_ok", "agentdock_guidance"} {
+			initialized := session.InitializeResult()
+			if initialized == nil || initialized.Instructions != deviceRuntimeInstructions {
+				t.Fatalf("initialize must carry one stable device contract: %#v", initialized)
+			}
+			initial := initialized.Instructions
+			for _, invariant := range []string{"agentdock_context", "tools/list", "apply_patch", "origin call identity", "response_additions"} {
 				if !strings.Contains(initial, invariant) {
 					t.Fatalf("startup guidance missing %s", invariant)
 				}
 			}
 			for _, marker := range []string{"global-before-marker", "workspace-before-marker"} {
-				if strings.Count(initial, marker) != 1 {
-					t.Fatalf("initial instructions missing/repeated %q: %s", marker, initial)
+				if strings.Contains(initial, marker) {
+					t.Fatalf("initialize duplicated scoped file %q: %s", marker, initial)
 				}
 			}
-			if strings.Index(initial, "global-before-marker") > strings.Index(initial, "workspace-before-marker") {
-				t.Fatal("global rules must precede workspace rules")
+			before := readMCPInstructionSnapshot(t, session, cfg.AgentDockDefaultDir)
+			if len(before.Files) != 2 || before.Files[0].Content != "global-before-marker" || before.Files[1].Content != "workspace-before-marker" {
+				t.Fatalf("context must preserve global-before-workspace rule order: %#v", before.Files)
 			}
 			writeBootstrapInstructions(t, cfg.AgentDockHome, "global-after-marker")
 			selected := t.TempDir()
@@ -147,10 +177,19 @@ func TestInstructionBootstrapOptOutAndFileErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rt.Close()
+	t.Cleanup(func() { _ = rt.Close() })
 	text := initialServerInstructions(rt, cfg)
-	if strings.Contains(text, "disabled-global-marker") || strings.Contains(text, "disabled-workspace-marker") {
-		t.Fatal("opt-out still injected automatic files")
+	if text != deviceRuntimeInstructions {
+		t.Fatal("initialize must carry only the device contract")
+	}
+	disabledSession := connectInstructionClient(t, NewServer(rt, cfg))
+	disabledSnapshot := readMCPInstructionSnapshot(t, disabledSession, cfg.AgentDockDefaultDir)
+	encoded, err := json.Marshal(disabledSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disabledSnapshot.AutoLoad || strings.Contains(string(encoded), "disabled-global-marker") || strings.Contains(string(encoded), "disabled-workspace-marker") {
+		t.Fatalf("opt-out still loaded automatic files: %s", encoded)
 	}
 	cfg.AgentsAutoLoadDisabled = false
 	writeBootstrapInstructions(t, cfg.AgentDockHome, strings.Repeat("x", agentinstructions.MaxFileBytes+1))
@@ -158,12 +197,21 @@ func TestInstructionBootstrapOptOutAndFileErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer enabled.Close()
+	t.Cleanup(func() { _ = enabled.Close() })
 	text = initialServerInstructions(enabled, cfg)
-	if !strings.Contains(text, "file_size_limit") || !strings.Contains(text, "Do not claim its rules were applied") {
-		t.Fatal("startup file failure is not disclosed")
+	if text != deviceRuntimeInstructions {
+		t.Fatal("initialize duplicated a scoped file or file diagnostic")
 	}
-	if strings.Contains(text, strings.Repeat("x", 100)) {
-		t.Fatal("oversized startup body leaked")
+	enabledSession := connectInstructionClient(t, NewServer(enabled, cfg))
+	failedSnapshot := readMCPInstructionSnapshot(t, enabledSession, cfg.AgentDockDefaultDir)
+	encoded, err = json.Marshal(failedSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !failedSnapshot.AutoLoad || !strings.Contains(string(encoded), "file_size_limit") {
+		t.Fatalf("context did not disclose the scoped file failure: %s", encoded)
+	}
+	if strings.Contains(string(encoded), strings.Repeat("x", 100)) {
+		t.Fatal("oversized scoped file body leaked through context")
 	}
 }

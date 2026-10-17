@@ -1,6 +1,6 @@
-# AgentDock Workbench CLI
+# ACTOVO CLI
 
-`agentdock` 现在既保留原有的本机安装、更新、服务和离线 Skill/Plugin 命令，也可以作为 AgentDock Core 的受控管理客户端。CLI 不维护第二套任务、会话、调用、审批、权限或插入状态机；在线命令统一调用 Core 已有的 `/internal/runtime/*` 接口。
+`agentdock` 现在既保留原有的本机安装、更新、服务和离线 Skill/Plugin 命令，也可以作为 ACTOVO Core 的受控管理客户端。CLI 不维护第二套任务、会话、调用、审批、权限或插入状态机；在线命令统一调用 Core 已有的 `/internal/runtime/*` 接口。
 
 完整实现状态见 [命令矩阵](command-matrix.md)，共享传输契约见 [`api/workbench/v1/contract.json`](../../api/workbench/v1/contract.json)。
 
@@ -152,7 +152,7 @@ agentdock task checkpoint tsk_example \
 # 安全更新工作区
 agentdock workspace update wsp_example \
   --expected-revision 7 \
-  --name "AgentDock Workbench" \
+  --name "ACTOVO" \
   --json
 
 # 绑定会话；CLI 自动读取 binding_revision
