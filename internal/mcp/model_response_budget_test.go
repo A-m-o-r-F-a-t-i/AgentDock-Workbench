@@ -3,6 +3,9 @@ package mcp
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
@@ -67,5 +70,84 @@ func TestModelResponseKeepsSmallNativeAttachment(t *testing.T) {
 	}
 	if got := nativeAttachmentBytes(envelope); got != 128 {
 		t.Fatalf("native bytes = %d, want 128", got)
+	}
+}
+
+func TestDynamicMCPModelProjectionUsesCanonicalStructuredResult(t *testing.T) {
+	items := make([]any, 0, 120)
+	for index := range 120 {
+		items = append(items, map[string]any{"index": index, "ref": "U1", "detail": strings.Repeat("payload", 20)})
+	}
+	business := map[string]any{"schema": "easyeda-pcb-result-page/v1", "total": 120, "items": items}
+	encoded, err := json.Marshal(business)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope := map[string]any{
+		"isError": false,
+		"content": []any{map[string]any{"type": "text", "text": "mcp_tool_call succeeded"}},
+		"structuredContent": map[string]any{
+			"name": "easyeda-pcb:pcb_read", "executed": true,
+			"mcp_catalog": map[string]any{"server": "easyeda-pcb", "delivery": "reference", "tools_omitted": true},
+			"result": map[string]any{
+				"isError":           false,
+				"content":           []any{map[string]any{"type": "text", "text": string(encoded)}},
+				"structuredContent": business,
+			},
+		},
+	}
+	before, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projected := normalizeResponseStages("mcp_tool_call", nil, envelope)
+	after, err := json.Marshal(projected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := asMap(asMap(projected["structuredContent"])["result"])
+	if !reflect.DeepEqual(result["structuredContent"], business) {
+		t.Fatal("canonical upstream structuredContent changed")
+	}
+	if result["content"] != nil {
+		t.Fatalf("duplicate upstream JSON text remained: %#v", result["content"])
+	}
+	if len(after)*2 >= len(before) {
+		t.Fatalf("canonical projection did not remove the duplicated body: before=%d after=%d", len(before), len(after))
+	}
+	if retained := responseRetentionValue("mcp_tool_call", envelope); !reflect.DeepEqual(retained, business) {
+		t.Fatalf("retained source was not the canonical business result: %#v", retained)
+	}
+}
+
+func TestDynamicMCPModelProjectionPreservesNonEquivalentTextAndMetadata(t *testing.T) {
+	business := map[string]any{"number": 42, "url": "https://example.invalid/issues/42"}
+	envelope := map[string]any{
+		"structuredContent": map[string]any{
+			"name": "github:create_issue", "executed": true,
+			"result": map[string]any{
+				"isError": false,
+				"content": []any{
+					map[string]any{"type": "text", "text": `{"ok":true,"structuredContent":true,"resultId":"42"}`},
+					map[string]any{"type": "text", "text": `{"structuredContent":true,"domain":"business"}`},
+					map[string]any{"type": "text", "text": "Created issue #42"},
+				},
+				"structuredContent": business,
+				"_meta":             map[string]any{"large_internal_metadata": strings.Repeat("x", 2000)},
+			},
+		},
+	}
+	projected := normalizeResponseStages("mcp_tool_call", nil, envelope)
+	result := asMap(asMap(projected["structuredContent"])["result"])
+	content := envelopeBlocks(result["content"])
+	if len(content) != 3 || asMap(content[0])["text"] != `{"ok":true,"structuredContent":true,"resultId":"42"}` || asMap(content[1])["text"] != `{"structuredContent":true,"domain":"business"}` || asMap(content[2])["text"] != "Created issue #42" {
+		t.Fatalf("unique business text was not preserved exactly: %#v", content)
+	}
+	if asMap(result["_meta"])["large_internal_metadata"] != strings.Repeat("x", 2000) {
+		t.Fatalf("upstream standard metadata was altered: %#v", result["_meta"])
+	}
+	retained := asMap(responseRetentionValue("mcp_tool_call", envelope))
+	if !reflect.DeepEqual(retained["structuredContent"], business) || len(envelopeBlocks(retained["content"])) != 3 {
+		t.Fatalf("canonical retained result lost unique business text: %#v", retained)
 	}
 }

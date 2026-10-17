@@ -13,12 +13,13 @@ const catalogMaxAge = time.Minute
 // Catalog is one immutable discovered generation. Exported copies do not share
 // schema maps with the validator or with another request's returned data.
 type Catalog struct {
-	Server        string
-	Revision      string
-	ServerVersion string
-	Complete      bool
-	RefreshedAt   time.Time
-	Tools         map[string]Tool
+	Server            string
+	ServerFingerprint string
+	Revision          string
+	ServerVersion     string
+	Complete          bool
+	RefreshedAt       time.Time
+	Tools             map[string]Tool
 }
 
 func protocolGeneration(client protocolClient) uint64 {
@@ -54,7 +55,11 @@ func (m *Manager) catalogSnapshot(server string) (Catalog, bool, error) {
 	if view == nil || !view.Known {
 		return Catalog{}, false, nil
 	}
-	catalog := Catalog{Server: server, Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version, Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools}
+	fingerprint, err := definitionFingerprint(cfg)
+	if err != nil {
+		return Catalog{}, false, err
+	}
+	catalog := Catalog{Server: server, ServerFingerprint: fingerprint, Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version, Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools}
 	return catalog, catalogFresh(view), nil
 }
 

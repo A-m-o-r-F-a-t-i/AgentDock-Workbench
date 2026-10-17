@@ -3,11 +3,13 @@ package mcp
 import toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 
 const (
-	ToolManage  = "mcp_manage"
-	ToolSearch  = "mcp_tool_search"
-	ToolList    = "mcp_tool_list"
-	ToolInspect = "mcp_tool_inspect"
-	ToolCall    = "mcp_tool_call"
+	ToolManage         = "mcp_manage"
+	ToolSearch         = "mcp_tool_search"
+	ToolList           = "mcp_tool_list"
+	ToolInspect        = "mcp_tool_inspect"
+	ToolCall           = "mcp_tool_call"
+	ToolResultContinue = "mcp_result_continue"
+	ToolResultRaw      = "mcp_result_raw"
 )
 
 func InputSchema(name string) (map[string]any, bool) {
@@ -52,8 +54,9 @@ func InputSchema(name string) (map[string]any, bool) {
 		required = []string{"server"}
 	case ToolInspect:
 		props["name"] = stringProp("Qualified dynamic MCP tool name in <server>:<tool> form.")
-		props["names"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 3}, "description": "Complete schemas for selected server:tool names and server:* selectors, including mixed services."}
-		props["force_full"] = boolProp("Return complete schemas even when this conversation already received the same tool revision.")
+		props["names"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 3}, "description": "Selected server:tool names and server:* selectors, including mixed services."}
+		props["include_schema"] = boolProp("Include complete schemas for a batch. A single explicit tool includes its schema by default; batches default to summaries and digests.")
+		props["force_full"] = boolProp("Return complete schemas even when this conversation already received the same schema digest. Implies include_schema=true.")
 	case ToolCall:
 		props["name"] = stringProp("Qualified dynamic MCP tool name in <server>:<tool> form.")
 		toolcontract.ActivityProperties(props)
@@ -62,6 +65,16 @@ func InputSchema(name string) (map[string]any, bool) {
 		// arguments 的结构由上游 MCP tool schema 决定，是这里唯一需要保持开放的动态叶节点。
 		props["arguments"] = map[string]any{"type": "object", "description": "Arguments matching the schema returned by mcp_tool_inspect.", "additionalProperties": true}
 		required = []string{"name", "arguments"}
+	case ToolResultContinue:
+		props["call_id"] = stringProp("Original mcp_tool_call activity call ID.")
+		props["cursor"] = stringProp("Opaque AgentDock host result cursor returned by the original call or previous continuation.")
+		required = []string{"call_id", "cursor"}
+	case ToolResultRaw:
+		props["call_id"] = stringProp("Original mcp_tool_call activity call ID.")
+		props["offset"] = boundedIntProp("UTF-8 byte offset for explicit raw-response diagnostics.", 0, 1<<30)
+		props["limit"] = boundedIntProp("Maximum UTF-8 bytes to return; defaults to 8000 and is capped at 65536.", 1, 65536)
+		props["restart"] = boolProp("Allow an explicit diagnostic reread from the requested offset, including offset zero.")
+		required = []string{"call_id"}
 	default:
 		return nil, false
 	}
@@ -156,7 +169,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["tool_name"] = stringProp("Upstream MCP tool name.")
 		props["catalog_revision"] = stringProp("Revision of the inspected catalog.")
 		props["server_version"] = stringProp("Version reported by initialize, empty when unknown.")
-		props["delivery"] = stringProp("full when schemas are included, reference when the same revision was already delivered to this conversation.")
+		props["delivery"] = stringProp("Legacy schema delivery marker retained for direct Runtime callers.")
+		props["schema_delivery"] = stringProp("full, summary, or reference; remains available after the host execution delivery envelope is added.")
 		props["schema_omitted"] = boolProp("True only for a compact same-revision schema reference.")
 		props["refresh_tool"] = stringProp("Use mcp_tool_inspect with force_full=true when the referenced schema is absent from current model context.")
 		props["title"] = stringProp("Tool title.")
@@ -166,11 +180,41 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["annotations"] = objectProp("Optional upstream MCP tool annotations.")
 	case ToolCall:
 		props["name"] = stringProp("Qualified MCP tool name.")
-		props["result"] = objectProp("Raw upstream MCP tools/call result, including content and structuredContent when supplied.")
+		props["call_id"] = stringProp("Activity call ID used by host result continuation and raw diagnostics.")
+		props["result"] = objectProp("Normalized upstream result page. structuredContent is preferred and equivalent JSON text is removed.")
 		props["executed"] = boolProp("Whether the upstream tools/call request was dispatched.")
+		props["content_kinds"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+		props["host_cursor"] = stringProp("Opaque AgentDock host cursor for mcp_result_continue. This is separate from any domain cursor inside result.")
+		props["host_page"] = objectProp("Host projection page metadata and high-water-safe continuation state.")
+		props["continuation_available"] = boolProp("Whether another host projection page is available.")
+		props["continuation_required"] = boolProp("Always false; continue only when more of this result is needed.")
+		props["raw_result_ref"] = stringProp("Activity reference to the complete original upstream response when retained.")
 		props["mcp_catalog"] = toolcontract.OutputObject(catalogSchemaProperties())
+	case ToolResultContinue:
+		props["call_id"] = stringProp("Original mcp_tool_call activity call ID.")
+		props["name"] = stringProp("Qualified MCP tool name.")
+		props["result"] = objectProp("Next normalized host projection page.")
+		props["host_cursor"] = stringProp("Opaque cursor for the next page.")
+		props["host_page"] = objectProp("Host projection page metadata.")
+		props["continuation_available"] = boolProp("Whether another host projection page is available.")
+		props["continuation_required"] = boolProp("Always false.")
+		props["replayed"] = boolProp("True for an idempotent repeated cursor receipt.")
+		props["content_returned"] = boolProp("False when a repeated cursor returns only an idempotent receipt.")
+		props["resume_cursor"] = stringProp("Current high-water cursor when no content was returned.")
+	case ToolResultRaw:
+		props["call_id"] = stringProp("Original mcp_tool_call activity call ID.")
+		props["offset"] = intProp("Returned UTF-8 byte offset.")
+		props["next_offset"] = intProp("Next explicit diagnostic offset.")
+		props["limit"] = intProp("Requested diagnostic byte limit.")
+		props["data"] = stringProp("Raw upstream response JSON fragment.")
+		props["complete"] = boolProp("Whether the complete raw response has been returned.")
+		props["raw_result_ref"] = stringProp("Activity reference to the retained complete response.")
 	default:
 		return nil, false
+	}
+	if name == ToolCall || name == ToolResultContinue || name == ToolResultRaw {
+		props["result_call_id"] = stringProp("Original MCP result identity; call_id identifies this current host invocation.")
+		props["continue_result"] = objectProp("Exact host continuation tool and arguments for this retained result.")
 	}
 	if name == ToolSearch || name == ToolList || name == ToolInspect {
 		toolcontract.StructuredPagingOutput(props)
@@ -181,13 +225,14 @@ func OutputSchema(name string) (map[string]any, bool) {
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
 		"server": toolcontract.String("Dynamic MCP server."), "catalog_revision": toolcontract.String("Referenced complete catalog generation."),
-		"complete":      toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
-		"stale":         toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
-		"total":         toolcontract.Integer("Total tools in the referenced catalog."),
-		"error":         toolcontract.String("Catalog attachment problem; never changes the business outcome."),
-		"delivery":      toolcontract.String("full when tools are included, reference when this trusted scope already received the same revision."),
-		"tools_omitted": toolcontract.Boolean("True only for a compact reference to a complete catalog already delivered in the same trusted scope."),
-		"refresh_tool":  toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
-		"tools":         map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}}}},
+		"complete":         toolcontract.Boolean("All tools in the referenced visible catalog are included; false if unavailable."),
+		"stale":            toolcontract.Boolean("The last complete directory is stale and has not been represented as current."),
+		"total":            toolcontract.Integer("Total tools in the referenced catalog."),
+		"error":            toolcontract.String("Catalog attachment problem; never changes the business outcome."),
+		"delivery":         toolcontract.String("Legacy catalog delivery marker retained for direct Runtime callers."),
+		"catalog_delivery": toolcontract.String("full, summary, or reference; remains available after the host execution delivery envelope is added."),
+		"tools_omitted":    toolcontract.Boolean("True when catalog entries are omitted; delivery distinguishes a summary from a delivered reference."),
+		"refresh_tool":     toolcontract.String("Use mcp_tool_list when the referenced complete catalog is absent from the current context."),
+		"tools":            map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"name", "description"}, "properties": map[string]any{"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"}, "qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"}, "server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"}, "schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"}, "source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"}, "annotations": toolcontract.OpenObject("Standard MCP tool annotations.")}}},
 	}
 }

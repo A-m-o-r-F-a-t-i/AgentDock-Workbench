@@ -11,6 +11,7 @@ func testSchema(revision string) map[string]any {
 	return map[string]any{
 		"name": "fixture:read", "server": "fixture", "tool_name": "read",
 		"catalog_revision": revision, "server_version": "1.0.0",
+		"server_fingerprint": "fixture-server", "schema_digest": "fixture-schema", "annotations_digest": "fixture-annotations",
 		"input_schema": map[string]any{"type": "object"},
 		"description":  "Read fixture data.",
 	}
@@ -26,11 +27,11 @@ func TestSchemaDeliveryUsesConversationRevisionAndForceFull(t *testing.T) {
 	ctx := activity.WithBinding(t.Context(), binding)
 
 	full := state.prepare(ctx, testSchema("v1"), false)
-	if full["delivery"] != "full" || full["schema_omitted"] != false || full["input_schema"] == nil {
+	if full["delivery"] != "full" || full["schema_delivery"] != "full" || full["schema_omitted"] != false || full["input_schema"] == nil {
 		t.Fatalf("first schema delivery is incomplete: %#v", full)
 	}
 	reference := state.prepare(ctx, testSchema("v1"), false)
-	if reference["delivery"] != "reference" || reference["schema_omitted"] != true || reference["input_schema"] != nil || reference["refresh_tool"] != ToolInspect {
+	if reference["delivery"] != "reference" || reference["schema_delivery"] != "reference" || reference["schema_omitted"] != true || reference["input_schema"] != nil || reference["refresh_tool"] != ToolInspect {
 		t.Fatalf("repeat schema delivery is not compact: %#v", reference)
 	}
 

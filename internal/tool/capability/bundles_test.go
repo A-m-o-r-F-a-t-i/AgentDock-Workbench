@@ -28,7 +28,7 @@ func TestBuiltinBundlesAreUniqueAndResolvable(t *testing.T) {
 			}
 		}
 	}
-	for _, required := range []string{"mcp_manage", "plugin_manage", "skill_package", "file_publish"} {
+	for _, required := range []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw", "file_publish"} {
 		if seenTools[required] == "" {
 			t.Fatalf("required low-frequency tool %q is not bundled", required)
 		}

@@ -4,6 +4,25 @@ import "maps"
 
 // executionOutputSchema preserves the complete business success contract and
 // adds a separate, unmistakable not-yet-executed approval alternative.
+func executionOutputSchemaForTool(name string, original map[string]any) map[string]any {
+	if name == "mcp_result_continue" || name == "mcp_result_raw" {
+		result := cloneJSONSchemaMap(original)
+		if result == nil {
+			result = map[string]any{"type": "object"}
+		}
+		properties, _ := result["properties"].(map[string]any)
+		properties = maps.Clone(properties)
+		if properties == nil {
+			properties = map[string]any{}
+		}
+		properties["agentdock_guidance"] = executionGuidanceSchema(properties["agentdock_guidance"])
+		result["properties"] = properties
+		result["additionalProperties"] = true
+		return result
+	}
+	return executionOutputSchema(original)
+}
+
 func executionOutputSchema(original map[string]any) map[string]any {
 	success := maps.Clone(original)
 	if success == nil {

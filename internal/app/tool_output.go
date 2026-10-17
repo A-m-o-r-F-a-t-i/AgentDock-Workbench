@@ -38,6 +38,9 @@ func ordinaryOutputSlots(name string, args map[string]any, result Result) ([]out
 	case "file_edit":
 		add(result, "diff_preview", "diff_preview")
 	case "mcp_tool_call":
+		if result["host_page"] != nil {
+			return nil, nil
+		}
 		remote := modelObject(result["result"])
 		if remote == nil || remote["structuredContent"] != nil {
 			return nil, nil

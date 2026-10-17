@@ -9,23 +9,25 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	protocol "github.com/uvwt/agentdock-protocol"
 )
 
 func TestPairPersistsOnlyNexusDeviceIdentity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/nodes/pair" || r.Method != http.MethodPost {
+		if r.URL.Path != protocol.PairPath || r.Method != http.MethodPost {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-		var request map[string]string
+		var request protocol.PairRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request["code"] != "pair_test" || request["device_id"] == "" {
+		if request.Code != "pair_test" || !protocol.ValidDeviceID(request.DeviceID) || request.Name != "DockMini" {
 			t.Fatalf("request = %#v", request)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"node":{"id":"node_test"},"device_token":"device-secret"}`))
+		_ = json.NewEncoder(w).Encode(protocol.PairResponse{Node: protocol.PairedNode{ID: "node_test"}, DeviceToken: "device-secret"})
 	}))
 	defer server.Close()
 

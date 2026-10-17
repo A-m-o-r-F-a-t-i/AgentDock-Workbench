@@ -34,6 +34,11 @@ public partial class ExecutionWindow
     {
         var payload = kind == "request" ? row.RequestPayload : row.ResponsePayload;
         if (payload.Reference.Length == 0 || payload.Busy) return;
+        if (automatic && kind == "request")
+        {
+            if (!payload.HasReadError) await LoadEntireRequestAsync(row);
+            return;
+        }
         var needsPolicyReload = _outputPreference is not null && payload.NeedsBudgetReload(_outputPreference.ToolOutput.Budget);
         if (automatic && !needsPolicyReload && (!payload.NeedsLoad || payload.HasReadError)) return;
         var reference = payload.Reference;

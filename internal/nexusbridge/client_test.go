@@ -37,18 +37,36 @@ func TestBridgeToolDescriptorsPreservePresentationBinding(t *testing.T) {
 
 func TestBridgeHelloSeparatesToolsFromBridgeCapabilities(t *testing.T) {
 	tools := []string{"read_file", "exec_command"}
+	client := &Client{}
+	handlers := client.operationHandlers()
 	hello := bridgeHello(
 		Identity{DeviceID: "device_abcdefgh"},
 		tools,
 		[]protocol.ToolDescriptor{{Name: "read_file"}, {Name: "exec_command"}},
 		[]protocol.UIResourceCapability{},
 		"sha256:test",
+		bridgeCapabilities(handlers),
 	)
 	if !reflect.DeepEqual(hello.Capabilities, tools) {
 		t.Fatalf("capabilities = %#v, want tools %#v", hello.Capabilities, tools)
 	}
-	if len(hello.BridgeCapabilities) != 1 || hello.BridgeCapabilities[0] != protocol.ArtifactReadCapability {
-		t.Fatalf("bridge_capabilities = %#v", hello.BridgeCapabilities)
+	wantBridgeCapabilities := []string{
+		protocol.CapabilitiesNegotiationCapability,
+		protocol.ContextLocalCapability,
+		protocol.RuntimeRequestCapability,
+		protocol.ResourceReadCapability,
+		protocol.ArtifactReadCapability,
+	}
+	if !reflect.DeepEqual(hello.BridgeCapabilities, wantBridgeCapabilities) {
+		t.Fatalf("bridge_capabilities = %#v, want %#v", hello.BridgeCapabilities, wantBridgeCapabilities)
+	}
+	for _, handler := range handlers {
+		if handler.capability == "" {
+			continue
+		}
+		if !containsString(hello.BridgeCapabilities, handler.capability) {
+			t.Fatalf("registered operation %q omitted capability %q", handler.operation, handler.capability)
+		}
 	}
 	for _, capability := range hello.Capabilities {
 		if capability == protocol.ArtifactReadCapability {
@@ -64,7 +82,7 @@ func TestBridgeWebSocketInvokeRecoveryAndShutdown(t *testing.T) {
 	serverErr := make(chan error, 1)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/nodes/connect" || r.Header.Get("Authorization") != "Bearer test-device-token" {
+		if r.URL.Path != protocol.ConnectPath || r.Header.Get("Authorization") != "Bearer test-device-token" {
 			http.Error(w, "invalid bridge request", http.StatusUnauthorized)
 			return
 		}
@@ -150,6 +168,9 @@ func TestBridgeWebSocketInvokeRecoveryAndShutdown(t *testing.T) {
 			if response.Type != protocol.MessageToolError || response.RequestID != requestID || response.Error == nil {
 				t.Fatalf("response = %#v", response)
 			}
+			if requestID == "unsupported" && (response.Error.Code != "UNSUPPORTED_OPERATION" || response.Error.Category != "validation") {
+				t.Fatalf("unsupported error = %#v", response.Error)
+			}
 			if requestID == "panic" && (response.Error.Code != "NODE_OPERATION_FAILED" || response.Error.Category != "internal") {
 				t.Fatalf("panic error = %#v", response.Error)
 			}
@@ -174,6 +195,15 @@ func TestBridgeWebSocketInvokeRecoveryAndShutdown(t *testing.T) {
 	if state.Connected() {
 		t.Fatal("bridge connection state remained connected after shutdown")
 	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBridgeRunReturnsAfterCanceledDialContext(t *testing.T) {
