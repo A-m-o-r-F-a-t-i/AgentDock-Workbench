@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/plugin"
 	"github.com/uvwt/agentdock/internal/snapshot"
-	"path/filepath"
-	"strings"
-	"sync"
-	"time"
 )
 
 var errContextVersionChanged = errors.New("context source changed during build")

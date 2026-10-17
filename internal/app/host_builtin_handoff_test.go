@@ -2,9 +2,9 @@ package app
 
 import (
 	"errors"
-	"github.com/uvwt/agentdock/internal/activity"
 	"testing"
 
+	"github.com/uvwt/agentdock/internal/activity"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 

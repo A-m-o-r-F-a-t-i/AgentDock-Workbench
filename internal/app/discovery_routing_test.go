@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/config"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 func newAuditDiscoveryRuntime(t *testing.T) *Runtime {
