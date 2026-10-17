@@ -106,8 +106,18 @@ func TestScopedWatchFiltersAncestorAndSiblingEvents(t *testing.T) {
 }
 
 func TestScopedWatchBoundsSelectedDirectories(t *testing.T) {
+	// Keep the capacity fixture independent of system aliases such as macOS
+	// /var -> /private/var, whose parent watches are required for retargeting.
+	canonicalHome := func(t *testing.T) string {
+		t.Helper()
+		home, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return home
+	}
 	t.Run("covered_descendants", func(t *testing.T) {
-		home := t.TempDir()
+		home := canonicalHome(t)
 		root := filepath.Join(home, ".agents", "skills")
 		files := NewScopedFiles(nil)
 		defer files.Close()
@@ -127,7 +137,7 @@ func TestScopedWatchBoundsSelectedDirectories(t *testing.T) {
 			}
 		}
 	})
-	home := t.TempDir()
+	home := canonicalHome(t)
 	files := NewScopedFiles(nil)
 	defer files.Close()
 	files.SetStableRoot(home)
