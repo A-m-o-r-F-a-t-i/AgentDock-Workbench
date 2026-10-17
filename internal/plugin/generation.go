@@ -129,7 +129,7 @@ func packageDigestAt(path string) (string, bool, error) {
 		return "", false, err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return "", true, errors.New("Plugin package path is a symbolic link")
+		return "", true, errors.New("Plugin package path is a symlink")
 	}
 	if !info.IsDir() {
 		return "", true, errors.New("Plugin package path is not a regular directory")
