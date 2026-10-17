@@ -69,6 +69,15 @@ func writeCoreEnvironment(path string, request Request) error {
 		delete(existing, key)
 	}
 
+	// Core data paths must follow the installer contract, not the service
+	// account's default HOME. Empty repair fields preserve existing values.
+	if request.AgentDockHome != "" {
+		existing["AGENTDOCK_HOME"] = request.AgentDockHome
+	}
+	if request.AgentDockDefaultDir != "" {
+		existing["AGENTDOCK_DEFAULT_DIR"] = request.AgentDockDefaultDir
+	}
+
 	if strings.TrimSpace(request.Host) != "" {
 		existing["AGENTDOCK_HOST"] = request.Host
 	} else if strings.TrimSpace(existing["AGENTDOCK_HOST"]) == "" {
