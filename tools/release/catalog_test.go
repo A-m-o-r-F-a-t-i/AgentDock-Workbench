@@ -12,14 +12,14 @@ import (
 func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
 	catalog := ReleaseCatalog()
 	expected := map[string]bool{
-		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":   false,
-		"AgentDock-macos-universal.dmg":                               false,
+		"ACTOVO-" + buildinfo.Version + "-Android.apk":                false,
+		"ACTOVO-macos-universal.dmg":                                  false,
 		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":     false,
 		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":     false,
 		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":  false,
 		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm": false,
-		"AgentDock-Workbench-Setup-amd64.exe":                         false,
-		"AgentDock-Workbench-Setup-arm64.exe":                         false,
+		"ACTOVO-Setup-amd64.exe":                                      false,
+		"ACTOVO-Setup-arm64.exe":                                      false,
 	}
 	for _, artifact := range catalog {
 		if !artifact.PublicContract {
@@ -41,8 +41,8 @@ func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
 }
 
 func TestReleaseCatalogUsesSingleStableAndroidInstaller(t *testing.T) {
-	stableAPK := "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk"
-	legacyAPK := "AgentDock-Workbench-" + buildinfo.Version + "-Android-test-signed.apk"
+	stableAPK := "ACTOVO-" + buildinfo.Version + "-Android.apk"
+	legacyAPK := "ACTOVO-" + buildinfo.Version + "-Android-test-signed.apk"
 	expected := map[string]bool{
 		stableAPK:             false,
 		stableAPK + ".sha256": false,

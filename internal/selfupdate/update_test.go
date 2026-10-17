@@ -91,6 +91,37 @@ func TestInspectUpdateRequiresMacOSDesktopAssetsWhenAppIsInstalled(t *testing.T)
 	}
 }
 
+func TestInspectUpdateAcceptsLegacyMacOSDesktopAssetName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(release{
+			TagName: "v0.7.1",
+			Assets: []releaseAsset{
+				{Name: "agentdock_darwin_arm64.tar.gz", URL: "https://example.invalid/core"},
+				{Name: "agentdock_darwin_arm64.tar.gz.sha256", URL: "https://example.invalid/core-checksum"},
+				{Name: legacyMacOSDesktopArchiveName, URL: "https://example.invalid/app"},
+				{Name: legacyMacOSDesktopArchiveName + ".sha256", URL: "https://example.invalid/app-checksum"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	inspection, err := inspectUpdate(context.Background(), options{
+		CurrentVersion:    "0.7.0",
+		DesktopTargetPath: "/Applications/AgentDock.app",
+		GOOS:              "darwin",
+		GOARCH:            "arm64",
+		ReleaseAPI:        server.URL,
+		HTTPClient:        server.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inspection.DesktopArchiveAsset.Name != legacyMacOSDesktopArchiveName ||
+		inspection.DesktopChecksumAsset.Name != legacyMacOSDesktopArchiveName+".sha256" {
+		t.Fatalf("unexpected legacy desktop assets: %#v", inspection)
+	}
+}
+
 func TestInspectUpdateRepairsOlderDesktopWhenCoreIsCurrent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(release{
@@ -574,9 +605,14 @@ func TestRunSkipsCurrentAndNewerVersions(t *testing.T) {
 }
 
 func TestParseVersionOutputRequiresExactVersionLine(t *testing.T) {
-	workbench, workbenchErr := parseVersionOutput([]byte("AgentDock Workbench v1.1.7\ncommit: abc\n"))
-	if workbenchErr != nil || workbench != "v1.1.7" {
-		t.Fatalf("Workbench version=%q err=%v", workbench, workbenchErr)
+	for _, output := range []string{
+		"ACTOVO v1.1.7\ncommit: abc\n",
+		"AgentDock Workbench v1.1.7\ncommit: abc\n",
+	} {
+		workbench, workbenchErr := parseVersionOutput([]byte(output))
+		if workbenchErr != nil || workbench != "v1.1.7" {
+			t.Fatalf("Workbench version=%q err=%v for %q", workbench, workbenchErr, output)
+		}
 	}
 	version, err := parseVersionOutput([]byte("AgentDock v0.4.5\ncommit: abc\n"))
 	if err != nil || version != "v0.4.5" {

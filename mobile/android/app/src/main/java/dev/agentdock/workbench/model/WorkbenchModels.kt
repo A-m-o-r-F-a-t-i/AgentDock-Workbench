@@ -164,7 +164,7 @@ object FixtureData {
         insertions = listOf(WorkbenchItem("ins_1", "补充：保持现有手机节点", "等待 Core 回执", "attached", "30 秒回执窗")),
         skills = listOf(WorkbenchItem("skill_1", "easyeda-pcb-layout-routing", "布局与布线", "enabled")),
         plugins = listOf(WorkbenchItem("plugin_1", "github", "Actions 与代码托管", "enabled")),
-        mcpServers = listOf(WorkbenchItem("mcp_1", "AgentDock-OPPO", "21 tools", "connected")),
+        mcpServers = listOf(WorkbenchItem("mcp_1", "ACTOVO-OPPO", "21 tools", "connected")),
         effectivePermissionSummary = "完全权限 · 自定义权限开关关闭 · 显式 deny 仍生效",
         updatedAtEpochMs = now,
         fixture = true

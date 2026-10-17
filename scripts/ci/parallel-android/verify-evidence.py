@@ -63,10 +63,10 @@ def verify(inputs: Path, output: Path, version: str, sha: str, run_id: str, atte
         raise RuntimeError('Expected exactly one Android APK candidate')
     candidate = read_json(candidates[0])
     identity(candidate)
-    if (candidate.get('product_version') != version or candidate.get('product') != 'AgentDock Workbench' or
+    if (candidate.get('product_version') != version or candidate.get('product') != 'ACTOVO' or
             candidate.get('signing') != 'Android debug/test key only'):
         raise RuntimeError('Android candidate version/product/signing mismatch')
-    original_name = f'AgentDock-Workbench-{version}-Android-release-shaped-{sha[:12]}-test-signed.apk'
+    original_name = f'ACTOVO-{version}-Android-release-shaped-{sha[:12]}-test-signed.apk'
     if original_name not in candidate.get('apks', []):
         raise RuntimeError('Release-shaped Android APK is not declared')
     source = candidates[0].parent / 'apk' / original_name
@@ -78,10 +78,10 @@ def verify(inputs: Path, output: Path, version: str, sha: str, run_id: str, atte
     if sums.count(f'{checksum}  {original_name}') != 1:
         raise RuntimeError('Android APK checksum mismatch')
     output.mkdir(parents=True, exist_ok=True)
-    name = f'AgentDock-Workbench-{version}-Android-test-signed.apk'
+    name = f'ACTOVO-{version}-Android-test-signed.apk'
     shutil.copy2(source, output / name)
     (output / (name + '.sha256')).write_text(f'{checksum}  {name}\n')
-    report = {'schema_version': 1, 'product_name': 'AgentDock Workbench', 'version': version, 'commit': sha,
+    report = {'schema_version': 1, 'product_name': 'ACTOVO', 'version': version, 'commit': sha,
               'platform': 'android/arm64', 'run_id': run_id, 'run_attempt': attempt,
               'signing': 'test-signed Android debug key', 'apk_validation': 'passed',
               'emulator_validation': 'passed', 'api_levels': sorted(APIS),

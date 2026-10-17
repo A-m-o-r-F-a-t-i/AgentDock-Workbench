@@ -2,9 +2,7 @@ package state
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,9 +14,10 @@ type UninstallResult struct {
 	ActiveVersion   string
 }
 
-// Uninstall shares the per-Skill lock with activation. Removing one inactive
-// version prunes rollback history; removing the whole Skill removes the active
-// Codex-style directory, archived versions, and AgentDock selection metadata.
+// Uninstall shares the per-Skill writer with activation and publishes a
+// durable swap journal before moving any package directory. Removing one
+// inactive version prunes rollback history; removing the whole Skill removes
+// active and archived packages while leaving environment and data stores alone.
 func (s *Store) Uninstall(ctx context.Context, skill, version string) (UninstallResult, error) {
 	if err := validateIdentifier("skill", skill); err != nil {
 		return UninstallResult{}, err
@@ -29,12 +28,14 @@ func (s *Store) Uninstall(ctx context.Context, skill, version string) (Uninstall
 		}
 	}
 
-	release, err := s.acquire(ctx, skill)
+	release, err := s.AcquireWrite(ctx, skill)
 	if err != nil {
 		return UninstallResult{}, err
 	}
 	defer release()
-
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return UninstallResult{}, err
+	}
 	selection, err := s.load(skill)
 	if err != nil {
 		return UninstallResult{}, err
@@ -53,7 +54,7 @@ func (s *Store) uninstallVersionLocked(skill, version string, selection Selectio
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	exists, err := s.regularDirectoryExists(packagePath)
+	digest, exists, err := directoryDigest(packagePath)
 	if err != nil {
 		return UninstallResult{}, err
 	}
@@ -61,26 +62,27 @@ func (s *Store) uninstallVersionLocked(skill, version string, selection Selectio
 		return UninstallResult{}, fmt.Errorf("skill %s version %s is not installed", skill, version)
 	}
 
-	tombstone, err := s.uninstallTombstone("version")
+	target := selection
+	var historyChanged bool
+	target.History, historyChanged = removeVersion(target.History, version)
+	if historyChanged {
+		target.UpdatedAt = time.Now().UTC()
+	}
+	work, cleanupPath, err := s.transactionWorkPath(skill)
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	if err := os.Rename(packagePath, tombstone); err != nil {
-		return UninstallResult{}, fmt.Errorf("stage skill version removal: %w", err)
+	backup := filepath.Join(work, "version")
+	move, err := s.newSwapMove(swapRoleRemoval, packagePath, backup, digest, swapCommitRemove, swapRollbackRestore)
+	if err != nil {
+		_ = os.RemoveAll(work)
+		return UninstallResult{}, err
 	}
-
-	next := selection
-	var historyChanged bool
-	next.History, historyChanged = removeVersion(next.History, version)
-	if historyChanged {
-		next.UpdatedAt = time.Now().UTC()
-		if err := s.persistSelection(skill, next); err != nil {
-			return UninstallResult{}, errors.Join(err, renameRollback(tombstone, packagePath))
-		}
+	transaction := s.newSwapTransaction(skill, "uninstall_version", selection, target, []SwapMove{move}, cleanupPath)
+	if err := s.executeSwapLocked(transaction); err != nil {
+		return UninstallResult{}, err
 	}
-
-	cleanupUninstallTombstone(tombstone)
-	_ = os.Remove(filepath.Dir(packagePath))
+	s.removeEmptyVersionParent(skill)
 	return UninstallResult{RemovedVersions: []string{version}, ActiveVersion: selection.ActiveVersion}, nil
 }
 
@@ -94,73 +96,54 @@ func (s *Store) uninstallSkillLocked(skill string, selection Selection) (Uninsta
 	}
 	sort.Strings(versions)
 
-	type stagedMove struct {
-		source    string
-		tombstone string
+	work, cleanupPath, err := s.transactionWorkPath(skill)
+	if err != nil {
+		return UninstallResult{}, err
 	}
-	moves := make([]stagedMove, 0, 3)
-	stage := func(source, kind string) error {
-		exists, statErr := pathExists(source)
-		if statErr != nil {
-			return statErr
-		}
-		if !exists {
-			return nil
-		}
-		tombstone, tombstoneErr := s.uninstallTombstone(kind)
-		if tombstoneErr != nil {
-			return tombstoneErr
-		}
-		if renameErr := os.Rename(source, tombstone); renameErr != nil {
-			return renameErr
-		}
-		moves = append(moves, stagedMove{source: source, tombstone: tombstone})
-		return nil
-	}
-	rollback := func(cause error) error {
-		errs := []error{cause}
-		for index := len(moves) - 1; index >= 0; index-- {
-			errs = append(errs, renameRollback(moves[index].tombstone, moves[index].source))
-		}
-		return errors.Join(errs...)
-	}
-
-	statePath := filepath.Join(s.root, stateDirectory, skill+".json")
-	if err := stage(statePath, "state"); err != nil {
-		return UninstallResult{}, rollback(fmt.Errorf("stage skill state removal: %w", err))
-	}
+	moves := make([]SwapMove, 0, 2)
 	if selection.ActiveVersion != "" {
 		activePath, pathErr := s.activePath(skill, selection.System)
 		if pathErr != nil {
-			return UninstallResult{}, rollback(pathErr)
+			_ = os.RemoveAll(work)
+			return UninstallResult{}, pathErr
 		}
-		if err := stage(activePath, "active"); err != nil {
-			return UninstallResult{}, rollback(fmt.Errorf("stage active skill removal: %w", err))
+		digest, exists, digestErr := directoryDigest(activePath)
+		if digestErr != nil {
+			_ = os.RemoveAll(work)
+			return UninstallResult{}, digestErr
 		}
+		if !exists {
+			_ = os.RemoveAll(work)
+			return UninstallResult{}, fmt.Errorf("skill %s active version %s is not installed", skill, selection.ActiveVersion)
+		}
+		move, moveErr := s.newSwapMove(swapRoleRemoval, activePath, filepath.Join(work, "active"), digest, swapCommitRemove, swapRollbackRestore)
+		if moveErr != nil {
+			_ = os.RemoveAll(work)
+			return UninstallResult{}, moveErr
+		}
+		moves = append(moves, move)
 	}
 	archiveRoot := filepath.Join(s.root, versionsDirectory, skill)
-	if err := stage(archiveRoot, "versions"); err != nil {
-		return UninstallResult{}, rollback(fmt.Errorf("stage archived skill removal: %w", err))
+	if digest, exists, digestErr := directoryDigest(archiveRoot); digestErr != nil {
+		_ = os.RemoveAll(work)
+		return UninstallResult{}, digestErr
+	} else if exists {
+		move, moveErr := s.newSwapMove(swapRoleRemoval, archiveRoot, filepath.Join(work, "versions"), digest, swapCommitRemove, swapRollbackRestore)
+		if moveErr != nil {
+			_ = os.RemoveAll(work)
+			return UninstallResult{}, moveErr
+		}
+		moves = append(moves, move)
 	}
-
-	for _, move := range moves {
-		cleanupUninstallTombstone(move.tombstone)
+	if len(moves) == 0 {
+		_ = os.RemoveAll(work)
+		return UninstallResult{}, fmt.Errorf("skill %s has state but no recoverable package directories", skill)
+	}
+	transaction := s.newSwapTransaction(skill, "uninstall_skill", selection, Selection{}, moves, cleanupPath)
+	if err := s.executeSwapLocked(transaction); err != nil {
+		return UninstallResult{}, err
 	}
 	return UninstallResult{RemovedVersions: versions, ActiveVersion: selection.ActiveVersion}, nil
-}
-
-func (s *Store) uninstallTombstone(kind string) (string, error) {
-	owner, err := newLockOwner()
-	if err != nil {
-		return "", fmt.Errorf("create uninstall tombstone: %w", err)
-	}
-	return filepath.Join(s.root, tempDirectory, "uninstall-"+kind+"-"+owner), nil
-}
-
-func cleanupUninstallTombstone(path string) {
-	if err := os.RemoveAll(path); err != nil {
-		slog.Warn("cleanup Skill uninstall tombstone failed", "path", path, "error", err)
-	}
 }
 
 func removeVersion(history []string, version string) ([]string, bool) {

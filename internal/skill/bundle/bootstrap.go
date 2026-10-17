@@ -105,7 +105,7 @@ func Bootstrap(ctx context.Context, state *skillstate.Store, manager *skills.Man
 		}
 
 		installed = append(installed, item)
-		result, err := manager.Install(ctx, skills.InstallRequest{
+		result, err := manager.InstallBundled(ctx, skills.InstallRequest{
 			Source:       item.path,
 			DigestSHA256: item.manifest.Digest,
 			Activate:     false,

@@ -292,7 +292,7 @@ jobs:
           archive=archives[0]
           digest=hashlib.sha256(archive.read_bytes()).hexdigest()
           report=json.loads(reports[0].read_text(encoding='utf-8-sig'))
-          if (report.get('product_name')!='AgentDock Workbench' or report.get('version')!=os.environ['PRODUCT_VERSION'] or
+          if (report.get('product_name')!='ACTOVO' or report.get('version')!=os.environ['PRODUCT_VERSION'] or
                   report.get('commit')!=os.environ['SOURCE_SHA'] or report.get('platform')!='linux/arm64' or
                   report.get('native_execution')!='passed' or report.get('assets',{}).get(archive.name)!=digest):
               raise SystemExit('Linux ARM64 Core evidence does not match the Android candidate source')
@@ -300,7 +300,7 @@ jobs:
           output.write_bytes(archive.read_bytes())
           (output.with_name(output.name+'.sha256')).write_text(f'{digest}  {output.name}\n',encoding='utf-8')
           Path('evidence/bundled-core/verification-bundled-core.json').write_text(json.dumps({
-              'schema_version':1,'product_name':'AgentDock Workbench','version':os.environ['PRODUCT_VERSION'],
+              'schema_version':1,'product_name':'ACTOVO','version':os.environ['PRODUCT_VERSION'],
               'commit':os.environ['SOURCE_SHA'],'platform':'android-core/arm64','source_archive':archive.name,
               'sha256':digest,'delivery':'embedded in APK'
           },indent=2)+'\n',encoding='utf-8')
@@ -364,9 +364,9 @@ jobs:
           version="${{ needs.contract.outputs.product_version }}"
           out="evidence/build/apk"
           mkdir -p "$out" evidence/build/signing
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "$out/AgentDock-Workbench-${version}-Android-debug-${short_sha}-test-signed.apk"
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk "$out/AgentDock-Workbench-${version}-Android-release-shaped-${short_sha}-test-signed.apk"
-          cp mobile/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk "$out/AgentDock-Workbench-${version}-Android-instrumentation-${short_sha}-test-signed.apk"
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "$out/ACTOVO-${version}-Android-debug-${short_sha}-test-signed.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "$out/ACTOVO-${version}-Android-release-shaped-${short_sha}-test-signed.apk"
+          cp mobile/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk "$out/ACTOVO-${version}-Android-instrumentation-${short_sha}-test-signed.apk"
           (cd "$out" && sha256sum *.apk | sort > SHA256SUMS)
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           for apk in "$out"/*.apk; do
@@ -378,7 +378,7 @@ jobs:
           (root / "candidate.json").write_text(json.dumps({
               "schema_version": 1,
               "lane": "WB07",
-              "product": "AgentDock Workbench",
+              "product": "ACTOVO",
               "product_version": os.environ["VERSION"],
               "source_sha": os.environ["SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
@@ -563,7 +563,7 @@ jobs:
           pathlib.Path("evidence/summary/evidence.json").write_text(json.dumps({
               "schema_version": 1,
               "lane": "WB07",
-              "product": "AgentDock Workbench",
+              "product": "ACTOVO",
               "product_version": os.environ.get("PRODUCT_VERSION", ""),
               "source_sha": os.environ["SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],

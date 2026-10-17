@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/uvwt/agentdock/internal/skill/packagehash"
 )
 
 func DigestFile(path string) (string, error) {
@@ -33,7 +35,7 @@ func DigestDirectory(root string) (string, error) {
 // 传输层 ZIP 摘要用于校验下载来源；版本冲突判断必须只看最终包内容，
 // 并忽略 AgentDock 自己写入的安装元数据。
 func digestPackageContent(root string) (string, error) {
-	return digestDirectory(root, true)
+	return packagehash.Directory(root)
 }
 
 func digestDirectory(root string, packageContent bool) (string, error) {

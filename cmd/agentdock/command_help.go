@@ -24,10 +24,10 @@ func runHelpCommand(args []string, output io.Writer) error {
 		command = strings.TrimSpace(args[0])
 	}
 	if command != "" {
-		_, err := fmt.Fprintf(output, "AgentDock Workbench 命令：%s\n\n运行 `agentdock %s --help` 查看该命令的参数；完整矩阵见 docs/cli/command-matrix.md。\n", command, command)
+		_, err := fmt.Fprintf(output, "ACTOVO 命令：%s\n\n运行 `agentdock %s --help` 查看该命令的参数；完整矩阵见 docs/cli/command-matrix.md。\n", command, command)
 		return err
 	}
-	_, err := fmt.Fprint(output, `AgentDock Workbench CLI
+	_, err := fmt.Fprint(output, `ACTOVO CLI
 
 用法：
   agentdock <命令> [参数]
@@ -114,7 +114,7 @@ func runLogsCommand(ctx context.Context, args []string, stdout, stderr io.Writer
 	case "export":
 		flags := flag.NewFlagSet("agentdock logs export", flag.ContinueOnError)
 		flags.SetOutput(stderr)
-		runtimeRoot := flags.String("runtime-root", "", "AgentDock 桌面运行目录")
+		runtimeRoot := flags.String("runtime-root", "", "ACTOVO 桌面运行目录")
 		lines := flags.Int("lines", 1000, "导出最近日志行数（1-10000）")
 		outputPath := flags.String("output", "", "导出文件")
 		if err := flags.Parse(args[1:]); err != nil {

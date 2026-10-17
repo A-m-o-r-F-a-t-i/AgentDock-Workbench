@@ -1,4 +1,4 @@
-# AgentDock Workbench for Android
+# ACTOVO for Android
 
 WB07 提供 Kotlin + Jetpack Compose 原生 Workbench，并把 Linux Core 保持在外部 Termux 的 Debian PRoot 中。APK 不内嵌 Termux、RootFS、Chromium、Go Core、ADB、root、Shizuku 或无障碍自动化。
 
@@ -9,7 +9,7 @@ Android Workbench APK
   ├─ Android Keystore 凭据与一次性本机配对
   └─ Termux RUN_COMMAND 固定桥
           ↓ 用户明确授权
-外部 Termux → Debian PRoot → Linux ARM64 AgentDock Core
+外部 Termux → Debian PRoot → Linux ARM64 ACTOVO Core
 ```
 
 ## 候选范围

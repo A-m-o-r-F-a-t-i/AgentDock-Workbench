@@ -4,7 +4,7 @@
 
 Android CI 候选继续使用临时 debug 身份，用于 lint、JVM、仪器测试和 API 26/33/34/35/37 模拟器验收。候选文件名包含 `test-signed`，只作为发布器输入，不进入 GitHub Release。
 
-公开安装包由发布任务在所有 Android 验证完成后生成。`scripts/release/sign-android-release.py` 读取 `verification-android.json`，核对候选 APK 字节和 SHA-256，并确认 APK 内的 `assets/agentdock-core-arm64.tar.gz` 与同一提交已验证的 Linux ARM64 Core 完全一致。随后执行 `zipalign`，使用固定发布密钥调用 `apksigner`，并在签名后再次核对内置 Core。证书指纹满足 `packaging/android/release-signing.json` 后，发布器才接受 `AgentDock-Workbench-<version>-Android.apk`。
+公开安装包由发布任务在所有 Android 验证完成后生成。`scripts/release/sign-android-release.py` 读取 `verification-android.json`，核对候选 APK 字节和 SHA-256，并确认 APK 内的 `assets/agentdock-core-arm64.tar.gz` 与同一提交已验证的 Linux ARM64 Core 完全一致。随后执行 `zipalign`，使用固定发布密钥调用 `apksigner`，并在签名后再次核对内置 Core。证书指纹满足 `packaging/android/release-signing.json` 后，发布器才接受 `ACTOVO-<version>-Android.apk`。
 
 当前发布身份：
 

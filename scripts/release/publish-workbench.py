@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY = 'A-m-o-r-F-a-t-i/AgentDock-Workbench'
-PRODUCT = 'AgentDock Workbench'
+PRODUCT = 'ACTOVO'
 ANDROID_RELEASE_CONFIG = Path('packaging/android/release-signing.json')
 
 
@@ -27,13 +27,30 @@ def android_release_identity() -> tuple[str,str]:
     return alias,certificate
 
 
+def actovo_brand_required(version: str) -> bool:
+    return tuple(map(int,version.split('.'))) >= (1,1,9)
+
+
 def stable_android_release_required(version: str) -> bool:
     return tuple(map(int,version.split('.'))) >= (1,1,9)
 
 
+def product_asset_prefix(version: str) -> str:
+    return 'ACTOVO' if actovo_brand_required(version) else 'AgentDock-Workbench'
+
+
+def android_candidate_asset_name(version: str) -> str:
+    return f'{product_asset_prefix(version)}-{version}-Android-test-signed.apk'
+
+
 def android_public_asset_name(version: str) -> str:
     suffix='Android.apk' if stable_android_release_required(version) else 'Android-test-signed.apk'
-    return f'AgentDock-Workbench-{version}-{suffix}'
+    return f'{product_asset_prefix(version)}-{version}-{suffix}'
+
+
+def macos_asset_names(version: str) -> tuple[str,str]:
+    prefix='ACTOVO' if actovo_brand_required(version) else 'AgentDock'
+    return f'{prefix}-macos-universal.dmg',f'{prefix}-macos-universal.zip'
 
 
 def run(*args: str) -> str:
@@ -79,15 +96,16 @@ def identity(report: dict,version: str,commit: str) -> None:
 
 
 def windows_setup_names(version: str) -> list[str]:
-    """Preserve historical Release names while using Workbench-branded names from 1.1.9."""
-    prefix='AgentDock-Workbench-Setup' if tuple(map(int,version.split('.'))) >= (1,1,9) else 'AgentDockSetup'
+    """Preserve historical Release names while using ACTOVO names from 1.1.9."""
+    prefix='ACTOVO-Setup' if actovo_brand_required(version) else 'AgentDockSetup'
     return [f'{prefix}-{arch}.exe' for arch in ['amd64','arm64']]
 
 
 def expected_payloads(version: str) -> list[str]:
+    macos_dmg,macos_zip=macos_asset_names(version)
     payloads = [f'agentdock_{platform}_{arch}.tar.gz' for platform in ['linux','darwin'] for arch in ['amd64','arm64']] + [
         f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']] + windows_setup_names(version) + [
-        'AgentDock-macos-universal.dmg','AgentDock-macos-universal.zip',
+        macos_dmg,macos_zip,
         f'agentdock-workbench_{version}_amd64.deb',f'agentdock-workbench_{version}_arm64.deb',
         f'agentdock-workbench-{version}-1.x86_64.rpm',f'agentdock-workbench-{version}-1.aarch64.rpm',
         'install.sh','install.ps1']
@@ -98,8 +116,9 @@ def expected_payloads(version: str) -> list[str]:
 
 def public_installers(version: str) -> list[str]:
     """Return user-installable release assets only."""
+    macos_dmg,_=macos_asset_names(version)
     installers = windows_setup_names(version) + [
-        'AgentDock-macos-universal.dmg',
+        macos_dmg,
         f'agentdock-workbench_{version}_amd64.deb',
         f'agentdock-workbench_{version}_arm64.deb',
         f'agentdock-workbench-{version}-1.x86_64.rpm',
@@ -114,11 +133,20 @@ def obsolete_public_installers(version: str) -> set[str]:
     """Return historical public names that an explicit replacement may remove."""
     obsolete: set[str] = set()
     if stable_android_release_required(version):
-        obsolete.add(f'AgentDock-Workbench-{version}-Android-test-signed.apk')
-    if tuple(map(int,version.split('.'))) >= (1,1,9):
-        obsolete.update({'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe'})
-        stem=f'AgentDock-Workbench-{version}-Android-Core-arm64'
-        obsolete.update({stem+'.tar.gz',stem+'.manifest.json',stem+'.manifest.sig'})
+        obsolete.update({
+            android_candidate_asset_name(version),
+            f'AgentDock-Workbench-{version}-Android.apk',
+            f'AgentDock-Workbench-{version}-Android-test-signed.apk',
+        })
+    if actovo_brand_required(version):
+        obsolete.update({
+            'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
+            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
+            'AgentDock-macos-universal.dmg',
+        })
+        for prefix in ('ACTOVO','AgentDock-Workbench'):
+            stem=f'{prefix}-{version}-Android-Core-arm64'
+            obsolete.update({stem+'.tar.gz',stem+'.manifest.json',stem+'.manifest.sig'})
     return obsolete
 
 
@@ -177,7 +205,7 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         android=read_report(inputs,'verification-android.json');identity(android,version,commit)
         expected_apis={26,33,34,35,37}
-        candidate_name=f'AgentDock-Workbench-{version}-Android-test-signed.apk'
+        candidate_name=android_candidate_asset_name(version)
         candidate_assets=android.get('assets')
         if (android.get('product_name')!=PRODUCT or android.get('platform')!='android/arm64' or
                 android.get('signing')!='test-signed Android debug key' or
@@ -202,7 +230,7 @@ def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=F
             bundled_core_asset='assets/agentdock-core-arm64.tgz'
             if zip_member_digest(candidate,bundled_core_asset)!=raw_core_checksum:
                 raise RuntimeError('Android candidate does not contain the verified Linux ARM64 Core')
-            public_name=f'AgentDock-Workbench-{version}-Android.apk'
+            public_name=android_public_asset_name(version)
             alias,certificate=android_release_identity()
             android_release=read_report(inputs,'verification-android-release.json');identity(android_release,version,commit)
             release_assets=android_release.get('assets')
@@ -346,6 +374,8 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
     replacement_requested=replace_published or replace_stable
     tag='v'+version
     title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
+    legacy_title=f'AgentDock Workbench {version}' + (' Pre-release' if prerelease else '')
+    accepted_replacement_titles={title,legacy_title}
     prerelease_field='prerelease='+str(prerelease).lower()
     latest_field='make_latest='+('false' if prerelease else 'true')
     latest_before=json.loads(run('gh','api',f'repos/{REPOSITORY}/releases/latest')) if prerelease or replace_stable else None
@@ -373,9 +403,9 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
             raise RuntimeError('Published replacement requires an existing prerelease')
         if replace_stable:
             if record.get('draft'):
-                if record.get('prerelease') is not True or record.get('name')!=title:
+                if record.get('prerelease') is not True or record.get('name') not in accepted_replacement_titles:
                     raise RuntimeError('Stable replacement recovery requires the original stable release draft')
-            elif record.get('prerelease') is not False or record.get('name')!=title:
+            elif record.get('prerelease') is not False or record.get('name') not in accepted_replacement_titles:
                 raise RuntimeError('Stable replacement requires an existing stable release')
             elif not isinstance(latest_before,dict) or latest_before.get('id')!=record['id']:
                 raise RuntimeError('Stable replacement requires the current Latest release')
@@ -420,7 +450,7 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
             '-F','draft=true','-F','prerelease=true','-f','make_latest=false','-f',f'target_commitish={commit}'))
     elif replace_published and record.get('prerelease') is not True:
         raise RuntimeError('Published replacement requires an existing prerelease')
-    elif replace_stable and (record.get('prerelease') is not True or record.get('name')!=title):
+    elif replace_stable and (record.get('prerelease') is not True or record.get('name') not in accepted_replacement_titles):
         raise RuntimeError('Stable replacement recovery requires the original stable release draft')
     if replacement_requested and tag_commit!=commit:
         write_release_tag(tag,commit,title,tag_ref)

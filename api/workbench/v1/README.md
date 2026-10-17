@@ -1,6 +1,6 @@
 # Workbench Local Control API v1
 
-This directory is the shared transport contract for local AgentDock Workbench clients. `contract.json` indexes existing Core routes plus two WB01-owned thin transports: task lifecycle writes delegate to `task_manage`, and workspace reads/writes delegate to `workspace_manage`. Domain state machines remain in their existing packages.
+This directory is the shared transport contract for local ACTOVO clients. `contract.json` indexes existing Core routes plus two WB01-owned thin transports: task lifecycle writes delegate to `task_manage`, and workspace reads/writes delegate to `workspace_manage`. Domain state machines remain in their existing packages.
 
 ## Security invariants
 

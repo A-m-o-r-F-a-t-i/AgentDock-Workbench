@@ -51,7 +51,7 @@ object TermuxRecoveryPolicy {
     fun advise(availability: ActionOutcome, latest: BridgeOperation?, nowEpochMs: Long): TermuxRecoveryAdvice {
         if (!availability.accepted) return when (availability.status) {
             "termux_missing" -> TermuxRecoveryAdvice("termux_missing", "尚未安装 Termux", "安装官方 Termux 并打开一次，再回到这里准备运行环境。", false)
-            "permission_missing" -> TermuxRecoveryAdvice("permission_missing", "需要调用权限", "点击“授予 RUN_COMMAND”，允许 AgentDock 调用 Termux。", false)
+            "permission_missing" -> TermuxRecoveryAdvice("permission_missing", "需要调用权限", "点击“授予 RUN_COMMAND”，允许 ACTOVO 调用 Termux。", false)
             else -> TermuxRecoveryAdvice("service_missing", "Termux 服务不可用", "请打开 Termux 完成首次启动，并核对安装来源。系统已禁用的应用需要先恢复。", false)
         }
         val failure = latest?.resultJson?.let { runCatching { JSONObject(it).optString("failure_code") }.getOrNull() }.orEmpty()

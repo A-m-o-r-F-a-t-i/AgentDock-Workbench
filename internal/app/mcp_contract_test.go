@@ -108,14 +108,11 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 		if !reflect.DeepEqual(actualInput, wantInput) {
 			t.Fatalf("%s input schema drifted from shared contract", name)
 		}
-		var wantOutput map[string]any
+		wantOutput, _ := workbenchCanonicalOutputSchema(name)
 		if name == mcpcontract.ToolAgentDockContext {
-			wantOutput = mcpcontract.LocalAgentDockContextOutputSchema()
 			wantProperties := maps.Clone(wantOutput["properties"].(map[string]any))
 			wantProperties["acp"] = acpContextSchema()
 			wantOutput["properties"] = wantProperties
-		} else {
-			wantOutput, _ = mcpcontract.OutputSchema(name)
 		}
 		if !reflect.DeepEqual(actualOutput, wantOutput) {
 			t.Fatalf("%s output schema drifted from shared contract", name)

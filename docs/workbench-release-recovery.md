@@ -1,4 +1,4 @@
-# AgentDock Workbench：已验证构建的恢复发布
+# ACTOVO：已验证构建的恢复发布
 
 　　全平台构建使用 `workbench-release.yml`。只有源码解析、Linux/macOS 两种架构的原生测试与打包、Windows 双架构包验证以及通用 macOS App 验证全部成功，才组装完整发行资产。构建、安装测试、上传与正式发布分别记录结果。
 
@@ -12,7 +12,7 @@
 
 ## 2. 恢复入口
 
-　　构建及组装已经成功、发布阶段失败时，使用 `AgentDock Workbench Publish Verified Build`，对应 `.github/workflows/workbench-publish-existing.yml`。输入原 `run_id`、原始 40 位 `commit` 和不带 v 的 `version`。入口只允许用户 fork 的 main 分支执行，不操作上游仓库。
+　　构建及组装已经成功、发布阶段失败时，使用 `ACTOVO Publish Verified Build`，对应 `.github/workflows/workbench-publish-existing.yml`。输入原 `run_id`、原始 40 位 `commit` 和不带 v 的 `version`。入口只允许用户 fork 的 main 分支执行，不操作上游仓库。
 
 　　恢复工作流验证原工作流路径、仓库、SHA、完成状态、构建/验证任务及完整资产组装步骤。1.1.7 完整补缺版及后续版本必须额外核对两个 Windows 原生恢复任务与 ARM64 成品安装任务，总计十二个必须成功的作业，x64 安装及 Linux 包事务还须通过发行报告检查。随后下载该 run 的原始平台资产和报告，以原 SHA 独立检出的源码目录重新执行同一个发布器的完整组装、摘要和报告一致性检查。恢复脚本提交与构建源码提交分别写入 `publication-result.json`，不改动既有发行标签，不重新编译或混用其他 run 的安装包。
 

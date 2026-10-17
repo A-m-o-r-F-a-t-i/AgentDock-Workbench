@@ -37,10 +37,7 @@ func canonicalToolContract(name string, _ config.Config) (ToolContract, bool) {
 	if !ok {
 		return ToolContract{}, false
 	}
-	if name == mcpcontract.ToolAgentDockContext {
-		return newToolContract(name, inputSchema, mcpcontract.LocalAgentDockContextOutputSchema()), true
-	}
-	outputSchema, ok := mcpcontract.OutputSchema(name)
+	outputSchema, ok := workbenchCanonicalOutputSchema(name)
 	if !ok {
 		return ToolContract{}, false
 	}

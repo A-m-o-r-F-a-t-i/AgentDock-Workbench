@@ -47,7 +47,7 @@ final class WorkbenchWindowController: NSWindowController, NSWindowDelegate, NST
             backing: .buffered,
             defer: false
         )
-        window.title = "AgentDock Workbench"
+        window.title = "ACTOVO"
         window.subtitle = L10n.text("Task and execution center")
         window.contentViewController = split
         window.minSize = NSSize(width: 1040, height: 650)
