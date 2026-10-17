@@ -271,7 +271,8 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		}
 		return toolmcp.BuiltinToolSummary{
 			Name: definition.Name, Title: definition.Title,
-			Description: truncateString(definition.Description, 240), InvokeVia: "host",
+			Description: truncateString(definition.Description, 240), InvokeVia: toolmcp.InvokeDirect,
+			Scope: toolmcp.ScopeAgentDockBuiltin, Origin: toolmcp.ScopeAgentDockBuiltin,
 		}, true
 	})
 	runtime.plugins = toolplugin.New(
