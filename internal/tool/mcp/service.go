@@ -26,6 +26,8 @@ type Service struct {
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
 
 type BuiltinToolSummary struct {
+	Scope       string `json:"scope"`
+	Origin      string `json:"origin"`
 	Name        string `json:"name"`
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
@@ -48,8 +50,8 @@ func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {
 	s.pluginMembership = lookup
 }
 
-// SetBuiltinToolLookup binds the host's canonical available tools after runtime
-// construction. The discovery path never invokes the returned tool.
+// SetBuiltinToolLookup binds AgentDock's directly exposed device tools after
+// runtime construction. Dynamic MCP discovery never invokes the returned tool.
 func (s *Service) SetBuiltinToolLookup(lookup func(string) (BuiltinToolSummary, bool)) {
 	s.builtinLookup = lookup
 }

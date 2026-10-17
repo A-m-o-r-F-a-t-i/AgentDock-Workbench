@@ -20,10 +20,10 @@ func toolResultText(name string, structured any) string {
 	if name == "mcp_tool_search" || name == "mcp_tool_inspect" {
 		result := asMap(structured)
 		route := result
-		if details := asMap(result["details"]); details["route_kind"] == "host_builtin" {
+		if details := asMap(result["details"]); details["scope"] == "agentdock_builtin" || details["route_kind"] == "host_builtin" {
 			route = details
 		}
-		if route["route_kind"] == "host_builtin" && route["resolved"] == true && route["terminal"] == true {
+		if (route["scope"] == "agentdock_builtin" || route["route_kind"] == "host_builtin") && route["resolved"] == true && route["terminal"] == true {
 			return hostBuiltinRouteText(route)
 		}
 	}
@@ -180,9 +180,9 @@ func hostBuiltinRouteText(result map[string]any) string {
 	}
 	label := strings.Join(names, ", ")
 	if label == "" {
-		label = "AgentDock host tool"
+		label = "AgentDock direct device built-in"
 	}
-	return "Wrong tool namespace: " + label + ". Call the AgentDock host tool directly from the caller tools/list namespace. Do not repeat dynamic MCP search or inspect. No business action ran."
+	return "Wrong tool scope: " + label + ". Invoke the already exposed AgentDock direct device built-in. Do not repeat nested dynamic MCP search or inspect. No business action ran."
 }
 
 func sessionObserveResultText(result map[string]any) string {

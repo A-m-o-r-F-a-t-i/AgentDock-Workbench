@@ -11,6 +11,7 @@ import (
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	toolcore "github.com/uvwt/agentdock/internal/tool/core"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 // ToolCatalogRevision identifies only published directory and conversation
@@ -91,7 +92,12 @@ func contextCatalogSummary(servers []any, warnings any, revision string) map[str
 		}
 	}
 	// An unscoped index never establishes a selected-server negative lookup.
-	return map[string]any{"catalog_revision": revision, "state": state, "absence_authoritative": false, "server_count": count, "tool_count": total, "tool_count_known": known}
+	return map[string]any{
+		"scope": toolmcp.ScopeAgentDockMCP, "origin": toolmcp.ScopeAgentDockMCP,
+		"discover_via": toolmcp.ToolList, "inspect_via": toolmcp.ToolInspect, "invoke_via": toolmcp.ToolCall,
+		"catalog_revision": revision, "state": state, "absence_authoritative": false,
+		"server_count": count, "tool_count": total, "tool_count_known": known,
+	}
 }
 
 // Refresh catalog freshness from published memory, without rebuilding Context or

@@ -7,6 +7,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 // Retain the business result before any model-facing projection mutates it.
@@ -40,7 +41,10 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 			if !r.BuiltinToolVisible(ctx, name) {
 				continue
 			}
-			routes = append(routes, map[string]any{"name": name, "invoke_via": "host", "dynamic_mcp_search": false})
+			routes = append(routes, map[string]any{
+				"name": name, "scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin,
+				"invoke_via": toolmcp.InvokeDirect, "dynamic_mcp_search": false,
+			})
 		}
 		out["host_tools"], out["permission"] = routes, p.decision
 		r.prepareContextBootstrap(ctx, out, p.state.binding)
