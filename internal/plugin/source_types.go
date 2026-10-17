@@ -133,6 +133,7 @@ type Review struct {
 	Version       string           `json:"version,omitempty"`
 	Description   string           `json:"description,omitempty"`
 	PackageDigest string           `json:"package_digest,omitempty"`
+	ReviewToken   string           `json:"review_token,omitempty"`
 	Source        Source           `json:"source"`
 	Skills        []SkillComponent `json:"skills"`
 	MCP           []MCPReview      `json:"mcp"`

@@ -21,8 +21,9 @@ func TestManageInstallsAndLoadsDirectPluginMembers(t *testing.T) {
 	}
 	source := writeToolPluginPackage(t, t.TempDir(), "pcb", []string{"layout"}, []string{"easyeda"})
 	service := testPluginService(store, false)
+	reviewToken := reviewTokenForSource(t, service, source)
 
-	result, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source})
+	result, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewToken})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestLoadReportsDisabledDirectPluginMembers(t *testing.T) {
 	}
 	source := writeToolPluginPackage(t, t.TempDir(), "domain", []string{"workflow"}, []string{"remote"})
 	service := testPluginService(store, false)
-	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source}); err != nil {
+	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewTokenForSource(t, service, source)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Manage(context.Background(), ManageRequest{Action: "member_disable", Name: "domain", MemberType: "skill", Member: "workflow"}); err != nil {
@@ -92,7 +93,7 @@ func TestLoadKeepsSkillsWhenPluginMCPToolDiscoveryFails(t *testing.T) {
 	}
 	source := writeToolPluginPackage(t, t.TempDir(), "domain", []string{"workflow"}, []string{"remote"})
 	service := testPluginService(store, true)
-	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source}); err != nil {
+	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewTokenForSource(t, service, source)}); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := service.Load(context.Background(), LoadRequest{Name: "domain"})
@@ -119,7 +120,7 @@ func TestDisabledDirectPluginCannotLoad(t *testing.T) {
 	}
 	source := writeToolPluginPackage(t, t.TempDir(), "domain", []string{"workflow"}, nil)
 	service := testPluginService(store, false)
-	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source}); err != nil {
+	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewTokenForSource(t, service, source)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Manage(context.Background(), ManageRequest{Action: "disable", Name: "domain"}); err != nil {
@@ -143,14 +144,19 @@ func TestManageValidatesAndUpdatesDirectPlugin(t *testing.T) {
 	if err != nil || validated["valid"] != true {
 		t.Fatalf("validate result=%#v err=%v", validated, err)
 	}
-	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: v1}); err != nil {
+	review := validated["review"].(registry.Review)
+	if review.ReviewToken == "" {
+		t.Fatal("validate did not return review_token")
+	}
+	if _, err := service.Manage(context.Background(), ManageRequest{Action: "install", Source: v1, ReviewToken: review.ReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 	v2 := writeToolPluginPackageVersion(t, t.TempDir(), "domain", "2.0.0", []string{"workflow", "review"}, nil)
-	if _, err := service.Manage(t.Context(), ManageRequest{Action: "update", Name: "domain", Source: v2}); err == nil {
+	v2Token := reviewTokenForSource(t, service, v2)
+	if _, err := service.Manage(t.Context(), ManageRequest{Action: "update", Name: "domain", Source: v2, ReviewToken: v2Token}); err == nil {
 		t.Fatal("source rebinding without confirmation was accepted")
 	}
-	updated, err := service.Manage(context.Background(), ManageRequest{Action: "update", Name: "domain", Source: v2, ConfirmedSourceChange: true})
+	updated, err := service.Manage(context.Background(), ManageRequest{Action: "update", Name: "domain", Source: v2, ReviewToken: v2Token, ConfirmedSourceChange: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,10 +165,62 @@ func TestManageValidatesAndUpdatesDirectPlugin(t *testing.T) {
 		t.Fatalf("updated plugin = %#v", definition)
 	}
 	other := writeToolPluginPackageVersion(t, t.TempDir(), "other", "2.0.0", []string{"other-workflow"}, nil)
-	_, err = service.Manage(context.Background(), ManageRequest{Action: "update", Name: "domain", Source: other})
+	_, err = service.Manage(context.Background(), ManageRequest{Action: "update", Name: "domain", Source: other, ReviewToken: reviewTokenForSource(t, service, other)})
 	var toolErr *toolcore.ToolError
 	if !errors.As(err, &toolErr) || toolErr.Code != "PLUGIN_UPDATE_NAME_MISMATCH" {
 		t.Fatalf("mismatched update error = %#v", err)
+	}
+}
+
+func TestManageBindsInstallToReviewedCandidate(t *testing.T) {
+	store, err := registry.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := testPluginService(store, false)
+	source := writeToolPluginPackage(t, t.TempDir(), "reviewed", []string{"workflow"}, nil)
+
+	firstToken := reviewTokenForSource(t, service, source)
+	if secondToken := reviewTokenForSource(t, service, source); secondToken != firstToken {
+		t.Fatalf("stable candidate returned different review tokens: %q != %q", secondToken, firstToken)
+	}
+	_, err = service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, Confirmed: true})
+	assertPluginToolErrorCode(t, err, "PLUGIN_REVIEW_REQUIRED")
+
+	skillPath := filepath.Join(source, "skills", "workflow", "SKILL.md")
+	if err := os.WriteFile(skillPath, []byte("---\nname: workflow\ndescription: Changed after review.\n---\n\n# Changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, ReviewToken: firstToken})
+	assertPluginToolErrorCode(t, err, "PLUGIN_REVIEW_CHANGED")
+
+	refreshedToken := reviewTokenForSource(t, service, source)
+	if refreshedToken == firstToken {
+		t.Fatal("changed candidate kept the previous review token")
+	}
+	if _, err := service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, ReviewToken: refreshedToken}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func reviewTokenForSource(t *testing.T, service *Service, source string) string {
+	t.Helper()
+	result, err := service.Manage(t.Context(), ManageRequest{Action: "validate", Source: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, ok := result["review"].(registry.Review)
+	if !ok || !review.Valid || review.ReviewToken == "" {
+		t.Fatalf("validate result = %#v", result)
+	}
+	return review.ReviewToken
+}
+
+func assertPluginToolErrorCode(t *testing.T, err error, code string) {
+	t.Helper()
+	var toolErr *toolcore.ToolError
+	if !errors.As(err, &toolErr) || toolErr.Code != code {
+		t.Fatalf("error = %#v, want %s", err, code)
 	}
 }
 
