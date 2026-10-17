@@ -36,7 +36,8 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	} else {
 		complete, reason := sourceResultComplete(full)
 		retained = structuredOutputSnapshot{
-			Tool: p.spec.Name, Binding: structuredSnapshotBinding(p, full), Encoded: encoded,
+			OutputFailure: cloneOutputFailure(p.outputFailure),
+			Tool:          p.spec.Name, Binding: structuredSnapshotBinding(p, full), Encoded: encoded,
 			Required: true, PageBudget: budget, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL),
 			SourceComplete: complete, SourceReason: reason, SourceState: "complete",
 		}
@@ -60,9 +61,13 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			ctx = activity.WithSource(ctx, p.source)
 			retained.ContextStamp, err = r.contextSourceStamp(ctx, retained.ContextWorkdir, retained.Binding)
-			cancel()
 			if err != nil {
 				retained.SourceReason = appendStructuredReason(retained.SourceReason, "Context source identity could not be revalidated: "+err.Error())
+			}
+			retained.ContextGuardStamp, err = r.contextContinuationStamp(ctx, retained.ContextWorkdir, retained.Binding)
+			cancel()
+			if err != nil {
+				retained.SourceReason = appendStructuredReason(retained.SourceReason, "Context continuation boundary could not be revalidated: "+err.Error())
 			}
 		}
 		retained.PageBudget = budget
@@ -142,7 +147,7 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	}
 	if isContext {
 		bootstrapReady := p.spec.Name == "agentdock_context" && page["bootstrap_complete"] == true
-		setContextDeliveryComplete(page, retained.SourceComplete && (!hasMore || bootstrapReady))
+		setContextDeliveryComplete(page, retained.OutputFailure == nil && retained.SourceComplete && (!hasMore || bootstrapReady))
 	}
 	return page
 }
@@ -160,7 +165,7 @@ func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Resu
 	}
 	r.structuredOutputMu.Lock()
 	stored := r.structuredSnapshots[id]
-	if stored == nil || !stored.Required || stored.Binding.SourceOwnerKey != binding.SourceOwnerKey || stored.Binding.ConversationID != binding.ConversationID {
+	if stored == nil || !stored.Required || stored.OutputFailure != nil || stored.Binding.SourceOwnerKey != binding.SourceOwnerKey || stored.Binding.ConversationID != binding.ConversationID {
 		r.structuredOutputMu.Unlock()
 		return
 	}

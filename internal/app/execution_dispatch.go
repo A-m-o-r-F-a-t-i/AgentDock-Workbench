@@ -43,6 +43,7 @@ type preparedExecution struct {
 	outputPolicy        config.ToolOutputSettings
 	completion          *activity.AppendReservation
 	structuredResume    *structuredOutputResume
+	outputFailure       *ToolError
 }
 
 func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[string]any) (result Result, returnErr error) {
@@ -742,6 +743,11 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	if p.spec.Name == "session_observe" && (stringArg(p.args, "action") == "list" || stringArg(p.args, "action") == "") {
 		result = r.filterSessionList(ctx, result, p.state.binding)
 	}
+	var outputErr error
+	if err == nil && !businessOutcomeFailure(p.spec.Name, result) && p.structuredResume == nil {
+		outputErr = r.validateExecutionResult(p, result)
+		p.outputFailure = outputFailureFromError(outputErr)
+	}
 	if isCommandExecutionTool(p.spec.Name) && err == nil && stringArg(result, "session_id") != "" {
 		sessionID := stringArg(result, "session_id")
 		phase := activity.Event{Binding: state.binding, Kind: "call.phases", ToolName: p.spec.Name}
@@ -758,7 +764,16 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		if !r.startCommandTerminalSettlement(p, sessionID, completion, stringArg(result, "status") == "running") {
 			decorated["activity_warning"] = "The command started, but its terminal subscription was unavailable. The root call will settle as unknown."
 		}
+		// A malformed receipt cannot cancel or orphan an already started command.
+		// Its terminal owner still settles the actual operation independently of
+		// this RPC's output-contract failure.
+		if outputErr != nil {
+			return decorated, r.executionError(outputErr, p.state)
+		}
 		return decorated, nil
+	}
+	if err == nil {
+		err = outputErr
 	}
 	status := "succeeded"
 	if err != nil || resultReportsFailure(result) {
@@ -774,6 +789,7 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 }
 func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
 	result, err, metadata := r.executionOutcome(p.spec.Name, p.args, result, err, p.state, p.mcpCall)
+	p.outputFailure = outputFailureFromError(err)
 	if businessOutcomeFailure(p.spec.Name, result) && status == "succeeded" {
 		status = "failed"
 	}
@@ -822,6 +838,13 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 			result = Result{}
 		}
 		result["activity_warning"] = "The actual tool returned, but its final journal event could not be persisted. Verify side effects before retrying."
+	} else if p.spec.Name == "exec_command" {
+		if recoveryErr := r.settleManagedMCPRecoverySkill(p.state.binding, p.args, status); recoveryErr != nil {
+			if result == nil {
+				result = Result{}
+			}
+			result["activity_warning"] = "The command outcome was retained, but its recovery failure could not be finalized. Inspect the original MCP activity before another recovery."
+		}
 	}
 	if p.spec.Name == "mcp_tool_call" {
 		r.finishManagedMCPRetry(p.state.binding, p.args, status)
@@ -842,7 +865,8 @@ func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error,
 	return compactExecutionSuccess(r.decorateExecution(result, p), p), nil
 }
 func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result {
-	if p.structuredResume == nil {
+	r.retainFileOutputFailure(p, result)
+	if p.structuredResume == nil && p.outputFailure == nil {
 		r.rememberCapabilityAccess(p.state.binding, p.spec.Name, p.args, result)
 	}
 	projected := result
@@ -851,7 +875,20 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 		result = compactPrerequisiteProjection(result)
 		projected = r.applyStructuredOutputPolicy(p, result)
 	}
-	decorated := maps.Clone(projected)
+	decorated := executionResultEnvelope(projected, p)
+	if guidance := r.executionGuidance(p.spec.Name, p.args, p.state, projected, false); len(guidance) > 0 {
+		decorated["agentdock_guidance"] = guidance
+	}
+	if p.modelOutput {
+		return r.finishModelOutput(p, r.applyToolOutputPolicy(p, decorated))
+	}
+	return decorated
+}
+
+// Attach immutable execution facts without retaining, projecting, or otherwise
+// consuming the result. Canonical validation and delivery share this envelope.
+func executionResultEnvelope(result Result, p *preparedExecution) Result {
+	decorated := maps.Clone(result)
 	if decorated == nil {
 		decorated = Result{}
 	}
@@ -872,13 +909,7 @@ func (r *Runtime) decorateExecution(result Result, p *preparedExecution) Result 
 		decorated["approval_id"] = p.approvalID
 	}
 	decorated["permission"] = p.decision
-	if guidance := r.executionGuidance(p.spec.Name, p.args, p.state, projected, false); len(guidance) > 0 {
-		decorated["agentdock_guidance"] = guidance
-	}
 	decorated["binding_quality"] = p.state.binding.BindingQuality
-	if p.modelOutput {
-		return r.finishModelOutput(p, r.applyToolOutputPolicy(p, decorated))
-	}
 	return decorated
 }
 

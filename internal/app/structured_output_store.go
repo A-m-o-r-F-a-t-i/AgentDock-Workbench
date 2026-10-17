@@ -21,6 +21,7 @@ const (
 )
 
 type structuredOutputSnapshot struct {
+	OutputFailure         *ToolError
 	PermissionRevision    uint64
 	ID                    string
 	Tool                  string
@@ -36,6 +37,7 @@ type structuredOutputSnapshot struct {
 	OversizedItems        bool
 	Required              bool
 	ContextStamp          string
+	ContextGuardStamp     string
 	ContextRevision       string
 	ContextWorkdir        string
 	NextPage              int
@@ -131,25 +133,30 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 	if err := r.authorizeStructuredSnapshot(ctx, snapshot.Binding, p.state.binding); err != nil {
 		return nil, nil, err
 	}
-	if snapshot.ContextStamp != "" && snapshot.PermissionRevision != p.decision.Revision {
+	isContext := snapshot.Tool == "agentdock_context" || snapshot.Tool == "workspace_context"
+	if isContext && snapshot.PermissionRevision != p.decision.Revision {
 		r.discardStructuredSnapshot(snapshot.ID)
 		return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "The permission contract changed during paging; request the current Context snapshot.", "conflict")
 	}
-	if snapshot.ContextStamp != "" {
-		stamp, stampErr := r.contextSourceStamp(ctx, snapshot.ContextWorkdir, p.state.binding)
+	if isContext {
+		stamp, stampErr := r.contextContinuationStamp(ctx, snapshot.ContextWorkdir, snapshot.Binding)
 		if stampErr != nil {
 			return nil, nil, stampErr
 		}
-		if stamp != snapshot.ContextStamp {
+		if snapshot.ContextGuardStamp == "" || stamp != snapshot.ContextGuardStamp {
 			r.discardStructuredSnapshot(snapshot.ID)
-			return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "Context dependencies changed during paging. Call agentdock_context once to receive the current snapshot.", "conflict")
+			return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "Context rules or workspace changed during paging. Call agentdock_context once to receive the current snapshot.", "conflict")
 		}
 	}
 	result, err := decodeStructuredResult(snapshot.Encoded)
 	if err != nil {
 		return nil, nil, toolErrorDetails("STRUCTURED_CURSOR_INVALID", "The retained structured result can no longer be decoded.", "runtime", map[string]any{"reason": err.Error()})
 	}
-	return result, &structuredOutputResume{Snapshot: *snapshot, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex}, nil
+	resume := &structuredOutputResume{Snapshot: *snapshot, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex}
+	if snapshot.OutputFailure != nil {
+		return result, resume, cloneOutputFailure(snapshot.OutputFailure)
+	}
+	return result, resume, nil
 }
 
 func cloneStructuredSnapshot(snapshot *structuredOutputSnapshot) *structuredOutputSnapshot {
@@ -158,6 +165,7 @@ func cloneStructuredSnapshot(snapshot *structuredOutputSnapshot) *structuredOutp
 	}
 	copy := *snapshot
 	copy.Encoded = append([]byte(nil), snapshot.Encoded...)
+	copy.OutputFailure = cloneOutputFailure(snapshot.OutputFailure)
 	return &copy
 }
 
@@ -241,7 +249,7 @@ func (r *Runtime) storeStructuredSnapshot(snapshot *structuredOutputSnapshot) (*
 	}
 	if stored.ContextStamp != "" {
 		for _, existing := range r.structuredSnapshots {
-			if existing.Tool == stored.Tool && existing.ContextStamp == stored.ContextStamp && existing.ArgumentsHash == stored.ArgumentsHash && existing.PermissionRevision == stored.PermissionRevision && sameContextScope(existing.Binding, stored.Binding) {
+			if existing.OutputFailure == nil && stored.OutputFailure == nil && existing.Tool == stored.Tool && existing.ContextStamp == stored.ContextStamp && existing.ContextGuardStamp == stored.ContextGuardStamp && existing.ArgumentsHash == stored.ArgumentsHash && existing.PermissionRevision == stored.PermissionRevision && sameContextScope(existing.Binding, stored.Binding) {
 				return cloneStructuredSnapshot(existing), nil
 			}
 		}

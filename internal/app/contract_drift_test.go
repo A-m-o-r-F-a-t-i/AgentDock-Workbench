@@ -64,13 +64,13 @@ func TestAllToolDefinitionsHaveStrictCompilableInputContracts(t *testing.T) {
 	}
 }
 
-func TestBuiltInInputValidatorCacheUsesSchemaContent(t *testing.T) {
+func TestBuiltInValidatorCacheUsesSchemaContent(t *testing.T) {
 	withoutNexus := tooltask.ManageInputSchema(config.Config{})
-	first, err := compileBuiltInInputValidator(withoutNexus)
+	first, err := compileBuiltInValidator(withoutNexus)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := compileBuiltInInputValidator(tooltask.ManageInputSchema(config.Config{}))
+	second, err := compileBuiltInValidator(tooltask.ManageInputSchema(config.Config{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestBuiltInInputValidatorCacheUsesSchemaContent(t *testing.T) {
 		t.Fatal("identical built-in schemas should reuse the compiled validator")
 	}
 
-	withNexus, err := compileBuiltInInputValidator(tooltask.ManageInputSchema(config.Config{NexusEndpoint: "http://127.0.0.1:18777"}))
+	withNexus, err := compileBuiltInValidator(tooltask.ManageInputSchema(config.Config{NexusEndpoint: "http://127.0.0.1:18777"}))
 	if err != nil {
 		t.Fatal(err)
 	}

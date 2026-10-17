@@ -72,7 +72,8 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	} else {
 		complete, reason := sourceResultComplete(full)
 		snapshot = structuredOutputSnapshot{
-			Tool: p.spec.Name, Binding: structuredSnapshotBinding(p, full), Encoded: append([]byte(nil), encoded...),
+			OutputFailure: cloneOutputFailure(p.outputFailure),
+			Tool:          p.spec.Name, Binding: structuredSnapshotBinding(p, full), Encoded: append([]byte(nil), encoded...),
 			CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL),
 			SourceComplete: complete, SourceReason: reason,
 		}

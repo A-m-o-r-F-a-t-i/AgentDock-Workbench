@@ -161,21 +161,21 @@ func cloneResultValue(value any) any {
 	}
 }
 
-func buildResultPages(normalized map[string]any) ([]resultPage, error) {
+func buildResultPages(normalized map[string]any, limit int) ([]resultPage, error) {
 	encoded, err := json.Marshal(normalized)
 	if err != nil {
 		return nil, err
 	}
-	if len(encoded)+resultMetadataReserve <= resultPageBudget {
+	if len(encoded) <= limit {
 		return []resultPage{{Data: cloneResultMap(normalized), Mode: "full", Bytes: len(encoded)}}, nil
 	}
 	paths := discoverResultArrayPaths(normalized)
 	if len(paths) > 0 {
-		if pages, ok := buildSemanticResultPages(normalized, paths); ok {
+		if pages, ok := buildSemanticResultPages(normalized, paths, limit); ok {
 			return pages, nil
 		}
 	}
-	return buildFragmentResultPages(encoded), nil
+	return buildFragmentResultPages(encoded, limit), nil
 }
 
 func discoverResultArrayPaths(root map[string]any) []resultPath {
@@ -202,7 +202,7 @@ func discoverResultArrayPaths(root map[string]any) []resultPath {
 	return paths
 }
 
-func buildSemanticResultPages(full map[string]any, paths []resultPath) ([]resultPage, bool) {
+func buildSemanticResultPages(full map[string]any, paths []resultPath, limit int) ([]resultPage, bool) {
 	base := cloneResultMap(full)
 	for _, path := range paths {
 		if !setResultPath(base, path, []any{}) {
@@ -210,7 +210,7 @@ func buildSemanticResultPages(full map[string]any, paths []resultPath) ([]result
 		}
 	}
 	baseBytes, err := json.Marshal(base)
-	if err != nil || len(baseBytes)+resultMetadataReserve > resultPageBudget {
+	if err != nil || len(baseBytes) > limit {
 		return nil, false
 	}
 	pages := []resultPage{}
@@ -229,7 +229,7 @@ func buildSemanticResultPages(full map[string]any, paths []resultPath) ([]result
 			current := append([]any{}, resultPathItems(page, path)...)
 			setResultPath(page, path, append(current, cloneResultValue(items[position.ItemIndex])))
 			encoded, marshalErr := json.Marshal(page)
-			if marshalErr == nil && len(encoded)+resultMetadataReserve <= resultPageBudget {
+			if marshalErr == nil && len(encoded) <= limit {
 				returned++
 				position.ItemIndex++
 				continue
@@ -249,9 +249,8 @@ func buildSemanticResultPages(full map[string]any, paths []resultPath) ([]result
 	return pages, len(pages) > 0
 }
 
-func buildFragmentResultPages(encoded []byte) []resultPage {
+func buildFragmentResultPages(encoded []byte, limit int) []resultPage {
 	// JSON escaping can expand a fragment; measure its encoded envelope, not just its source bytes.
-	limit := resultPageBudget - resultMetadataReserve
 	pages := []resultPage{}
 	for len(encoded) > 0 {
 		low, high, fit := 1, min(len(encoded), limit), 0

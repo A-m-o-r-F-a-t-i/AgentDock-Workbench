@@ -40,6 +40,7 @@ type SearchRequest struct {
 
 type ListRequest struct {
 	Server           string `json:"server"`
+	Refresh          bool   `json:"refresh,omitempty"`
 	ForceFull        bool   `json:"force_full,omitempty"`
 	Cursor           string `json:"cursor,omitempty"`
 	MaxResponseBytes *int   `json:"max_response_bytes,omitempty"`

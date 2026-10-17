@@ -140,41 +140,44 @@ func toolSpecByName(name string) (ToolSpec, bool) {
 	return spec, ok
 }
 
-func compileAvailableToolContracts(cfg config.Config) ([]string, map[string]*toolcontract.InputValidator, error) {
+func compileAvailableToolContracts(cfg config.Config) ([]string, map[string]*toolcontract.InputValidator, map[string]*toolcontract.InputValidator, error) {
 	names := make([]string, 0, len(toolSpecs))
 	validators := make(map[string]*toolcontract.InputValidator, len(toolSpecs))
+	outputs := make(map[string]*toolcontract.InputValidator, len(toolSpecs))
 	for _, spec := range toolSpecs {
 		if !spec.available(cfg) {
 			continue
 		}
 		contract, ok := spec.Contract(spec.Name, cfg)
 		if !ok {
-			return nil, nil, fmt.Errorf("tool %s has no contract", spec.Name)
+			return nil, nil, nil, fmt.Errorf("tool %s has no contract", spec.Name)
 		}
 		contract = completeToolContract(spec.Name, contract)
 		if len(contract.PublicInputSchema) == 0 {
-			return nil, nil, fmt.Errorf("tool %s has no public input schema", spec.Name)
+			return nil, nil, nil, fmt.Errorf("tool %s has no public input schema", spec.Name)
 		}
 		if len(contract.ValidationInputSchema) == 0 {
-			return nil, nil, fmt.Errorf("tool %s has no input schema", spec.Name)
+			return nil, nil, nil, fmt.Errorf("tool %s has no input schema", spec.Name)
 		}
 		if len(contract.PublicOutputSchema) == 0 {
-			return nil, nil, fmt.Errorf("tool %s has no public output schema", spec.Name)
+			return nil, nil, nil, fmt.Errorf("tool %s has no public output schema", spec.Name)
 		}
 		if len(contract.ValidationOutputSchema) == 0 {
-			return nil, nil, fmt.Errorf("tool %s has no output schema", spec.Name)
+			return nil, nil, nil, fmt.Errorf("tool %s has no output schema", spec.Name)
 		}
-		if _, err := toolcontract.CompileInputSchema(executionOutputSchema(contract.ValidationOutputSchema)); err != nil {
-			return nil, nil, fmt.Errorf("compile %s validation output schema: %w", spec.Name, err)
-		}
-		validator, err := compileBuiltInInputValidator(contract.ValidationInputSchema)
+		output, err := compileBuiltInValidator(canonicalExecutionOutputSchema(spec.Name, contract.ValidationOutputSchema))
 		if err != nil {
-			return nil, nil, fmt.Errorf("compile %s input schema: %w", spec.Name, err)
+			return nil, nil, nil, fmt.Errorf("compile %s validation output schema: %w", spec.Name, err)
+		}
+		validator, err := compileBuiltInValidator(contract.ValidationInputSchema)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("compile %s input schema: %w", spec.Name, err)
 		}
 		names = append(names, spec.Name)
 		validators[spec.Name] = validator
+		outputs[spec.Name] = output
 	}
-	return names, validators, nil
+	return names, validators, outputs, nil
 }
 
 func requiresNexus(cfg config.Config) bool   { return cfg.NexusEndpoint != "" }

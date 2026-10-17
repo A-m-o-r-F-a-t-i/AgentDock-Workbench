@@ -71,34 +71,35 @@ type Runtime struct {
 	structuredCursors        map[string]structuredOutputCursor
 	structuredSnapshotBytes  int64
 
-	workspaceRegistry *workspace.Registry
-	workspaceTools    *toolworkspace.Service
-	activity          *activity.Store
-	cfg               config.Config
-	toolNames         []string
-	toolValidators    map[string]*toolcontract.InputValidator
-	ws                *workspace.Workspace
-	skills            *toolskill.Service
-	command           *toolcommand.Service
-	files             *toolfile.Service
-	dynamicMCP        *toolmcp.Service
-	plugins           *toolplugin.Service
-	media             *toolmedia.Service
-	browser           *toolbrowser.Service
-	recall            *toolrecall.Service
-	evolution         *evolution.Service
-	taskTools         *tooltask.Service
-	acp               *toolacp.Service
-	lifecycleMu       sync.RWMutex
-	commandCtx        context.Context
-	commandCancel     context.CancelFunc
-	closing           bool
-	closeOnce         sync.Once
-	closeErr          error
+	workspaceRegistry    *workspace.Registry
+	workspaceTools       *toolworkspace.Service
+	activity             *activity.Store
+	cfg                  config.Config
+	toolNames            []string
+	toolValidators       map[string]*toolcontract.InputValidator
+	toolOutputValidators map[string]*toolcontract.InputValidator
+	ws                   *workspace.Workspace
+	skills               *toolskill.Service
+	command              *toolcommand.Service
+	files                *toolfile.Service
+	dynamicMCP           *toolmcp.Service
+	plugins              *toolplugin.Service
+	media                *toolmedia.Service
+	browser              *toolbrowser.Service
+	recall               *toolrecall.Service
+	evolution            *evolution.Service
+	taskTools            *tooltask.Service
+	acp                  *toolacp.Service
+	lifecycleMu          sync.RWMutex
+	commandCtx           context.Context
+	commandCancel        context.CancelFunc
+	closing              bool
+	closeOnce            sync.Once
+	closeErr             error
 }
 
 func NewRuntime(cfg config.Config) (*Runtime, error) {
-	toolNames, toolValidators, err := compileAvailableToolContracts(cfg)
+	toolNames, toolValidators, toolOutputValidators, err := compileAvailableToolContracts(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize tool contracts: %w", err)
 	}
@@ -207,7 +208,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		structuredSnapshots: map[string]*structuredOutputSnapshot{}, structuredCursors: map[string]structuredOutputCursor{},
 		workspaceRegistry: workspaceRegistry, workspaceTools: toolworkspace.New(workspaceRegistry),
 		cfg: cfg, ws: ws, skills: skills, activity: activityStore,
-		toolNames: toolNames, toolValidators: toolValidators,
+		toolNames: toolNames, toolValidators: toolValidators, toolOutputValidators: toolOutputValidators,
 		commandCtx: commandCtx, commandCancel: commandCancel,
 		commandSettlementCtx: commandSettlementCtx, commandSettlementCancel: commandSettlementCancel,
 	}

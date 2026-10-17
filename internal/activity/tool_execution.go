@@ -38,6 +38,7 @@ type RequiredActionSummary struct {
 // Recovery consumption is kept on the original call in the existing journal.
 type MCPRecoveryState struct {
 	CallID     string     `json:"call_id,omitempty"`
+	RefreshID  string     `json:"refresh_call_id,omitempty"`
 	RetryID    string     `json:"retry_call_id,omitempty"`
 	SkillRef   string     `json:"skill_ref,omitempty"`
 	State      string     `json:"state"`
@@ -82,6 +83,7 @@ func (r Redactor) toolExecution(d *ToolExecutionDetails) *ToolExecutionDetails {
 	}
 	if recovery := d.Recovery; recovery != nil {
 		recovery.CallID = r.Text(recovery.CallID, 128)
+		recovery.RefreshID = r.Text(recovery.RefreshID, 128)
 		recovery.RetryID = r.Text(recovery.RetryID, 128)
 		recovery.SkillRef = r.Text(recovery.SkillRef, 512)
 		recovery.State = r.Text(recovery.State, 64)

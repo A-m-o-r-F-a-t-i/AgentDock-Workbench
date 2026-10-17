@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -41,6 +42,8 @@ func managedMCPRecoveryError(err error, origin string) error {
 		code = "MCP_RECOVERY_EXPIRED"
 	case errors.Is(err, activity.ErrRecoveryUsed):
 		code = "MCP_RECOVERY_ALREADY_USED"
+	case errors.Is(err, activity.ErrRecoveryFailed):
+		code = "MCP_RECOVERY_FAILED"
 	case errors.Is(err, activity.ErrRecoveryUnsafe):
 		code = "MCP_RECOVERY_EFFECTS_UNKNOWN"
 	case errors.Is(err, activity.ErrRecoveryPending):
@@ -56,6 +59,9 @@ func (r *Runtime) managedMCPRecoveryOrigin(ctx context.Context, id, server strin
 	origin, err := r.activity.MCPRecoveryOrigin(ctx, id, activity.FromContext(ctx), server)
 	if err != nil {
 		return origin, mcpclient.ServerConfig{}, managedMCPRecoveryError(err, id)
+	}
+	if origin.ToolExecution.Recovery.State == "recovery_failed" {
+		return origin, mcpclient.ServerConfig{}, managedMCPRecoveryError(activity.ErrRecoveryFailed, id)
 	}
 	cfg, _, err := r.capabilityManager.Inspect(server)
 	if err != nil {
@@ -138,8 +144,52 @@ func (r *Runtime) authorizeMCPRecoverySkill(ctx context.Context, id, server, ski
 	if _, err = r.activity.TransitionMCPRecovery(ctx, id, actor, activity.MCPRecoveryTransition{Phase: "claim", Server: server, SkillRef: skillRef}); err != nil {
 		return managedMCPRecoveryError(err, id)
 	}
-	return r.appendExecution(activity.Event{Binding: actor, Kind: "call.recovery_origin", ToolName: "exec_command", ToolExecution: &activity.ToolExecutionDetails{Server: server, OriginCallID: id}})
+	if err = r.appendExecution(activity.Event{Binding: actor, Kind: "call.recovery_origin", ToolName: "exec_command", ToolExecution: &activity.ToolExecutionDetails{Server: server, OriginCallID: id}}); err != nil {
+		return r.failManagedMCPRecovery(ctx, id, server, actor, err)
+	}
+	return nil
 }
+
+// Recovery is a single attempt. Persist failure even when its transport context
+// was cancelled; only a still-running recovery step may remain pending. A new
+// explicit business request is required after failure, never an automatic replay.
+func (r *Runtime) failManagedMCPRecovery(ctx context.Context, id, server string, actor activity.Binding, cause error) error {
+	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	_, persistErr := r.activity.TransitionMCPRecovery(settleCtx, id, actor, activity.MCPRecoveryTransition{Phase: "fail", Server: server})
+	failure := managedMCPRecoveryError(cause, id)
+	if persistErr != nil {
+		return errors.Join(failure, fmt.Errorf("recovery failure could not be persisted: %w", persistErr))
+	}
+	return failure
+}
+
+// Command startup can fail after the recovery Skill claimed its origin. Settle
+// only that exact claim, after the existing command lifecycle persisted a
+// terminal outcome. A running Skill and a confirmed successful Skill stay owned
+// by the normal recovery continuation; neither may be consumed by an observer.
+func (r *Runtime) settleManagedMCPRecoverySkill(binding activity.Binding, args map[string]any, status string) error {
+	id := stringArg(args, "origin_call_id")
+	if id == "" || !activity.CallTerminal(status) || status == "succeeded" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	origin, err := r.activity.Call(ctx, id)
+	if err != nil {
+		return err
+	}
+	if origin.ToolExecution == nil || origin.ToolExecution.Recovery == nil {
+		return nil
+	}
+	recovery := origin.ToolExecution.Recovery
+	if recovery.CallID != binding.CallID || recovery.SkillRef == "" || recovery.State != "claimed" || recovery.ConsumedAt != nil {
+		return nil
+	}
+	_, err = r.activity.TransitionMCPRecovery(ctx, id, binding, activity.MCPRecoveryTransition{Phase: "fail", Server: origin.ToolExecution.Server})
+	return err
+}
+
 func (r *Runtime) recoverySkillRequired(ctx context.Context, origin activity.ExecutionCall, skillRef string) error {
 	resolved, release, err := r.skills.Acquire(ctx, skillRef)
 	if err != nil {
@@ -162,6 +212,16 @@ func (r *Runtime) recoverManagedMCP(ctx context.Context, request toolmcp.ManageR
 	if recovery.ConsumedAt != nil || recovery.RetryID != "" {
 		return nil, managedMCPRecoveryError(activity.ErrRecoveryUsed, origin.CallID)
 	}
+	if recovery.State == "refreshing" {
+		step, stepErr := r.activity.Call(ctx, recovery.RefreshID)
+		if stepErr != nil {
+			return nil, managedMCPRecoveryError(stepErr, origin.CallID)
+		}
+		if !activity.CallTerminal(step.Status) {
+			return nil, managedMCPRecoveryError(activity.ErrRecoveryPending, origin.CallID)
+		}
+		return nil, r.failManagedMCPRecovery(ctx, origin.CallID, request.Name, actor, activity.ErrRecoveryFailed)
+	}
 	if recovery.State != "recovered" {
 		if recovery.CallID == "" {
 			if cfg.RecoverySkill != "" {
@@ -172,21 +232,34 @@ func (r *Runtime) recoverManagedMCP(ctx context.Context, request toolmcp.ManageR
 				return nil, managedMCPRecoveryError(err, request.OriginCallID)
 			}
 		} else {
-			if recovery.SkillRef == "" || cfg.RecoverySkill != "" && cfg.RecoverySkill != recovery.SkillRef {
-				return nil, managedMCPRecoveryError(activity.ErrRecoveryUsed, origin.CallID)
+			if cfg.RecoverySkill != "" && cfg.RecoverySkill != recovery.SkillRef {
+				return nil, managedMCPRecoveryError(activity.ErrRecoveryScope, origin.CallID)
 			}
 			step, stepErr := r.activity.Call(ctx, recovery.CallID)
-			if stepErr != nil || step.Status != "succeeded" || step.CommandOK == nil || !*step.CommandOK {
+			if stepErr != nil {
+				return nil, managedMCPRecoveryError(stepErr, origin.CallID)
+			}
+			if !activity.CallTerminal(step.Status) {
 				return nil, managedMCPRecoveryError(activity.ErrRecoveryPending, origin.CallID)
 			}
+			if recovery.SkillRef == "" || step.Status != "succeeded" || step.CommandOK == nil || !*step.CommandOK {
+				return nil, r.failManagedMCPRecovery(ctx, origin.CallID, request.Name, actor, activity.ErrRecoveryFailed)
+			}
+		}
+		origin, err = r.activity.TransitionMCPRecovery(ctx, origin.CallID, actor, activity.MCPRecoveryTransition{Phase: "refresh", Server: request.Name})
+		if err != nil {
+			if errors.Is(err, activity.ErrRecoveryPending) || errors.Is(err, activity.ErrRecoveryUsed) || errors.Is(err, activity.ErrRecoveryScope) {
+				return nil, managedMCPRecoveryError(err, request.OriginCallID)
+			}
+			return nil, r.failManagedMCPRecovery(ctx, request.OriginCallID, request.Name, actor, err)
 		}
 		fixedContext := mcpclient.WithExpectedMCPIdentity(ctx, recoveryMCPIdentity(origin))
 		if _, _, err = r.capabilityManager.Refresh(fixedContext, request.Name); err != nil {
-			return nil, managedMCPRecoveryError(err, origin.CallID)
+			return nil, r.failManagedMCPRecovery(ctx, origin.CallID, request.Name, actor, err)
 		}
 		origin, err = r.activity.TransitionMCPRecovery(ctx, origin.CallID, actor, activity.MCPRecoveryTransition{Phase: "ready", Server: request.Name})
 		if err != nil {
-			return nil, managedMCPRecoveryError(err, request.OriginCallID)
+			return nil, r.failManagedMCPRecovery(ctx, request.OriginCallID, request.Name, actor, err)
 		}
 	}
 	result := Result{"action": "recover", "origin_call_id": origin.CallID, "recovery": origin.ToolExecution.Recovery, "retry_performed": false}

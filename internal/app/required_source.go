@@ -2,11 +2,14 @@ package app
 
 import (
 	"context"
+	"time"
+
 	"github.com/uvwt/agentdock/internal/activity"
 )
 
 func (r *Runtime) describeRequiredSourcePage(ctx context.Context, binding activity.Binding, source string, page activity.PayloadPage, result Result) error {
 	r.structuredOutputMu.Lock()
+	r.pruneStructuredOutputLocked(time.Now())
 	var selected *structuredOutputSnapshot
 	for _, stored := range r.structuredSnapshots {
 		if stored.Required && stored.SourceURI == source && stored.Binding.SourceOwnerKey == binding.SourceOwnerKey && stored.Binding.ConversationID == binding.ConversationID {
@@ -18,12 +21,24 @@ func (r *Runtime) describeRequiredSourcePage(ctx context.Context, binding activi
 	if selected == nil {
 		return nil
 	}
-	if selected.ContextStamp != "" {
-		stamp, err := r.contextSourceStamp(ctx, selected.ContextWorkdir, binding)
+	if err := r.authorizeStructuredSnapshot(ctx, selected.Binding, binding); err != nil {
+		return err
+	}
+	if selected.OutputFailure != nil {
+		// Failed output remains readable for diagnosis, but reading its bytes
+		// cannot acknowledge a usable Context or callable schema.
+		result["output_class"] = "required_full"
+		if selected.Tool == "agentdock_context" || selected.Tool == "workspace_context" {
+			result["context_ready"] = false
+		}
+		return nil
+	}
+	if selected.Tool == "agentdock_context" || selected.Tool == "workspace_context" {
+		stamp, err := r.contextContinuationStamp(ctx, selected.ContextWorkdir, selected.Binding)
 		if err != nil {
 			return err
 		}
-		if stamp != selected.ContextStamp {
+		if selected.ContextGuardStamp == "" || stamp != selected.ContextGuardStamp {
 			r.discardStructuredSnapshot(selected.ID)
 			result["context_ready"] = false
 			result["source_freshness"] = "historical"
@@ -52,7 +67,7 @@ func (r *Runtime) commitRequiredSource(binding activity.Binding, result Result) 
 	}
 	r.structuredOutputMu.Lock()
 	stored := r.structuredSnapshots[id]
-	if stored == nil || !stored.Required || stored.SourceURI != stringArg(result, "path") || stored.Binding.SourceOwnerKey != binding.SourceOwnerKey || stored.Binding.ConversationID != binding.ConversationID || stored.SourceDeliveredOffset != start {
+	if stored == nil || !stored.Required || stored.OutputFailure != nil || stored.SourceURI != stringArg(result, "path") || stored.Binding.SourceOwnerKey != binding.SourceOwnerKey || stored.Binding.ConversationID != binding.ConversationID || stored.SourceDeliveredOffset != start {
 		r.structuredOutputMu.Unlock()
 		return
 	}

@@ -47,22 +47,10 @@ func outcomeObject(value any) map[string]any {
 	return object
 }
 func remoteOutcome(result Result) map[string]any {
-	remote := modelObject(result["result"])
-	structured := modelObject(remote["structuredContent"])
-	details := maps.Clone(structured)
-	if details == nil {
-		details = map[string]any{}
+	if details := modelObject(result["upstream_failure"]); details != nil {
+		return maps.Clone(details)
 	}
-	if failure := modelObject(structured["error"]); failure != nil {
-		for _, key := range []string{"code", "message", "effect_state", "execution_performed", "executed", "retry_safe"} {
-			if details[key] == nil {
-				details[key] = failure[key]
-			}
-		}
-	}
-	if details["code"] == nil {
-		details["code"] = remote["code"]
-	}
+	details, _ := mcpclient.ResultFailure(modelObject(result["result"]))
 	return details
 }
 func businessOutcomeFailure(name string, result Result) bool {
@@ -72,8 +60,11 @@ func businessOutcomeFailure(name string, result Result) bool {
 	if name != "mcp_tool_call" {
 		return false
 	}
-	data := remoteOutcome(result)
-	return data["operation_status"] == "failed" || data["ok"] == false && stringArg(data, "code") != ""
+	if modelObject(result["upstream_failure"]) != nil {
+		return true
+	}
+	_, failed := mcpclient.ResultFailure(modelObject(result["result"]))
+	return failed
 }
 func outcomeFailure(name string, result Result, failure error) *ToolError {
 	var known *ToolError
@@ -112,11 +103,12 @@ func outcomeFailure(name string, result Result, failure error) *ToolError {
 }
 func failureControl(name string, result Result, failure *ToolError, state executionObservation) map[string]any {
 	control := map[string]any{}
+	contractFailure := isOutputContractFailure(failure.Code)
 	for _, key := range []string{"operation_status", "effect_state", "execution_performed", "retry_safe"} {
 		if value, exists := failure.Details[key]; exists {
 			control[key] = value
 		}
-		if value, exists := result[key]; exists {
+		if value, exists := result[key]; exists && !contractFailure {
 			control[key] = value
 		}
 	}
@@ -150,6 +142,9 @@ func failureControl(name string, result Result, failure *ToolError, state execut
 	safe = safe && effect == "none"
 	if name == "mcp_tool_call" && activity.IsMCPConnectionError(failure.Code) && effect == "none" {
 		safe = true
+	}
+	if contractFailure {
+		safe = false
 	}
 	control["retry_safe"] = safe
 	status := stringArg(control, "operation_status")

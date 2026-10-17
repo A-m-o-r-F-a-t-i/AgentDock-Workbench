@@ -11,6 +11,7 @@ var (
 	ErrRecoveryScope   = errors.New("recovery must keep the authenticated conversation, workspace and server")
 	ErrRecoveryExpired = errors.New("the connection failure is outside its recovery window")
 	ErrRecoveryUsed    = errors.New("recovery or its single business retry has already been consumed")
+	ErrRecoveryFailed  = errors.New("the recovery attempt ended without confirmed success; this origin cannot recover or replay again")
 	ErrRecoveryUnsafe  = errors.New("business effects are unconfirmed; reconcile them before another operation")
 	ErrRecoveryPending = errors.New("the claimed recovery step has not completed successfully")
 )
@@ -30,7 +31,7 @@ func validateRecoveryOrigin(origin *ExecutionCall, actor Binding, change MCPReco
 	if actor.ConversationID == "" || actor.WorkspaceID == "" || actor.SourceOwnerKey == "" || !recoveryActorMatches(origin, actor) || origin.ToolExecution.Server != change.Server {
 		return ErrRecoveryScope
 	}
-	if change.Phase != "finish" && !change.Now.Before(origin.ToolExecution.Recovery.ExpiresAt) {
+	if change.Phase != "finish" && change.Phase != "fail" && !change.Now.Before(origin.ToolExecution.Recovery.ExpiresAt) {
 		return ErrRecoveryExpired
 	}
 	return nil
@@ -57,8 +58,17 @@ func applyRecoveryTransition(projection *callProjection, origin *ExecutionCall, 
 			return ErrRecoveryScope
 		}
 		recovery.CallID, recovery.SkillRef, recovery.State, recovery.ClaimedAt = actor.CallID, change.SkillRef, "claimed", copyValue(&change.Now)
-	case "ready":
-		if caller.ToolName != "mcp_manage" || recovery.ConsumedAt != nil || recovery.State != "claimed" {
+	case "refresh":
+		if caller.ToolName != "mcp_manage" || caller.Status != "running" {
+			return ErrRecoveryScope
+		}
+		if recovery.ConsumedAt != nil {
+			return ErrRecoveryUsed
+		}
+		if recovery.State == "refreshing" {
+			return ErrRecoveryPending
+		}
+		if recovery.State != "claimed" || recovery.RefreshID != "" {
 			return ErrRecoveryUsed
 		}
 		if recovery.SkillRef == "" {
@@ -67,6 +77,16 @@ func applyRecoveryTransition(projection *callProjection, origin *ExecutionCall, 
 			}
 		} else if !successfulRecoverySkill(projection, recovery, actor) {
 			return ErrRecoveryPending
+		}
+		// Claim the reconnect before it can start. Concurrent resumes of a
+		// successful recovery Skill must not each refresh the same connection.
+		recovery.RefreshID, recovery.State = actor.CallID, "refreshing"
+	case "ready":
+		if caller.ToolName != "mcp_manage" || caller.Status != "running" || recovery.ConsumedAt != nil || recovery.State != "refreshing" {
+			return ErrRecoveryUsed
+		}
+		if recovery.RefreshID != actor.CallID {
+			return ErrRecoveryScope
 		}
 		recovery.State = "recovered"
 	case "retry":
@@ -83,6 +103,37 @@ func applyRecoveryTransition(projection *callProjection, origin *ExecutionCall, 
 			return ErrRecoveryPending
 		}
 		recovery.RetryID, recovery.State, recovery.ConsumedAt = actor.CallID, "consumed", copyValue(&change.Now)
+	case "fail":
+		if recovery.CallID == "" || recovery.ConsumedAt != nil || (recovery.State != "claimed" && recovery.State != "refreshing") {
+			return ErrRecoveryUsed
+		}
+		stepID := recovery.CallID
+		if recovery.State == "refreshing" {
+			stepID = recovery.RefreshID
+			if stepID == "" {
+				return ErrRecoveryScope
+			}
+		}
+		if actor.CallID == stepID {
+			want := "mcp_manage"
+			if recovery.State == "claimed" && recovery.SkillRef != "" {
+				want = "exec_command"
+			}
+			if caller.ToolName != want || (caller.Status != "running" && !CallTerminal(caller.Status)) {
+				return ErrRecoveryScope
+			}
+		} else {
+			step := projection.calls[stepID]
+			if caller.ToolName != "mcp_manage" || caller.Status != "running" || !recoveryActorMatches(step, actor) {
+				return ErrRecoveryScope
+			}
+			if !CallTerminal(step.Status) {
+				return ErrRecoveryPending
+			}
+		}
+		// A failed recovery consumes this origin without dispatching a business
+		// retry. Keep RetryID empty so consumption never implies business execution.
+		recovery.State, recovery.ConsumedAt = "recovery_failed", copyValue(&change.Now)
 	case "finish":
 		if recovery.RetryID != actor.CallID || recovery.ConsumedAt == nil {
 			return ErrRecoveryScope

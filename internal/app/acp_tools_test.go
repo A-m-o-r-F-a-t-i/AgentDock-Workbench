@@ -95,7 +95,7 @@ func TestACPToolsAreFeatureGatedAndUseStrictSchemas(t *testing.T) {
 
 	contextResult, err := runtime.Call(context.Background(), "agentdock_context", nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ACP context call failed: %#v", err)
 	}
 	var contextData capabilityContext
 	if err := remarshal(contextResult, &contextData); err != nil {
@@ -130,7 +130,7 @@ func TestACPContextListsConfiguredProfiles(t *testing.T) {
 
 	contextResult, err := runtime.Call(context.Background(), "agentdock_context", nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ACP context call failed: %#v", err)
 	}
 	var contextData capabilityContext
 	if err := remarshal(contextResult, &contextData); err != nil {
@@ -139,13 +139,45 @@ func TestACPContextListsConfiguredProfiles(t *testing.T) {
 	if contextData.ACP == nil || contextData.ACP.DefaultProfile != "zcode" {
 		t.Fatalf("context ACP metadata = %#v", contextData.ACP)
 	}
-	if acpData, ok := contextResult["acp"].(map[string]any); ok {
-		if _, exists := acpData["agent"]; exists {
-			t.Fatalf("context ACP metadata still contains legacy agent alias: %#v", acpData)
-		}
+	acpData, ok := contextResult["acp"].(map[string]any)
+	if !ok {
+		t.Fatalf("context ACP metadata is not an object: %#v", contextResult["acp"])
+	}
+	if _, exists := acpData["agent"]; exists {
+		t.Fatalf("context ACP metadata still contains legacy agent alias: %#v", acpData)
 	}
 	if len(contextData.ACP.Profiles) != 2 || contextData.ACP.Profiles[0].ID != "zcode" || contextData.ACP.Profiles[1].ID != "agy" {
 		t.Fatalf("context ACP profiles = %#v", contextData.ACP.Profiles)
+	}
+	contract, _ := contextToolContract("agentdock_context", cfg)
+	properties := contract.ValidationOutputSchema["properties"].(map[string]any)
+	validator, err := compileBuiltInValidator(properties["acp"].(map[string]any))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validator.Validate(acpData); err != nil {
+		t.Fatalf("actual ACP profile summary violates its contract: %v", err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{"missing profiles", func(data map[string]any) { delete(data, "profiles") }},
+		{"legacy agent", func(data map[string]any) { data["agent"] = "legacy" }},
+		{"private launch field", func(data map[string]any) {
+			data["profiles"].([]any)[0].(map[string]any)["command"] = executable
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			invalid, err := cloneExecutionArguments(acpData)
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(invalid)
+			if err := validator.Validate(invalid); err == nil {
+				t.Fatalf("invalid ACP summary accepted: %#v", invalid)
+			}
+		})
 	}
 }
 

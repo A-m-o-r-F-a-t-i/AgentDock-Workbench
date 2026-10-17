@@ -27,6 +27,19 @@ func executionOutputSchemaForTool(name string, original map[string]any) map[stri
 }
 
 func executionOutputSchema(original map[string]any) map[string]any {
+	return buildExecutionOutputSchema(original, true)
+}
+
+// Canonical results must satisfy the business contract before projection. A
+// compact receipt must never satisfy a missing or malformed business result.
+func canonicalExecutionOutputSchema(name string, original map[string]any) map[string]any {
+	if name == "mcp_result_continue" || name == "mcp_result_raw" {
+		return executionOutputSchemaForTool(name, original)
+	}
+	return buildExecutionOutputSchema(original, false)
+}
+
+func buildExecutionOutputSchema(original map[string]any, projectedAlternatives bool) map[string]any {
 	success := maps.Clone(original)
 	if success == nil {
 		success = map[string]any{"type": "object"}
@@ -132,7 +145,11 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		"operation": map[string]any{"$ref": "#/properties/operation"}, "capture": map[string]any{"$ref": "#/properties/capture"}, "delivery": map[string]any{"$ref": "#/properties/delivery"},
 		"projection": map[string]any{"$ref": "#/properties/projection"},
 	}, "additionalProperties": true}
-	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending, projected}}
+	alternatives := []any{success}
+	if projectedAlternatives {
+		alternatives = append(alternatives, pending, projected)
+	}
+	result := map[string]any{"type": "object", "properties": visible, "anyOf": alternatives}
 	if executionStringPattern != "" {
 		result["patternProperties"] = map[string]any{executionStringPattern: map[string]any{"type": "string"}}
 	}

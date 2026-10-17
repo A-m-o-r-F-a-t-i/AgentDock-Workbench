@@ -45,8 +45,19 @@ func (b *gitSnapshotBuffer) Write(value []byte) (int, error) {
 }
 
 func ReadGitSnapshot(parent context.Context, root string) GitSnapshot {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+	// Git only needs cancellation and a deadline, not request payloads or other
+	// business values attached to the caller's context.
+	deadline := time.Now().Add(2 * time.Second)
+	if inherited, ok := parent.Deadline(); ok && inherited.Before(deadline) {
+		deadline = inherited
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	stopCancellation := context.AfterFunc(parent, cancel)
+	defer stopCancellation()
 	defer cancel()
+	if parent.Err() != nil {
+		cancel()
+	}
 	result := GitSnapshot{}
 	command := func(args ...string) (string, error) {
 		cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false"}, args...)...)

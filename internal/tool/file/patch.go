@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 	workspacepkg "github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -170,19 +171,50 @@ func ensurePatchPathUnused(staged map[string]stagedPatchFile, absPath, displayPa
 	)
 }
 
+// Paths have already been resolved against the selected host/workspace target.
+// Keep that absolute target, then constrain filesystem access to its leaf name.
+func patchTargetLocation(path string) (string, string, error) {
+	if !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
+		return "", "", toolError("INVALID_PATH", "patch target must be an absolute resolved path", "validation")
+	}
+	name := filepath.Base(path)
+	if !filepath.IsLocal(name) || name == "." {
+		return "", "", toolError("INVALID_PATH", "patch target must name a local file", "validation")
+	}
+	return filepath.Dir(path), name, nil
+}
+
+func lstatPatchTarget(path string) (os.FileInfo, error) {
+	parent, name, err := patchTargetLocation(path)
+	if err != nil {
+		return nil, err
+	}
+	directory, err := os.OpenRoot(parent)
+	if err != nil {
+		return nil, err
+	}
+	defer directory.Close()
+	return directory.Lstat(name)
+}
+
 func readPatchFile(path string) (os.FileInfo, []byte, error) {
-	// Callers pass either a canonical Workspace-resolved path or a private
-	// transaction backup path created beside such a target. The lstat keeps
-	// text operations from following a final symlink or opening a special file.
-	// codeql[go/path-injection]
-	info, err := os.Lstat(path)
+	info, err := lstatPatchTarget(path)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !info.Mode().IsRegular() {
 		return nil, nil, toolError("NOT_REGULAR_FILE", "patch targets must be regular text files", "validation")
 	}
-	read, err := readBoundedFile(path, int64(maxTextFileReadBytes))
+	parent, name, err := patchTargetLocation(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, _, err := securepath.OpenRegular(parent, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+	read, err := readBoundedFileHandle(file, int64(maxTextFileReadBytes))
 	if err != nil {
 		return nil, nil, err
 	}

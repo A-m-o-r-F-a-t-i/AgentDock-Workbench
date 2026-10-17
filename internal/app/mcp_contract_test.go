@@ -40,8 +40,8 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			t.Fatalf("%s complete validation output extension drifted", name)
 		}
 		if name == mcpcontract.ToolAgentDockContext {
-			// Standalone AgentDock adds only optional local context fields. Compare
-			// every remaining field against the unchanged shared protocol contract.
+			// Standalone AgentDock owns its optional local indexes and ACP profile
+			// summary. Other fields retain the shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
 			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
 			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
@@ -111,6 +111,9 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 		var wantOutput map[string]any
 		if name == mcpcontract.ToolAgentDockContext {
 			wantOutput = mcpcontract.LocalAgentDockContextOutputSchema()
+			wantProperties := maps.Clone(wantOutput["properties"].(map[string]any))
+			wantProperties["acp"] = acpContextSchema()
+			wantOutput["properties"] = wantProperties
 		} else {
 			wantOutput, _ = mcpcontract.OutputSchema(name)
 		}

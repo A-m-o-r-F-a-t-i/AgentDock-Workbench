@@ -13,7 +13,7 @@ func (r *Runtime) completedRequiredFileSnapshot(ctx context.Context, binding act
 	r.structuredOutputMu.Lock()
 	r.pruneStructuredOutputLocked(time.Now())
 	for _, candidate := range r.structuredSnapshots {
-		if candidate.Tool != "read_file" || !candidate.Required || !candidate.Delivered || !candidate.FileFullRange ||
+		if candidate.Tool != "read_file" || candidate.OutputFailure != nil || !candidate.Required || !candidate.Delivered || !candidate.FileFullRange ||
 			candidate.FilePath != request.Path || candidate.FileRuntime != request.Runtime ||
 			candidate.FileDistribution != request.WSLDistribution || candidate.FileRevision != revision ||
 			!sameContextScope(candidate.Binding, binding) {
@@ -77,7 +77,7 @@ func (r *Runtime) commitRequiredFile(binding activity.Binding, result Result) {
 	r.structuredOutputMu.Lock()
 	defer r.structuredOutputMu.Unlock()
 	stored := r.structuredSnapshots[id]
-	if stored == nil || stored.Tool != "read_file" || !stored.Required ||
+	if stored == nil || stored.Tool != "read_file" || stored.OutputFailure != nil || !stored.Required ||
 		stored.Binding.SourceOwnerKey != binding.SourceOwnerKey || stored.Binding.ConversationID != binding.ConversationID ||
 		stored.FileDeliveredOffset != start {
 		return

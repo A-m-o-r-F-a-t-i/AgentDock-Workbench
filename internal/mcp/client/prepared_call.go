@@ -27,6 +27,7 @@ type PreparedMCPCall struct {
 	argumentsDigest string
 	state           *serverState
 	tool            Tool
+	outputValidator *toolInputValidator
 }
 
 // PreparedCallSummary is the bounded immutable identity persisted with approval
@@ -168,6 +169,13 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 	if err = validateToolArguments(tool, fixedArguments); err != nil {
 		return nil, err
 	}
+	var outputValidator *toolInputValidator
+	if len(tool.OutputSchema) > 0 {
+		outputValidator, err = compileToolInputSchema(tool.OutputSchema)
+		if err != nil {
+			return nil, newError("MCP_OUTPUT_SCHEMA_INVALID", "The MCP tool declared an invalid output schema; the call was not dispatched", false, map[string]any{"tool": qualifiedName, "executed": false}, err)
+		}
+	}
 	schemaDigest, err := toolSchemaDigest(tool)
 	if err != nil {
 		return nil, err
@@ -200,6 +208,7 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 		argumentsDigest:       argumentsDigest,
 		state:                 state,
 		tool:                  cloneTool(tool),
+		outputValidator:       outputValidator,
 	}, nil
 }
 
@@ -362,7 +371,11 @@ func (m *Manager) CallPrepared(ctx context.Context, prepared *PreparedMCPCall) (
 	}
 	observer := m.callObserver.Load()
 	dispatch := func(dispatchCtx context.Context) (map[string]any, error) {
-		return state.client.callTool(dispatchCtx, prepared.toolName, cloneJSONMap(prepared.arguments))
+		result, err := state.client.callTool(dispatchCtx, prepared.toolName, cloneJSONMap(prepared.arguments))
+		if err == nil {
+			err = validatePreparedOutput(prepared, result)
+		}
+		return result, err
 	}
 	if observer != nil {
 		return observer.call(callCtx, prepared.QualifiedName, dispatch)

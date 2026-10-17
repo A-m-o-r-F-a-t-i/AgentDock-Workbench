@@ -27,7 +27,7 @@
 
 　　模型首屏保留 runtime、workspace、workdir、Host 工具准确名称、低频 Bundle 及成员名称、动态 MCP 摘要、规则完整性与 revision、Task 绑定。`bootstrap_complete` 与详情序列的 `sequence_complete` 分开表示：前者完成后，长列表分页只形成 `category=detail` 的按需操作，不阻断与该详情无关的工作。具体写入仍须遵守已加载规则。
 
-　　分页使用已有不可变快照和准确 cursor。最终响应超出预算时，紧急投影仍保留 Bootstrap 路由字段，将详情指向 retained source。Context 引用响应只保留规则 revision 等短字段，并从已发布内存快照获取当前 catalog 摘要，不重新连接提供者。
+　　分页使用已有不可变快照和准确 cursor。续页保护绑定工作区和已加载规则；目录刷新和普通 Git 记账不会使规则未变的 Context 续页失效，AGENTS.md、工作区边界或 Git 根标记变化仍会拒绝旧 cursor。最终响应超出预算时，紧急投影仍保留 Bootstrap 路由字段，将详情指向 retained source。Context 引用响应只保留规则 revision 等短字段，并从已发布内存快照获取当前 catalog 摘要，不重新连接提供者。
 
 ## 工具目录与精确搜索
 
@@ -53,9 +53,19 @@
 
 　　真实 `mcp_tool_call` 只有在业务调用返回受控连接类错误、且实际效果为 `none` 时，才在原 Activity 上建立十分钟恢复资格。资格校验固定认证所有者、Conversation、Workspace、server、执行配置指纹与工具 Schema；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
 
-　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复完成后只重试原业务参数一次，目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。未知副作用只允许恢复连接，仍要求独立业务读回。
+　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复资格先原子领取，再关联恢复调用和唯一重试调用；并发领取只有一个成功者。恢复启动失败、异步失败、取消或到期均落下终态，不能留下永远占用的恢复资格。恢复完成后只重试原业务参数一次，目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。未知副作用只允许恢复连接，仍要求独立业务读回。
 
 　　Canonical Result 统一记录 `operation_status`、`error_kind`、`effect_state`、`execution_performed`、`retry_safe` 和分类 `required_action`。相同认证作用域、Workspace、参数、原因和目录 revision 的重复协议前置条件失败，返回首个 origin、原恢复动作与递增 `repeat_count`；完整结果先留存，再生成模型短回执。
+
+## 完整输出校验与失败续页
+
+　　Runtime 在模型投影前校验 handler 的完整成功结果，输出验证器与输入验证器一起由正式 ToolSpec 编译。实际业务失败保留原始失败分类；已冻结快照的显式续页不重新执行 handler。上游 MCP 声明的 outputSchema 在业务调用前编译，对原始 structuredContent 的校验也发生在分页前。无效 Schema 在执行前拒绝，执行后的输出不符则保留实际执行与副作用事实，不把未验证结果当作可安全重试。
+
+　　输出校验失败仍可通过准确 cursor 读取保留的原文，但每页继续携带原失败，不能记为已成功交付、不能形成隐式去重引用，也不能通过读取 source 绕过 required-full 确认。read_file 在 handler 阶段已创建的快照由相同所有者、对话、任务和工作区范围回写失败标志，不影响别的调用。
+
+　　上游业务失败的分页保存有界 `upstream_failure`，在首屏、语义续页、fragment 和原文读取中保留失败码、实际效果及后续动作。后续动作要么完整保留，要么明确列入 omitted_fields，不截断成不可执行的半个请求。原始输出仍由现有完整来源保存。
+
+　　Standalone Context 的 ACP 摘要由 Context owner 声明当前的 `default_profile` 与 `profiles` 契约；顶层和 profile 条目继续使用闭合 Schema，拒绝旧 `agent` 别名和私有命令字段。此修正不改变 ACP 执行功能，也不放宽共享协议的其他字段。
 
 ## 惰性目录缓存与 Activity/UI
 
@@ -65,18 +75,21 @@
 
 ## 验证状态与剩余工作
 
-　　本批源码已完成格式化、差异审查和 `git diff --check`。按 CI 使用的 `go test -p 2 ./... -count=1 -timeout=8m` 设置完成全量 Go 复验，Runtime、MCP、HTTP、安装器、命令会话、脚本治理和发布工具均通过；真实 HTTP Context 探针已完成固定 Bootstrap、语义分页重建和关联字段检查。
+　　验证必须关联实际源码版本。以下既有证据来自 `f8571f0` 候选及随后提交的证据文档，不代表后续审查补丁或最终合并主线已通过同一验证：
 
-　　合入最新 `main` 后再次按相同设置完成全量 Go 复验，并重新编译 `cmd/agentdock`。当前候选位于 `artifacts/source-corrected-20261015/candidate-post-main-core.exe`，SHA-256 为 `1fde9ac8440e7d9068c86b5e411b68f4169145dd89ee85642032a571154f9081`；生产 Core 未替换，未安装候选版本。
+- 按 CI 使用的 `go test -p 2 ./... -count=1 -timeout=8m` 设置完成全量 Go 复验；真实 HTTP Context 探针完成固定 Bootstrap、语义分页重建和关联字段检查。
+- 重新编译的 Windows 候选 `candidate-post-main-core.exe` 的 SHA-256 为 `1fde9ac8440e7d9068c86b5e411b68f4169145dd89ee85642032a571154f9081`。
+- 隔离候选通过真实 EasyEDA managed-MCP 回归：加载插件、精确发现四个 PCB 工具、读取完整 Skill、无重放消费六页状态；添加未保存的板外临时丝印，独立读回精确句柄，删除后再次读回。最终区域为空，document revision 恢复到初始值，未保存工程文件。候选进程已停止。证据见 `docs/validation/1.1.9/easyeda-managed-mcp-live.json`。
 
-　　Windows 界面源码中的 catalog、route、required action 和 recovery 展示已复核，并修复标题提示字符串。设备仅安装 .NET Runtime、未安装 .NET SDK，因此本机 Windows 项目未进入编译；不为本次修改额外安装 SDK。Windows 与 macOS 的原生编译继续由仓库现有 GitHub Actions 完成。
+　　基于 `325777f` 的后续审查补丁已通过 Linux 上 activity、MCP client、MCP 工具、文件和 workspace 包验证，以及完整输出校验、失败续页、原子恢复和 Context 规则续页回归。app 包复验发现 ACP 正式 Schema 漂移，修正后三项原失败及共享契约检查均通过，随后完整 app 包通过（25.821 秒）。文件权限回归在保留实际权限限制的环境运行。格式化与 `git diff --check` 通过；这些局部证据不替代修复提交和最终合并主线的 Actions。
 
-　　候选 Core 已通过一条真实 EasyEDA managed-MCP 回归：加载 `easyeda` Heavy 插件，精确解析 `pcb_list_targets`、`pcb_status`、`pcb_objects` 和 `pcb_modify`，读取完整 PCB Skill，使用 `mcp_result_continue` 无重放消费六页状态结果；随后在板外添加未保存的临时顶层丝印、独立读回精确句柄、按句柄删除并再次读回。最终区域为空，document revision 恢复到初始值，生产 Core 与工程文件均未替换或保存。受限证据见 `docs/validation/1.1.9/easyeda-managed-mcp-live.json`。
+　　Windows/macOS 活动详情适配已进入分支，原生编译由仓库现有 Actions 验证。设备连接与源码推送状态单独记录，不用候选编译成功推断平台构建、生产安装或发布完成。
 
 待完成项：
 
-- 推送本批实现，完成 PR #126 的现有 GitHub Actions，按真实失败修正剩余契约或平台编译问题。
-- 使用候选版本完成一条真实 EasyEDA managed-MCP 业务读取、最小编辑和独立读回，记录首次业务调用前诊断数、恢复次数与工具发现路径。
-- Actions 与真实回归通过后完成最终代码审查，合并 PR #126，启动 1.1.9 正式预发布构建并核对发布资产。
+- 提交本批审查修复，完成 PR #126 的既有 Actions，按实际失败修复剩余契约或平台问题。
+- 统筹 Plugin 生命周期、执行架构、Context、安装器、媒体预算及公开品牌等 Core 变更。合并时逐项核对恢复资格、Plugin generation/lease、完整来源、目录身份和作用域边界，不以文本无冲突代替语义审查。
+- 功能 PR 全部合并后，必须另交一个 Core 集成与代码质量 PR，修复已复现的交互问题、收敛公共实现与代码风格，并运行与实际风险对应的既有回归和 Actions。
+- 在质量 PR 合并后的准确主线提交构建 1.1.9 预发布候选，完成既有安装/发布门禁与必要实机读取，核对八项资产、摘要、标签提交及发布说明后再发布。
 
-　　当前仍为 PR #126 草稿状态，尚未合并、发布或替换设备生产 Core；本地候选编译成功不等同于 GitHub Actions、原生界面构建或真实 MCP 回归通过。
+　　PR #126 当前保持草稿。先前设备或其他任务更新的生产 Core 不作为本分支部署证据；本轮合并与发布结果以对应提交、Actions 和 release 记录为准。

@@ -35,39 +35,41 @@ type TerminalSettlement struct {
 	guard    SettlementGuard
 	deferred bool
 
-	runtime        *Runtime
-	future         session.TerminalFuture
-	initialErr     error
-	completion     *activity.AppendReservation
-	binding        activity.Binding
-	toolName       string
-	title          string
-	sessionID      string
-	approvalID     string
-	ruleID         string
-	permissionMode string
-	started        time.Time
-	executionMS    *int64
-	waitMS         *int64
+	runtime          *Runtime
+	future           session.TerminalFuture
+	initialErr       error
+	completion       *activity.AppendReservation
+	binding          activity.Binding
+	toolName         string
+	title            string
+	sessionID        string
+	approvalID       string
+	ruleID           string
+	permissionMode   string
+	started          time.Time
+	executionMS      *int64
+	waitMS           *int64
+	recoveryOriginID string
 }
 
 func (r *Runtime) startCommandTerminalSettlement(p *preparedExecution, sessionID string, completion *activity.AppendReservation, deferred bool) bool {
 	future, found := commandTerminalSource(r.command).TakeTerminalFuture(sessionID)
 	settlement := &TerminalSettlement{
-		deferred:       deferred,
-		runtime:        r,
-		future:         future,
-		completion:     completion,
-		binding:        p.state.binding,
-		toolName:       p.spec.Name,
-		title:          r.describeExecution(p.spec.Name, p.args, p.state),
-		sessionID:      sessionID,
-		approvalID:     p.approvalID,
-		ruleID:         p.decision.RuleID,
-		permissionMode: p.decision.Mode,
-		started:        p.state.started,
-		executionMS:    copyInt64Pointer(p.state.executionMS),
-		waitMS:         copyInt64Pointer(p.state.waitMS),
+		deferred:         deferred,
+		runtime:          r,
+		future:           future,
+		completion:       completion,
+		binding:          p.state.binding,
+		toolName:         p.spec.Name,
+		title:            r.describeExecution(p.spec.Name, p.args, p.state),
+		sessionID:        sessionID,
+		approvalID:       p.approvalID,
+		ruleID:           p.decision.RuleID,
+		permissionMode:   p.decision.Mode,
+		started:          p.state.started,
+		executionMS:      copyInt64Pointer(p.state.executionMS),
+		waitMS:           copyInt64Pointer(p.state.waitMS),
+		recoveryOriginID: stringArg(p.args, "origin_call_id"),
 	}
 	if !found {
 		settlement.initialErr = fmt.Errorf("terminal future for session %s was not registered", sessionID)
@@ -103,6 +105,10 @@ func (s *TerminalSettlement) settle(ctx context.Context) error {
 	if waitErr == nil && s.deferred {
 		s.runtime.enqueueCommandCompletion(s.binding, outcome)
 	}
+	var recoveryErr error
+	if rootPersistErr == nil && s.recoveryOriginID != "" {
+		recoveryErr = s.runtime.settleManagedMCPRecoverySkill(s.binding, map[string]any{"origin_call_id": s.recoveryOriginID}, outcome.Status)
+	}
 
 	var approvalErr error
 	if s.approvalID != "" && s.runtime.permissions != nil {
@@ -110,7 +116,7 @@ func (s *TerminalSettlement) settle(ctx context.Context) error {
 		_, approvalErr = s.runtime.permissions.Settle(settleCtx, s.approvalID, terminalApprovalStatus(outcome.Status), outcome.Summary)
 		cancel()
 	}
-	return errors.Join(rootPersistErr, approvalErr)
+	return errors.Join(rootPersistErr, approvalErr, recoveryErr)
 }
 
 func (s *TerminalSettlement) wait(ctx context.Context) (session.TerminalOutcome, error) {

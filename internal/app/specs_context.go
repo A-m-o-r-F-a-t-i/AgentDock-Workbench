@@ -30,8 +30,8 @@ func contextToolSpecs() []ToolSpec {
 	}}
 }
 
-// The standalone entrypoint adds optional local fields without changing the
-// shared Nexus Bridge contract. All existing canonical fields remain identical.
+// Standalone context owns its profile-aware ACP summary and local indexes.
+// The shared Nexus Bridge contract remains unchanged.
 func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	contract, ok := canonicalToolContract(name, cfg)
 	if !ok {
@@ -59,6 +59,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output["running_sessions"] = map[string]any{"type": "integer", "minimum": 0}
 	output["terminal_completions_pending"] = map[string]any{"type": "integer", "minimum": 0}
 	output["android_executor"] = androidExecutorStatusSchema()
+	output["acp"] = acpContextSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
 	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
 	output["bootstrap_complete"] = toolcontract.Boolean("Routing bootstrap is complete independently of optional detail delivery.")
@@ -176,6 +177,29 @@ func contextDeliveryPublicOutputSchema(full map[string]any) map[string]any {
 	return map[string]any{
 		"type": "object", "properties": visibleProperties,
 		"anyOf": []any{full, reference},
+	}
+}
+
+func acpContextSchema() map[string]any {
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"enabled", "default_profile", "profiles", "description"},
+		"properties": map[string]any{
+			"enabled":         toolcontract.Boolean("Whether ACP is enabled."),
+			"default_profile": toolcontract.String("Default configured ACP profile id."),
+			"description":     toolcontract.String("Short ACP usage orientation."),
+			"profiles": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object", "additionalProperties": false,
+					"required": []string{"id", "kind"},
+					"properties": map[string]any{
+						"id":   toolcontract.String("Enabled ACP profile id."),
+						"kind": toolcontract.String("Configured ACP provider kind."),
+					},
+				},
+			},
+		},
 	}
 }
 
