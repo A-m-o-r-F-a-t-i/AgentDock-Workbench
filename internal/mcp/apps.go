@@ -8,7 +8,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	protocol "github.com/uvwt/agentdock-protocol"
-	"github.com/uvwt/agentdock-protocol/mcpapps"
+	mcpapps "github.com/uvwt/agentdock/internal/mcpappcompat"
 )
 
 type appResourceDefinition struct {
