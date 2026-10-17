@@ -812,39 +812,71 @@ function Start-AgentDockTask {
 function Stop-ProcessesForUpgrade {
     param(
         [string] $ProcessName,
-        [string] $BinaryPath
+        [string] $BinaryPath,
+        [ref] $ObservedRunning,
+        [ValidateRange(1, 15000)][int] $TimeoutMilliseconds = 15000
     )
 
     $processWasRunning = $false
-    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     do {
         $runningProcesses = @(Get-ProcessesByPath -ProcessName $ProcessName -BinaryPath $BinaryPath)
         if ($runningProcesses.Count -gt 0) {
             $processWasRunning = $true
+            if ($null -ne $ObservedRunning) { $ObservedRunning.Value = $true }
         }
-        foreach ($process in $runningProcesses) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        foreach ($matchingProcess in $runningProcesses) {
+            $ownedProcess = Get-Process -Id $matchingProcess.Id -ErrorAction SilentlyContinue
+            if ($null -eq $ownedProcess) { continue }
+            try {
+                if ($ownedProcess.HasExited) { continue }
+                # Pin the process identity before rechecking its exact executable
+                # path. A recycled PID must never select another installation.
+                [void] $ownedProcess.Handle
+                $stillOwned = @(Get-ProcessesByPath -ProcessName $ProcessName -BinaryPath $BinaryPath |
+                    Where-Object { $_.Id -eq $ownedProcess.Id })
+                if ($stillOwned.Count -eq 0) { continue }
+                Stop-Process -InputObject $ownedProcess -Force -ErrorAction Stop
+                $remainingMilliseconds = [int] [Math]::Max(0, $TimeoutMilliseconds - $stopwatch.ElapsedMilliseconds)
+                if (-not $ownedProcess.WaitForExit($remainingMilliseconds)) {
+                    throw "Unable to stop $ProcessName PID $($ownedProcess.Id) at $BinaryPath before the deadline."
+                }
+            } catch {
+                # Exit between enumeration and termination is already success.
+                # Access-denied and other failures on a live process remain errors.
+                if (-not $ownedProcess.HasExited) { throw }
+            } finally {
+                $ownedProcess.Dispose()
+            }
         }
         if ($runningProcesses.Count -eq 0) {
             break
         }
-        Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
+    } while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds)
 
     $remainingProcesses = @(Get-ProcessesByPath -ProcessName $ProcessName -BinaryPath $BinaryPath)
     if ($remainingProcesses.Count -gt 0) {
+        if ($null -ne $ObservedRunning) { $ObservedRunning.Value = $true }
         throw "Unable to stop $ProcessName at $BinaryPath."
     }
     return $processWasRunning
 }
 
 function Stop-AgentDockForUpgrade {
-    param([string] $BinaryPath)
+    param(
+        [string] $BinaryPath,
+        [ref] $ObservedRunning,
+        [int] $TimeoutMilliseconds = 15000
+    )
     $processName = [IO.Path]::GetFileNameWithoutExtension($BinaryPath)
     if ([string]::IsNullOrWhiteSpace($processName)) {
         throw "Unable to resolve AgentDock process name from path: $BinaryPath"
     }
-    return Stop-ProcessesForUpgrade -ProcessName $processName -BinaryPath $BinaryPath
+    # PowerShell 5.1 accepts an omitted ref, but cannot bind an explicit null.
+    $observationArguments = @{}
+    if ($null -ne $ObservedRunning) { $observationArguments.ObservedRunning = $ObservedRunning }
+    return Stop-ProcessesForUpgrade -ProcessName $processName -BinaryPath $BinaryPath `
+        @observationArguments -TimeoutMilliseconds $TimeoutMilliseconds
 }
 
 function Stop-CloudflaredForUpgrade {
@@ -853,8 +885,68 @@ function Stop-CloudflaredForUpgrade {
 }
 
 function Stop-AgentDockTrayForUpgrade {
-    param([string] $BinaryPath)
-    return Stop-ProcessesForUpgrade -ProcessName 'agentdock-tray' -BinaryPath $BinaryPath
+    param(
+        [string] $BinaryPath,
+        [ref] $ObservedRunning,
+        [int] $TimeoutMilliseconds = 15000
+    )
+    $observationArguments = @{}
+    if ($null -ne $ObservedRunning) { $observationArguments.ObservedRunning = $ObservedRunning }
+    return Stop-ProcessesForUpgrade -ProcessName 'agentdock-tray' -BinaryPath $BinaryPath `
+        @observationArguments -TimeoutMilliseconds $TimeoutMilliseconds
+}
+
+function Stop-AgentDockRuntimeForUpgrade {
+    param(
+        [string] $StableCorePath,
+        [string] $StableTrayPath,
+        [string[]] $GenerationDirectories = @(),
+        [ref] $CoreWasRunning,
+        [ref] $TrayWasRunning
+    )
+
+    # Old background shims release their generation children. Stop and wait for
+    # both stable launchers before freshly enumerating their possible children.
+    # The same exact-path set is used before publication and before rollback.
+    $targets = @(
+        [pscustomobject]@{ Path = $StableTrayPath; IsCore = $false; Observed = $TrayWasRunning },
+        [pscustomobject]@{ Path = $StableCorePath; IsCore = $true; Observed = $CoreWasRunning }
+    )
+    foreach ($directory in $GenerationDirectories) {
+        if ([string]::IsNullOrWhiteSpace($directory)) { continue }
+        $targets += [pscustomobject]@{ Path = (Join-Path $directory 'agentdock-tray.exe'); IsCore = $false; Observed = $TrayWasRunning }
+        $targets += [pscustomobject]@{ Path = (Join-Path $directory 'agentdock-core.exe'); IsCore = $true; Observed = $CoreWasRunning }
+    }
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $targets = @($targets | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_.Path) -and $seen.Add([IO.Path]::GetFullPath($_.Path))
+    })
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        foreach ($target in $targets) {
+            $remainingMilliseconds = 15000 - $stopwatch.ElapsedMilliseconds
+            if ($remainingMilliseconds -le 0) { throw 'Unable to stop the AgentDock runtime before the deadline.' }
+            $observationArguments = @{}
+            if ($null -ne $target.Observed) { $observationArguments.ObservedRunning = $target.Observed }
+            if ($target.IsCore) {
+                [void] (Stop-AgentDockForUpgrade -BinaryPath $target.Path `
+                    @observationArguments -TimeoutMilliseconds $remainingMilliseconds)
+            } else {
+                [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $target.Path `
+                    @observationArguments -TimeoutMilliseconds $remainingMilliseconds)
+            }
+        }
+        $remaining = $false
+        foreach ($target in $targets) {
+            $processName = [IO.Path]::GetFileNameWithoutExtension($target.Path)
+            if (@(Get-ProcessesByPath -ProcessName $processName -BinaryPath $target.Path).Count -gt 0) {
+                if ($null -ne $target.Observed) { $target.Observed.Value = $true }
+                $remaining = $true
+            }
+        }
+        if (-not $remaining) { return }
+    } while ($stopwatch.ElapsedMilliseconds -lt 15000)
+    throw 'Unable to stop the AgentDock runtime before the deadline.'
 }
 
 function Start-HiddenPowerShellScript {
@@ -1462,6 +1554,7 @@ $taskTransactionCommitted = $false
 $taskRestored = $false
 $generationLayoutDetected = $false
 $generationBootstrapDirectory = ''
+$existingGenerationDirectory = ''
 $legacyBootstrapPrepared = $false
 $legacyBootstrapVersion = ''
 $preserveTailscale = $false
@@ -1957,13 +2050,14 @@ try {
     $serviceStopWatch = [Diagnostics.Stopwatch]::StartNew()
     try {
         $agentDockStopAttempted = $true
+        $trayStopAttempted = $true
+        $stopGenerationDirectories = @()
         if ($generationLayoutDetected) {
-            [void] (Stop-AgentDockForUpgrade -BinaryPath $existingGenerationCore)
-            # Also stop a legacy stable Core left by a crash between source-pointer commit and shim install.
-            [void] (Stop-AgentDockForUpgrade -BinaryPath $destinationBinary)
-        } else {
-            [void] (Stop-AgentDockForUpgrade -BinaryPath $destinationBinary)
+            $stopGenerationDirectories += $existingGenerationDirectory
         }
+        Stop-AgentDockRuntimeForUpgrade -StableCorePath $destinationBinary -StableTrayPath $destinationTrayBinary `
+            -GenerationDirectories $stopGenerationDirectories `
+            -CoreWasRunning ([ref] $processWasRunning) -TrayWasRunning ([ref] $trayProcessWasRunning)
 
         # Stable entries remain the rollback boundary for both legacy bootstrap and same-version repair.
         # Preserve them before replacement even when active-version.json already exists.
@@ -1972,18 +2066,6 @@ try {
         }
         if (Test-Path -LiteralPath $destinationTrayBinary -PathType Leaf) {
             Copy-Item -LiteralPath $destinationTrayBinary -Destination $trayBackup -Force
-        }
-
-        if (-not $generationLayoutDetected) {
-            $trayProcessWasRunning = @(Get-AgentDockTrayProcesses -BinaryPath $destinationTrayBinary).Count -gt 0
-        }
-
-        $trayStopAttempted = $true
-        if ($generationLayoutDetected) {
-            [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $existingGenerationTray)
-            [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $destinationTrayBinary)
-        } else {
-            [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $destinationTrayBinary)
         }
     } finally {
         $serviceStopWatch.Stop()
@@ -2499,21 +2581,25 @@ exit `$LASTEXITCODE
     $rollbackError = $null
     $taskRecoveryPath = ''
     try {
+        $rollbackCorePath = ''
+        $rollbackTrayPath = ''
+        $rollbackGenerationDirectories = @()
         if ($generationLayoutDetected -or $enginePrepared) {
-            # Target Core runs as agentdock-core.exe after both bootstrap and Update Engine.
-            # Stopping the CUI shim would miss the running generation and leave the new pointer live.
-            $rollbackGenerationTray = Join-Path $generationBootstrapDirectory 'agentdock-tray.exe'
-            $rollbackGenerationCore = Join-Path $generationBootstrapDirectory 'agentdock-core.exe'
-            [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $rollbackGenerationTray)
-            [void] (Stop-AgentDockForUpgrade -BinaryPath $rollbackGenerationCore)
+            $rollbackCorePath = $destinationBinary
+            $rollbackTrayPath = $destinationTrayBinary
+            $rollbackGenerationDirectories = @($generationBootstrapDirectory, $existingGenerationDirectory)
         } else {
             if ($trayStopAttempted -or $stableFilesMayBeReplaced -or $trayStartupRegistrationChanged) {
-                [void] (Stop-AgentDockTrayForUpgrade -BinaryPath $destinationTrayBinary)
+                $rollbackTrayPath = $destinationTrayBinary
             }
             if ($agentDockStopAttempted -or $stableFilesMayBeReplaced -or $startupRegistrationChanged) {
-                [void] (Stop-AgentDockForUpgrade -BinaryPath $destinationBinary)
+                $rollbackCorePath = $destinationBinary
             }
         }
+        # Preserve the original running-state snapshot: target processes started
+        # by this attempt must not become reasons to restart a failed fresh install.
+        Stop-AgentDockRuntimeForUpgrade -StableCorePath $rollbackCorePath -StableTrayPath $rollbackTrayPath `
+            -GenerationDirectories $rollbackGenerationDirectories
         if ($cloudflaredStopAttempted -or $cloudflaredReplacementStarted -or $tunnelStartupRegistrationChanged) {
             [void] (Stop-CloudflaredForUpgrade -BinaryPath $cloudflaredBinary)
         }

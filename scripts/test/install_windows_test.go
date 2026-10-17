@@ -63,8 +63,9 @@ func TestInstallWindowsUsesChecksumsDPAPIAndCurrentUserStartup(t *testing.T) {
 		"-ErrorRecord $resultErrorRecord",
 		"ErrorType=$safeErrorType",
 		"ErrorStack=$safeErrorStack",
-		"Stop-AgentDockForUpgrade -BinaryPath $existingGenerationCore",
-		"Stop-AgentDockForUpgrade -BinaryPath $destinationBinary",
+		"Stop-AgentDockRuntimeForUpgrade -StableCorePath $destinationBinary",
+		"-GenerationDirectories $stopGenerationDirectories",
+		"-CoreWasRunning ([ref] $processWasRunning) -TrayWasRunning ([ref] $trayProcessWasRunning)",
 		"$processName = [IO.Path]::GetFileNameWithoutExtension($BinaryPath)",
 		"Get-ProcessesByPath -ProcessName $processName -BinaryPath $BinaryPath",
 		"Get-CimInstance Win32_Process",
@@ -181,7 +182,7 @@ func TestInstallWindowsUsesChecksumsDPAPIAndCurrentUserStartup(t *testing.T) {
 		t.Fatal("generation Core stop logic must derive the process name from agentdock-core.exe instead of assuming agentdock.exe")
 	}
 	legacyPrepareCall := strings.Index(script, "install prepare-windows-legacy")
-	stopCall := strings.Index(script, "Stop-AgentDockForUpgrade -BinaryPath $destinationBinary")
+	stopCall := strings.Index(script, "Stop-AgentDockRuntimeForUpgrade -StableCorePath $destinationBinary")
 	backupCall := strings.Index(script, "Copy-Item -LiteralPath $destinationBinary -Destination $binaryBackup -Force")
 	engineCall := strings.Index(script, "$engineJson = (& $sourceBinary @engineArgs")
 	if legacyPrepareCall < 0 || stopCall < 0 || backupCall < 0 || engineCall < 0 ||
@@ -221,9 +222,10 @@ func TestInstallWindowsUsesChecksumsDPAPIAndCurrentUserStartup(t *testing.T) {
 		!strings.Contains(script, "Get-AgentDockProcesses -BinaryPath $destinationBinary") {
 		t.Fatal("generation retries must probe both source generation and legacy stable Core paths")
 	}
-	if !strings.Contains(script, "Stop-AgentDockForUpgrade -BinaryPath $existingGenerationCore") ||
-		strings.Count(script, "Stop-AgentDockForUpgrade -BinaryPath $destinationBinary") < 2 {
-		t.Fatal("generation retries must stop both source generation and crash-left legacy stable Core paths")
+	if !strings.Contains(script, "$stopGenerationDirectories += $existingGenerationDirectory") ||
+		!strings.Contains(script, "$rollbackGenerationDirectories = @($generationBootstrapDirectory, $existingGenerationDirectory)") ||
+		strings.Count(script, "Stop-AgentDockRuntimeForUpgrade -StableCorePath") != 2 {
+		t.Fatal("publication and rollback must stop stable launchers and their exact source/target generations through the same owner")
 	}
 	for _, forbidden := range []string{
 		"function Write-RuntimeManifest",
