@@ -18,8 +18,6 @@ func InputSchema(name string) (map[string]any, bool) {
 	boolProp := toolcontract.Boolean
 	boundedIntProp := toolcontract.BoundedInteger
 	props := map[string]any{}
-	var required []string
-
 	switch name {
 	case ToolViewImage:
 		props["artifact_id"] = stringProp("Artifact id returned by an AgentDock image-producing tool.")
@@ -104,7 +102,6 @@ func InputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
-	return toolcontract.InputObject(props, required...), true
 }
 
 func OutputSchema(name string) (map[string]any, bool) {
