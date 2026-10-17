@@ -24,6 +24,7 @@ const (
 	systemDirectory             = ".system"
 	versionsDirectory           = ".versions"
 	stateDirectory              = ".state"
+	transactionDirectory        = "transactions"
 	locksDirectory              = ".locks"
 	cacheDirectory              = ".cache"
 	tempDirectory               = ".tmp"
@@ -59,6 +60,9 @@ func New(root string) (*Store, error) {
 	if err := s.EnsureLayout(); err != nil {
 		return nil, err
 	}
+	if err := s.recoverInterruptedSwaps(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -70,9 +74,11 @@ func (s *Store) EnsureLayout() error {
 		filepath.Join(s.root, systemDirectory),
 		filepath.Join(s.root, versionsDirectory),
 		filepath.Join(s.root, stateDirectory),
+		filepath.Join(s.root, stateDirectory, transactionDirectory),
 		filepath.Join(s.root, locksDirectory),
 		filepath.Join(s.root, cacheDirectory),
 		filepath.Join(s.root, tempDirectory),
+		filepath.Join(s.root, tempDirectory, transactionDirectory),
 	} {
 		if err := os.MkdirAll(path, 0o700); err != nil {
 			return fmt.Errorf("create skill directory %q: %w", path, err)
@@ -277,6 +283,9 @@ func (s *Store) RestoreSelection(ctx context.Context, skill string, target Selec
 		return err
 	}
 	defer release()
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return err
+	}
 	current, err := s.load(skill)
 	if err != nil {
 		return err
@@ -317,7 +326,7 @@ func (s *Store) Resolve(skill, version string) (string, error) {
 }
 
 func (s *Store) Activate(ctx context.Context, skill, version string) error {
-	return s.activate(ctx, skill, version, nil)
+	return s.activateTransactional(ctx, skill, version)
 }
 
 // ActivateBundled activates a release-bundled Skill under skills/.system.
@@ -338,6 +347,9 @@ func (s *Store) activate(ctx context.Context, skill, version string, systemOverr
 		return err
 	}
 	defer release()
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return err
+	}
 
 	current, err := s.load(skill)
 	if err != nil {
@@ -368,6 +380,9 @@ func (s *Store) SetBundled(ctx context.Context, skill string, bundled bool) erro
 		return err
 	}
 	defer release()
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return err
+	}
 	current, err := s.load(skill)
 	if err != nil {
 		return err
@@ -598,6 +613,9 @@ func (s *Store) SetEnabled(ctx context.Context, skill string, enabled bool) (Sel
 		return Selection{}, err
 	}
 	defer release()
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return Selection{}, err
+	}
 
 	versions, err := s.ListVersions(skill)
 	if err != nil {
@@ -658,6 +676,9 @@ func (s *Store) RemoveVersion(ctx context.Context, skill, version string) error 
 		return err
 	}
 	defer release()
+	if err := s.recoverSwapLocked(skill); err != nil {
+		return err
+	}
 	selection, err := s.load(skill)
 	if err != nil {
 		return err
