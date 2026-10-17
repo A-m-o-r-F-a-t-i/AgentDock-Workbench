@@ -723,18 +723,22 @@ func (m *Manager) ensureTools(ctx context.Context, name string) (map[string]Tool
 	if !cfg.Enabled {
 		return nil, newError("MCP_SERVER_DISABLED", "dynamic MCP server is disabled", false, map[string]any{"server": name}, nil)
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
-	defer cancel()
-	if state.client == nil || !state.discovered {
-		runtimeCfg, err := m.prepareRuntimeConfig(ctx, cfg)
+	needsStart := state.client == nil || !state.discovered
+	var runtimeCfg ServerConfig
+	if needsStart {
+		runtimeCfg, err = m.prepareRuntimeConfig(ctx, cfg)
 		if err != nil {
 			recordStateError(state, err)
 			return nil, err
 		}
-		return refreshStateLocked(ctx, runtimeCfg, state)
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
+	defer cancel()
+	if needsStart {
+		return refreshStateLocked(operationCtx, runtimeCfg, state)
 	}
 	if !catalogFresh(state.snapshot.Load()) {
-		return reloadCatalogLocked(ctx, cfg, state)
+		return reloadCatalogLocked(operationCtx, cfg, state)
 	}
 	return cloneTools(state.tools), nil
 }
