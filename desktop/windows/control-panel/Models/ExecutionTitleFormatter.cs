@@ -51,6 +51,8 @@ public static class ExecutionTitleFormatter
         ("mcp_tool_inspect" or "mcp_inspect", _) => "查看扩展工具说明",
         ("mcp_tool_list", _) => "列出扩展工具",
         ("mcp_tool_call", _) => "调用扩展工具",
+        ("mcp_result_continue", _) => "继续读取 MCP 结果",
+        ("mcp_result_raw", _) => "查看 MCP 原始结果",
         ("plugin_load", _) => "展开插件",
         ("insertion_ack", _) => "确认收到补充",
         ("plugin_manage", _) => "管理插件",

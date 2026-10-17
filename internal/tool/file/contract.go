@@ -34,7 +34,12 @@ func InputSchema(name string) (map[string]any, bool) {
 
 	switch name {
 	case ToolApplyPatch:
-		return toolcontract.InputObject(map[string]any{"patch": map[string]any{"type": "string", "minLength": 1, "maxLength": maxApplyPatchBytes, "description": "Codex V4A patch: *** Begin Patch, Add/Delete/Update File operations, optional Move to, @@ hunks, and *** End Patch. Context lines start with a space; deletions with -; additions with +."}}, "patch"), true
+		props["patch"] = map[string]any{"type": "string", "minLength": 1, "maxLength": maxApplyPatchBytes, "description": "Codex V4A patch: *** Begin Patch, Add/Delete/Update File operations, optional Move to, @@ hunks, and *** End Patch. Context lines start with a space; deletions with -; additions with +."}
+		toolcontract.ActivityProperties(props)
+		AddRuntimeProperties(props)
+		props["workdir"] = stringProp(PathDescription("Runtime-selected patch working directory."))
+		props["expected_patch_revision"] = stringProp("Approval-bound preflight revision supplied by Runtime before dispatch.")
+		return toolcontract.InputObject(props, "patch"), true
 	case ToolReadFile:
 		props["path"] = stringProp(PathDescription("Host path. Relative paths inherit the bound Workspace root, or the configured default directory when unbound."))
 		AddRuntimeProperties(props)

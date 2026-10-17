@@ -13,13 +13,14 @@ const catalogMaxAge = time.Minute
 // Catalog is one immutable discovered generation. Exported copies do not share
 // schema maps with the validator or with another request's returned data.
 type Catalog struct {
-	State         CatalogState
-	Server        string
-	Revision      string
-	ServerVersion string
-	Complete      bool
-	RefreshedAt   time.Time
-	Tools         map[string]Tool
+	State             CatalogState
+	Server            string
+	ServerFingerprint string
+	Revision          string
+	ServerVersion     string
+	Complete          bool
+	RefreshedAt       time.Time
+	Tools             map[string]Tool
 }
 
 func protocolGeneration(client protocolClient) uint64 {
@@ -55,10 +56,19 @@ func (m *Manager) catalogSnapshot(server string) (Catalog, bool, error) {
 	if view == nil {
 		return Catalog{Server: server, State: catalogStateForSnapshot(cfg, indexSnapshot{})}, false, nil
 	}
-	if !view.Known {
-		return Catalog{Server: server, State: catalogStateForSnapshot(cfg, *view)}, false, nil
+	fingerprint, err := definitionFingerprint(cfg)
+	if err != nil {
+		return Catalog{}, false, err
 	}
-	catalog := Catalog{State: catalogStateForSnapshot(cfg, *view), Server: server, Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version, Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools}
+	catalogState := catalogStateForSnapshot(cfg, *view)
+	if !view.Known {
+		return Catalog{Server: server, ServerFingerprint: fingerprint, State: catalogState}, false, nil
+	}
+	catalog := Catalog{
+		State: catalogState, Server: server, ServerFingerprint: fingerprint,
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, view.Revision), ServerVersion: view.Version,
+		Complete: true, RefreshedAt: view.RefreshedAt, Tools: view.Tools,
+	}
 	return catalog, catalogFresh(view), nil
 }
 
@@ -235,5 +245,13 @@ func (m *Manager) RefreshCatalog(ctx context.Context, server string) (Catalog, e
 		return Catalog{}, err
 	}
 	snapshot := stateSnapshotLocked(state)
-	return Catalog{Server: server, Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerVersion: snapshot.Version, Complete: snapshot.Known, RefreshedAt: snapshot.RefreshedAt, Tools: cloneTools(snapshot.Tools), State: catalogStateForSnapshot(cfg, snapshot)}, nil
+	fingerprint, fingerprintErr := definitionFingerprint(cfg)
+	if fingerprintErr != nil {
+		return Catalog{}, fingerprintErr
+	}
+	return Catalog{
+		State: catalogStateForSnapshot(cfg, snapshot), Server: server, ServerFingerprint: fingerprint,
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerVersion: snapshot.Version,
+		Complete: snapshot.Known, RefreshedAt: snapshot.RefreshedAt, Tools: cloneTools(snapshot.Tools),
+	}, nil
 }

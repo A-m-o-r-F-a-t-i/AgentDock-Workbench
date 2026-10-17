@@ -163,9 +163,10 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 		DynamicMCP:        dynamicMCP,
 		WorkflowTemplates: []capabilityTemplateItem{},
 		Rules: []string{
-			"AgentDock 宿主内置工具直接调用；动态 MCP 发现仅面向 dynamic_mcp 中的外部提供者。",
-			"Skill 选择使用索引返回的 skill_ref/file；同名但不同来源的候选保持各自作用域。",
-			"普通工具继承当前对话的 Workspace、Task 和 Thread。工作区外目标继续经过显式路径和权限检查。",
+			"AgentDock 宿主内置工具与 dynamic_mcp 外部工具是两个独立命名空间。宿主内置工具直接调用；动态 MCP 仅通过 mcp_tool_search、mcp_tool_inspect 和 mcp_tool_call 发现、检查和执行；宿主工具裸名称不得送入 mcp_tool_search 或 mcp_tool_inspect。",
+			"Skill 选择使用索引返回的 skill_ref/file；同名项是不同来源候选，保持各自作用域。common_skills.truncated=true 表示公共 Skill 索引不完整，不得把未列出的 Skill 判定为不存在。",
+			"仅应用 instruction_files 中 status=loaded 的文件，并按返回顺序叠加；not_found、skipped 和 error 项不视为已应用。",
+			"普通工具继承当前对话的 Workspace、Task 和 Thread。工作区外目标继续经过显式路径和权限检查；长任务使用 task_manage checkpoint 更新已有任务，不重复创建同一任务。",
 		},
 	}
 	if hasExplicitLoadPlugin(directory) {
@@ -243,6 +244,9 @@ func (r *Runtime) agentDockContext(ctx context.Context, nexusLocalOnly bool, wor
 	}
 
 	if requiresNexus(r.cfg) && !nexusLocalOnly {
+		contextResult.Rules = append(contextResult.Rules,
+			"需要工作流模板时先调用 workflow_template_manage match，并使用返回的 source_template_ids；需要项目事实时调用 recall_search 定位，再用 recall_read 精确读取。",
+		)
 		templates, templateErr := r.templateCapabilityIndex(ctx)
 		if templateErr != nil {
 			contextResult.Warnings = append(contextResult.Warnings, capabilityWarning{Source: "workflow_templates", Message: "工作流模板索引暂不可用。"})

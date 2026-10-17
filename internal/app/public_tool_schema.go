@@ -43,6 +43,7 @@ var executionOverrideTools = map[string]bool{
 var inheritedExecutionFields = []string{"task_id", "thread_id", "step_id", "activity_label"}
 
 var publicToolHiddenFields = map[string][]string{
+	"apply_patch":         {"workspace_id", "retry_of_call_id", "runtime", "wsl_distribution", "workdir", "expected_patch_revision"},
 	"exec_command":        {"workspace_id"},
 	"android_device_read": {"workspace_id", "retry_of_call_id"},
 	"android_device_act":  {"workspace_id", "retry_of_call_id"},

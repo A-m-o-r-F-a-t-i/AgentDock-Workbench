@@ -145,6 +145,19 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	if result == nil || p.state.binding.ParentCallID != "" {
 		return result
 	}
+	if hostPage := modelObject(result["host_page"]); hostPage != nil && (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") {
+		complete := hostPage["complete"] != false
+		result["projection"] = map[string]any{"mode": "mcp_result_page", "complete": complete}
+		result["delivery"] = map[string]any{"class": toolcontract.OutputRecoverablePreview, "sequence_complete": true, "continuation_required": false, "continuation_available": stringArg(result, "host_cursor") != ""}
+		result["source_complete"] = true
+		result["truncated"] = !complete
+		if complete {
+			result["truncation_stage"] = "none"
+		} else {
+			result["truncation_stage"] = "projection"
+		}
+		return result
+	}
 	class := toolcontract.ResolveOutputClass(p.spec.Name, p.args, result)
 	structured := modelObject(result["structured_output"])
 	policy := modelObject(result["output_policy"])

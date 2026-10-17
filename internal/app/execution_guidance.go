@@ -31,13 +31,18 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 	if cursor := result["next_offset"]; cursor != nil {
 		arguments["offset"] = cursor
 	}
+	if wait := measuredInt(result, "observe_after_ms"); wait != nil && *wait >= 0 {
+		arguments["wait_ms"] = *wait
+	}
 	delivery := "explicit_observation"
 	if state.binding.ConversationID != "" && state.binding.SourceOwnerKey != "" {
 		delivery = "next_root_call"
 	}
 	return map[string]any{"source": "agentdock", "schema_version": 1, "continuation": map[string]any{
 		"kind": "command_session", "session_id": result["session_id"], "completion_delivery": delivery,
+		"recommended_action":  "continue_independent_work",
 		"observe_when_needed": map[string]any{"tool": "session_observe", "arguments": arguments},
+		"text":                "Continue independent work. Observe this exact session only when the next decision requires its result; do not restart the command.",
 	}}
 }
 

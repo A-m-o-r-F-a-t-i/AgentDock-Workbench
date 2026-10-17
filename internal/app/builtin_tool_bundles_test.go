@@ -64,9 +64,11 @@ func TestBuiltinToolBundlesIsolateScopesAndGateRuntimeCalls(t *testing.T) {
 	if toolErr.Details["bundle"] != toolcapability.BundleSystemManagement || toolErr.Details["loader"] != toolcapability.ToolLoad {
 		t.Fatalf("hidden direct call details = %#v", toolErr.Details)
 	}
-	guidance, _ := toolErr.Details["agentdock_guidance"].(map[string]any)
-	if guidance["next_required"] == nil {
-		t.Fatalf("hidden direct call has no load guidance: %#v", toolErr.Details)
+	action := modelObject(toolErr.Details["required_action"])
+	arguments := modelObject(action["arguments"])
+	if action == nil || action["tool"] != toolcapability.ToolLoad || action["category"] != "protocol" ||
+		arguments["action"] != toolcapability.ActionLoad || arguments["name"] != toolcapability.BundleSystemManagement {
+		t.Fatalf("hidden direct call has no exact load action: %#v", toolErr.Details)
 	}
 
 	var directoryChanges atomic.Int32

@@ -294,11 +294,15 @@ func TestStructuredOutputPagesLargeContextCollections(t *testing.T) {
 		}
 		cursor, _ := page["next_cursor"].(string)
 		diagnostics, _ := page["context_diagnostics"].(map[string]any)
-		if cursor != "" && diagnostics["complete"] != false {
-			t.Fatalf("paged context marked complete: %#v", diagnostics)
+		if diagnostics["complete"] != true {
+			t.Fatalf("detail pagination changed Context build completeness: %#v", diagnostics)
 		}
-		if cursor == "" && diagnostics["complete"] != true {
-			t.Fatalf("final context page marked incomplete: %#v", diagnostics)
+		ready, _ := page["context_ready"].(bool)
+		if cursor != "" && ready {
+			t.Fatal("synthetic Context without a Bootstrap became ready before detail completion")
+		}
+		if cursor == "" && !ready {
+			t.Fatal("final synthetic Context page did not become ready")
 		}
 		if cursor == "" {
 			break
@@ -380,8 +384,8 @@ func TestStructuredOutputOversizedRequiredItemUsesLosslessPages(t *testing.T) {
 			}
 			return
 		}
-		if modelObject(page["context_diagnostics"])["complete"] != false {
-			t.Fatal("incomplete contract marked complete")
+		if modelObject(page["context_diagnostics"])["complete"] != true || page["context_ready"] == true {
+			t.Fatal("detail page changed source completeness or became ready without Bootstrap")
 		}
 		next := &preparedExecution{spec: ToolSpec{Name: "agentdock_context"}, args: map[string]any{"cursor": cursor}, state: executionObservation{binding: binding}}
 		full, resume, err := r.resumeStructuredOutput(ctx, next)
@@ -527,17 +531,14 @@ func TestModelV2SemanticPagesRetainContracts(t *testing.T) {
 				*target += value
 			}
 		}
+		if modelObject(page["context_diagnostics"])["complete"] != true {
+			t.Fatal("semantic pagination changed Context build completeness")
+		}
 		if next == count {
 			if recovered != text || diagnostics != strings.Repeat("diagnostic", 1500) {
 				t.Fatalf("required content lost: rules=%d/%d diagnostics=%d", len(recovered), len(text), len(diagnostics))
 			}
-			if modelObject(page["context_diagnostics"])["complete"] != true {
-				t.Fatal("last page is not ready")
-			}
 			return
-		}
-		if modelObject(page["context_diagnostics"])["complete"] == true {
-			t.Fatal("intermediate page claimed complete")
 		}
 	}
 	t.Fatal("required pages did not terminate")

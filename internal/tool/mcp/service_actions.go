@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -229,8 +230,14 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if catalogErr != nil {
 		catalog = map[string]any{"server": validated.serverName, "catalog_revision": "", "complete": false, "stale": true, "total": 0, "tools": []map[string]any{}, "error": catalogErr.Error()}
 	}
-	catalog = s.catalogDeliveries.prepare(ctx, catalog, false)
-	response := Result{"name": validated.qualifiedName, "mcp_catalog": catalog, "managed_target": managedTarget(ctx, validated.serverName, stringValue(catalog["catalog_revision"]), "qualified_business_call")}
+	catalog = maps.Clone(catalog)
+	delete(catalog, "tools")
+	catalog["delivery"], catalog["catalog_delivery"] = "summary", "summary"
+	catalog["tools_omitted"], catalog["refresh_tool"] = true, ToolList
+	response := Result{
+		"name": validated.qualifiedName, "mcp_catalog": catalog,
+		"managed_target": managedTarget(ctx, validated.serverName, stringValue(catalog["catalog_revision"]), "qualified_business_call"),
+	}
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if class, mode := prepared.OutputPolicy(); class != "" {
 			response["output_class"] = class
@@ -238,7 +245,16 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 		}
 	}
 	if result != nil {
-		response["result"] = result
+		normalized, contentKinds, parsedJSONText := normalizeDynamicMCPResult(result)
+		projected, projectionErr := s.results.store(activity.FromContext(ctx), validated.qualifiedName, result, normalized, contentKinds, parsedJSONText)
+		if projectionErr != nil {
+			response["result"] = normalized
+			response["result_projection_error"] = projectionErr.Error()
+		} else {
+			for key, value := range projected {
+				response[key] = value
+			}
+		}
 	}
 	if err != nil {
 		if errorReportsNotExecuted(err) {

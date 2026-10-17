@@ -76,13 +76,16 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 		}
 		assertToolResultMatchestestOutputSchema(t, "mcp_tool_call", result)
 	}
-	for _, args := range []map[string]any{
-		{"query": "exec_command", "server": "fixture"},
-		{"query": "fixture:exec_command", "server": "fixture"},
-		{"query": "fixture:exec_command"},
+	for _, test := range []struct {
+		args map[string]any
+		want string
+	}{
+		{map[string]any{"query": "exec_command", "server": "fixture"}, "exact_name"},
+		{map[string]any{"query": "fixture:exec_command", "server": "fixture"}, "exact_qualified_name"},
+		{map[string]any{"query": "fixture:exec_command"}, "exact_qualified_name"},
 	} {
-		found, err := rt.Call(ctx, "mcp_tool_search", args)
-		if err != nil || found["count"] != 1 || found["match_kind"] != "exact_name" {
+		found, err := rt.Call(ctx, "mcp_tool_search", test.args)
+		if err != nil || found["count"] != 1 || found["match_kind"] != test.want {
 			t.Fatalf("scoped dynamic same-name search intercepted: %#v %v", found, err)
 		}
 	}

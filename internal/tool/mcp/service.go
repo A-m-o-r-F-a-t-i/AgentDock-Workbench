@@ -20,6 +20,7 @@ type Service struct {
 	discoveryRoutes   builtinDiscoveryRoutes
 	catalogDeliveries catalogDeliveryState
 	schemaDeliveries  schemaDeliveryState
+	results           resultStore
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
@@ -33,6 +34,14 @@ type BuiltinToolSummary struct {
 
 func New(manager *mcpclient.Manager, envs *envstore.Store) *Service {
 	return &Service{mcpClients: manager, envs: envs}
+}
+
+func (s *Service) RawResult(callID string) (map[string]any, bool) {
+	return s.results.rawCopy(callID)
+}
+
+func (s *Service) SetRawResultReference(callID, reference string) {
+	s.results.setRawReference(callID, reference)
 }
 
 func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {

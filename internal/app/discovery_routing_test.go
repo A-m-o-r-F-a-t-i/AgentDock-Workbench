@@ -80,8 +80,10 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 	if len(rt.command.ActiveConversationBindings()) != 0 {
 		t.Fatal("discovery started a command")
 	}
-	_, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": "exec_command", "server": "unrelated-artifact-fetch"})
-	assertToolErrorCode(t, err, "MCP_AUTH_REQUIRED")
+	failed, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": "exec_command", "server": "unrelated-artifact-fetch"})
+	if err != nil || failed["resolution_status"] != "incomplete" || failed["absence_authoritative"] != false || failed["required_action"] == nil {
+		t.Fatalf("selected refresh failure became an authoritative absence: %#v %v", failed, err)
+	}
 }
 
 func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T) {

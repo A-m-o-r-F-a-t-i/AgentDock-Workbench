@@ -9,7 +9,7 @@ import (
 
 func fileToolSpecs() []ToolSpec {
 	return []ToolSpec{
-		{Name: "read_file", Contract: fileToolContract, Title: "Read file", Description: "Read a bounded UTF-8 source slice or an exact host-issued skill:// or activity:// reference. Continue retained output with its returned byte cursor.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("read_file", func(ctx context.Context, r *Runtime, request toolfile.ReadRequest) (Result, error) {
+		{Name: "read_file", Contract: fileToolContract, Title: "Read file", Description: "Read a bounded UTF-8 source slice or an exact host-issued skill:// or activity:// reference returned by agentdock_context or workspace_context. do not construct Skill URIs. Continue retained output with its returned byte cursor.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("read_file", func(ctx context.Context, r *Runtime, request toolfile.ReadRequest) (Result, error) {
 			request.Binding = activity.FromContext(ctx)
 			return r.readFileWithOutputSource(ctx, request)
 		})},

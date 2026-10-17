@@ -849,12 +849,17 @@ func summarizeTools(server string, tools map[string]Tool) []ToolSummary {
 }
 
 func toolSummary(server string, tool Tool) ToolSummary {
+	schemaDigest, _ := toolSchemaDigest(tool)
+	annotationsDigest, _ := toolAnnotationsDigest(tool)
 	return ToolSummary{
-		Name:          tool.Name,
-		QualifiedName: qualifiedToolName(server, tool.Name),
-		Title:         tool.Title,
-		Description:   tool.Description,
-		Server:        server,
+		Name:              tool.Name,
+		QualifiedName:     qualifiedToolName(server, tool.Name),
+		Title:             tool.Title,
+		Description:       tool.Description,
+		Server:            server,
+		SchemaDigest:      schemaDigest,
+		AnnotationsDigest: annotationsDigest,
+		Annotations:       cloneJSONMap(tool.Annotations),
 	}
 }
 
@@ -978,5 +983,12 @@ func toolSummaryForConfig(cfg ServerConfig, tool Tool) ToolSummary {
 	item := toolSummary(cfg.Name, tool)
 	item.SourceType = cfg.SourceType
 	item.PluginName = cfg.PluginName
+	return item
+}
+
+func toolSummaryForCatalog(cfg ServerConfig, catalog Catalog, tool Tool) ToolSummary {
+	item := toolSummaryForConfig(cfg, tool)
+	item.ServerFingerprint = catalog.ServerFingerprint
+	item.CatalogRevision = catalog.Revision
 	return item
 }

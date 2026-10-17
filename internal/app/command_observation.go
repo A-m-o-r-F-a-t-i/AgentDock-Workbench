@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"github.com/uvwt/agentdock/internal/activity"
-	"github.com/uvwt/agentdock/internal/commandcompletion"
 	toolcommand "github.com/uvwt/agentdock/internal/tool/command"
 )
 
@@ -55,23 +54,7 @@ func quietCommandObservation(result Result, err error) bool {
 }
 
 func (r *Runtime) observeCommand(ctx context.Context, request toolcommand.SessionObserveRequest) (Result, error) {
-	if request.Action == "status" && r.commandCompletions != nil {
-		origin, found := r.command.SessionBinding(request.SessionID)
-		binding := activity.FromContext(ctx)
-		if found && origin.CallID != "" && origin.SourceOwnerKey != "" && origin.SourceOwnerKey == binding.SourceOwnerKey && origin.ConversationID == binding.ConversationID {
-			delivered, err := r.commandCompletions.Delivered(ctx, origin.SourceOwnerKey, origin.ConversationID, commandcompletion.Identity{OriginalCallID: origin.CallID, SessionID: request.SessionID})
-			if err != nil {
-				return nil, toolError("COMPLETION_RECEIPT_UNAVAILABLE", err.Error(), "runtime")
-			}
-			if delivered {
-				result, err := r.command.TerminalReceipt(ctx, request.SessionID)
-				if err != nil {
-					return nil, err
-				}
-				result["already_delivered"] = true
-				return result, nil
-			}
-		}
-	}
+	// Completion attachment and output delivery are independent. A completion
+	// event reports terminal facts but never advances this session's byte cursor.
 	return r.command.ObserveContext(ctx, request)
 }

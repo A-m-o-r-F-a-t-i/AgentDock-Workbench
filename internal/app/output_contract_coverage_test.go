@@ -46,6 +46,8 @@ var outputContractCoverageInventory = map[string]outputContractCoverageEntry{
 	"mcp_tool_list":            {Variants: []string{"success"}},
 	"mcp_tool_inspect":         {Variants: []string{"success"}},
 	"mcp_tool_call":            {Variants: []string{"success"}},
+	"mcp_result_continue":      {Variants: []string{"success"}},
+	"mcp_result_raw":           {Variants: []string{"success"}},
 	"view_image":               {Variants: []string{"success"}},
 	"recall_search":            {Variants: []string{"success"}},
 	"recall_read":              {Variants: []string{"success"}},

@@ -108,7 +108,7 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 		"semantic_parts": parts, "source": retained.SourceURI,
 		"cursor_expires_at": retained.ExpiresAt.UTC().Format(time.RFC3339),
 	}
-	if retained.SourceURI != "" {
+	if retained.SourceURI != "" && requiredSourceReadNeeded(hasMore, retained.SourceComplete, page) {
 		meta["continue_read"] = map[string]any{"tool": "read_file", "arguments": map[string]any{"path": retained.SourceURI, "offset": 0, "limit_chars": 8000}}
 	}
 	if retained.SourceReason != "" {
@@ -179,4 +179,8 @@ func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Resu
 			r.dynamicMCP.CommitSchemas(binding, schemas)
 		}
 	}
+}
+
+func requiredSourceReadNeeded(hasMore, sourceComplete bool, page Result) bool {
+	return hasMore || !sourceComplete || page["required_unit_unavailable"] != nil
 }

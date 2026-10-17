@@ -121,12 +121,12 @@ func (s *Store) capturePayload(ctx context.Context, value any, state string, red
 			return failure("脱敏结果编码失败。")
 		}
 	}
-	data, err = json.MarshalIndent(redacted, "", "  ")
+	data, err = json.Marshal(redacted)
 	if err != nil {
 		return failure("脱敏结果编码失败。")
 	}
 	if len(data) > MaxPayloadBytes {
-		return failure("格式化结果超过单次安全存储上限（16 MiB）。")
+		return failure("紧凑结果超过单次安全存储上限（16 MiB）。")
 	}
 	result.Bytes = int64(len(data))
 	result.Lines = strings.Count(string(data), "\n") + 1

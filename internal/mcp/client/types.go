@@ -63,13 +63,18 @@ type Tool struct {
 }
 
 type ToolSummary struct {
-	SourceType    string `json:"source_type,omitempty"`
-	PluginName    string `json:"plugin_name,omitempty"`
-	Name          string `json:"name"`
-	QualifiedName string `json:"qualified_name"`
-	Title         string `json:"title,omitempty"`
-	Description   string `json:"description,omitempty"`
-	Server        string `json:"server"`
+	SourceType        string         `json:"source_type,omitempty"`
+	PluginName        string         `json:"plugin_name,omitempty"`
+	Name              string         `json:"name"`
+	QualifiedName     string         `json:"qualified_name"`
+	Title             string         `json:"title,omitempty"`
+	Description       string         `json:"description,omitempty"`
+	Server            string         `json:"server"`
+	ServerFingerprint string         `json:"server_fingerprint,omitempty"`
+	CatalogRevision   string         `json:"catalog_revision,omitempty"`
+	SchemaDigest      string         `json:"schema_digest,omitempty"`
+	AnnotationsDigest string         `json:"annotations_digest,omitempty"`
+	Annotations       map[string]any `json:"annotations,omitempty"`
 }
 
 type CatalogState struct {

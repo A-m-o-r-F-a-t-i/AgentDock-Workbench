@@ -48,6 +48,7 @@ type ListRequest struct {
 type InspectRequest struct {
 	Names            []string `json:"names,omitempty"`
 	Name             string   `json:"name,omitempty"`
+	IncludeSchema    *bool    `json:"include_schema,omitempty"`
 	ForceFull        bool     `json:"force_full,omitempty"`
 	Cursor           string   `json:"cursor,omitempty"`
 	MaxResponseBytes *int     `json:"max_response_bytes,omitempty"`
@@ -60,6 +61,18 @@ type CallRequest struct {
 	Arguments         map[string]any `json:"arguments"`
 	InteractionIntent string         `json:"interaction_intent,omitempty"`
 	Reason            string         `json:"reason,omitempty"`
+}
+
+type ResultContinueRequest struct {
+	CallID string `json:"call_id"`
+	Cursor string `json:"cursor"`
+}
+
+type ResultRawRequest struct {
+	CallID  string `json:"call_id"`
+	Offset  int    `json:"offset,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+	Restart bool   `json:"restart,omitempty"`
 }
 
 func intValue(value *int, fallback int) int {

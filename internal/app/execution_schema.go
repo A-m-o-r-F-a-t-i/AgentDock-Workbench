@@ -1,9 +1,31 @@
 package app
 
-import "maps"
+import (
+	"maps"
+	"strings"
+)
 
 // executionOutputSchema preserves the complete business success contract and
 // adds a separate, unmistakable not-yet-executed approval alternative.
+func executionOutputSchemaForTool(name string, original map[string]any) map[string]any {
+	if name == "mcp_result_continue" || name == "mcp_result_raw" {
+		result := cloneJSONSchemaMap(original)
+		if result == nil {
+			result = map[string]any{"type": "object"}
+		}
+		properties, _ := result["properties"].(map[string]any)
+		properties = maps.Clone(properties)
+		if properties == nil {
+			properties = map[string]any{}
+		}
+		properties["agentdock_guidance"] = executionGuidanceSchema(properties["agentdock_guidance"])
+		result["properties"] = properties
+		result["additionalProperties"] = true
+		return result
+	}
+	return executionOutputSchema(original)
+}
+
 func executionOutputSchema(original map[string]any) map[string]any {
 	success := maps.Clone(original)
 	if success == nil {
@@ -14,10 +36,16 @@ func executionOutputSchema(original map[string]any) map[string]any {
 	if properties == nil {
 		properties = map[string]any{}
 	}
-	for _, name := range []string{"conversation_id", "call_id", "parent_call_id", "retry_of_call_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "activity_warning", "binding_quality", "binding_warning"} {
+	executionStringFields := []string{"conversation_id", "call_id", "parent_call_id", "retry_of_call_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "activity_warning", "binding_quality", "binding_warning"}
+	patternFields := make([]string, 0, len(executionStringFields))
+	for _, name := range executionStringFields {
 		if _, exists := properties[name]; !exists {
-			properties[name] = map[string]any{"type": "string"}
+			patternFields = append(patternFields, name)
 		}
+	}
+	executionStringPattern := ""
+	if len(patternFields) > 0 {
+		executionStringPattern = "^(" + strings.Join(patternFields, "|") + ")$"
 	}
 	for _, name := range []string{"agentdock_guidance", "permission", "workspace_target", "conversation_state"} {
 		if _, exists := properties[name]; !exists {
@@ -62,6 +90,15 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		}
 	}
 	success["properties"] = successProperties
+	if executionStringPattern != "" {
+		patterns, _ := success["patternProperties"].(map[string]any)
+		patterns = maps.Clone(patterns)
+		if patterns == nil {
+			patterns = map[string]any{}
+		}
+		patterns[executionStringPattern] = map[string]any{"type": "string"}
+		success["patternProperties"] = patterns
+	}
 	pending := map[string]any{"type": "object", "properties": map[string]any{
 		"status": map[string]any{"const": "pending_approval"}, "executed": map[string]any{"const": false},
 		"approval_id": map[string]any{"type": "string", "pattern": "^approval_[a-f0-9]{32}$"},
@@ -96,6 +133,9 @@ func executionOutputSchema(original map[string]any) map[string]any {
 		"projection": map[string]any{"$ref": "#/properties/projection"},
 	}, "additionalProperties": true}
 	result := map[string]any{"type": "object", "properties": visible, "anyOf": []any{success, pending, projected}}
+	if executionStringPattern != "" {
+		result["patternProperties"] = map[string]any{executionStringPattern: map[string]any{"type": "string"}}
+	}
 	for _, key := range []string{"$defs", "definitions"} {
 		if value, exists := original[key]; exists {
 			result[key] = value

@@ -49,6 +49,90 @@ def validate_endpoint(endpoint: str) -> str:
     return endpoint
 
 
+def semantic_tokens(path: str) -> list[str]:
+    if not path.startswith("/"):
+        raise ProbeError("context", "invalid_semantic_path")
+    if path == "/":
+        return []
+    return [part.replace("~1", "/").replace("~0", "~") for part in path[1:].split("/")]
+
+
+def semantic_get(root: dict, tokens: list[str]):
+    node = root
+    for token in tokens:
+        if isinstance(node, dict):
+            if token not in node:
+                return None
+            node = node[token]
+        elif isinstance(node, list) and token.isdigit():
+            index = int(token)
+            if index >= len(node):
+                return None
+            node = node[index]
+        else:
+            return None
+    return node
+
+
+def semantic_set(root: dict, tokens: list[str], value) -> None:
+    if not tokens:
+        if not isinstance(value, dict):
+            raise ProbeError("context", "invalid_semantic_root")
+        root.clear()
+        root.update(value)
+        return
+    node = root
+    for index, token in enumerate(tokens):
+        last = index == len(tokens) - 1
+        if isinstance(node, dict):
+            if last:
+                node[token] = value
+                return
+            child = node.get(token)
+            want_list = tokens[index + 1].isdigit()
+            if not isinstance(child, (dict, list)):
+                child = [] if want_list else {}
+                node[token] = child
+            node = child
+            continue
+        if isinstance(node, list) and token.isdigit():
+            position = int(token)
+            while len(node) <= position:
+                node.append(None)
+            if last:
+                node[position] = value
+                return
+            child = node[position]
+            want_list = tokens[index + 1].isdigit()
+            if not isinstance(child, (dict, list)):
+                child = [] if want_list else {}
+                node[position] = child
+            node = child
+            continue
+        raise ProbeError("context", "invalid_semantic_container")
+
+
+def apply_semantic_part(root: dict, part: dict) -> None:
+    path = part.get("path")
+    if not isinstance(path, str):
+        raise ProbeError("context", "invalid_semantic_page")
+    tokens = semantic_tokens(path)
+    if isinstance(part.get("text"), str):
+        current = semantic_get(root, tokens)
+        if current is None:
+            current = ""
+        if not isinstance(current, str):
+            raise ProbeError("context", "invalid_semantic_text_target")
+        start = part.get("byte_start", 0)
+        if not isinstance(start, int) or len(current.encode("utf-8")) != start:
+            raise ProbeError("context", "semantic_text_cursor_mismatch")
+        semantic_set(root, tokens, current + part["text"])
+        return
+    if "value" not in part:
+        raise ProbeError("context", "invalid_semantic_page")
+    semantic_set(root, tokens, part["value"])
+
+
 class Probe:
     def __init__(self, endpoint: str, token: str = "", timeout: float = 15) -> None:
         self.endpoint = validate_endpoint(endpoint)
@@ -117,6 +201,7 @@ class Probe:
         self.protocol = protocol
         self.request("notifications/initialized", {}, "initialized_notification", True)
         cursor, found = "", False
+        context_call_id, context_request_id = "", ""
         for _ in range(8):
             result = self.request("tools/list", {"cursor": cursor} if cursor else {}, "tools_list")
             tools = result.get("tools")
@@ -144,6 +229,15 @@ class Probe:
             page = result.get("structuredContent")
             if not isinstance(page, dict):
                 raise ProbeError("context", "structured_context_missing")
+            transport = result.get("_meta", {}).get("agentdock/transport", {})
+            if not isinstance(transport, dict):
+                transport = {}
+            current_call = page.get("call_id") or transport.get("call_id")
+            current_request = page.get("request_id") or transport.get("request_id") or self.samples[-1]["request_id"]
+            if not context_call_id and isinstance(current_call, str):
+                context_call_id = current_call
+            if not context_request_id and isinstance(current_request, str):
+                context_request_id = current_request
             if source_mode:
                 text = page.get("content")
                 if not isinstance(text, str):
@@ -163,17 +257,14 @@ class Probe:
                 for key, value in page.items():
                     if key != "sections":
                         structured[key] = value
-                # Validate contract presence without exporting its private text.
-                for part in page.get("sections", []):
-                    if not isinstance(part, dict) or not isinstance(part.get("path"), str):
+                # Reconstruct JSON-pointer parts exactly without exporting private text.
+                sections = page.get("sections", [])
+                if not isinstance(sections, list):
+                    raise ProbeError("context", "invalid_semantic_page")
+                for part in sections:
+                    if not isinstance(part, dict):
                         raise ProbeError("context", "invalid_semantic_page")
-                    keys = [key.replace("~1", "/").replace("~0", "~") for key in part["path"].lstrip("/").split("/")]
-                    if len(keys) == 1 and "value" in part:
-                        structured[keys[0]] = part["value"]
-                    elif len(keys) >= 2:
-                        structured.setdefault(keys[0], {})
-                        if keys[:2] == ["runtime", "version"]:
-                            structured["runtime"]["version"] = part.get("value")
+                    apply_semantic_part(structured, part)
                 delivery = page.get("delivery", {})
                 if isinstance(delivery, dict) and not delivery.get("continuation_required") and not page.get("has_more"):
                     break
@@ -198,20 +289,22 @@ class Probe:
             params = {"name": "read_file", "arguments": arguments, "_meta": params.get("_meta", {})}
         else:
             raise ProbeError("context", "context_page_limit_exceeded")
-        required = ("runtime", "rules", "skills", "instruction_files", "workspace")
-        if any(key not in structured for key in required):
-            raise ProbeError("context", "required_context_missing")
+        required = ("runtime", "rules", "instruction_files", "workspace")
+        missing = [key for key in required if key not in structured]
+        if missing:
+            raise ProbeError("context", "required_context_missing_" + "_".join(missing))
         diagnostics = structured.get("context_diagnostics", {})
         if not isinstance(diagnostics, dict) or not isinstance(structured["runtime"], dict):
             raise ProbeError("context", "invalid_context_shape")
         if diagnostics.get("complete") is not True:
             raise ProbeError("context", "context_incomplete")
-        guidance = structured.get("agentdock_guidance", {})
-        if not isinstance(guidance, dict):
-            raise ProbeError("context", "invalid_guidance_shape")
+        if structured.get("bootstrap_complete") is not True or structured.get("context_ready") is not True:
+            raise ProbeError("context", "bootstrap_not_ready")
+        if not context_call_id or not context_request_id:
+            raise ProbeError("context", "correlation_missing")
         # Do not export rules, paths, token values, user messages or full results.
         return {"ok": True, "samples": self.samples, "core_version": structured["runtime"].get("version"),
-                "call_id": guidance.get("call_id"), "request_id": guidance.get("request_id"),
+                "call_id": context_call_id, "request_id": context_request_id,
                 "context_complete": True, "context_response": result.get("_meta", {}).get(CAPABILITY, {})}
 
 

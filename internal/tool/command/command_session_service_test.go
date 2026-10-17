@@ -66,8 +66,8 @@ func TestSessionStatusLongPollWaitsBeforeReturningRunning(t *testing.T) {
 	if result["status"] != "running" {
 		t.Fatalf("sessionStatus() status = %#v, want running", result["status"])
 	}
-	if result["observe_after_ms"] != minSessionObserveDelay.Milliseconds() {
-		t.Fatalf("sessionStatus() observe_after_ms = %#v", result["observe_after_ms"])
+	if result["changed"] != false || result["observe_after_ms"] != nil || result["next_observe_after_ms"] != nil {
+		t.Fatalf("unchanged long-poll was not compact: %#v", result)
 	}
 }
 

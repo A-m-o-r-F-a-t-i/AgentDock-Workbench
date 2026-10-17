@@ -18,7 +18,7 @@ func builtinTestService() *Service {
 	s := New(nil, nil) // Any accidental dynamic discovery would fail this test.
 	s.SetBuiltinToolLookup(func(name string) (BuiltinToolSummary, bool) {
 		switch name {
-		case "mcp_tool_call", "exec_command", "task_manage", "file_edit":
+		case "mcp_tool_call", "exec_command", "task_manage", "apply_patch":
 			return BuiltinToolSummary{Name: name, Title: name, InvokeVia: "host"}, true
 		}
 		return BuiltinToolSummary{}, false
@@ -74,10 +74,10 @@ func TestBuiltinDiscoveryRepeatAcrossSelectorsAndEntrypoints(t *testing.T) {
 func TestBuiltinDiscoveryCanonicalBatchDeduplication(t *testing.T) {
 	s := builtinTestService()
 	ctx := activity.WithBinding(t.Context(), builtinTestBinding())
-	_, err := s.Inspect(ctx, InspectRequest{Names: []string{"file_edit", "write_file", "file_edit"}})
+	_, err := s.Inspect(ctx, InspectRequest{Names: []string{"apply_patch", "write_file", "apply_patch"}})
 	got := expectBuiltinRouteError(t, err, "HOST_BUILTIN_NOT_DYNAMIC_MCP")
 	names := got.Details["required_host_tools"].([]string)
-	if len(names) != 1 || names[0] != "file_edit" {
+	if len(names) != 1 || names[0] != "apply_patch" {
 		t.Fatalf("aliases counted as separate misuse: %#v", names)
 	}
 }

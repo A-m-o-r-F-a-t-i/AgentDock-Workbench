@@ -26,8 +26,24 @@ func dynamicMCPToolSpecs() []ToolSpec {
 			}
 			return r.dynamicMCP.Inspect(ctx, request)
 		})},
-		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Execute a dynamic MCP tool identified as server:tool, validating against its cached schema. Computer Use additionally requires interaction_intent=desktop_gui and a concrete reason. List and call share one complete catalog delivery per trusted conversation and revision; later responses use compact references.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
-			return r.dynamicMCP.Call(ctx, request)
+		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Execute a dynamic MCP tool identified as server:tool, validating against its cached schema. structuredContent is preferred, equivalent JSON text is removed, and oversized results use an AgentDock host cursor without altering any domain cursor returned by the service. Computer Use additionally requires interaction_intent=desktop_gui and a concrete reason.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
+			result, err := r.dynamicMCP.Call(ctx, request)
+			if result != nil {
+				callID, _ := result["call_id"].(string)
+				if raw, ok := r.dynamicMCP.RawResult(callID); ok {
+					if reference := r.retainMCPRawResult(ctx, callID, "mcp_tool_call", raw, request.Arguments); reference != "" {
+						result["raw_result_ref"] = reference
+						r.dynamicMCP.SetRawResultReference(callID, reference)
+					}
+				}
+			}
+			return result, err
+		})},
+		{Name: "mcp_result_continue", Contract: mcpToolContract, Title: "Continue an MCP result", Description: "Continue the normalized projection of one prior mcp_tool_call using its opaque AgentDock host cursor. This never modifies or substitutes a domain cursor inside the MCP business result.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_result_continue", func(ctx context.Context, r *Runtime, request toolmcp.ResultContinueRequest) (Result, error) {
+			return r.dynamicMCP.ContinueResult(ctx, request)
+		})},
+		{Name: "mcp_result_raw", Contract: mcpToolContract, Title: "Inspect a raw MCP result", Description: "Read bounded UTF-8 JSON fragments of the complete original upstream response for explicit diagnostics. This is not a normal business-result continuation path.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_result_raw", func(ctx context.Context, r *Runtime, request toolmcp.ResultRawRequest) (Result, error) {
+			return r.dynamicMCP.RawResultPage(ctx, request)
 		})},
 	}
 }

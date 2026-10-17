@@ -182,25 +182,6 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     public string Command => _value.Text("display_command");
     public string Workdir => _value.Text("workdir");
     public string[] FileLocations => FileExplorerReveal.Locations(_value);
-    public string Parameters => _value.Text("parameter_summary");
-    public string ParameterOverview => RequestPayload.Overview.Length > 0 ? RequestPayload.Overview : Tool == "mcp_tool_call" ? (RequestPayload.HasStoredContent ? "完整参数已保存" : "") : Parameters;
-    public string ParameterDisplay
-    {
-        get
-        {
-            var overview = ParameterOverview;
-            var size = RequestPayload.HasStoredContent ? RequestPayload.SizeLabel : "";
-            if (overview.Length == 0) return size.Length == 0 ? "" : "参数 " + size;
-            return size.Length == 0 ? overview : $"参数 {size} · {overview}";
-        }
-    }
-    public bool HasParameterDisplay => ParameterDisplay.Length > 0;
-    public string ParameterHint => string.Join("\n", new[]
-    {
-        ParameterOverview,
-        RequestPayload.HasStoredContent ? "完整已脱敏载荷：" + (RequestPayload.SizeLabel.Length > 0 ? RequestPayload.SizeLabel : "大小未知") : "",
-        RequestPayload.HasStoredContent ? "选择此调用后可查看并复制完整参数。" : ""
-    }.Where(value => value.Length > 0));
     public bool ReadOnlyLegacy => _value.Flag("read_only_legacy");
     public string Summary => string.Join(" · ", new[] { _value.Text("summary"), OutputStateSummary, ToolExecutionSummary }.Where(value => value.Length > 0));
     public string OutputStateSummary => string.Join(" · ", new[]
@@ -211,7 +192,7 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
         _value.Field("delivery").Flag("continuation_required") ? "必要上下文尚有续页" : ""
     }.Where(value => value.Length > 0));
     public string OriginalLabel => _value.Text("activity_label", _value.Text("display_title", _value.Text("title", Tool)));
-    public string Title => IsInsertion ? "用户补充" : ExecutionTitleFormatter.Format(Tool, OriginalLabel, _value.Text("action"));
+    public string Title => IsInsertion ? "用户补充" : ExecutionTitleFormatter.Format(ActualTool, Tool == "read_file" && _value.Text("display_title").StartsWith("读取 Skill", StringComparison.Ordinal) ? "读取 Skill" : OriginalLabel, _value.Text("action"));
     public string TitleTooltip => Title + (OriginalLabel.Length > 0 && OriginalLabel != Title ? "\n原始说明：" + OriginalLabel : "") + (ToolExecutionDetails.Length > 0 ? "\n\n" + ToolExecutionDetails : "");
     public DateTimeOffset? RequestReceivedAt => _value.Date("request_received_at");
     public DateTimeOffset? LastActivityAt => _value.Date("last_activity_at");
@@ -232,7 +213,7 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     public string WaitDuration => FormatDuration(_value.OptionalNumber("wait_elapsed_ms"));
     public string ProcessDuration => ProcessElapsedMs is >= 0 ? FormatDuration(ProcessElapsedMs) : RpcElapsedMs is >= 0 && CanStop ? "仍在运行" : "未记录";
     public string ProcessTimingDetails => ProcessElapsedMs is >= 0 ? "后台命令进程：" + FormatDuration(ProcessElapsedMs) : RpcElapsedMs is >= 0 && CanStop ? "后台命令进程：仍在运行（RPC 已返回）" : "后台命令进程：未记录";
-    public string ActualTool => Tool;
+    public string ActualTool => Tool == "mcp_tool_call" && _value.Text("display_title").Contains(':') && !_value.Text("display_title").Any(char.IsWhiteSpace) ? _value.Text("display_title") : Tool;
 	public bool HasEditStatistics => _value.Text("parent_call_id").Length == 0 && _value.Field("file_edit").ValueKind == JsonValueKind.Object;
 	public bool EditPreview => HasEditStatistics && _value.Field("file_edit").Flag("dry_run");
 	public bool EditCountsKnown => HasEditStatistics && !EditPreview && (_value.Field("file_edit").Text("stats_state") is "" or "known" or "partial") && _value.Field("file_edit").OptionalNumber("insertions") is >= 0 && _value.Field("file_edit").OptionalNumber("deletions") is >= 0;

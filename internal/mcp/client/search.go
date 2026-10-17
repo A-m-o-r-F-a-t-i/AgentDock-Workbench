@@ -141,7 +141,13 @@ func (m *Manager) SearchCatalogs(ctx context.Context, query, server string, limi
 		}
 		catalog.State.RefreshAttempted = attempted || catalog.State.RefreshAttempted
 		catalog.State.AbsenceAuthoritative = fresh && catalog.Complete && !result.CacheOnly && catalog.State.RefreshErrorCode == ""
-		entry := map[string]any{"name": cfg.Name, "server": cfg.Name, "description": OneLineDescription(cfg.Description), "catalog_revision": catalog.Revision, "catalog_state": catalog.State, "tool_count_known": catalog.Complete, "stale": !fresh, "total": len(catalog.Tools)}
+		entry := map[string]any{
+			"name": cfg.Name, "server": cfg.Name,
+			"description":      OneLineDescription(cfg.Description),
+			"catalog_revision": catalog.Revision, "catalog_state": catalog.State,
+			"server_fingerprint": catalog.ServerFingerprint,
+			"tool_count_known":   catalog.Complete, "stale": !fresh, "total": len(catalog.Tools),
+		}
 		if !catalog.Complete || !fresh {
 			result.Complete = false
 		}
@@ -166,7 +172,7 @@ func (m *Manager) SearchCatalogs(ctx context.Context, query, server string, limi
 					kind = "exact_qualified_name"
 				}
 			}
-			matches = append(matches, scoredTool{score: score, kind: kind, exact: exact, item: toolSummaryForConfig(cfg, tool), tool: tool, catalog: catalog})
+			matches = append(matches, scoredTool{score: score, kind: kind, exact: exact, item: toolSummaryForCatalog(cfg, catalog, tool), tool: tool, catalog: catalog})
 		}
 	}
 	if server != "" && visible == 0 {
@@ -186,7 +192,15 @@ func (m *Manager) SearchCatalogs(ctx context.Context, query, server string, limi
 	if len(matches) == 1 || result.ExactCount == 1 {
 		chosen := matches[0]
 		result.ArgumentsComplete = validateToolArguments(chosen.tool, map[string]any{}) == nil
-		result.Selected = map[string]any{"server": chosen.item.Server, "tool_name": chosen.tool.Name, "qualified_name": chosen.item.QualifiedName, "description": chosen.tool.Description, "input_schema": cloneJSONMap(chosen.tool.InputSchema), "catalog_revision": chosen.catalog.Revision, "catalog_state": chosen.catalog.State}
+		result.Selected = map[string]any{
+			"server": chosen.item.Server, "tool_name": chosen.tool.Name,
+			"qualified_name": chosen.item.QualifiedName, "title": chosen.item.Title,
+			"description": chosen.tool.Description, "input_schema": cloneJSONMap(chosen.tool.InputSchema),
+			"catalog_revision": chosen.catalog.Revision, "catalog_state": chosen.catalog.State,
+			"server_fingerprint": chosen.item.ServerFingerprint,
+			"schema_digest":      chosen.item.SchemaDigest, "annotations_digest": chosen.item.AnnotationsDigest,
+			"annotations": cloneJSONMap(chosen.tool.Annotations),
+		}
 	}
 	if limit < result.ExactCount {
 		limit = result.ExactCount

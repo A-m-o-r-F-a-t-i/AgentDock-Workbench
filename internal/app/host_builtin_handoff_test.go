@@ -41,15 +41,20 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		if route.Code != want {
 			t.Fatalf("classification=%v want %s", route.Code, want)
 		}
-		candidates, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary)
-		action := modelObject(route.Details["required_action"])
-		if !ok || len(candidates) != test.count || route.Details["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
-			t.Fatalf("missing exact non-executing handoff: %#v", route.Details)
-		}
-		for _, candidate := range candidates {
-			if candidate.Name == "" || candidate.InvokeVia != "host" {
-				t.Fatalf("invalid host candidate: %+v", candidate)
+		names := []string{}
+		if candidates, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary); ok {
+			for _, candidate := range candidates {
+				if candidate.Name == "" || candidate.InvokeVia != "host" {
+					t.Fatalf("invalid host candidate: %+v", candidate)
+				}
+				names = append(names, candidate.Name)
 			}
+		} else if compact, ok := route.Details["required_host_tools"].([]string); ok {
+			names = append(names, compact...)
+		}
+		action := modelObject(route.Details["required_action"])
+		if len(names) != test.count || route.Details["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
+			t.Fatalf("missing exact non-executing handoff: %#v", route.Details)
 		}
 		if action["category"] != "protocol" && action["category"] != "model_decision" {
 			t.Fatalf("wrong host prerequisite: %#v", action)

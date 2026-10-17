@@ -122,7 +122,9 @@ func requiredPageHeader(full Result, first bool) Result {
 		}
 	}
 	if diagnostics := modelObject(full["context_diagnostics"]); diagnostics != nil {
-		page["context_diagnostics"] = map[string]any{"complete": false, "components_complete": diagnostics["components_complete"], "binding_status": diagnostics["binding_status"]}
+		// Context build completeness is independent from model-facing detail
+		// pagination. delivery.sequence_complete reports page delivery instead.
+		page["context_diagnostics"] = map[string]any{"complete": diagnostics["complete"], "components_complete": diagnostics["components_complete"], "binding_status": diagnostics["binding_status"]}
 	}
 	if first && full["host_tools"] != nil {
 		for _, key := range contextBootstrapHeaderKeys {
@@ -180,10 +182,6 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 	start = min(max(0, start), len(groups)-1)
 	page := requiredPageHeader(full, start == 0)
 	page["sections"] = groups[start]
-	if diagnostics := modelObject(page["context_diagnostics"]); diagnostics != nil {
-		_, bootstrap := full["host_tools"]
-		diagnostics["complete"] = modelObject(full["context_diagnostics"])["complete"] == true && (bootstrap || start+1 == len(groups))
-	}
 	received := map[string]bool{}
 	for key := range requiredPageHeader(full, true) {
 		if key != "semantic_format" {

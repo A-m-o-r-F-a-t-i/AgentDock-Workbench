@@ -30,8 +30,8 @@ type Request struct {
 var builtinBundles = []Bundle{
 	{
 		Name:        BundleSystemManagement,
-		Description: "Configure dynamic MCP servers, plugins, and installed Skill packages.",
-		Tools:       []string{"mcp_manage", "plugin_manage", "skill_package"},
+		Description: "Configure dynamic MCP servers, plugins, installed Skill packages, and explicit raw MCP diagnostics.",
+		Tools:       []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw"},
 	},
 	{
 		Name:        BundleArtifactPublishing,
