@@ -86,10 +86,10 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 mkdir -p "$OUTPUT_DIR"
 rm -rf \
   "$OUTPUT_DIR/AgentDock.app" \
-  "$OUTPUT_DIR/ACTOVO-macos-universal.dmg" \
-  "$OUTPUT_DIR/ACTOVO-macos-universal.dmg.sha256" \
-  "$OUTPUT_DIR/ACTOVO-macos-universal.zip" \
-  "$OUTPUT_DIR/ACTOVO-macos-universal.zip.sha256"
+  "$OUTPUT_DIR/AgentDock-macos-universal.dmg" \
+  "$OUTPUT_DIR/AgentDock-macos-universal.dmg.sha256" \
+  "$OUTPUT_DIR/AgentDock-macos-universal.zip" \
+  "$OUTPUT_DIR/AgentDock-macos-universal.zip.sha256"
 
 IFS=',' read -rA architectures <<< "$ARCH_LIST"
 (( ${#architectures[@]} > 0 )) || die "没有可构建的架构"
@@ -342,7 +342,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>ACTOVO</string>
+  <string>AgentDock Workbench</string>
   <key>CFBundleExecutable</key>
   <string>AgentDock</string>
   <key>CFBundleIdentifier</key>
@@ -352,7 +352,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>ACTOVO</string>
+  <string>AgentDock Workbench</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -366,9 +366,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSAppleEventsUsageDescription</key>
-  <string>ACTOVO needs to control System Events and Finder to perform desktop automation tasks you request.</string>
+  <string>AgentDock Workbench needs to control System Events and Finder to perform desktop automation tasks you request.</string>
   <key>NSHumanReadableCopyright</key>
-  <string>Copyright © ACTOVO contributors</string>
+  <string>Copyright © AgentDock contributors</string>
 </dict>
 </plist>
 PLIST
@@ -406,8 +406,8 @@ sign_macos_code "com.uvwt.agentdock.arbiter" "$HELPERS_DIR/agentdock-arbiter"
 sign_macos_code "$BUNDLE_ID" "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
-ZIP_PATH="$OUTPUT_DIR/ACTOVO-macos-universal.zip"
-print -- "==> 创建 ACTOVO App 更新 ZIP"
+ZIP_PATH="$OUTPUT_DIR/AgentDock-macos-universal.zip"
+print -- "==> 创建 AgentDock App 更新 ZIP"
 ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
 unzip -tq "$ZIP_PATH" >/dev/null
 (
@@ -416,14 +416,14 @@ unzip -tq "$ZIP_PATH" >/dev/null
 )
 
 DMG_STAGE_DIR="$TMP_DIR/dmg-root"
-DMG_PATH="$OUTPUT_DIR/ACTOVO-macos-universal.dmg"
+DMG_PATH="$OUTPUT_DIR/AgentDock-macos-universal.dmg"
 mkdir -p "$DMG_STAGE_DIR"
 ditto "$APP_DIR" "$DMG_STAGE_DIR/AgentDock.app"
 ln -s /Applications "$DMG_STAGE_DIR/Applications"
 
-print -- "==> 创建 ACTOVO DMG"
+print -- "==> 创建 AgentDock DMG"
 hdiutil create \
-  -volname "ACTOVO" \
+  -volname "AgentDock Workbench" \
   -srcfolder "$DMG_STAGE_DIR" \
   -ov \
   -format UDZO \

@@ -50,7 +50,7 @@ READ_ONLY = {"probe", "status", "operation_query", "logs", "diagnostic_preview",
 OPERATIONS = READ_ONLY | {"bootstrap", "pair_local_core", "install", "update", "resume", "cancel_operation", "adopt", "configure", "start", "stop", "restart", "repair", "guardian_check", "rollback", "export_diagnostics", "path_probe", "project_create", "cleanup", "workspace_migrate", "uninstall"}
 TERMINAL = {"succeeded", "failed", "rolled_back", "cancelled"}
 SECRET_KEYS = {"token", "bearer", "password", "secret", "credential", "credentials", "authorization", "cookie"}
-DEFAULT_CONFIG = {"schema_version": 1, "port": 8765, "distro": "debian", "node_name": "ACTOVO", "workspace_root": "", "recovery_base_seconds": 30, "recovery_max_seconds": 900, "recovery_max_failures": 3}
+DEFAULT_CONFIG = {"schema_version": 1, "port": 8765, "distro": "debian", "node_name": "AgentDock Workbench", "workspace_root": "", "recovery_base_seconds": 30, "recovery_max_seconds": 900, "recovery_max_failures": 3}
 
 class BridgeError(Exception):
     def __init__(self, code: str, message: str, retryable: bool = False):
@@ -1276,7 +1276,7 @@ class Deployment:
             path = tasker / name
             if path.exists() or path.is_symlink():
                 path.unlink()
-        return {"status": "ok", "message": "ACTOVO 私有运行环境已卸载，公共工作区、制品和共享 Termux 依赖已保留",
+        return {"status": "ok", "message": "AgentDock 私有运行环境已卸载，公共工作区、制品和共享 Termux 依赖已保留",
                 "data": {"distro_removed": distro_removed, "workspace_path": preview["workspace_path"],
                          "artifact_path": preview["artifact_path"], "workspace_preserved": True,
                          "artifacts_preserved": True, "termux_packages_preserved": True}}

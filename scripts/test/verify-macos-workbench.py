@@ -29,7 +29,7 @@ def main() -> None:
     if digest(app/'Contents/Resources/LICENSE') != digest(source_root/'LICENSE'):
         raise RuntimeError('macOS app did not preserve the repository license')
     info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
-    if any(info.get(key)!='ACTOVO' for key in ['CFBundleDisplayName','CFBundleName']):
+    if any(info.get(key)!='AgentDock Workbench' for key in ['CFBundleDisplayName','CFBundleName']):
         raise RuntimeError('Incorrect macOS display identity')
     if info.get('CFBundleShortVersionString')!=version or info.get('CFBundleIdentifier')!='com.uvwt.agentdock':
         raise RuntimeError('Version or stable application identity changed')
@@ -39,10 +39,10 @@ def main() -> None:
             raise RuntimeError(f'Missing universal architecture: {path}')
     run('codesign','--verify','--deep','--strict',str(app))
     core=json.loads(run(str(app/'Contents/Helpers/agentdock'),'version','--json'))
-    if (core.get('product_name'),core['version'],core['commit'])!=('ACTOVO',version,commit[:12]):
+    if (core.get('product_name'),core['version'],core['commit'])!=('AgentDock Workbench',version,commit[:12]):
         raise RuntimeError('Embedded Core was not built from the verified source')
-    dmg=directory/'ACTOVO-macos-universal.dmg'
-    archive=directory/'ACTOVO-macos-universal.zip'
+    dmg=directory/'AgentDock-macos-universal.dmg'
+    archive=directory/'AgentDock-macos-universal.zip'
     run('hdiutil','verify',str(dmg))
     with zipfile.ZipFile(archive) as package:
         if package.testzip() is not None:raise RuntimeError('Invalid update ZIP')
@@ -51,7 +51,7 @@ def main() -> None:
         expected=f'{digest(asset)}  {asset.name}'
         if asset.with_name(asset.name+'.sha256').read_text().strip()!=expected:
             raise RuntimeError(f'Checksum mismatch: {asset.name}')
-    report={'product_name':'ACTOVO','version':version,'commit':commit,'platform':'darwin/universal',
+    report={'product_name':'AgentDock Workbench','version':version,'commit':commit,'platform':'darwin/universal',
             'architectures':['amd64','arm64'],'bundle_verification':'passed','embedded_core':'passed',
             'codesign':'ad-hoc','notarization':'not_run_no_developer_identity',
             'assets':{asset.name:digest(asset) for asset in [dmg,archive]}}

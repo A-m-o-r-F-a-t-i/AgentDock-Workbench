@@ -87,7 +87,7 @@ final class InstallerRunner {
                 } catch {
                     // Core health is the install boundary. Tunnel/public access depends on
                     // ServiceManagement policy and external network state, so keep it best-effort.
-                    NSLog("ACTOVO Tunnel registration did not complete during install: %@", error.localizedDescription)
+                    NSLog("AgentDock Tunnel registration did not complete during install: %@", error.localizedDescription)
                 }
             }
 
@@ -228,7 +228,7 @@ final class InstallerRunner {
 
     private func validateBundledRuntime() throws {
         for (url, title) in [
-            (paths.binary, "ACTOVO Core"),
+            (paths.binary, "AgentDock Core"),
             (paths.cloudflared, "cloudflared"),
         ] {
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
@@ -492,11 +492,11 @@ private func decodeUpdateProgressLine(
     do {
         let event = try JSONDecoder().decode(UpdateProgressEvent.self, from: line)
         guard event.schemaVersion == 1 else {
-            warnings.append("Unsupported ACTOVO update progress schema: \(event.schemaVersion)")
+            warnings.append("Unsupported AgentDock update progress schema: \(event.schemaVersion)")
             return
         }
         onProgress(event)
     } catch {
-        warnings.append("Unable to decode ACTOVO update progress event: \(error.localizedDescription)")
+        warnings.append("Unable to decode AgentDock update progress event: \(error.localizedDescription)")
     }
 }

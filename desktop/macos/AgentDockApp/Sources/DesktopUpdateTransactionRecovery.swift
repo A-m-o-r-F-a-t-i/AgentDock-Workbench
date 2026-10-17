@@ -31,7 +31,7 @@ enum DesktopUpdateTransactionRecovery {
             return true
         }
         guard let plan = transaction.macOS else {
-            NSLog("ACTOVO update recovery: pending macOS transaction has no platform plan.")
+            NSLog("AgentDock update recovery: pending macOS transaction has no platform plan.")
             return false
         }
 
@@ -44,7 +44,7 @@ enum DesktopUpdateTransactionRecovery {
         let prefix = allowedRoot.hasSuffix("/") ? allowedRoot : allowedRoot + "/"
         guard resolvedArbiter.hasPrefix(prefix),
               FileManager.default.isExecutableFile(atPath: resolvedArbiter) else {
-            NSLog("ACTOVO update recovery: source Arbiter path is not trusted: %@", resolvedArbiter)
+            NSLog("AgentDock update recovery: source Arbiter path is not trusted: %@", resolvedArbiter)
             return false
         }
 
@@ -60,7 +60,7 @@ enum DesktopUpdateTransactionRecovery {
         do {
             try process.run()
         } catch {
-            NSLog("ACTOVO update recovery: unable to start source Arbiter: %@", error.localizedDescription)
+            NSLog("AgentDock update recovery: unable to start source Arbiter: %@", error.localizedDescription)
             return false
         }
 
@@ -70,13 +70,13 @@ enum DesktopUpdateTransactionRecovery {
         }
         if process.isRunning {
             process.terminate()
-            NSLog("ACTOVO update recovery: source Arbiter exceeded the recovery deadline.")
+            NSLog("AgentDock update recovery: source Arbiter exceeded the recovery deadline.")
             return false
         }
         if process.terminationStatus != 0 {
             // Successful rollback intentionally returns the original trial error. In that case
             // the Arbiter launches the source App and this trial process is normally terminated.
-            NSLog("ACTOVO update recovery: source Arbiter exited with status %d.", process.terminationStatus)
+            NSLog("AgentDock update recovery: source Arbiter exited with status %d.", process.terminationStatus)
             return false
         }
         return true

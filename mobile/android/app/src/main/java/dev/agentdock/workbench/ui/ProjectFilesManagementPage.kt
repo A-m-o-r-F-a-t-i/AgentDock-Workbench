@@ -128,7 +128,7 @@ fun ProjectFilesManagementPage(state: WorkbenchUiState, model: WorkbenchViewMode
             ResourceSection("ZIP 导出") {
                 ResourceField("工程名称", exportName, { exportName = it.take(128) })
                 Button(
-                    onClick = { exportPicker.launch("${exportName.ifBlank { "ACTOVO-Project" }}.zip") },
+                    onClick = { exportPicker.launch("${exportName.ifBlank { "AgentDock-Project" }}.zip") },
                     enabled = !state.projectBusy && !state.fixture && state.settings.projectTreeUri.isNotBlank() && exportName.isNotBlank()
                 ) { Text("导出工程 ZIP") }
                 Text("导出只遍历所选工程，限制为 10,000 项和 512 MiB；失败时尝试删除未完成目标。")

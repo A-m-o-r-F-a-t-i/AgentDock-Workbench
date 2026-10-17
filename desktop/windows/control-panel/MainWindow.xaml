@@ -20,7 +20,7 @@
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <StackPanel>
-          <TextBlock Text="ACTOVO" FontSize="24" FontWeight="SemiBold" />
+          <TextBlock Text="AgentDock Workbench" FontSize="24" FontWeight="SemiBold" />
           <TextBlock Text="{local:Loc WindowsControlPanel}" Foreground="{DynamicResource SecondaryText}" Margin="0,3,0,0" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -355,7 +355,7 @@
                   <ComboBoxItem Content="跟随系统" Tag="system"/><ComboBoxItem Content="浅色" Tag="light"/><ComboBoxItem Content="深色" Tag="dark"/>
                 </ComboBox>
                 <TextBlock x:Name="ThemeSaveStatus" Foreground="{DynamicResource SecondaryText}" Margin="0,6,0,12" TextWrapping="Wrap"/>
-                <CheckBox x:Name="McpUiEnabledChoice" Content="提供 ACTOVO 内嵌界面" Click="McpUiPreference_Click" IsEnabled="False"/>
+                <CheckBox x:Name="McpUiEnabledChoice" Content="提供 AgentDock 内嵌界面" Click="McpUiPreference_Click" IsEnabled="False"/>
                 <TextBlock Text="关闭后仍可调用工具、管理任务和读写文件。此设置不影响其他插件和已经渲染的历史卡片。" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock x:Name="McpUiSaveStatus" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
               </StackPanel>

@@ -7,10 +7,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>agentdock-tray</AssemblyName>
-    <AssemblyTitle>ACTOVO</AssemblyTitle>
-    <Product>ACTOVO</Product>
+    <AssemblyTitle>AgentDock Workbench</AssemblyTitle>
+    <Product>AgentDock Workbench</Product>
     <Version>1.1.9</Version>
-    <Description>ACTOVO Control Panel</Description>
+    <Description>AgentDock Workbench Control Panel</Description>
     <RootNamespace>AgentDock.ControlPanel</RootNamespace>
     <ApplicationIcon>..\..\..\packaging\windows\assets\agentdock.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>

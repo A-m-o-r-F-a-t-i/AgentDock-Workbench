@@ -7,7 +7,7 @@
 - UI: native Kotlin + Jetpack Compose
 - Candidate emulator matrix: API 26, 33, 34, 35 and 37
 
-The app display name is **ACTOVO**. Product version is parsed from `internal/buildinfo/buildinfo.go`. CI injects source SHA, run ID and attempt into candidate metadata and artifact names. Release-shaped candidate APKs use the Android debug key and are explicitly labeled `test-signed`; they are not production-signing evidence.
+The app display name is **AgentDock Workbench**. Product version is parsed from `internal/buildinfo/buildinfo.go`. CI injects source SHA, run ID and attempt into candidate metadata and artifact names. Release-shaped candidate APKs use the Android debug key and are explicitly labeled `test-signed`; they are not production-signing evidence.
 
 WB07 targets the official `com.termux` package and `com.termux.app.RunCommandService`. Forks with other package/component names are not silently discovered because that would broaden the command surface.
 

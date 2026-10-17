@@ -9,7 +9,7 @@ public final class ColdStartHostActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         TextView label = new TextView(this);
-        label.setText("ACTOVO release startup test");
+        label.setText("AgentDock release startup test");
         setContentView(label);
     }
 }

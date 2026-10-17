@@ -1,4 +1,4 @@
-name: ACTOVO Publish Verified Build
+name: AgentDock Workbench Publish Verified Build
 run-name: Publish verified Workbench ${{ inputs.version }} from run ${{ inputs.run_id }}
 
 on:
@@ -75,7 +75,7 @@ jobs:
           def api(path):
               return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}'],text=True,timeout=60))
           build=api(f'actions/runs/{run_id}')
-          expected_title=f'ACTOVO {sha}'
+          expected_title=f'AgentDock Workbench {sha}'
           if (build.get('status')!='completed' or build.get('conclusion')!='success'
                   or build.get('repository',{}).get('full_name')!=repo
                   or build.get('path')!='.github/workflows/workbench-release.yml'
@@ -156,6 +156,27 @@ jobs:
           run-id: ${{ inputs.run_id }}
           name: workbench-android-${{ inputs.run_id }}
           path: input/android
+      - name: Isolate original Android signing evidence
+        if: steps.source.outputs.android_release_required == 'true'
+        run: |
+          set -euo pipefail
+          original="input/unix/workbench-android-release-${SOURCE_RUN}"
+          audit="original-build-evidence/workbench-android-release-${SOURCE_RUN}"
+          test -d "$original"
+          test ! -L "$original"
+          test ! -e "$audit"
+          test ! -L "$audit"
+          test ! -L original-build-evidence
+          mkdir -p original-build-evidence
+          mv -- "$original" "$audit"
+      - name: Preserve original Android signing evidence
+        if: steps.source.outputs.android_release_required == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: workbench-original-android-release-${{ inputs.run_id }}-${{ github.run_id }}
+          path: original-build-evidence/workbench-android-release-${{ inputs.run_id }}/*
+          if-no-files-found: error
+          retention-days: 30
       - name: Sign verified Android installer with the stable release identity
         if: steps.source.outputs.android_release_required == 'true'
         env:
@@ -195,7 +216,7 @@ jobs:
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          record={'build_run_id':os.environ['SOURCE_RUN'],'build_source_sha':os.environ['SOURCE_SHA'],'publication_run_id':os.environ['GITHUB_RUN_ID'],'publication_script_sha':os.environ['GITHUB_SHA'],'version':os.environ['PRODUCT_VERSION'],'product_name':'ACTOVO','state':'published_prerelease' if os.environ['PRERELEASE']=='true' else 'published_latest'}
+          record={'build_run_id':os.environ['SOURCE_RUN'],'build_source_sha':os.environ['SOURCE_SHA'],'publication_run_id':os.environ['GITHUB_RUN_ID'],'publication_script_sha':os.environ['GITHUB_SHA'],'version':os.environ['PRODUCT_VERSION'],'product_name':'AgentDock Workbench','state':'published_prerelease' if os.environ['PRERELEASE']=='true' else 'published_latest'}
           Path('publication-result.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
           PY
       - uses: actions/upload-artifact@v7

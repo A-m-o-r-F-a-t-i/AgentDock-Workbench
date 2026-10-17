@@ -1,4 +1,4 @@
-# ACTOVO Release 文案规则
+# AgentDock Workbench Release 文案规则
 
 　　Release 说明是面向用户的版本变更说明。每次创建、更新或同版本重新发布 Release 时，都使用同一套规则。
 

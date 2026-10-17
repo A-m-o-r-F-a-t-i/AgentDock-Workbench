@@ -74,7 +74,7 @@ internal static class RuntimeHttpClients
 
     private static bool ProbeWinInetProxySessionCompatibility()
     {
-        var session = WinHttpOpen("ACTOVO Control Panel", WinHttpAccessTypeAutomaticProxy,
+        var session = WinHttpOpen("AgentDock Control Panel", WinHttpAccessTypeAutomaticProxy,
             IntPtr.Zero, IntPtr.Zero, WinHttpFlagAsync);
         if (session != IntPtr.Zero)
         {

@@ -2,12 +2,12 @@
 
 | 项目 | 基线 |
 | --- | --- |
-| 产品名 | ACTOVO |
+| 产品名 | AgentDock Workbench |
 | Android UI | Kotlin + Jetpack Compose |
 | min / target / compile SDK | 26 / 37 / 37 |
 | Java | 17 |
 | Core | 外部 Termux + Debian PRoot 中的 Linux ARM64 Core |
-| 数据权威 | 现有 ACTOVO Core 域服务 |
+| 数据权威 | 现有 AgentDock Core 域服务 |
 | 构建环境 | GitHub Actions；手机工作区只编辑与静态检查 |
 | 候选签名 | Android Debug/Test key，仅候选证据 |
 | 真实安装 | 本任务禁止 |

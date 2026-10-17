@@ -34,7 +34,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         model.showNotice(if (granted) "系统已授予 RUN_COMMAND；仍需探测外部桥。" else "RUN_COMMAND 未获授权，未提交 Termux 操作。")
     }
     var startAfter by rememberSaveable { mutableStateOf(true) }
-    var nodeName by rememberSaveable { mutableStateOf("ACTOVO") }
+    var nodeName by rememberSaveable { mutableStateOf("AgentDock Workbench") }
     var port by rememberSaveable { mutableStateOf("8765") }
     var distro by rememberSaveable { mutableStateOf("debian") }
     var baseDelay by rememberSaveable { mutableStateOf("30") }
@@ -77,7 +77,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         item {
             DeploymentSection("准备运行环境") {
                 DeploymentRow {
-                    OutlinedButton(onClick = { export.launch("ACTOVO-Termux-bridge.zip") }, enabled = enabled) { Text("导出安装脚本") }
+                    OutlinedButton(onClick = { export.launch("AgentDock-Workbench-Termux-bridge.zip") }, enabled = enabled) { Text("导出安装脚本") }
                     OutlinedButton(onClick = { permission.launch(TermuxContract.PERMISSION_RUN_COMMAND) }) { Text("授予 RUN_COMMAND") }
                 }
                 Text("在 Termux 中解压导出包，保留所有文件并执行 bootstrap 脚本。完成后点击检测。")
@@ -151,7 +151,7 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
         }
         item {
             DeploymentSection("安装与升级") {
-                Text("ACTOVO APK 已包含同版本 ARM64 Core。导出的完整桥包会把该 Core 写入 Termux 私有目录，安装与升级不再访问额外发布文件。")
+                Text("AgentDock Workbench APK 已包含同版本 ARM64 Core。导出的完整桥包会把该 Core 写入 Termux 私有目录，安装与升级不再访问额外发布文件。")
                 Row {
                     Checkbox(startAfter, { startAfter = it })
                     Text("明确允许启动并完成新版本健康验证", Modifier.padding(top = 12.dp))
@@ -209,12 +209,12 @@ fun DeploymentPage(state: WorkbenchUiState, model: WorkbenchViewModel, modifier:
                 }
                 cleanup?.let { Text("旧版本：${it.optJSONArray("versions") ?: "[]"}\n旧备份：${it.optJSONArray("backups") ?: "[]"}\n废弃安装事务：${it.optJSONArray("abandoned_transactions") ?: "[]"}") }
                 Text("完整卸载私有环境", style = MaterialTheme.typography.titleSmall)
-                Text("该操作停止 Core，并删除 ACTOVO 私有运行数据、桥接脚本及由本应用创建的 PRoot。共享工作区、公共制品与 Termux 公共依赖继续保留，随后可从系统设置卸载 APK。")
+                Text("该操作停止 Core，并删除 AgentDock 私有运行数据、桥接脚本及由本应用创建的 PRoot。共享工作区、公共制品与 Termux 公共依赖继续保留，随后可从系统设置卸载 APK。")
                 DeploymentRow {
                     TextButton(onClick = { model.runTermux("uninstall_preview") }, enabled = enabled) { Text("预览完整卸载") }
                     TextButton(onClick = {
                         val digest = uninstall?.optString("preview_digest").orEmpty()
-                        offer("完整卸载私有运行环境", "此操作会停止节点并删除 ACTOVO 私有 Core、对话与任务数据、日志、备份、桥接脚本，以及明确标记为 ACTOVO 创建的 PRoot。公共工作区、制品和共享 Termux 软件包保持不变。",
+                        offer("完整卸载私有运行环境", "此操作会停止节点并删除 AgentDock 私有 Core、对话与任务数据、日志、备份、桥接脚本，以及明确标记为 AgentDock 创建的 PRoot。公共工作区、制品和共享 Termux 软件包保持不变。",
                             "uninstall", JSONObject().put("confirm_uninstall", true).put("preview_digest", digest))
                     }, enabled = enabled && !uninstall?.optString("preview_digest").isNullOrBlank()) { Text("确认完整卸载") }
                 }

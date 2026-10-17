@@ -73,7 +73,7 @@ expect_exit() {
 "$binary" version --json >"$workdir/version.json"
 assert_json "$workdir/version.json"
 "$binary" --help >"$workdir/help.txt"
-grep -Fq "ACTOVO CLI" "$workdir/help.txt"
+grep -Fq "AgentDock Workbench CLI" "$workdir/help.txt"
 for shell in bash zsh fish; do
   "$binary" completion "$shell" >"$workdir/completion-$shell.txt"
   grep -Fq agentdock "$workdir/completion-$shell.txt"

@@ -153,7 +153,7 @@ func TestRootHelpAndCompletions(t *testing.T) {
 	if err := run(context.Background(), []string{"--help"}, &help, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(help.String(), "ACTOVO CLI") || !strings.Contains(help.String(), "conversation") {
+	if !strings.Contains(help.String(), "AgentDock Workbench CLI") || !strings.Contains(help.String(), "conversation") {
 		t.Fatalf("help output = %q", help.String())
 	}
 	for _, shell := range []string{"bash", "zsh", "fish"} {

@@ -2,6 +2,8 @@
 
 > **状态截止：2026-10-17 12:46 UTC。** 本轮 Core 功能 PR 全部合并后，已单独建立 [质量 PR #143](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/pull/143)。Context、Common watcher、scope 容量及别名修复已提交并推送为 `101aca389ce2fbf88f11770fdc3a0bbed8bbb641`。该 head 的 35 项 CI 已结束：32 success、2 skipped、1 failure；失败为 macOS 四种 Common symlink 改指场景。额外原生 Windows junction 对照证实新实现存在同 mtime 修改漏监听：主线四个 owner 文件的 overlay 通过，`101aca3` 失败。两项后续修复的 12 个源码文件已经独立复审、冻结并按原文件摘要写回设备；最后 Linux 定向 race 与原生 Windows junction/Context 回归均通过。本文记录该增量提交前验证，新 head 的全仓/CI 及合并仍待实际完成，PR 继续 Draft。本材料保留每次真实失败和七项 Windows symlink 权限跳过；最终 quality head、CI、合并与发布以 PR 正文及最终报告的后续实际记录为准。
 
+> **后续记录（2026-10-17 14:21 UTC 核对）：** 本文保留截至 12:46 UTC 的修复验证快照。#143 最终检查与合并、#144 后续平台门禁修复，以及原品牌 1.1.9 正式发行的待办，见 [Core 合并后的发行验证与原品牌恢复](final-release-integration.md)。该后续记录不改变本文各历史源码的失败、跳过与验证范围。
+
 ## 目的与基线
 
 本记录依据《AgentDock-Workbench-GPT-Codex-Agent执行架构改进计划-来源校正版-20261015.md》及[实施说明](../../gpt-codex-execution-architecture.md)，检查多个 Core PR 合并后，原有功能目标是否仍由实际执行链路实现。修复沿用现有输入、输出、Activity、命令、安装器和插件责任边界；本记录不把编译成功等同于运行正确，也不把某个功能分支的检查等同于独立质量 PR 的检查。

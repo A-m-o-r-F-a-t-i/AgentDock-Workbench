@@ -257,7 +257,7 @@ func TestDesktopTrayMenusUseNativeDismissalAndOmitCopyActions(t *testing.T) {
 	macApp := string(macData)
 
 	orderedItems := []string{
-		`ACTOVO: {statusText}`,
+		`AgentDock: {statusText}`,
 		`UiText.Get("OpenAgentDock")`,
 		`UiText.Get("StopAgentDock")`,
 		`UiText.Get("RestartAgentDock")`,

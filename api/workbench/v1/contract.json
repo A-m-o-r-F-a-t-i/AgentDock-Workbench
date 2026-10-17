@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "contract_revision": 3,
-  "name": "ACTOVO Local Control API",
+  "name": "AgentDock Workbench Local Control API",
   "base_path": "/internal/runtime",
   "architecture": {
     "client": "agentdock CLI",
-    "authority": "existing ACTOVO Core domain services",
+    "authority": "existing AgentDock Core domain services",
     "invariant": "The CLI and WB01 thin routes never create a second task, conversation, call, approval, permission, insertion, activity, or workspace state machine."
   },
   "transport": {
