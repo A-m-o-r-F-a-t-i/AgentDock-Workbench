@@ -432,7 +432,7 @@ jobs:
         with:
           name: windows-history-current-setup
           path: |
-            ${{ runner.temp }}\agentdock-setup\ACTOVO-Setup-amd64.exe
+            ${{ runner.temp }}\agentdock-setup\AgentDock-Workbench-Setup-amd64.exe
             ${{ runner.temp }}\agentdock-setup\version.txt
           if-no-files-found: error
           retention-days: 3
@@ -442,7 +442,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\test\test-windows-setup-e2e.ps1 `
-            -SetupPath (Join-Path $env:RUNNER_TEMP 'agentdock-setup\ACTOVO-Setup-amd64.exe') `
+            -SetupPath (Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDock-Workbench-Setup-amd64.exe') `
             -LegacyCorePath .\dist\agentdock.exe `
             -LegacyTrayPath .\dist\agentdock-tray.exe `
             -AllowLegacyTaskMutation
@@ -525,9 +525,9 @@ jobs:
             -OutputDirectory $releaseDir `
             -SignedBuild
 
-          $amd64Setup = Join-Path $env:RUNNER_TEMP 'agentdock-setup\ACTOVO-Setup-amd64.exe'
+          $amd64Setup = Join-Path $env:RUNNER_TEMP 'agentdock-setup\AgentDock-Workbench-Setup-amd64.exe'
           Copy-Item -LiteralPath $amd64Setup -Destination $releaseDir -Force
-          foreach ($setupName in @('ACTOVO-Setup-amd64.exe', 'ACTOVO-Setup-arm64.exe')) {
+          foreach ($setupName in @('AgentDock-Workbench-Setup-amd64.exe', 'AgentDock-Workbench-Setup-arm64.exe')) {
             $setupPath = Join-Path $releaseDir $setupName
             $setupHash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
             [IO.File]::WriteAllText(
@@ -543,8 +543,8 @@ jobs:
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --prerelease `
-            --title "ACTOVO Windows test $env:TEST_TAG" `
-            --notes "Temporary ACTOVO Windows test build from commit $env:GITHUB_SHA. Uses the existing compatibility signing certificate."
+            --title "AgentDock Windows test $env:TEST_TAG" `
+            --notes "Temporary Windows test build from commit $env:GITHUB_SHA. Uses the existing AgentDock self-signed Authenticode certificate."
 
   history:
     name: Upgrade v${{ matrix.baseline }} release Setup
@@ -589,8 +589,8 @@ jobs:
           $tag = "v$env:BASELINE_VERSION"
           $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
           $assetName = @(
-            'ACTOVO-Setup-amd64.exe'
             'AgentDock-Workbench-Setup-amd64.exe'
+            'ACTOVO-Setup-amd64.exe'
             'AgentDockSetup-amd64.exe'
           ) | Where-Object { $release.assets.name -contains $_ } | Select-Object -First 1
           if ([string]::IsNullOrWhiteSpace($assetName)) {
@@ -620,7 +620,7 @@ jobs:
           $currentVersion = [IO.File]::ReadAllText((Join-Path $currentDirectory 'version.txt')).Trim()
           & .\scripts\test\test-windows-release-setup-upgrade.ps1 `
             -BaselineSetup (Join-Path $env:RUNNER_TEMP 'agentdock-baseline-setup\baseline-setup.exe') `
-            -CurrentSetup (Join-Path $currentDirectory 'ACTOVO-Setup-amd64.exe') `
+            -CurrentSetup (Join-Path $currentDirectory 'AgentDock-Workbench-Setup-amd64.exe') `
             -BaselineVersion $env:BASELINE_VERSION `
             -CurrentVersion $currentVersion `
             -TestRoot (Join-Path $env:RUNNER_TEMP ("agentdock-release-upgrade-" + $env:BASELINE_VERSION)) `

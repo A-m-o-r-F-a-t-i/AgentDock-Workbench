@@ -190,7 +190,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = (& go run ./tools/release version).Trim()
           if ($LASTEXITCODE -ne 0 -or $version -notmatch '^\d+\.\d+\.\d+$') {
-            throw 'Could not resolve a semantic ACTOVO version.'
+            throw 'Could not resolve a semantic AgentDock version.'
           }
           $commit = (& git rev-parse HEAD).Trim().ToLowerInvariant()
           if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') {
@@ -225,11 +225,11 @@ jobs:
             }
           }
 
-          if ($publish -and [version]$version -ge [version]'1.1.7') { throw 'Use ACTOVO Release for complete all-platform publication.' }
+          if ($publish -and [version]$version -ge [version]'1.1.7') { throw 'Use AgentDock Workbench Release for complete all-platform publication.' }
           if (-not [string]::IsNullOrWhiteSpace($tag)) {
             & go run ./tools/release verify-version $tag
             if ($LASTEXITCODE -ne 0) {
-              throw "Tag $tag does not match ACTOVO $version."
+              throw "Tag $tag does not match AgentDock $version."
             }
             $tagCommit = (& git rev-list -n 1 $tag 2>$null).Trim().ToLowerInvariant()
             if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $commit) {
@@ -324,7 +324,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\test\test-windows-setup-e2e.ps1 `
-            -SetupPath .\dist\windows-package\release\ACTOVO-Setup-amd64.exe `
+            -SetupPath .\dist\windows-package\release\AgentDock-Workbench-Setup-amd64.exe `
             -LegacyCorePath .\dist\windows-package\payload-amd64\agentdock.exe `
             -LegacyTrayPath .\dist\windows-package\payload-amd64\agentdock-tray.exe `
             -AllowLegacyTaskMutation
@@ -456,7 +456,7 @@ jobs:
             $notes = $matches[0].FullName
           }
 
-          $title = "ACTOVO $version"
+          $title = "AgentDock Workbench $version"
           & gh release view $tag --repo $env:GITHUB_REPOSITORY --json url *> $null
           if ($LASTEXITCODE -ne 0) {
             & gh release create $tag `

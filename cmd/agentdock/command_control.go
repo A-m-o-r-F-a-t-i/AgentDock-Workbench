@@ -211,7 +211,7 @@ type resolvedControlOptions struct {
 }
 
 func addControlFlags(flags *flag.FlagSet, options *controlOptions) {
-	flags.StringVar(&options.endpoint, "endpoint", "", "ACTOVO Core 地址，例如 http://127.0.0.1:8765")
+	flags.StringVar(&options.endpoint, "endpoint", "", "AgentDock Core 地址，例如 http://127.0.0.1:8765")
 	flags.StringVar(&options.tokenFile, "token-file", "", "Bearer/OAuth token 文件；不会从命令行接收 token 值")
 	flags.StringVar(&options.authMode, "auth-mode", "", "认证模式：auto、bearer、oauth 或 none")
 	flags.StringVar(&options.profile, "profile", "", "本地 CLI 配置 Profile")
@@ -492,7 +492,7 @@ func (c *controlClient) request(ctx context.Context, method, path string, query 
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
-		return nil, controlWrap(controlExitService, "连接 ACTOVO Core 失败", err)
+		return nil, controlWrap(controlExitService, "连接 AgentDock Core 失败", err)
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, controlResponseLimit+1))

@@ -80,7 +80,7 @@ public partial class GoalModeWindow : Window
     private async void Enable_Click(object sender, RoutedEventArgs e) => await GuardAsync(async () =>
     {
         if (TabsList.SelectedItem is not GoalBrowserTab tab || ConfirmBinding.IsChecked != true)
-        { StatusText.Text = "请手动选择标签页，并确认它对应当前 ACTOVO 对话。"; return; }
+        { StatusText.Text = "请手动选择标签页，并确认它对应当前 AgentDock 对话。"; return; }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         deadline.CancelAfter(TimeSpan.FromSeconds(25));
         _enabling = deadline;

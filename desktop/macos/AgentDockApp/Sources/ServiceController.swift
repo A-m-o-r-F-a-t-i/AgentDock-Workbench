@@ -161,12 +161,12 @@ final class ServiceController: @unchecked Sendable {
         do {
             try unregister(service: tunnelService, label: Self.tunnelLabel)
         } catch {
-            failures.append("ACTOVO Tunnel: \(error.localizedDescription)")
+            failures.append("AgentDock Tunnel: \(error.localizedDescription)")
         }
         do {
             try unregister(service: coreService, label: Self.coreLabel)
         } catch {
-            failures.append("ACTOVO Core: \(error.localizedDescription)")
+            failures.append("AgentDock Core: \(error.localizedDescription)")
         }
         if !failures.isEmpty {
             throw ValidationError(failures.joined(separator: "\n"))
@@ -174,7 +174,7 @@ final class ServiceController: @unchecked Sendable {
     }
 
     func restart() async throws {
-        try reregister(service: coreService, label: Self.coreLabel, displayName: "ACTOVO Core")
+        try reregister(service: coreService, label: Self.coreLabel, displayName: "AgentDock Core")
         guard let configuration = ServiceConfiguration.load(from: paths.environment),
               await waitForHealth(configuration: configuration) else {
             throw ValidationError(L10n.text("AgentDock Core was re-registered, but the health check did not pass."))
@@ -246,7 +246,7 @@ final class ServiceController: @unchecked Sendable {
             try register(
                 service: tunnelService,
                 plistName: Self.tunnelPlistName,
-                displayName: "ACTOVO Tunnel"
+                displayName: "AgentDock Tunnel"
             )
         } else {
             try unregister(service: tunnelService, label: Self.tunnelLabel)
@@ -255,12 +255,12 @@ final class ServiceController: @unchecked Sendable {
 
     func restoreBackgroundServiceRegistrations(coreEnabled: Bool, tunnelEnabled: Bool) throws {
         if coreEnabled {
-            try restoreRegistration(service: coreService, label: Self.coreLabel, displayName: "ACTOVO Core")
+            try restoreRegistration(service: coreService, label: Self.coreLabel, displayName: "AgentDock Core")
         } else {
             try unregister(service: coreService, label: Self.coreLabel)
         }
         if tunnelEnabled {
-            try restoreRegistration(service: tunnelService, label: Self.tunnelLabel, displayName: "ACTOVO Tunnel")
+            try restoreRegistration(service: tunnelService, label: Self.tunnelLabel, displayName: "AgentDock Tunnel")
         } else {
             try unregister(service: tunnelService, label: Self.tunnelLabel)
         }
@@ -273,7 +273,7 @@ final class ServiceController: @unchecked Sendable {
         let coreState = try restoreRegistrationForUpdate(
             service: coreService,
             label: Self.coreLabel,
-            displayName: "ACTOVO Core",
+            displayName: "AgentDock Core",
             expectedEnabled: coreEnabled
         )
         let tunnelState: String
@@ -281,14 +281,14 @@ final class ServiceController: @unchecked Sendable {
             tunnelState = try restoreRegistrationForUpdate(
                 service: tunnelService,
                 label: Self.tunnelLabel,
-                displayName: "ACTOVO Tunnel",
+                displayName: "AgentDock Tunnel",
                 expectedEnabled: tunnelEnabled
             )
         } catch {
             // Tunnel availability depends on ServiceManagement policy plus external/network state.
             // Record the handoff state for diagnostics, but do not turn it into an update gate or
             // completion warning; the control panel owns eventual Tunnel/public readiness.
-            NSLog("ACTOVO Tunnel registration could not be restored during update handoff: %@", error.localizedDescription)
+            NSLog("AgentDock Tunnel registration could not be restored during update handoff: %@", error.localizedDescription)
             tunnelState = "unavailable"
         }
         return DesktopUpdateRegistrationState(core: coreState, tunnel: tunnelState)
@@ -380,7 +380,7 @@ final class ServiceController: @unchecked Sendable {
                     tunnelEnabled: serviceState.tunnelEnabled
                 )
                 if !recoveryWarnings.isEmpty {
-                    NSLog("ACTOVO 更新失败后后台服务仍在启动：%@", recoveryWarnings.joined(separator: "；"))
+                    NSLog("AgentDock 更新失败后后台服务仍在启动：%@", recoveryWarnings.joined(separator: "；"))
                 }
                 DesktopUpdateServiceState.remove(at: paths.updateServiceState)
             } catch {
@@ -401,7 +401,7 @@ final class ServiceController: @unchecked Sendable {
                 tunnelEnabled: serviceState.tunnelEnabled
             )
             if !recoveryWarnings.isEmpty {
-                NSLog("ACTOVO 更新返回后后台服务仍在启动：%@", recoveryWarnings.joined(separator: "；"))
+                NSLog("AgentDock 更新返回后后台服务仍在启动：%@", recoveryWarnings.joined(separator: "；"))
             }
             DesktopUpdateServiceState.remove(at: paths.updateServiceState)
         } catch {
@@ -435,7 +435,7 @@ final class ServiceController: @unchecked Sendable {
         try register(
             service: coreService,
             plistName: Self.corePlistName,
-            displayName: "ACTOVO Core"
+            displayName: "AgentDock Core"
         )
     }
 

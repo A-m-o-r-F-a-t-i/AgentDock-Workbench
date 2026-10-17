@@ -29,25 +29,29 @@ class ReleaseGate(unittest.TestCase):
 
     def test_119_public_release_contains_single_android_installer(self):
         names=release.public_installers('1.1.9')
-        self.assertEqual(names[:2],[
-            'ACTOVO-Setup-amd64.exe','ACTOVO-Setup-arm64.exe'])
-        self.assertEqual(names[-1],'ACTOVO-1.1.9-Android.apk')
+        self.assertEqual(names,[
+            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
+            'AgentDock-macos-universal.dmg',
+            'agentdock-workbench_1.1.9_amd64.deb','agentdock-workbench_1.1.9_arm64.deb',
+            'agentdock-workbench-1.1.9-1.x86_64.rpm','agentdock-workbench-1.1.9-1.aarch64.rpm',
+            'AgentDock-Workbench-1.1.9-Android.apk'])
         self.assertEqual(len(names),8)
         self.assertFalse(any('Android-Core-arm64' in name for name in names))
         self.assertEqual(release.obsolete_public_installers('1.1.8'),set())
         self.assertEqual(release.obsolete_public_installers('1.1.9'),{
             'ACTOVO-1.1.9-Android-test-signed.apk',
-            'AgentDock-Workbench-1.1.9-Android.apk',
+            'ACTOVO-1.1.9-Android.apk',
             'AgentDock-Workbench-1.1.9-Android-test-signed.apk',
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
-            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
-            'AgentDock-macos-universal.dmg',
+            'ACTOVO-Setup-amd64.exe','ACTOVO-Setup-arm64.exe',
+            'ACTOVO-macos-universal.dmg',
             'ACTOVO-1.1.9-Android-Core-arm64.tar.gz',
             'ACTOVO-1.1.9-Android-Core-arm64.manifest.json',
             'ACTOVO-1.1.9-Android-Core-arm64.manifest.sig',
             'AgentDock-Workbench-1.1.9-Android-Core-arm64.tar.gz',
             'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.json',
             'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.sig'})
+        self.assertTrue(set(names).isdisjoint(release.obsolete_public_installers('1.1.9')))
 
     def test_repository_license_is_preserved(self):
         license_text=(ROOT/'LICENSE').read_text()
@@ -148,7 +152,7 @@ class EnhancedReleaseGate(ReleaseGate):
         self.assertIn('--commit "$SOURCE_SHA" --publish',recovery)
         self.assertIn("android_release_required='+str(tuple(map(int,version.split('.'))) >= (1,1,9)).lower()",recovery)
         self.assertNotIn('android_core_required',recovery)
-        self.assertEqual(recovery.count("if: steps.source.outputs.android_release_required == 'true'"),2)
+        self.assertEqual(recovery.count("if: steps.source.outputs.android_release_required == 'true'"),4)
         self.assertIn('current_tag_commit',recovery)
         self.assertIn('workbench-android-release-${{ github.run_id }}',workflow)
         self.assertIn('workbench-android-release-${{ github.run_id }}',recovery)
@@ -212,11 +216,11 @@ class AndroidReleaseGate(EnhancedReleaseGate):
         def write_apk(path):
             with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_STORED) as archive:
                 archive.writestr(bundled_asset,raw_bytes)
-        candidate=f'ACTOVO-{self.version}-Android-test-signed.apk'
+        candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
         candidate_path=self.inputs/candidate;write_apk(candidate_path)
         candidate_checksum=release.digest(candidate_path)
         candidate_path.with_name(candidate+'.sha256').write_text(f'{candidate_checksum}  {candidate}\n')
-        public=f'ACTOVO-{self.version}-Android.apk'
+        public=f'AgentDock-Workbench-{self.version}-Android.apk'
         public_path=self.inputs/public;write_apk(public_path)
         public_checksum=release.digest(public_path)
         public_path.with_name(public+'.sha256').write_text(f'{public_checksum}  {public}\n')
@@ -245,7 +249,7 @@ class AndroidReleaseGate(EnhancedReleaseGate):
         self.assertNotIn('android-core/arm64',manifest['platforms'])
         self.assertEqual(manifest['signing']['android'],'stable Android release key')
         self.assertNotIn('android_core',manifest['signing'])
-        self.assertFalse((self.dist/f'ACTOVO-{self.version}-Android-test-signed.apk').exists())
+        self.assertFalse((self.dist/f'AgentDock-Workbench-{self.version}-Android-test-signed.apk').exists())
     def test_missing_android_report_blocks_publication(self):
         (self.inputs/'verification-android.json').unlink()
         with self.assertRaisesRegex(RuntimeError,'Missing verified build input'):self.assemble()
@@ -271,7 +275,7 @@ class AndroidReleaseGate(EnhancedReleaseGate):
         self.reports['verification-android-release.json']['source_apk']['sha256']='f'*64;self.flush()
         with self.assertRaisesRegex(RuntimeError,'release signing evidence'):self.assemble()
     def test_candidate_apk_must_contain_verified_linux_arm64_core(self):
-        candidate=f'ACTOVO-{self.version}-Android-test-signed.apk'
+        candidate=f'AgentDock-Workbench-{self.version}-Android-test-signed.apk'
         with zipfile.ZipFile(self.inputs/candidate,'w') as archive:
             archive.writestr('assets/agentdock-core-arm64.tgz',b'different')
         checksum=release.digest(self.inputs/candidate)
@@ -279,13 +283,79 @@ class AndroidReleaseGate(EnhancedReleaseGate):
         self.reports['verification-android.json']['assets'][candidate]=checksum;self.flush()
         with self.assertRaisesRegex(RuntimeError,'verified Linux ARM64 Core'):self.assemble()
     def test_signed_apk_must_keep_verified_bundled_core(self):
-        public=f'ACTOVO-{self.version}-Android.apk'
+        public=f'AgentDock-Workbench-{self.version}-Android.apk'
         with zipfile.ZipFile(self.inputs/public,'w') as archive:
             archive.writestr('assets/agentdock-core-arm64.tgz',b'different')
         checksum=release.digest(self.inputs/public)
         (self.inputs/(public+'.sha256')).write_text(f'{checksum}  {public}\n')
         self.reports['verification-android-release.json']['assets'][public]=checksum;self.flush()
         with self.assertRaisesRegex(RuntimeError,'lost the verified bundled Core'):self.assemble()
+
+    @unittest.skipUnless(os.name=='posix','exercise the Bash publication input boundary')
+    def test_republication_keeps_original_signing_evidence_outside_assembly(self):
+        source_run='424242'
+        original=self.inputs/'unix'/f'workbench-android-release-{source_run}'
+        original.mkdir(parents=True)
+        public=release.android_public_asset_name(self.version)
+        report_name='verification-android-release.json'
+        names=[public,public+'.sha256',report_name]
+        for name in names:(self.inputs/name).rename(original/name)
+        original_bytes={name:(original/name).read_bytes() for name in names}
+        original_hashes={name:release.digest(original/name) for name in names}
+
+        current=self.inputs/'android-release';current.mkdir()
+        (current/public).write_bytes(original_bytes[public])
+        # Distinct signing outputs may retain the exact candidate and bundled
+        # Core. This ZIP fixture exercises byte selection, not real signing.
+        with zipfile.ZipFile(current/public,'a') as archive:
+            archive.comment=b'current publication signing output'
+        current_hash=release.digest(current/public)
+        self.assertNotEqual(current_hash,original_hashes[public])
+        (current/(public+'.sha256')).write_text(f'{current_hash}  {public}\n')
+        current_report=json.loads(original_bytes[report_name])
+        current_report['assets'][public]=current_hash
+        (current/report_name).write_text(json.dumps(current_report))
+        with self.assertRaisesRegex(RuntimeError,'Conflicting artifact copies: '+report_name):self.assemble()
+        with self.assertRaisesRegex(RuntimeError,'Conflicting artifact copies: '+public):release.locate(self.inputs,public)
+
+        workflow=(ROOT/'.github/workflows/workbench-publish-existing.yml').read_text()
+        step_name='      - name: Isolate original Android signing evidence\n'
+        self.assertIn(step_name,workflow)
+        step=workflow.split(step_name,1)[1].split('\n      - ',1)[0]
+        self.assertIn("if: steps.source.outputs.android_release_required == 'true'",step)
+        script=textwrap.dedent(step.split('        run: |\n',1)[1])
+        environment=dict(os.environ,SOURCE_RUN=source_run)
+        subprocess.run(['bash','-c',script],cwd=self.root,env=environment,check=True,capture_output=True,text=True,timeout=10)
+        audit=self.root/'original-build-evidence'/original.name
+        self.assertFalse(original.exists())
+        self.assertEqual({path.name for path in audit.iterdir()},set(names))
+        self.assertEqual({name:release.digest(audit/name) for name in names},original_hashes)
+        self.assertIn('name: workbench-original-android-release-${{ inputs.run_id }}-${{ github.run_id }}',workflow)
+        self.assertIn('path: original-build-evidence/workbench-android-release-${{ inputs.run_id }}/*',workflow)
+        self.assertLess(workflow.index(step_name),workflow.index('      - name: Sign verified Android installer'))
+        self.assertEqual(release.locate(self.inputs,report_name),current/report_name)
+        self.assertEqual(release.locate(self.inputs,public),current/public)
+        manifest=self.assemble()
+        self.assertEqual(release.digest(self.dist/public),current_hash)
+        self.assertEqual([item for item in manifest['validation'] if item.get('signing')=='stable Android release key'],[current_report])
+        self.assertEqual(current_report['source_apk'],json.loads(original_bytes[report_name])['source_apk'])
+        self.assertEqual(current_report['bundled_core'],json.loads(original_bytes[report_name])['bundled_core'])
+
+        # Missing input and an occupied audit destination are errors; neither
+        # may silently drop or overwrite the original build's evidence.
+        missing=subprocess.run(['bash','-c',script],cwd=self.root,env=environment,capture_output=True,text=True,timeout=10)
+        self.assertNotEqual(missing.returncode,0)
+        original.mkdir()
+        for name,data in original_bytes.items():(original/name).write_bytes(data)
+        occupied=subprocess.run(['bash','-c',script],cwd=self.root,env=environment,capture_output=True,text=True,timeout=10)
+        self.assertNotEqual(occupied.returncode,0)
+        self.assertEqual({name:release.digest(audit/name) for name in names},original_hashes)
+        self.assertEqual({name:release.digest(original/name) for name in names},original_hashes)
+        for name in names:(original/name).unlink()
+        original.rmdir()
+        conflicting=self.inputs/'other';conflicting.mkdir()
+        (conflicting/'agentdock_linux_arm64.tar.gz').write_bytes(b'conflicting Core')
+        with self.assertRaisesRegex(RuntimeError,'Conflicting artifact copies: agentdock_linux_arm64.tar.gz'):self.assemble()
 
 class PublicationGate(unittest.TestCase):
     def setUp(self):
@@ -296,7 +366,7 @@ class PublicationGate(unittest.TestCase):
         (self.dist/'package.zip').write_bytes(b'verified package')
         path=self.dist/'package.zip'
         self.asset={'id':456,'name':path.name,'size':path.stat().st_size,'digest':'sha256:'+release.digest(path),'state':'uploaded'}
-        self.record={'id':123,'tag_name':self.tag,'target_commitish':self.commit,'draft':True,'prerelease':False,'immutable':False,'name':'ACTOVO 1.1.7','assets':[self.asset],'html_url':'https://github.com/example/release'}
+        self.record={'id':123,'tag_name':self.tag,'target_commitish':self.commit,'draft':True,'prerelease':False,'immutable':False,'name':'AgentDock Workbench 1.1.7','assets':[self.asset],'html_url':'https://github.com/example/release'}
         self.commands=[];self.lookup=[]
         self.remote_tag_ref=self.commit;self.remote_tag_commit=self.commit;self.pending_tag_commit=None
         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
@@ -438,7 +508,7 @@ class PublicationGate(unittest.TestCase):
         self.assertIn('draft=true',mutations[0]);self.assertIn('prerelease=true',mutations[0]);self.assertIn('make_latest=false',mutations[0])
         self.assertIn('draft=false',mutations[-1]);self.assertIn('prerelease=false',mutations[-1]);self.assertIn('make_latest=true',mutations[-1])
         self.assertFalse(self.record['draft']);self.assertFalse(self.record['prerelease'])
-        self.assertEqual(self.record['name'],'ACTOVO 1.1.7')
+        self.assertEqual(self.record['name'],'AgentDock Workbench 1.1.7')
         self.assertEqual(self.record['target_commitish'],self.commit)
         self.assertEqual(self.record['assets'],[self.asset]);self.assertEqual(self.latest['id'],123)
     def test_explicit_replacement_resumes_from_recoverable_draft(self):
@@ -451,9 +521,9 @@ class PublicationGate(unittest.TestCase):
         self.record['draft']=False;self.record['prerelease']=False
         with self.assertRaisesRegex(RuntimeError,'existing prerelease'):self.publish(False,True)
         self.assertEqual(self.mutations(),[])
-    def test_explicit_stable_replacement_reconciles_assets_and_preserves_release_id(self):
+    def test_explicit_stable_replacement_accepts_legacy_title_and_preserves_release_id(self):
         self.record['draft']=False;self.record['prerelease']=False;self.latest=self.record
-        self.record['name']='AgentDock Workbench 1.1.7'
+        self.record['name']='ACTOVO 1.1.7'
         self.record['assets']=[dict(self.asset,digest='sha256:'+'f'*64)]
         self.publish(False,False,True)
         mutations=self.mutations()
@@ -462,7 +532,7 @@ class PublicationGate(unittest.TestCase):
         self.assertIn('draft=false',mutations[-1]);self.assertIn('prerelease=false',mutations[-1]);self.assertIn('make_latest=true',mutations[-1])
         self.assertFalse(self.record['draft']);self.assertFalse(self.record['prerelease'])
         self.assertEqual(self.record['id'],123);self.assertEqual(self.latest['id'],123)
-        self.assertEqual(self.record['name'],'ACTOVO 1.1.7')
+        self.assertEqual(self.record['name'],'AgentDock Workbench 1.1.7')
         self.assertEqual(self.record['assets'],[self.asset])
     def test_stable_replacement_retargets_tag_with_compare_and_swap(self):
         previous='b'*40
@@ -519,7 +589,7 @@ class PublicationGate(unittest.TestCase):
         release.publish(self.dist,'1.1.7',self.commit,True)
         self.assertTrue(self.record['prerelease'])
         self.assertFalse(self.record['draft'])
-        self.assertEqual(self.record['name'],'ACTOVO 1.1.7 Pre-release')
+        self.assertEqual(self.record['name'],'AgentDock Workbench 1.1.7 Pre-release')
         self.assertEqual(self.latest['id'],99)
         mutation=self.mutations()[-1]
         self.assertIn('prerelease=true',mutation)

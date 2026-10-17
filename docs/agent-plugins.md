@@ -1,6 +1,6 @@
 # Agent Plugins 1.0.0 与 Windows 运行配置
 
-ACTOVO 将插件包、宿主状态、凭据分别管理。插件目录就是分发单元，不嵌套缓存目录。普通插件直接暴露成员，Heavy 插件按需展开。
+AgentDock 将插件包、宿主状态、凭据分别管理。插件目录就是分发单元，不嵌套缓存目录。普通插件直接暴露成员，Heavy 插件按需展开。
 
 ## 标准目录与清单
 
@@ -48,7 +48,7 @@ ACTOVO 将插件包、宿主状态、凭据分别管理。插件目录就是分�
 }
 ```
 
-支持 `stdio` 与 `streamable-http`，通信继续使用 MCP Go SDK。旧 `sse` 传输不实现，遇到时跳过该服务器并给出诊断。可移植配置不包含 ACTOVO 的 `enabled`、`timeout_ms`、`header_env` 等字段。标准 `env` 和 `headers` 是公开的固定值，不能用于嵌入秘密。
+支持 `stdio` 与 `streamable-http`，通信继续使用 MCP Go SDK。旧 `sse` 传输不实现，遇到时跳过该服务器并给出诊断。可移植配置不包含 AgentDock 的 `enabled`、`timeout_ms`、`header_env` 等字段。标准 `env` 和 `headers` 是公开的固定值，不能用于嵌入秘密。
 
 包内 stdio 命令必须为 `./` 路径或单个可执行程序名；工作目录省略时为插件根。`${PLUGIN_ROOT}`、`${PLUGIN_DATA}` 只在 args、env 值和 cwd 中进行一次展开。未知占位符保持原文，HTTP URL/headers 不做环境变量替换。文件系统解析后的包路径和工作目录必须留在各自允许的根目录，配置的 HTTP 头不会经重定向发送给其他源。
 
@@ -74,7 +74,7 @@ GUI 的 Heavy 开关覆盖包内默认值，不修改分发清单。`plugin_mana
 
 ## 安装和迁移
 
-Windows 安装程序和控制面板统一使用 ACTOVO 名称，安装文件为 `ACTOVO-Setup-amd64.exe` 或 `ACTOVO-Setup-arm64.exe`。安装向导显示“选择安装位置”，支持手动输入和浏览目录；升级时预填原安装位置。安装与卸载均使用所选目录，不改变独立的 `.agentdock` 用户数据目录。
+Windows 安装程序和控制面板统一使用 AgentDock 名称，安装文件为 `AgentDock-Workbench-Setup-amd64.exe` 或 `AgentDock-Workbench-Setup-arm64.exe`。安装向导显示“选择安装位置”，支持手动输入和浏览目录；升级时预填原安装位置。安装与卸载均使用所选目录，不改变独立的 `.agentdock` 用户数据目录。
 
 已有有效安装时，升级继续使用原目录，避免两处安装争用同一开机启动项和端口。更换位置需先卸载并选择保留用户数据，再重新安装并配置连接；仅有卸载注册表残项且原目录已失效时不会阻止新位置安装。
 

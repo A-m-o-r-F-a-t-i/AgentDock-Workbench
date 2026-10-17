@@ -126,7 +126,7 @@ fun SettingsManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, m
             TechnicalDetails("输出说明") { Text("上限按 Unicode 标量计数，由节点执行；手机预览使用同一上限。") }
         }
 
-        ResourceSection("关于 ACTOVO") {
+        ResourceSection("关于 AgentDock") {
             Text("AgentDock ${dev.agentdock.workbench.BuildConfig.PRODUCT_VERSION}")
             TechnicalDetails("构建信息") { Text(state.buildIdentity) }
         }

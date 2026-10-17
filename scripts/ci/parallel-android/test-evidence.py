@@ -32,11 +32,11 @@ class EvidenceGate(unittest.TestCase):
                 (path / 'screenshots' / name).write_bytes(header)
         candidate = self.source / 'candidate'
         (candidate / 'apk').mkdir(parents=True)
-        self.apk = candidate / 'apk' / f'ACTOVO-{self.version}-Android-release-shaped-{self.sha[:12]}-test-signed.apk'
+        self.apk = candidate / 'apk' / f'AgentDock-Workbench-{self.version}-Android-release-shaped-{self.sha[:12]}-test-signed.apk'
         self.apk.write_bytes(b'fixture-apk')
         checksum = module.hashlib.sha256(self.apk.read_bytes()).hexdigest()
         (candidate / 'apk' / 'SHA256SUMS').write_text(f'{checksum}  {self.apk.name}\n')
-        (candidate / 'candidate.json').write_text(json.dumps(dict(self.base, product='ACTOVO',
+        (candidate / 'candidate.json').write_text(json.dumps(dict(self.base, product='AgentDock Workbench',
             product_version=self.version, signing='Android debug/test key only', apks=[self.apk.name])))
     def verify(self):
         return module.verify(self.source, self.root / 'output', self.version, self.sha, '123', '1')
@@ -49,7 +49,7 @@ class EvidenceGate(unittest.TestCase):
         report = self.verify()
         self.assertEqual(report['api_levels'], [26, 33, 34, 35, 37])
         self.assertEqual(report['physical_arm64_termux'], 'not_run')
-        self.assertTrue((self.root / 'output' / 'ACTOVO-1.1.8-Android-test-signed.apk').is_file())
+        self.assertTrue((self.root / 'output' / 'AgentDock-Workbench-1.1.8-Android-test-signed.apk').is_file())
     def test_missing_api_cannot_pass(self):
         shutil.rmtree(self.source / '26')
         with self.assertRaisesRegex(RuntimeError, 'Missing Android API'): self.verify()

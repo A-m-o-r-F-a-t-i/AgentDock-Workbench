@@ -1,4 +1,4 @@
-# ACTOVO：分层权限系统
+# AgentDock Workbench：分层权限系统
 
 ## 1. 模型与执行顺序
 
@@ -65,7 +65,7 @@ Profile 不会直接批准操作；它限定操作上限。`full`、显式 Allow
 
 这些布尔值表示“允许申请审批”，不是“直接授予权限”。一个操作同时匹配多个类别时，各类别都必须允许。例如命令存在联网能力时，`commands` 与 `network` 均需启用；第三方 MCP 同时涉及 `mcp` 与 `network`。未知的新工具落入 `other`。已由显式规则允许的请求不经过 Ask，因此不会再次触发类别门控；Profile 仍在此前检查。
 
-这是 ACTOVO 自身的分类，不承诺与其他产品的 granular 字段兼容。非 granular 模式不得携带 granular 对象；granular 模式必须明确提供对象，未选类别为 false。
+这是 AgentDock 自身的分类，不承诺与其他产品的 granular 字段兼容。非 granular 模式不得携带 granular 对象；granular 模式必须明确提供对象，未选类别为 false。
 
 ## 4. 边界的真实能力
 

@@ -53,14 +53,14 @@ function Resolve-InnoSetupCompiler {
     throw "Inno Setup compiler was not found. Checked PATH and: $($candidates -join ', ')"
 }
 
-$archivePath = Resolve-RequiredFile -Path $AgentDockArchive -Description 'ACTOVO Core archive'
-$checksumPath = Resolve-RequiredFile -Path $AgentDockChecksumFile -Description 'ACTOVO Core checksum file'
+$archivePath = Resolve-RequiredFile -Path $AgentDockArchive -Description 'AgentDock archive'
+$checksumPath = Resolve-RequiredFile -Path $AgentDockChecksumFile -Description 'AgentDock checksum file'
 $cloudflaredPath = Resolve-RequiredFile -Path $CloudflaredBinary -Description 'cloudflared binary'
 
 $expectedHash = ((Get-Content -LiteralPath $checksumPath -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
 $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actualHash -ne $expectedHash) {
-    throw "ACTOVO Core archive SHA-256 mismatch. Expected $expectedHash, got $actualHash."
+    throw "AgentDock archive SHA-256 mismatch. Expected $expectedHash, got $actualHash."
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -80,7 +80,7 @@ try {
         'share/agentdock/core-skills/manifest.json'
     )) {
         if ($entryNames -notcontains $requiredEntry) {
-            throw "ACTOVO Core archive does not contain required entry: $requiredEntry"
+            throw "AgentDock archive does not contain required entry: $requiredEntry"
         }
     }
 } finally {
@@ -142,7 +142,7 @@ try {
         throw "ISCC failed with exit code $LASTEXITCODE."
     }
 
-    $setupPath = Join-Path $outputRoot "ACTOVO-Setup-$Architecture.exe"
+    $setupPath = Join-Path $outputRoot "AgentDock-Workbench-Setup-$Architecture.exe"
     if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
         throw "Offline Setup was not produced: $setupPath"
     }

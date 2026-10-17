@@ -2,15 +2,15 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-<img src="./docs/assets/agentdock-logo.png" alt="ACTOVO logo" width="128" />
+<img src="./docs/assets/agentdock-logo.png" alt="AgentDock Workbench logo" width="128" />
 
-# ACTOVO
+# AgentDock Workbench
 
 **A task, execution, and permission workbench for AI agents operating real devices.**
 
-ACTOVO connects ChatGPT, Claude, Codex, and other MCP clients to local computers, remote servers, and mobile nodes. It combines the ACTOVO runtime with a conversation-centered control plane for tasks, tool calls, approvals, permissions, mid-task instructions, plugins, and multi-device operations.
+AgentDock Workbench connects ChatGPT, Claude, Codex, and other MCP clients to local computers, remote servers, and mobile nodes. It combines the AgentDock runtime with a conversation-centered control plane for tasks, tool calls, approvals, permissions, mid-task instructions, plugins, and multi-device operations.
 
-[Download releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Stable v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [Report an issue](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
+[Download releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [Latest stable release](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest) · [Report an issue](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
@@ -21,16 +21,16 @@ ACTOVO connects ChatGPT, Claude, Codex, and other MCP clients to local computers
 <p align="center">
   <img
     src="./docs/assets/agentdock-multi-device.png"
-    alt="ACTOVO managing multiple devices from one AI conversation"
+    alt="AgentDock Workbench managing multiple devices from one AI conversation"
     width="100%"
   />
 </p>
 
 ## Project purpose
 
-ACTOVO is an independently maintained extension of [AgentDock](https://github.com/uvwt/agentdock). The runtime exposes files, commands, Git, Skills, dynamic MCP servers, browser automation, and other host capabilities through MCP. The Workbench adds the management layer needed to operate those capabilities as a durable product rather than a collection of isolated tool calls.
+AgentDock Workbench is an independently maintained extension of [AgentDock](https://github.com/uvwt/agentdock). The runtime exposes files, commands, Git, Skills, dynamic MCP servers, browser automation, and other host capabilities through MCP. The Workbench adds the management layer needed to operate those capabilities as a durable product rather than a collection of isolated tool calls.
 
-The project does not provide a chat interface or perform model inference. Your AI client supplies the model and conversation; ACTOVO runs authorized operations in the connected environment and records what happened.
+The project does not provide a chat interface or perform model inference. Your AI client supplies the model and conversation; AgentDock Workbench runs authorized operations in the connected environment and records what happened.
 
 ## Workbench capabilities
 
@@ -52,7 +52,7 @@ The project does not provide a chat interface or perform model inference. Your A
                        │
               MCP + Bearer/OAuth
                        │
-              ACTOVO Core runtime
+              AgentDock Core runtime
        ┌───────────────┼────────────────┐
        │               │                │
  Workbench UI      Management CLI   Tool runtime
@@ -76,7 +76,7 @@ A conversation is resolved from trusted host metadata. Tasks and calls inherit t
 | Linux | Headless Core and management CLI for local, server, and scripted operation. | Available through release packages and source builds. |
 | Containers / VPS | Headless runtime with MCP, CLI, authentication, and remote access options. | Deployment depends on the selected release asset and environment. |
 
-Release assets vary by version and CPU architecture. Check the asset list and release notes before installing. The latest stable release is v1.1.8.
+Release assets vary by version and CPU architecture. Check the asset list and release notes before installing. The current stable version is available from [Latest release](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest).
 
 ## Typical workflows
 
@@ -85,13 +85,13 @@ Release assets vary by version and CPU architecture. Check the asset list and re
 - Inspect exactly which tool calls belong to a conversation, including child calls, output, errors, and file changes.
 - Insert a requirement while work is running without starting a second task or losing the current execution context.
 - Require user approval for selected operations while keeping hard filesystem, network, and sandbox limits in force.
-- Manage several ACTOVO nodes from one conversation and direct each operation to the correct workspace and device.
+- Manage several AgentDock nodes from one conversation and direct each operation to the correct workspace and device.
 
 ## Quick start
 
 1. Open [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) and choose the latest stable release.
 2. Download the package matching your operating system and CPU architecture.
-3. Start ACTOVO Core and, where available, the native Workbench client.
+3. Start AgentDock Core and, where available, the native Workbench client.
 4. Obtain the MCP endpoint and Bearer Token or complete the OAuth connection flow.
 5. Add the endpoint to the MCP, Tools, or Connectors settings of your AI client.
 
@@ -114,10 +114,10 @@ Keep authentication enabled for every non-local connection. Do not publish token
 
 ### MCP Server catalog description
 
-Paste the following text into the ACTOVO MCP Server's `description` field in your AI client's server catalog. It describes the device-side delegation boundary and when to initialize or reuse context. This is the server catalog description, not a tool description or an authentication setting.
+Paste the following text into the AgentDock MCP Server's `description` field in your AI client's server catalog. It describes the device-side delegation boundary and when to initialize or reuse context. This is the server catalog description, not a tool description or an authentication setting.
 
 ```text
-ACTOVO 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；ACTOVO 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
+AgentDock 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；AgentDock 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
 
 首次进入某个设备或上下文失效时调用 agentdock_context；context_diagnostics.complete=true 后复用当前上下文并直接调用已解析工具。不得无新证据地重复初始化、搜索、inspect、加载或执行相同请求。
 ```
@@ -135,13 +135,13 @@ ACTOVO 连接一个已绑定的用户设备，内部运行设备侧受托执行 
 | Skills and self-contained plugins | [Agent plugins](./docs/agent-plugins.md) |
 | Tailscale Funnel access | [Tailscale Funnel](./docs/tailscale-funnel.md) |
 | Differences from upstream and migration | [Version differences and migration](./docs/official-version-differences-and-migration.md) |
-| Stable release details | [v1.1.8 release notes](./docs/releases/v1.1.8.md) |
+| v1.1.9 changes | [v1.1.9 release notes](./docs/releases/v1.1.9.md) |
 
 ## Repository layout
 
 | Path | Responsibility |
 | --- | --- |
-| `cmd/` | ACTOVO command-line entrypoints. |
+| `cmd/` | AgentDock command-line entrypoints. |
 | `internal/` | Core runtime, state, permissions, tasks, calls, installation, and platform services. |
 | `api/` | Public and management API definitions. |
 | `desktop/` | Native desktop clients and desktop-specific integration. |
@@ -164,7 +164,7 @@ Submit reproducible bugs and feature requests through [GitHub Issues](https://gi
 
 ## Relationship to upstream
 
-ACTOVO is based on the Apache-2.0-licensed [upstream AgentDock project](https://github.com/uvwt/agentdock) and retains the required license and attribution. Workbench-specific features, releases, documentation, installation behavior, and support are maintained in this repository. Review the [migration guide](./docs/official-version-differences-and-migration.md) before switching between the upstream distribution and ACTOVO because their state and installation boundaries are not interchangeable.
+AgentDock Workbench is based on the Apache-2.0-licensed [upstream AgentDock project](https://github.com/uvwt/agentdock) and retains the required license and attribution. Workbench-specific features, releases, documentation, installation behavior, and support are maintained in this repository. Review the [migration guide](./docs/official-version-differences-and-migration.md) before switching between the upstream distribution and AgentDock Workbench because their state and installation boundaries are not interchangeable.
 
 ## License
 

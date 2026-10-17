@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ACTOVOAndroid"
+rootProject.name = "AgentDockWorkbenchAndroid"
 include(":app", ":release-check")

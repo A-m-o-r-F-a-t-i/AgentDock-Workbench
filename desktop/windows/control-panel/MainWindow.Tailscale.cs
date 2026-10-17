@@ -70,7 +70,7 @@ public partial class MainWindow
         {
             var confirmation = System.Windows.MessageBox.Show(this,
                 UiText.Format("PublicAccessSwitchWarning", PublicAccessName(previous), PublicAccessName(mode)),
-                "ACTOVO", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "AgentDock Workbench", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirmation != MessageBoxResult.Yes) return;
         }
         _tunnelChangeInProgress = true;

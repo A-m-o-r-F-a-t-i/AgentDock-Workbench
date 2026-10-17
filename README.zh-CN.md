@@ -2,15 +2,15 @@
 
 [English](./README.md) | 简体中文
 
-<img src="./docs/assets/agentdock-logo.png" alt="ACTOVO logo" width="128" />
+<img src="./docs/assets/agentdock-logo.png" alt="AgentDock Workbench logo" width="128" />
 
-# ACTOVO
+# AgentDock Workbench
 
 **面向真实设备操作的 AI Agent 任务、执行与权限工作台**
 
-ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远程服务器和移动节点，并在 ACTOVO 运行时之上提供以对话为中心的任务管理、工具调用追踪、审批、权限、中途插入、插件管理和多设备协同能力。
+AgentDock Workbench 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远程服务器和移动节点，并在 AgentDock 运行时之上提供以对话为中心的任务管理、工具调用追踪、审批、权限、中途插入、插件管理和多设备协同能力。
 
-[下载发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [正式版 v1.1.8](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/tag/v1.1.8) · [提交问题](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
+[下载发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases) · [最新正式版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest) · [提交问题](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/issues)
 
 [![CI](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/A-m-o-r-F-a-t-i/AgentDock-Workbench?display_name=tag&logo=github)](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)
@@ -21,16 +21,16 @@ ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远
 <p align="center">
   <img
     src="./docs/assets/agentdock-multi-device.png"
-    alt="ACTOVO 通过一个 AI 对话管理多台设备"
+    alt="AgentDock Workbench 通过一个 AI 对话管理多台设备"
     width="100%"
   />
 </p>
 
 ## 项目定位
 
-　　ACTOVO 是基于[上游 AgentDock](https://github.com/uvwt/agentdock)独立维护的扩展项目。Core 通过 MCP 向 AI 提供文件、命令、Git、Skill、动态 MCP、浏览器自动化和部署等宿主能力，Workbench 则补齐持续任务所需的管理层，使操作不再是一组彼此孤立的工具调用。
+　　AgentDock Workbench 是基于[上游 AgentDock](https://github.com/uvwt/agentdock)独立维护的扩展项目。Core 通过 MCP 向 AI 提供文件、命令、Git、Skill、动态 MCP、浏览器自动化和部署等宿主能力，Workbench 则补齐持续任务所需的管理层，使操作不再是一组彼此孤立的工具调用。
 
-　　本项目不提供聊天界面，也不执行模型推理。模型与对话由 AI 客户端提供，ACTOVO 在已连接环境中执行经过授权的操作，并记录任务、调用、审批、输出和最终状态。
+　　本项目不提供聊天界面，也不执行模型推理。模型与对话由 AI 客户端提供，AgentDock Workbench 在已连接环境中执行经过授权的操作，并记录任务、调用、审批、输出和最终状态。
 
 ## Workbench 核心能力
 
@@ -52,7 +52,7 @@ ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远
                        │
               MCP + Bearer/OAuth
                        │
-              ACTOVO Core 运行时
+              AgentDock Core 运行时
        ┌───────────────┼────────────────┐
        │               │                │
  Workbench 界面      管理 CLI          工具运行层
@@ -76,7 +76,7 @@ ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远
 | Linux | 无界面 Core 与管理 CLI，适合本机、服务器和脚本化操作。 | 通过发行包或源码构建使用。 |
 | 容器 / VPS | 通过 MCP、CLI、认证和远程连接运行无界面 Core。 | 具体能力取决于所选发行资产与部署环境。 |
 
-　　不同版本与 CPU 架构提供的安装资产可能不同，安装前应核对 Release 的文件列表和说明。当前 Latest 正式版为 v1.1.8。
+　　不同版本与 CPU 架构提供的安装资产可能不同，安装前应核对 Release 的文件列表和说明。当前正式版以 [Latest 发行版](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/latest)为准。
 
 ## 典型使用场景
 
@@ -85,13 +85,13 @@ ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远
 - 查看一个对话实际触发的根调用、子调用、输出、错误和文件变化。
 - 在任务执行中补充新要求，同时保留当前上下文，不创建重复任务。
 - 对指定操作要求人工审批，并保持文件系统、网络和沙箱硬边界持续生效。
-- 在一个对话中管理多台 ACTOVO 节点，并将每次操作路由到正确设备和工作区。
+- 在一个对话中管理多台 AgentDock 节点，并将每次操作路由到正确设备和工作区。
 
 ## 快速开始
 
 1. 打开 [Releases](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases)，选择最新正式版。
 2. 下载与操作系统和 CPU 架构对应的安装包。
-3. 启动 ACTOVO Core；平台提供原生界面时，同时启动 Workbench。
+3. 启动 AgentDock Core；平台提供原生界面时，同时启动 Workbench。
 4. 获取 MCP 地址与 Bearer Token，或完成 OAuth 连接。
 5. 将连接信息加入 AI 客户端的 MCP、Tools 或 Connectors 设置。
 
@@ -114,10 +114,10 @@ ACTOVO 将 ChatGPT、Claude、Codex 等 MCP 客户端连接到本地电脑、远
 
 ### MCP Server 目录短描述
 
-　　在 AI 客户端的 ACTOVO MCP Server 配置中，将下面两段文字粘贴到 `description` 字段，作为 MCP Server 目录短描述。该字段说明设备侧委派边界，以及上下文初始化与复用规则。
+　　在 AI 客户端的 AgentDock MCP Server 配置中，将下面两段文字粘贴到 `description` 字段，作为 MCP Server 目录短描述。该字段说明设备侧委派边界，以及上下文初始化与复用规则。
 
 ```text
-ACTOVO 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；ACTOVO 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
+AgentDock 连接一个已绑定的用户设备，内部运行设备侧受托执行 Agent。调用方 ChatGPT 是全局任务负责人，负责理解用户意图、保存约束、控制授权范围、协调多个设备并完成最终验收；AgentDock 仅在明确委派的设备内范围中，自主选择和编排本地 Skill、MCP 与工具，执行观察、修改和验证。
 
 首次进入某个设备或上下文失效时调用 agentdock_context；context_diagnostics.complete=true 后复用当前上下文并直接调用已解析工具。不得无新证据地重复初始化、搜索、inspect、加载或执行相同请求。
 ```
@@ -135,13 +135,13 @@ ACTOVO 连接一个已绑定的用户设备，内部运行设备侧受托执行 
 | Skill 与自包含插件 | [Agent 插件](./docs/agent-plugins.md) |
 | Tailscale Funnel 连接 | [Tailscale Funnel](./docs/tailscale-funnel.md) |
 | 与上游差异及迁移 | [版本差异与迁移](./docs/official-version-differences-and-migration.md) |
-| 当前正式版 | [v1.1.8 版本说明](./docs/releases/v1.1.8.md) |
+| v1.1.9 变化 | [v1.1.9 版本说明](./docs/releases/v1.1.9.md) |
 
 ## 仓库结构
 
 | 路径 | 职责 |
 | --- | --- |
-| `cmd/` | ACTOVO 命令行入口。 |
+| `cmd/` | AgentDock 命令行入口。 |
 | `internal/` | Core 运行时、状态、权限、任务、调用、安装和平台服务。 |
 | `api/` | 对外接口与 Workbench 管理接口定义。 |
 | `desktop/` | 原生桌面客户端及桌面平台集成。 |
@@ -164,7 +164,7 @@ make check
 
 ## 与上游的关系
 
-　　ACTOVO 基于采用 Apache License 2.0 的[上游 AgentDock 项目](https://github.com/uvwt/agentdock)，并保留所需许可证与署名。本仓库独立维护 Workbench 新增功能、发行版、文档、安装行为和问题反馈。上游发行版与 ACTOVO 的状态及安装边界并不完全兼容，切换前应阅读[迁移说明](./docs/official-version-differences-and-migration.md)。
+　　AgentDock Workbench 基于采用 Apache License 2.0 的[上游 AgentDock 项目](https://github.com/uvwt/agentdock)，并保留所需许可证与署名。本仓库独立维护 Workbench 新增功能、发行版、文档、安装行为和问题反馈。上游发行版与 AgentDock Workbench 的状态及安装边界并不完全兼容，切换前应阅读[迁移说明](./docs/official-version-differences-and-migration.md)。
 
 ## 许可证
 

@@ -1,4 +1,4 @@
-name: ACTOVO Native Acceptance
+name: AgentDock Workbench Native Acceptance
 on:
   workflow_dispatch:
     inputs:

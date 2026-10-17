@@ -30,8 +30,8 @@ const (
 	maxReleaseArchiveBytes        = 256 << 20
 	maxDesktopArchiveBytes        = 512 << 20
 	maxExtractedPayloadBytes      = 64 << 20
-	macOSDesktopArchiveName       = "ACTOVO-macos-universal.zip"
-	legacyMacOSDesktopArchiveName = "AgentDock-macos-universal.zip"
+	macOSDesktopArchiveName       = "AgentDock-macos-universal.zip"
+	legacyMacOSDesktopArchiveName = "ACTOVO-macos-universal.zip"
 	coreSkillBundlePrefix         = "share/agentdock/core-skills/"
 )
 
@@ -143,7 +143,7 @@ func Check(ctx context.Context) (CheckResult, error) {
 func runtimeOptions(output io.Writer) (options, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return options{}, fmt.Errorf("定位当前 ACTOVO 二进制失败: %w", err)
+		return options{}, fmt.Errorf("定位当前 AgentDock 二进制失败: %w", err)
 	}
 	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
 		executable = resolved
@@ -314,7 +314,7 @@ func run(ctx context.Context, opts options) error {
 	if result.Restarted {
 		fmt.Fprintf(opts.Output, "更新完成并已重启：%s → %s\n", currentVersion, targetVersion)
 	} else {
-		fmt.Fprintf(opts.Output, "更新完成：%s → %s。当前未检测到托管服务，请重新启动正在运行的 ACTOVO。\n", currentVersion, targetVersion)
+		fmt.Fprintf(opts.Output, "更新完成：%s → %s。当前未检测到托管服务，请重新启动正在运行的 AgentDock。\n", currentVersion, targetVersion)
 	}
 	if opts.Progress != nil {
 		opts.Progress(UpdateProgressEvent{
@@ -428,7 +428,7 @@ func inspectUpdate(ctx context.Context, opts options) (updateInspection, error) 
 		}
 		result.UpdateAvailable = true
 		result.DesktopUpdateAvailable = true
-		result.Message = fmt.Sprintf("发现 ACTOVO App 更新：%s → %s", currentVersion, targetVersion)
+		result.Message = fmt.Sprintf("发现 AgentDock App 更新：%s → %s", currentVersion, targetVersion)
 		return updateInspection{
 			Result:               result,
 			DesktopArchiveAsset:  desktopArchiveAsset,

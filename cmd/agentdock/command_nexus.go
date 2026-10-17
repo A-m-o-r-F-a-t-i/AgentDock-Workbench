@@ -35,7 +35,7 @@ func runNexusPairCommand(ctx context.Context, args []string, stdout, stderr io.W
 	endpoint := flags.String("endpoint", "", "NexusDock public base URL")
 	code := flags.String("code", "", "one-time pairing code")
 	name := flags.String("name", "", "device display name (defaults to hostname)")
-	home := flags.String("agentdock-home", "", "ACTOVO state directory (must match Core AGENTDOCK_HOME)")
+	home := flags.String("agentdock-home", "", "AgentDock state directory (must match Core AGENTDOCK_HOME)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func runNexusPairCommand(ctx context.Context, args []string, stdout, stderr io.W
 		return err
 	}
 	if runtime.GOOS == "linux" && *home == "" && os.Getenv("AGENTDOCK_HOME") == "" {
-		fmt.Fprintf(stderr, "注意：未指定 ACTOVO 数据目录，配对将写入 %s；systemd 服务请先确认其 AGENTDOCK_HOME，并使用服务用户及 --agentdock-home 配对。\n", cfg.AgentDockHome)
+		fmt.Fprintf(stderr, "注意：未指定 AgentDock 数据目录，配对将写入 %s；systemd 服务请先确认其 AGENTDOCK_HOME，并使用服务用户及 --agentdock-home 配对。\n", cfg.AgentDockHome)
 	}
 	identity, err := nexusbridge.Pair(ctx, cfg.AgentDockHome, nexusbridge.PairOptions{Endpoint: *endpoint, Code: *code, Name: *name})
 	if err != nil {
@@ -67,7 +67,7 @@ func runNexusStatusCommand(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("agentdock nexus status", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	jsonOutput := flags.Bool("json", false, "print machine-readable status")
-	home := flags.String("agentdock-home", "", "ACTOVO state directory (must match Core AGENTDOCK_HOME)")
+	home := flags.String("agentdock-home", "", "AgentDock state directory (must match Core AGENTDOCK_HOME)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -92,10 +92,10 @@ func runNexusStatusCommand(args []string, stdout, stderr io.Writer) error {
 		return json.NewEncoder(stdout).Encode(status)
 	}
 	if !status.Paired {
-		_, err = fmt.Fprintf(stdout, "ACTOVO 尚未与 NexusDock 配对（当前数据目录：%s）。\n", cfg.AgentDockHome)
+		_, err = fmt.Fprintf(stdout, "AgentDock 尚未与 NexusDock 配对（当前数据目录：%s）。\n", cfg.AgentDockHome)
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "ACTOVO 已配对到 %s，node_id=%s，Device Token 已保存（当前数据目录：%s）。\n", status.Endpoint, status.NodeID, cfg.AgentDockHome)
+	_, err = fmt.Fprintf(stdout, "AgentDock 已配对到 %s，node_id=%s，Device Token 已保存（当前数据目录：%s）。\n", status.Endpoint, status.NodeID, cfg.AgentDockHome)
 	return err
 }
 func nexusCommandUsageError() error {

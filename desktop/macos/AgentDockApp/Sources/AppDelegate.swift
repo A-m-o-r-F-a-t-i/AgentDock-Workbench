@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            pendingResult.transactionID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
            AppVersion.display(pendingResult.targetVersion) != AppVersion.current {
             NSLog(
-                "ACTOVO found a legacy update result that no longer matches the active App; reconciling the current installation."
+                "AgentDock found a legacy update result that no longer matches the active App; reconciling the current installation."
             )
             _ = DesktopUpdateResult.consume(from: service.paths.updateResult)
             DesktopUpdateServiceState.remove(at: service.paths.updateServiceState)
@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if updateResultExists {
             // 结果文件存在但无法解析时，外部更新事务仍可能在等待新版 App ACK。
             // 保留 update-services.json，让外部更新器按超时路径恢复旧 App。
-            NSLog("ACTOVO 更新结果存在但无法解析，保留后台服务事务状态等待回滚。")
+            NSLog("AgentDock 更新结果存在但无法解析，保留后台服务事务状态等待回滚。")
             setUpdateInProgress(true)
             updateProgressWindow.presentFinishing(
                 currentVersion: AppVersion.current,
@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try service.reconcileTunnelRegistrationFromConfiguration()
                 } catch {
-                    NSLog("ACTOVO 启动时 Tunnel 状态收敛失败：%@", error.localizedDescription)
+                    NSLog("AgentDock 启动时 Tunnel 状态收敛失败：%@", error.localizedDescription)
                 }
                 self.refreshStatus()
             }
@@ -205,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try service.reconcileTunnelRegistrationFromConfiguration()
                 } catch {
-                    NSLog("ACTOVO 更新后 Tunnel 状态收敛失败：%@", error.localizedDescription)
+                    NSLog("AgentDock 更新后 Tunnel 状态收敛失败：%@", error.localizedDescription)
                 }
 
                 if let transactionID, !transactionID.isEmpty {
@@ -287,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 self.presentUpdateResult(result, warning: warnings.isEmpty ? nil : warnings.joined(separator: "\n"))
             } catch {
-                NSLog("ACTOVO 更新后后台服务恢复失败：%@", error.localizedDescription)
+                NSLog("AgentDock 更新后后台服务恢复失败：%@", error.localizedDescription)
                 if let transactionID, !transactionID.isEmpty {
                     // transaction-aware 流程在 ACK/terminal 之前失败时必须保留 Updating 与 journal。
                     // 外部 Arbiter 会继续 rollback；若 rollback 本身失败，repair 仍有完整恢复证据。
@@ -398,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard !fileManager.fileExists(atPath: service.paths.updateHandoff.path) else {
             let message = L10n.text("Menu bar launch at sign-in will be reconciled at the next launch because the update transaction is still in progress.")
-            NSLog("ACTOVO 更新后菜单栏登录启动延后恢复：更新事务尚未完成。")
+            NSLog("AgentDock 更新后菜单栏登录启动延后恢复：更新事务尚未完成。")
             return message
         }
 
@@ -406,7 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try menuLoginAgent.restoreAfterUpdate()
             return nil
         } catch {
-            NSLog("ACTOVO 更新后菜单栏登录启动恢复失败：%@", error.localizedDescription)
+            NSLog("AgentDock 更新后菜单栏登录启动恢复失败：%@", error.localizedDescription)
             return L10n.format("Menu bar launch at sign-in could not be restored: %@", error.localizedDescription)
         }
     }
@@ -418,8 +418,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try menuLoginAgent.configureOnLaunch()
         } catch {
-            // 菜单栏登录启动失败不影响 Core 后台服务；用户仍可手动打开 ACTOVO。
-            NSLog("ACTOVO 菜单栏登录启动配置失败：%@", error.localizedDescription)
+            // 菜单栏登录启动失败不影响 Core 后台服务；用户仍可手动打开 AgentDock。
+            NSLog("AgentDock 菜单栏登录启动配置失败：%@", error.localizedDescription)
         }
     }
 
@@ -432,7 +432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.autosaveName = "AgentDockMenuBarItem"
             item.isVisible = true
             if let button = item.button {
-                button.image = NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "ACTOVO")
+                button.image = NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "AgentDock Workbench")
                 button.image?.isTemplate = true
             }
             statusItem = item

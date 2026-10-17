@@ -296,7 +296,7 @@ public partial class App : System.Windows.Application
 
         _notifyIcon = new Forms.NotifyIcon
         {
-            Text = "ACTOVO",
+            Text = "AgentDock Workbench",
             Visible = true,
             Icon = LoadIcon(),
             ContextMenuStrip = _trayMenu
@@ -326,7 +326,7 @@ public partial class App : System.Windows.Application
             _traySnapshot = await Runtime.GetSnapshotAsync();
             if (_notifyIcon is not null)
             {
-                _notifyIcon.Text = TruncateNotifyIconText($"ACTOVO: {GetTrayStatusText(_traySnapshot)}");
+                _notifyIcon.Text = TruncateNotifyIconText($"AgentDock: {GetTrayStatusText(_traySnapshot)}");
             }
             if (_trayMenu is not null && !_trayMenu.Visible)
             {
@@ -337,7 +337,7 @@ public partial class App : System.Windows.Application
         {
             if (_notifyIcon is not null)
             {
-                _notifyIcon.Text = $"ACTOVO: {UiText.Get("StatusUnavailable")}";
+                _notifyIcon.Text = $"AgentDock: {UiText.Get("StatusUnavailable")}";
             }
             if (_trayMenu is not null && !_trayMenu.Visible)
             {
@@ -360,7 +360,7 @@ public partial class App : System.Windows.Application
         }
 
         var statusText = snapshot is null ? UiText.Get("LoadingStatus") : GetTrayStatusText(snapshot);
-        var status = new Forms.ToolStripMenuItem($"ACTOVO: {statusText}") { Enabled = false };
+        var status = new Forms.ToolStripMenuItem($"AgentDock: {statusText}") { Enabled = false };
         menu.Items.Add(status);
         menu.Items.Add(new Forms.ToolStripSeparator());
 
@@ -374,7 +374,7 @@ public partial class App : System.Windows.Application
             menu.Items.Add(CreateMenuItem(UiText.Get("RegenerateTemporaryAddress"), async (_, _) =>
             {
                 try { await Runtime.RegenerateQuickTunnelAsync(); await RefreshTraySnapshotAsync(); }
-                catch (Exception ex) { _notifyIcon?.ShowBalloonTip(5000, "ACTOVO", ex.Message, Forms.ToolTipIcon.Error); }
+                catch (Exception ex) { _notifyIcon?.ShowBalloonTip(5000, "AgentDock Workbench", ex.Message, Forms.ToolTipIcon.Error); }
             }));
         }
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -405,7 +405,7 @@ public partial class App : System.Windows.Application
 
         if (_notifyIcon is not null)
         {
-            _notifyIcon.Text = TruncateNotifyIconText($"ACTOVO: {statusText}");
+            _notifyIcon.Text = TruncateNotifyIconText($"AgentDock: {statusText}");
         }
     }
 
@@ -618,7 +618,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
-            _notifyIcon?.ShowBalloonTip(5000, "ACTOVO", LastNonEmptyLine(ex.Message, UiText.Get("OperationFailed")), Forms.ToolTipIcon.Error);
+            _notifyIcon?.ShowBalloonTip(5000, "AgentDock Workbench", LastNonEmptyLine(ex.Message, UiText.Get("OperationFailed")), Forms.ToolTipIcon.Error);
         }
     }
 

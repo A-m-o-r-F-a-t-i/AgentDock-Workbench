@@ -122,6 +122,59 @@ func TestInspectUpdateAcceptsLegacyMacOSDesktopAssetName(t *testing.T) {
 	}
 }
 
+func TestMacOSDesktopAssetsKeepBrandAndChecksumPaired(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		assets  []string
+		want    string
+		wantErr string
+	}{
+		{
+			name: "prefer restored AgentDock name",
+			assets: []string{
+				"ACTOVO-macos-universal.zip", "ACTOVO-macos-universal.zip.sha256",
+				"AgentDock-macos-universal.zip", "AgentDock-macos-universal.zip.sha256",
+			},
+			want: "AgentDock-macos-universal.zip",
+		},
+		{
+			name:   "accept exact historical ACTOVO pair",
+			assets: []string{"ACTOVO-macos-universal.zip", "ACTOVO-macos-universal.zip.sha256"},
+			want:   "ACTOVO-macos-universal.zip",
+		},
+		{
+			name: "do not downgrade when preferred checksum is missing",
+			assets: []string{
+				"AgentDock-macos-universal.zip",
+				"ACTOVO-macos-universal.zip", "ACTOVO-macos-universal.zip.sha256",
+			},
+			wantErr: "AgentDock-macos-universal.zip.sha256",
+		},
+		{
+			name:    "do not pair different brand names",
+			assets:  []string{"ACTOVO-macos-universal.zip", "AgentDock-macos-universal.zip.sha256"},
+			wantErr: "ACTOVO-macos-universal.zip.sha256",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assets := make([]releaseAsset, 0, len(test.assets))
+			for _, name := range test.assets {
+				assets = append(assets, releaseAsset{Name: name, URL: "https://example.invalid/" + name})
+			}
+			archive, checksum, err := findMacOSDesktopAssets(assets)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) || archive.Name != "" || checksum.Name != "" {
+					t.Fatalf("invalid pair accepted: archive=%#v checksum=%#v err=%v", archive, checksum, err)
+				}
+				return
+			}
+			if err != nil || archive.Name != test.want || checksum.Name != test.want+".sha256" || checksum.URL != archive.URL+".sha256" {
+				t.Fatalf("unexpected desktop pair: archive=%#v checksum=%#v err=%v", archive, checksum, err)
+			}
+		})
+	}
+}
+
 func TestInspectUpdateRepairsOlderDesktopWhenCoreIsCurrent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(release{

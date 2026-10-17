@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-PRODUCT = "ACTOVO"
+PRODUCT = "AgentDock Workbench"
 LICENSE_ID = "Apache-2.0"
 
 

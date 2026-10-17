@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# ACTOVO Unix 公开 bootstrap。
+# AgentDock Unix 公开 bootstrap。
 # 只负责：平台/架构识别、Release 载荷下载与校验、必要 OS bootstrap，随后交给 Go Installer Engine。
 # 安装事务、配置保留、服务、health、Skill、Tunnel 与 rollback 只能由 agentdock install/uninstall 决策。
 
@@ -60,7 +60,7 @@ fi
 
 usage() {
   cat <<'USAGE'
-ACTOVO Unix 安装与维护入口。
+AgentDock Unix 安装与维护入口。
 
 用法：
   sh install.sh
@@ -488,12 +488,12 @@ if [ "$UNINSTALL" = true ] && [ "$PURGE_DATA" = true ] && [ "$PLATFORM" = darwin
     [ "$INSTALLER_DEFAULT_DIR_EXPLICIT" = true ] || \
       die "自定义/继承的 macOS 环境执行 --purge-data 时必须显式提供 --agentdock-default-dir（或 AGENTDOCK_INSTALLER_DEFAULT_DIR）。"
   fi
-  AGENTDOCK_HOME_DIR="$(require_safe_user_data_path "ACTOVO HOME" "$AGENTDOCK_HOME_DIR" "$INSTALL_ROOT" "$RUNTIME_ROOT")"
-  AGENTDOCK_DEFAULT_DIR_VALUE="$(require_safe_user_data_path "ACTOVO 默认工作目录" "$AGENTDOCK_DEFAULT_DIR_VALUE" "$INSTALL_ROOT" "$RUNTIME_ROOT")"
+  AGENTDOCK_HOME_DIR="$(require_safe_user_data_path "AgentDock HOME" "$AGENTDOCK_HOME_DIR" "$INSTALL_ROOT" "$RUNTIME_ROOT")"
+  AGENTDOCK_DEFAULT_DIR_VALUE="$(require_safe_user_data_path "AgentDock 默认工作目录" "$AGENTDOCK_DEFAULT_DIR_VALUE" "$INSTALL_ROOT" "$RUNTIME_ROOT")"
 fi
 
 if [ "$UNINSTALL" = true ]; then
-  [ -x "$STABLE_BINARY" ] || die "找不到已安装 ACTOVO：$STABLE_BINARY"
+  [ -x "$STABLE_BINARY" ] || die "找不到已安装 AgentDock：$STABLE_BINARY"
   case "$PLATFORM" in
     linux)
       set -- uninstall --install-root "$INSTALL_ROOT" --runtime-root "$RUNTIME_ROOT" \
@@ -529,7 +529,7 @@ if [ "$UNINSTALL" = true ]; then
       fi
       ;;
   esac
-  printf '\nACTOVO 已卸载。\n' >>"$TTY_OUT"
+  printf '\nAgentDock 已卸载。\n' >>"$TTY_OUT"
   exit 0
 fi
 
@@ -616,7 +616,7 @@ esac
 if [ -n "$TUNNEL_TOKEN_FILE" ]; then rm -f "$TUNNEL_TOKEN_FILE"; fi
 
 {
-  printf '\nACTOVO 安装完成。\n'
+  printf '\nAgentDock Workbench 安装完成。\n'
   printf '安装目录：%s\n' "$INSTALL_ROOT"
   printf '运行配置：%s\n' "$RUNTIME_ROOT"
   case "$PLATFORM" in

@@ -31,7 +31,7 @@ func TestRunPrintsMachineReadableBuildInfo(t *testing.T) {
 	if err := run(context.Background(), []string{"version"}, &human, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(human.String(), "ACTOVO v"+buildinfo.Version+"\n") {
+	if !strings.HasPrefix(human.String(), "AgentDock Workbench v"+buildinfo.Version+"\n") {
 		t.Fatal("human version output lost Workbench branding")
 	}
 	var stdout bytes.Buffer
@@ -42,7 +42,7 @@ func TestRunPrintsMachineReadableBuildInfo(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
 		t.Fatalf("version --json returned invalid JSON: %v", err)
 	}
-	if info.ProductName != "ACTOVO" || info.Version != buildinfo.Version || info.Platform == "" || info.GoVersion == "" {
+	if info.ProductName != "AgentDock Workbench" || info.Version != buildinfo.Version || info.Platform == "" || info.GoVersion == "" {
 		t.Fatalf("unexpected build info: %#v", info)
 	}
 }

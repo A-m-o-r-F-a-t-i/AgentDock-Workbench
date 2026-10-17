@@ -7,7 +7,7 @@ fun productVersion(): String {
     val source = rootProject.file("../../internal/buildinfo/buildinfo.go")
     check(source.isFile) { "Missing product version source: $source" }
     val match = Regex("Version\\s*=\\s*\"([^\"]+)\"").find(source.readText())
-        ?: error("Unable to parse ACTOVO product version")
+        ?: error("Unable to parse AgentDock product version")
     return match.groupValues[1]
 }
 

@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY = 'A-m-o-r-F-a-t-i/AgentDock-Workbench'
-PRODUCT = 'ACTOVO'
+PRODUCT = 'AgentDock Workbench'
 ANDROID_RELEASE_CONFIG = Path('packaging/android/release-signing.json')
 
 
@@ -27,30 +27,21 @@ def android_release_identity() -> tuple[str,str]:
     return alias,certificate
 
 
-def actovo_brand_required(version: str) -> bool:
-    return tuple(map(int,version.split('.'))) >= (1,1,9)
-
-
 def stable_android_release_required(version: str) -> bool:
     return tuple(map(int,version.split('.'))) >= (1,1,9)
 
 
-def product_asset_prefix(version: str) -> str:
-    return 'ACTOVO' if actovo_brand_required(version) else 'AgentDock-Workbench'
-
-
 def android_candidate_asset_name(version: str) -> str:
-    return f'{product_asset_prefix(version)}-{version}-Android-test-signed.apk'
+    return f'AgentDock-Workbench-{version}-Android-test-signed.apk'
 
 
 def android_public_asset_name(version: str) -> str:
     suffix='Android.apk' if stable_android_release_required(version) else 'Android-test-signed.apk'
-    return f'{product_asset_prefix(version)}-{version}-{suffix}'
+    return f'AgentDock-Workbench-{version}-{suffix}'
 
 
-def macos_asset_names(version: str) -> tuple[str,str]:
-    prefix='ACTOVO' if actovo_brand_required(version) else 'AgentDock'
-    return f'{prefix}-macos-universal.dmg',f'{prefix}-macos-universal.zip'
+def macos_asset_names() -> tuple[str,str]:
+    return 'AgentDock-macos-universal.dmg','AgentDock-macos-universal.zip'
 
 
 def run(*args: str) -> str:
@@ -96,13 +87,13 @@ def identity(report: dict,version: str,commit: str) -> None:
 
 
 def windows_setup_names(version: str) -> list[str]:
-    """Preserve historical Release names while using ACTOVO names from 1.1.9."""
-    prefix='ACTOVO-Setup' if actovo_brand_required(version) else 'AgentDockSetup'
+    """Preserve historical Release names while using Workbench-branded names from 1.1.9."""
+    prefix='AgentDock-Workbench-Setup' if tuple(map(int,version.split('.'))) >= (1,1,9) else 'AgentDockSetup'
     return [f'{prefix}-{arch}.exe' for arch in ['amd64','arm64']]
 
 
 def expected_payloads(version: str) -> list[str]:
-    macos_dmg,macos_zip=macos_asset_names(version)
+    macos_dmg,macos_zip=macos_asset_names()
     payloads = [f'agentdock_{platform}_{arch}.tar.gz' for platform in ['linux','darwin'] for arch in ['amd64','arm64']] + [
         f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']] + windows_setup_names(version) + [
         macos_dmg,macos_zip,
@@ -116,7 +107,7 @@ def expected_payloads(version: str) -> list[str]:
 
 def public_installers(version: str) -> list[str]:
     """Return user-installable release assets only."""
-    macos_dmg,_=macos_asset_names(version)
+    macos_dmg,_=macos_asset_names()
     installers = windows_setup_names(version) + [
         macos_dmg,
         f'agentdock-workbench_{version}_amd64.deb',
@@ -135,14 +126,14 @@ def obsolete_public_installers(version: str) -> set[str]:
     if stable_android_release_required(version):
         obsolete.update({
             android_candidate_asset_name(version),
-            f'AgentDock-Workbench-{version}-Android.apk',
-            f'AgentDock-Workbench-{version}-Android-test-signed.apk',
+            f'ACTOVO-{version}-Android.apk',
+            f'ACTOVO-{version}-Android-test-signed.apk',
         })
-    if actovo_brand_required(version):
+    if tuple(map(int,version.split('.'))) >= (1,1,9):
         obsolete.update({
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
-            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
-            'AgentDock-macos-universal.dmg',
+            'ACTOVO-Setup-amd64.exe','ACTOVO-Setup-arm64.exe',
+            'ACTOVO-macos-universal.dmg',
         })
         for prefix in ('ACTOVO','AgentDock-Workbench'):
             stem=f'{prefix}-{version}-Android-Core-arm64'
@@ -374,7 +365,7 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
     replacement_requested=replace_published or replace_stable
     tag='v'+version
     title=f'{PRODUCT} {version}' + (' Pre-release' if prerelease else '')
-    legacy_title=f'AgentDock Workbench {version}' + (' Pre-release' if prerelease else '')
+    legacy_title=f'ACTOVO {version}' + (' Pre-release' if prerelease else '')
     accepted_replacement_titles={title,legacy_title}
     prerelease_field='prerelease='+str(prerelease).lower()
     latest_field='make_latest='+('false' if prerelease else 'true')

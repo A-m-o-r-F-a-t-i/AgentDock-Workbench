@@ -1,5 +1,5 @@
-name: ACTOVO Release
-run-name: ACTOVO ${{ inputs.ref || github.ref_name }}
+name: AgentDock Workbench Release
+run-name: AgentDock Workbench ${{ inputs.ref || github.ref_name }}
 
 on:
   push:
@@ -129,7 +129,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $fixture=Join-Path $env:RUNNER_TEMP 'arm64-package-fixture'
           Expand-Archive dist/windows-package/release/agentdock_windows_arm64.zip -DestinationPath $fixture
-          & ./scripts/test/test-windows-setup-e2e.ps1 -SetupPath dist/windows-package/release/ACTOVO-Setup-arm64.exe -LegacyCorePath (Join-Path $fixture 'agentdock.exe') -LegacyTrayPath (Join-Path $fixture 'agentdock-tray.exe') -AllowLegacyTaskMutation
+          & ./scripts/test/test-windows-setup-e2e.ps1 -SetupPath dist/windows-package/release/AgentDock-Workbench-Setup-arm64.exe -LegacyCorePath (Join-Path $fixture 'agentdock.exe') -LegacyTrayPath (Join-Path $fixture 'agentdock-tray.exe') -AllowLegacyTaskMutation
           if ($LASTEXITCODE -ne 0) { throw 'Native ARM64 install/repair/uninstall failed' }
           @{version='${{ needs.resolve-source.outputs.version }}';commit='${{ needs.resolve-source.outputs.commit }}';platform='windows/arm64';native_execution='passed';native_installation='passed';scope='isolated runner install, repair, health, uninstall'} | ConvertTo-Json | Set-Content dist/verification-native-windows-arm64.json
       - uses: actions/upload-artifact@v7
