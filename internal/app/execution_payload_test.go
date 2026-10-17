@@ -148,7 +148,30 @@ func TestExecutionFailedToolPreservesStructuredFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err := r.activity.ReadCallPayload(context.Background(), stringArg(result, "call_id"), "response", 0, 32768)
-	if err != nil || !strings.Contains(page.Text, "partial failure detail") || !strings.Contains(page.Text, "\"isError\": true") {
+	var decoded map[string]any
+	decodeErr := json.Unmarshal([]byte(page.Text), &decoded)
+	if err != nil || decodeErr != nil || !strings.Contains(page.Text, "partial failure detail") || !containsJSONBoolean(decoded, "isError", true) {
 		t.Fatalf("failure result lost %+v %v", page, err)
 	}
+}
+
+func containsJSONBoolean(value any, key string, expected bool) bool {
+	switch current := value.(type) {
+	case map[string]any:
+		if actual, ok := current[key].(bool); ok && actual == expected {
+			return true
+		}
+		for _, child := range current {
+			if containsJSONBoolean(child, key, expected) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range current {
+			if containsJSONBoolean(child, key, expected) {
+				return true
+			}
+		}
+	}
+	return false
 }

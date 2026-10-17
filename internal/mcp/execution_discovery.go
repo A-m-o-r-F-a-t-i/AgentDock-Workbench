@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"reflect"
+
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/app"
@@ -32,8 +34,8 @@ func (s *Server) observeDiscovery(next mcpsdk.MethodHandler) mcpsdk.MethodHandle
 		default:
 			return next(ctx, method, request)
 		}
-		if params := request.GetParams(); params != nil {
-			if host, ok := params.GetMeta()["openai/session"].(string); ok && host != "" && len(host) <= 1024 {
+		if meta := safeRequestMeta(request); meta != nil {
+			if host, ok := meta["openai/session"].(string); ok && host != "" && len(host) <= 1024 {
 				source := activity.SourceFromContext(ctx)
 				source.Provider = "openai"
 				source.HostConversationID = host
@@ -55,4 +57,19 @@ func (s *Server) observeDiscovery(next mcpsdk.MethodHandler) mcpsdk.MethodHandle
 		})
 		return result, err
 	}
+}
+
+func safeRequestMeta(request mcpsdk.Request) map[string]any {
+	if request == nil {
+		return nil
+	}
+	params := request.GetParams()
+	if params == nil {
+		return nil
+	}
+	value := reflect.ValueOf(params)
+	if value.Kind() == reflect.Pointer && value.IsNil() {
+		return nil
+	}
+	return params.GetMeta()
 }

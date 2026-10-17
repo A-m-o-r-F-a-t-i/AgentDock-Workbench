@@ -31,6 +31,9 @@ func sourceResultComplete(result Result) (bool, string) {
 }
 
 func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Result) Result {
+	if (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") && result["host_page"] != nil || p.spec.Name == "mcp_result_raw" {
+		return result
+	}
 	if result != nil && p.state.binding.ParentCallID == "" && p.spec.Name != "read_file" && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) == toolcontract.OutputRequiredFull {
 		return r.applyRequiredOutputPolicy(p, result)
 	}

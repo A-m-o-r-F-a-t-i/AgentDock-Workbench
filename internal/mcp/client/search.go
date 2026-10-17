@@ -81,7 +81,8 @@ func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server stri
 			"name": cfg.Name, "server": cfg.Name,
 			"description":      OneLineDescription(cfg.Description),
 			"catalog_revision": catalog.Revision, "tool_count_known": catalog.Complete,
-			"stale": !fresh, "total": len(catalog.Tools),
+			"server_fingerprint": catalog.ServerFingerprint,
+			"stale":              !fresh, "total": len(catalog.Tools),
 		}
 		if !catalog.Complete || !fresh {
 			result.Complete = false
@@ -101,7 +102,7 @@ func (m *Manager) SearchCatalogsFiltered(ctx context.Context, query, server stri
 		result.Catalogs = append(result.Catalogs, entry)
 		for _, tool := range catalog.Tools {
 			if score, kind := toolMatch(query, tool); score > 0 {
-				matches = append(matches, scoredTool{score: score, kind: kind, item: toolSummaryForConfig(cfg, tool)})
+				matches = append(matches, scoredTool{score: score, kind: kind, item: toolSummaryForCatalog(cfg, catalog, tool)})
 			}
 		}
 	}
