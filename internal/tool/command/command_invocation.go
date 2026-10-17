@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"runtime"
@@ -12,6 +14,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	"github.com/uvwt/agentdock/internal/tool/command/session"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -49,7 +52,7 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID str
 	}
 	lease, err := svc.resolveSkill(ctx, skillRef)
 	if err != nil {
-		return SkillLease{}, err
+		return SkillLease{}, skillPreparationError(err)
 	}
 	if lease.Release == nil {
 		lease.Release = func() {}
@@ -68,6 +71,25 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID str
 		return SkillLease{}, toolError("MCP_RECOVERY_SKILL_REQUIRED", "Selected Skill does not declare a recovery MCP server", "validation")
 	}
 	return lease, nil
+}
+
+// Skill resolution precedes recovery authorization and invocation.start for
+// native and WSL commands. Only this boundary proves the requested command did
+// not execute; a later start or remote backend error must keep its own outcome.
+func skillPreparationError(cause error) *ToolError {
+	code, message, category := "COMMAND_PREPARATION_FAILED", cause.Error(), "runtime"
+	details := map[string]any{}
+	var declared *ToolError
+	if errors.As(cause, &declared) {
+		code, message, category = declared.Code, declared.Message, declared.Category
+		maps.Copy(details, declared.Details)
+	} else if errors.Is(cause, context.DeadlineExceeded) {
+		code = "COMMAND_PREPARATION_TIMEOUT"
+	}
+	details["execution_performed"] = false
+	details["effect_state"] = "none"
+	details["retry_safe"] = false
+	return toolcore.NewErrorCause(code, message, category, details, cause)
 }
 
 // Native and WSL commands select the same managed environment. The caller
