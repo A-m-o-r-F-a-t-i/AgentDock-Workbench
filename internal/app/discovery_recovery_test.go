@@ -125,7 +125,7 @@ func TestBuiltinPluginCatalogGuidanceReusesKnownDirectory(t *testing.T) {
 	server := newPluginTestMCPServer(t)
 	defer server.Close()
 	source := writeAppPluginPackage(t, t.TempDir(), server.URL)
-	if _, err := rt.Call(t.Context(), "plugin_manage", map[string]any{"action": "install", "source": source}); err != nil {
+	if _, err := rt.Call(t.Context(), "plugin_manage", map[string]any{"action": "install", "source": source, "review_token": reviewAppPluginForTest(t, rt, source).ReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 	result, err := rt.Call(t.Context(), "plugin_load", map[string]any{"name": "pcb"})

@@ -55,6 +55,7 @@ func (s *Store) PrepareSource(ctx context.Context, request SourceRequest) (Prepa
 	if !review.Valid {
 		review.Issues = append(review.Issues, "Plugin contains unsupported components: "+strings.Join(pkg.Unsupported, ", "))
 	}
+	review.ReviewToken = makeReviewToken(review)
 	return PreparedSource{Root: normalized, Definition: definition, Source: source, Compatibility: pkg.Compatibility, Cleanup: cleanup, Review: review}, nil
 }
 
@@ -67,8 +68,15 @@ func (s *Store) ValidateSource(ctx context.Context, request SourceRequest) Revie
 	return prepared.Review
 }
 
-func (s *Store) InstallPrepared(ctx context.Context, candidate PreparedSource, replace, confirmSourceChange bool) (Definition, error) {
+func (s *Store) VerifyPreparedReview(candidate PreparedSource, reviewToken string) error {
+	return verifyReviewToken(candidate.Review, reviewToken)
+}
+
+func (s *Store) InstallPrepared(ctx context.Context, candidate PreparedSource, reviewToken string, replace, confirmSourceChange bool) (Definition, error) {
 	if err := ctx.Err(); err != nil {
+		return Definition{}, err
+	}
+	if err := verifyReviewToken(candidate.Review, reviewToken); err != nil {
 		return Definition{}, err
 	}
 	if !candidate.Review.Valid {
@@ -83,7 +91,7 @@ func (s *Store) InstallSource(ctx context.Context, request SourceRequest, replac
 		return Definition{}, err
 	}
 	defer candidate.Cleanup()
-	return s.InstallPrepared(ctx, candidate, replace, confirmSourceChange)
+	return s.InstallPrepared(ctx, candidate, candidate.Review.ReviewToken, replace, confirmSourceChange)
 }
 
 func copyPluginTree(source, destination string) error { return copyPackageTree(source, destination) }

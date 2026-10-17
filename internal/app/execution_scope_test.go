@@ -40,6 +40,9 @@ func TestExecutionNoToolSchemaPublishesConversationIdentity(t *testing.T) {
 	for _, definition := range toolDefinitionsForConfig(config.Config{BrowserEnabled: true, ACPEnabled: true, NexusEndpoint: "http://127.0.0.1:1"}) {
 		props, _ := definition.InputSchema["properties"].(map[string]any)
 		for _, key := range []string{"conversation_id", "call_id", "parent_call_id", "binding_quality", "binding_revision", "source_owner_key"} {
+			if key == "call_id" && (definition.Name == "mcp_result_continue" || definition.Name == "mcp_result_raw") {
+				continue
+			}
 			if props[key] != nil {
 				t.Fatalf("%s exposes internal %s", definition.Name, key)
 			}

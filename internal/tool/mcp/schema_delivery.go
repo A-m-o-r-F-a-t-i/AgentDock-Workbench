@@ -16,7 +16,7 @@ const (
 )
 
 type schemaDeliveryKey struct {
-	owner, conversation, server, revision, tool string
+	owner, conversation, serverFingerprint, revision, tool, schemaDigest, annotationsDigest string
 }
 
 type schemaDeliveryState struct {
@@ -31,13 +31,17 @@ type schemaDeliveryState struct {
 func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(schema)
 	full["delivery"] = "full"
+	full["schema_delivery"] = "full"
 	full["schema_omitted"] = false
 
 	binding := activity.FromContext(ctx)
 	server, _ := schema["server"].(string)
+	serverFingerprint, _ := schema["server_fingerprint"].(string)
 	revision, _ := schema["catalog_revision"].(string)
 	tool, _ := schema["tool_name"].(string)
-	if binding.ConversationID == "" || server == "" || revision == "" || tool == "" || schema["input_schema"] == nil {
+	schemaDigest, _ := schema["schema_digest"].(string)
+	annotationsDigest, _ := schema["annotations_digest"].(string)
+	if binding.ConversationID == "" || server == "" || serverFingerprint == "" || revision == "" || tool == "" || schemaDigest == "" || schema["input_schema"] == nil {
 		return full
 	}
 
@@ -47,7 +51,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	}
 	key := schemaDeliveryKey{
 		owner: binding.SourceOwnerKey, conversation: binding.ConversationID,
-		server: server, revision: revision, tool: tool,
+		serverFingerprint: serverFingerprint, revision: revision, tool: tool, schemaDigest: schemaDigest, annotationsDigest: annotationsDigest,
 	}
 
 	s.mu.Lock()
@@ -65,8 +69,9 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 		s.entries[key] = now
 		return map[string]any{
 			"name": schema["name"], "server": server, "tool_name": tool,
-			"catalog_revision": revision, "server_version": schema["server_version"],
-			"delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
+			"server_fingerprint": serverFingerprint, "catalog_revision": revision, "server_version": schema["server_version"],
+			"schema_digest": schemaDigest, "annotations_digest": schema["annotations_digest"],
+			"delivery": "reference", "schema_delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
 		}
 	}
 	if len(s.entries) >= schemaDeliveryCapacity {

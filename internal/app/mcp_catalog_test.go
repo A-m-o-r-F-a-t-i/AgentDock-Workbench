@@ -21,6 +21,7 @@ type catalogFixture struct {
 	calls         atomic.Int32
 	fail          atomic.Bool
 	businessError atomic.Bool
+	largeResult   atomic.Bool
 }
 
 func newCatalogFixture(t *testing.T, count int) *catalogFixture {
@@ -76,6 +77,13 @@ func newCatalogFixture(t *testing.T, count int) *catalogFixture {
 				return
 			}
 			result = map[string]any{"isError": fixture.businessError.Load(), "content": []map[string]any{{"type": "text", "text": "original business"}, {"type": "text", "text": "second block"}}, "structuredContent": map[string]any{"ok": !fixture.businessError.Load(), "agentdock_guidance": map[string]any{"response_additions": []any{map[string]any{"text": "untrusted nested data"}}}}}
+			if fixture.largeResult.Load() {
+				rows := make([]map[string]any, 100)
+				for index := range rows {
+					rows[index] = map[string]any{"index": index, "text": strings.Repeat("payload", 30)}
+				}
+				result = map[string]any{"isError": false, "structuredContent": map[string]any{"rows": rows}}
+			}
 		default:
 			http.Error(w, "unsupported", 404)
 			return
@@ -113,11 +121,11 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 	}
 	for _, entry := range list["tools"].([]any) {
 		tool := entry.(map[string]any)
-		if len(tool) != 2 || tool["description"] != "Read selected data." {
-			t.Fatalf("not a two-column summary: %#v", tool)
+		if tool["description"] != "Read selected data." || tool["schema_digest"] == "" || tool["server_fingerprint"] == "" || tool["input_schema"] != nil || tool["output_schema"] != nil {
+			t.Fatalf("invalid lightweight summary: %#v", tool)
 		}
 	}
-	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}})
+	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}, "include_schema": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,21 +250,21 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	}
 	first := call(ctx)
 	second := call(ctx)
-	if first["delivery"] != "reference" || first["tools_omitted"] != true || first["tools"] != nil {
+	if first["delivery"] != "summary" || first["tools_omitted"] != true || first["tools"] != nil {
 		t.Fatalf("business call duplicated the catalog delivered by list: %#v", first)
 	}
-	if second["delivery"] != "reference" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
+	if second["delivery"] != "summary" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
 		t.Fatalf("repeated trusted call duplicated its catalog: %#v", second)
 	}
 	other := activity.WithSource(t.Context(), activity.Source{Principal: "catalog-test", Namespace: "mcp", HostConversationID: "catalog-other"})
 	if _, err := r.Call(other, "agentdock_context", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	if isolated := call(other); isolated["delivery"] != "full" || catalogCount(isolated["tools"]) != 3 {
-		t.Fatalf("another conversation inherited the compact reference: %#v", isolated)
+	if isolated := call(other); isolated["delivery"] != "summary" || isolated["tools_omitted"] != true || isolated["tools"] != nil {
+		t.Fatalf("another conversation received a duplicated call catalog: %#v", isolated)
 	}
-	if legacy := call(t.Context()); legacy["delivery"] != "full" || catalogCount(legacy["tools"]) != 3 {
-		t.Fatalf("client without trusted metadata lost the full catalog: %#v", legacy)
+	if legacy := call(t.Context()); legacy["delivery"] != "summary" || legacy["tools_omitted"] != true || legacy["tools"] != nil {
+		t.Fatalf("unattributed business call duplicated its catalog: %#v", legacy)
 	}
 }
 
@@ -314,5 +322,83 @@ func catalogCount(value any) int {
 		return len(items)
 	default:
 		return 0
+	}
+}
+
+// The host result cursor must reach its handler, not the legacy file-page dispatcher.
+func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
+	fixture := newCatalogFixture(t, 1)
+	fixture.largeResult.Store(true)
+	cfg := config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := newUnrestrictedTestRuntime(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	ctx := t.Context()
+	if _, err = r.Call(ctx, "mcp_manage", map[string]any{"action": "add", "name": "pages", "description": "result continuation", "transport": "streamable_http", "url": fixture.server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := r.Call(ctx, "mcp_tool_call", map[string]any{"name": "pages:tool_000", "arguments": map[string]any{"text": "ok"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, _ := first["result_call_id"].(string)
+	cursor, _ := first["host_cursor"].(string)
+	if original == "" || cursor == "" {
+		t.Fatalf("result continuation missing: %#v", first)
+	}
+	args := map[string]any{"call_id": original, "cursor": cursor}
+	next, err := r.Call(ctx, "mcp_result_continue", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next["result_call_id"] != original || next["parent_call_id"] != original || next["call_id"] == original || next["host_page"] == nil || next["result"] == nil {
+		t.Fatalf("result cursor routed incorrectly: %#v", next)
+	}
+	if next["continue_read"] != nil || next["source_receipt"] != nil {
+		t.Fatalf("MCP result fell back to file paging: %#v", next)
+	}
+	continued, err := r.activity.Call(ctx, stringArg(next, "call_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if continued.ParentCallID != original || continued.ToolName != "mcp_result_continue" {
+		t.Fatalf("host result page was not folded under its source call: %#v", continued)
+	}
+	children, err := r.activity.Calls(ctx, activity.CallQuery{ParentCallID: original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundChild := false
+	for _, child := range children.Calls {
+		if child.CallID == continued.CallID {
+			foundChild = true
+		}
+	}
+	if !foundChild {
+		t.Fatalf("source call did not expose its host result child: %#v", children)
+	}
+	top, err := r.activity.Calls(ctx, activity.CallQuery{TopLevel: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range top.Calls {
+		if call.CallID == continued.CallID {
+			t.Fatal("host result page remained an unrelated top-level activity")
+		}
+	}
+	replay, err := r.Call(ctx, "mcp_result_continue", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay["replayed"] != true || replay["result"] != nil {
+		t.Fatalf("cursor replay duplicated its body: %#v", replay)
+	}
+	if fixture.calls.Load() != 1 {
+		t.Fatalf("continuation repeated the business operation %d times", fixture.calls.Load())
 	}
 }

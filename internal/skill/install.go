@@ -34,6 +34,17 @@ func New(state *skillstate.Store) (*Manager, error) {
 }
 
 func (m *Manager) Install(ctx context.Context, req InstallRequest) (InstallResult, error) {
+	return m.install(ctx, req, false)
+}
+
+// InstallBundled installs one already-validated release bundle candidate inside
+// the bundle bootstrap's existing batch transaction. It deliberately avoids
+// creating a second ordinary Skill swap journal.
+func (m *Manager) InstallBundled(ctx context.Context, req InstallRequest) (InstallResult, error) {
+	return m.install(ctx, req, true)
+}
+
+func (m *Manager) install(ctx context.Context, req InstallRequest, bundledBatch bool) (InstallResult, error) {
 	if strings.TrimSpace(req.Source) == "" {
 		return InstallResult{}, packageError(ErrInvalidPackage, "source", errors.New("source is required"))
 	}
@@ -65,23 +76,8 @@ func (m *Manager) Install(ctx context.Context, req InstallRequest) (InstallResul
 	if err != nil {
 		return InstallResult{}, packageError(ErrInstallFailed, "content_digest", err)
 	}
-	destination, err := m.State.InstalledPath(doc.Name, doc.Version)
-	if err != nil {
-		return InstallResult{}, packageError(ErrInstallFailed, "destination", err)
-	}
-	if _, err := os.Stat(destination); err == nil {
-		existingDigest, digestErr := digestPackageContent(destination)
-		if digestErr == nil && existingDigest == contentDigest {
-			return m.finishInstall(ctx, req, doc, destination, sourceDigest)
-		}
-		return InstallResult{}, packageError(ErrInstallFailed, "install", errors.New("version already exists with different content"))
-	} else if !os.IsNotExist(err) {
-		return InstallResult{}, packageError(ErrInstallFailed, "install", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
-		return InstallResult{}, packageError(ErrInstallFailed, "install", err)
-	}
-	staged := destination + fmt.Sprintf(".tmp-%d", time.Now().UnixNano())
+
+	staged := filepath.Join(work, "candidate")
 	if err := copyPackage(packageDir, staged); err != nil {
 		_ = os.RemoveAll(staged)
 		return InstallResult{}, packageError(ErrInstallFailed, "copy", err)
@@ -99,9 +95,35 @@ func (m *Manager) Install(ctx context.Context, req InstallRequest) (InstallResul
 		_ = os.RemoveAll(staged)
 		return InstallResult{}, packageError(ErrInstallFailed, "metadata", err)
 	}
-	if err := os.Rename(staged, destination); err != nil {
-		_ = os.RemoveAll(staged)
-		return InstallResult{}, packageError(ErrInstallFailed, "install", err)
+	var destination string
+	if bundledBatch {
+		destination, err = m.State.InstalledPath(doc.Name, doc.Version)
+		if err != nil {
+			return InstallResult{}, packageError(ErrInstallFailed, "destination", err)
+		}
+		if _, statErr := os.Stat(destination); statErr == nil {
+			existingDigest, digestErr := digestPackageContent(destination)
+			if digestErr == nil && existingDigest == contentDigest {
+				return m.finishInstall(ctx, req, doc, destination, sourceDigest)
+			}
+			return InstallResult{}, packageError(ErrInstallFailed, "install", errors.New("version already exists with different content"))
+		} else if !os.IsNotExist(statErr) {
+			return InstallResult{}, packageError(ErrInstallFailed, "install", statErr)
+		}
+		if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+			return InstallResult{}, packageError(ErrInstallFailed, "install", err)
+		}
+		if err := os.Rename(staged, destination); err != nil {
+			return InstallResult{}, packageError(ErrInstallFailed, "install", err)
+		}
+	} else {
+		if err := m.State.PublishVersion(ctx, doc.Name, doc.Version, staged, contentDigest); err != nil {
+			return InstallResult{}, packageError(ErrInstallFailed, "install", err)
+		}
+		destination, err = m.State.InstalledPath(doc.Name, doc.Version)
+		if err != nil {
+			return InstallResult{}, packageError(ErrInstallFailed, "destination", err)
+		}
 	}
 	return m.finishInstall(ctx, req, doc, destination, sourceDigest)
 }

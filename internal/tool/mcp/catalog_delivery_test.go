@@ -24,11 +24,11 @@ func TestCatalogDeliveryUsesTrustedScopeRevisionAndExpiry(t *testing.T) {
 	ctx := activity.WithBinding(t.Context(), binding)
 
 	full := state.prepare(ctx, testCatalog("v1"), false)
-	if full["delivery"] != "full" || full["tools_omitted"] != false || catalogToolCount(full) != 2 {
+	if full["delivery"] != "full" || full["catalog_delivery"] != "full" || full["tools_omitted"] != false || catalogToolCount(full) != 2 {
 		t.Fatalf("first delivery is not complete: %#v", full)
 	}
 	reference := state.prepare(ctx, testCatalog("v1"), false)
-	if reference["delivery"] != "reference" || reference["tools_omitted"] != true || reference["tools"] != nil || reference["refresh_tool"] != ToolList {
+	if reference["delivery"] != "reference" || reference["catalog_delivery"] != "reference" || reference["tools_omitted"] != true || reference["tools"] != nil || reference["refresh_tool"] != ToolList {
 		t.Fatalf("repeat delivery is not a compact reference: %#v", reference)
 	}
 

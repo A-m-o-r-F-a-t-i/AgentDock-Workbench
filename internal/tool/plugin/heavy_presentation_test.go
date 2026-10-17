@@ -35,7 +35,8 @@ func TestExplicitExpansionReportsHeavyWithoutChangingIt(t *testing.T) {
 				t.Fatal(err)
 			}
 			service := testPluginService(store, false)
-			if _, err = service.Manage(t.Context(), ManageRequest{Action: "install", Source: source}); err != nil {
+			reviewToken := reviewTokenForSource(t, service, source)
+			if _, err = service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewToken}); err != nil {
 				t.Fatal(err)
 			}
 			before, err := store.Get("fixture")

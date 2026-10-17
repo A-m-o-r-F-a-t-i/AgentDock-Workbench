@@ -30,7 +30,6 @@
           </TextBlock>
           <DockPanel Grid.Column="1" Margin="7,0,14,0" VerticalAlignment="Center">
             <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
-            <TextBlock DockPanel.Dock="Right" Text="{Binding ParameterDisplay}" Style="{StaticResource MutedText}" MaxWidth="360" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ParameterHint}" VerticalAlignment="Center" Visibility="{Binding HasParameterDisplay, Converter={StaticResource BoolVisibility}}"/>
             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
           </DockPanel>
 		  <ContentControl Grid.Column="2" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>
@@ -43,7 +42,6 @@
 		  <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="112"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="56"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <DockPanel Margin="8,0" VerticalAlignment="Center">
             <Button DockPanel.Dock="Right" Content="{Binding ObservationCaption}" ToolTip="{Binding ObservationHint}" Click="CommandObservations_Click" FontSize="11" Padding="5,0" MinHeight="22" Margin="8,0,0,0" Visibility="{Binding HasCommandObservations, Converter={StaticResource BoolVisibility}}"/>
-            <TextBlock DockPanel.Dock="Right" Text="{Binding ParameterDisplay}" Style="{StaticResource MutedText}" MaxWidth="360" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ParameterHint}" VerticalAlignment="Center" Visibility="{Binding HasParameterDisplay, Converter={StaticResource BoolVisibility}}"/>
             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TitleTooltip}" VerticalAlignment="Center"/>
           </DockPanel>
 		  <ContentControl Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource EditStatsTemplate}" Margin="0,0,8,0"/>

@@ -45,7 +45,7 @@ func TestTrustedToolDirectoriesLoadLowFrequencyBundlesPerConversation(t *testing
 	})
 
 	legacy := listToolsForHost(t, harness, "")
-	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "file_publish"} {
+	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw", "file_publish"} {
 		if legacy[name] == nil {
 			t.Fatalf("legacy directory lost %s", name)
 		}
@@ -57,13 +57,13 @@ func TestTrustedToolDirectoriesLoadLowFrequencyBundlesPerConversation(t *testing
 	if initialA[toolcapability.ToolLoad] == nil {
 		t.Fatal("trusted directory is missing capability_load")
 	}
-	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "file_publish"} {
+	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw", "file_publish"} {
 		if initialA[name] != nil {
 			t.Fatalf("trusted initial directory exposed %s", name)
 		}
 	}
 	t.Logf("legacy_tools=%d trusted_initial_tools=%d", len(legacy), len(initialA))
-	if got, want := len(initialA), len(legacy)-4; got != want {
+	if got, want := len(initialA), len(legacy)-5; got != want {
 		t.Fatalf("trusted initial tool count=%d want=%d", got, want)
 	}
 	if len(initialA) > 20 {
@@ -87,7 +87,7 @@ func TestTrustedToolDirectoriesLoadLowFrequencyBundlesPerConversation(t *testing
 		t.Fatalf("system bundle load failed: %#v", loaded)
 	}
 	afterSystem := listToolsForHost(t, harness, hostA)
-	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package"} {
+	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw"} {
 		if afterSystem[name] == nil {
 			t.Fatalf("loaded directory is missing %s", name)
 		}
@@ -96,7 +96,7 @@ func TestTrustedToolDirectoriesLoadLowFrequencyBundlesPerConversation(t *testing
 		t.Fatal("system bundle revealed file_publish")
 	}
 	other := listToolsForHost(t, harness, hostB)
-	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "file_publish"} {
+	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package", "mcp_result_raw", "file_publish"} {
 		if other[name] != nil {
 			t.Fatalf("bundle visibility leaked to second conversation for %s", name)
 		}

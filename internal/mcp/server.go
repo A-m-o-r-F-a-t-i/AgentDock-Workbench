@@ -151,13 +151,25 @@ func (s *Server) ServeStdio(in io.Reader, out io.Writer) error {
 }
 
 func (s *Server) registerTool(def ToolDefinition) {
-	meta := toolMetadata(def, s.uiEnabled())
+	tool := sdkToolDefinition(def, s.uiEnabled())
+	// 使用低层 AddTool：AgentDock 的参数校验、权限错误和结构化输出都由
+	// Runtime 统一处理，SDK 只负责协议、会话与传输语义。
+	s.sdk.AddTool(tool, func(ctx context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		return s.callTool(ctx, def.Name, request)
+	})
+}
+
+func sdkToolDefinition(def ToolDefinition, mcpAppsEnabled bool) *mcpsdk.Tool {
 	tool := &mcpsdk.Tool{
-		Name:         def.Name,
-		Title:        def.Title,
-		Description:  def.Description,
-		InputSchema:  def.InputSchema,
-		OutputSchema: def.OutputSchema,
+		Name:        def.Name,
+		Title:       def.Title,
+		Description: def.Description,
+		InputSchema: def.InputSchema,
+	}
+	// A nil map inside an interface marshals as JSON null and is not removed by
+	// omitempty. Standard MCP clients require outputSchema to be absent or an object.
+	if len(def.OutputSchema) > 0 {
+		tool.OutputSchema = def.OutputSchema
 	}
 	if def.Annotations != nil {
 		tool.Annotations = &mcpsdk.ToolAnnotations{
@@ -168,14 +180,10 @@ func (s *Server) registerTool(def ToolDefinition) {
 			OpenWorldHint:   cloneBoolPointer(def.Annotations.OpenWorldHint),
 		}
 	}
-	if len(meta) > 0 {
+	if meta := toolMetadata(def, mcpAppsEnabled); len(meta) > 0 {
 		tool.Meta = mcpsdk.Meta(meta)
 	}
-	// 使用低层 AddTool：AgentDock 的参数校验、权限错误和结构化输出都由
-	// Runtime 统一处理，SDK 只负责协议、会话与传输语义。
-	s.sdk.AddTool(tool, func(ctx context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		return s.callTool(ctx, def.Name, request)
-	})
+	return tool
 }
 
 func (s *Server) refreshToolAvailability() {

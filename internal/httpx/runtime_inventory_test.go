@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/auth"
+	pluginregistry "github.com/uvwt/agentdock/internal/plugin"
 )
 
 func TestRuntimeInventorySummaryAndSkillToggleHTTPBody(t *testing.T) {
@@ -80,7 +81,15 @@ func TestRuntimePluginToggleHTTPBody(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(source, "plugin.json"), `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"inventory-plugin","version":"1.0.0","description":"Inventory regression."}`)
 	writeTestFile(t, filepath.Join(source, "skills", "inventory-member", "SKILL.md"), "---\nname: inventory-member\ndescription: Inventory member.\n---\n# Member\n")
-	if _, err := runtime.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source}); err != nil {
+	validated, err := runtime.Call(context.Background(), "plugin_manage", map[string]any{"action": "validate", "source": source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, ok := validated["review"].(pluginregistry.Review)
+	if !ok || !review.Valid || review.ReviewToken == "" {
+		t.Fatalf("validate = %#v", validated)
+	}
+	if _, err := runtime.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source, "review_token": review.ReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 	handler := runtimeAPIHandler(runtime, cfg, auth.NewOAuthStore())

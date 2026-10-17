@@ -42,6 +42,7 @@ type runtimePluginManageRequest struct {
 	Action                string `json:"action"`
 	Name                  string `json:"name"`
 	Source                string `json:"source"`
+	ReviewToken           string `json:"review_token,omitempty"`
 	MemberType            string `json:"member_type"`
 	Member                string `json:"member"`
 	Confirmed             *bool  `json:"confirmed,omitempty"`
@@ -101,6 +102,9 @@ func decodeRuntimePluginRequest(body []byte) (map[string]any, error) {
 			return nil, runtimeCapabilityRequestError("PLUGIN_NAME_REQUIRED", "plugin name is required")
 		}
 		args["name"] = request.Name
+	}
+	if (action == "install" || action == "update") && request.ReviewToken != "" {
+		args["review_token"] = request.ReviewToken
 	}
 	// Preserve explicit client consent; validation and package review never imply
 	// permission to change an installed source. Nil also keeps legacy requests unchanged.
