@@ -47,23 +47,23 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["expected_revision"] = stringProp("Current server.revision from inspect; required for compare-and-swap update/reset_override.")
 		required = []string{"action"}
 	case ToolSearch:
-		props["query"] = stringProp("Dynamic MCP capability query. Known AgentDock built-ins use the caller host namespace directly; misuse returns a non-retryable routing error.")
+		props["query"] = stringProp("Nested dynamic MCP capability query. A bare AgentDock direct device built-in is a wrong-scope request and returns a non-retryable routing error without its schema.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
 		props["limit"] = boundedIntProp("Maximum ranked candidates. Defaults to 5 and is capped at 100. Exact matches are retained before applying this limit.", 1, 100)
 		props["refresh"] = boolProp("Refresh only the explicitly selected server catalog. Does not call a business tool.")
 		required = []string{"query"}
 	case ToolList:
-		props["server"] = stringProp("Known enabled MCP server. Returns every visible tool name and one-line description without a search limit.")
+		props["server"] = stringProp("Known enabled dynamic MCP server from agentdock_context. This never lists AgentDock direct device built-ins or ChatGPT host tools.")
 		props["refresh"] = boolProp("Refresh this server's tools/list before returning its catalog. Does not call a business tool.")
 		props["force_full"] = boolProp("Return the complete catalog even when this conversation already received the same revision.")
 		required = []string{"server"}
 	case ToolInspect:
-		props["name"] = stringProp("Qualified dynamic MCP tool name in <server>:<tool> form.")
+		props["name"] = stringProp("Qualified nested dynamic MCP tool name in <server>:<tool> form. Bare AgentDock direct device built-ins are rejected as wrong-scope requests.")
 		props["names"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 3}, "description": "Selected server:tool names and server:* selectors, including mixed services."}
 		props["include_schema"] = boolProp("Include complete schemas for a batch. A single explicit tool includes its schema by default; batches default to summaries and digests.")
 		props["force_full"] = boolProp("Return complete schemas even when this conversation already received the same schema digest. Implies include_schema=true.")
 	case ToolCall:
-		props["name"] = stringProp("Qualified dynamic MCP tool name in <server>:<tool> form.")
+		props["name"] = stringProp("Exact qualified nested dynamic MCP tool name in <server>:<tool> form. Direct AgentDock built-ins are not accepted here.")
 		toolcontract.ActivityProperties(props)
 		props["interaction_intent"] = map[string]any{"type": "string", "enum": []string{"desktop_gui"}, "description": "Required as desktop_gui for Computer Use tools. Omit for unrelated MCP tools."}
 		props["reason"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 512, "description": "Concrete user-task reason for an explicitly selected Computer Use call. Required with interaction_intent."}
@@ -132,7 +132,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["complete"] = boolProp("All visible catalogs are complete and current; candidate truncation is reported independently.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")
 		props["cache_only"] = boolProp("No remote service is initialized or refreshed by this unscoped search.")
-		props["resolution_status"] = stringProp("resolved, ambiguous, incomplete or not_found. Only a complete fresh selected catalog can establish absence.")
+		props["resolution_status"] = stringProp("resolved, ambiguous, incomplete, not_found, or wrong_scope for a direct built-in. Only a complete fresh selected catalog can establish absence.")
 		props["absence_authoritative"] = boolProp("Whether zero matches establish absence within the selected complete fresh catalog.")
 		props["selected"] = objectProp("Canonical registered callable, complete input schema and the immutable catalog generation used to resolve it.")
 		props["next_call"] = objectProp("Formal MCP call template. Fill schema-required arguments before execution; discovery never executes this template.")
@@ -158,6 +158,9 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["filesystem_lookup_required"] = boolProp("Always false for a resolved AgentDock host tool.")
 		props["dynamic_discovery_required"] = boolProp("Always false for a resolved AgentDock host tool.")
 		props["recovery_source"] = stringProp("Trusted source of the host schema, normally caller_tools_list.")
+		props["wrong_scope"] = boolProp("True when a direct AgentDock built-in was sent to nested MCP discovery.")
+		props["requested_scope"] = stringProp("Requested nested scope, normally agentdock_mcp.")
+		props["direct_tools"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 	case ToolList:
 		props = catalogSchemaProperties()
 		props["resolution_status"] = stringProp("incomplete when an empty retained catalog cannot establish current absence.")
@@ -188,8 +191,12 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["filesystem_lookup_required"] = boolProp("Always false for a resolved AgentDock host tool.")
 		props["dynamic_discovery_required"] = boolProp("Always false for a resolved AgentDock host tool.")
 		props["recovery_source"] = stringProp("Trusted source of the host schema, normally caller_tools_list.")
+		props["resolution_status"] = stringProp("wrong_scope for a direct AgentDock built-in selector.")
+		props["wrong_scope"] = boolProp("True when a direct AgentDock built-in was sent to nested MCP inspection.")
+		props["requested_scope"] = stringProp("Requested nested scope, normally agentdock_mcp.")
 		props["metadata"] = objectProp("Decision-relevant upstream metadata after removing icons, UI resources and embedded image data.")
 		props["name"] = stringProp("Qualified MCP tool name.")
+		props["qualified_name"] = stringProp("Exact qualified nested MCP tool name that was inspected.")
 		props["server"] = stringProp("Dynamic MCP server name.")
 		props["tool_name"] = stringProp("Upstream MCP tool name.")
 		props["catalog_revision"] = stringProp("Revision of the inspected catalog.")
@@ -206,6 +213,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["annotations"] = objectProp("Optional upstream MCP tool annotations.")
 	case ToolCall:
 		props["name"] = stringProp("Qualified MCP tool name.")
+		props["qualified_name"] = stringProp("Exact qualified nested MCP tool name that was invoked.")
 		props["call_id"] = stringProp("Activity call ID used by host result continuation and raw diagnostics.")
 		props["result"] = objectProp("Normalized upstream result page. structuredContent is preferred and equivalent JSON text is removed.")
 		props["executed"] = boolProp("Whether the upstream tools/call request was dispatched.")
@@ -238,6 +246,13 @@ func OutputSchema(name string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+	if name == ToolSearch || name == ToolList || name == ToolInspect || name == ToolCall {
+		props["scope"] = stringProp("Canonical tool domain, agentdock_mcp for dynamic MCP results.")
+		props["origin"] = stringProp("Canonical source, agentdock_mcp or agentdock_mcp:<server>.")
+		props["discover_via"] = stringProp("Dynamic MCP catalog discovery entrypoint.")
+		props["inspect_via"] = stringProp("Dynamic MCP schema inspection entrypoint.")
+		props["invoke_via"] = stringProp("Invocation entrypoint, mcp_tool_call for nested MCP tools.")
+	}
 	if name == ToolSearch || name == ToolCall {
 		props["managed_target"] = objectProp("Selected registered MCP target, workspace, catalog revision and selection source.")
 	}
@@ -255,6 +270,11 @@ func OutputSchema(name string) (map[string]any, bool) {
 func catalogSchemaProperties() map[string]any {
 	return map[string]any{
 		"server": toolcontract.String("MCP server."), "catalog_revision": toolcontract.String("Catalog revision."),
+		"scope":              toolcontract.String("Canonical dynamic MCP scope, agentdock_mcp."),
+		"origin":             toolcontract.String("Canonical dynamic MCP source, agentdock_mcp:<server>."),
+		"discover_via":       toolcontract.String("Catalog discovery entrypoint, mcp_tool_list."),
+		"inspect_via":        toolcontract.String("Schema inspection entrypoint, mcp_tool_inspect."),
+		"invoke_via":         toolcontract.String("Nested invocation entrypoint, mcp_tool_call."),
 		"server_fingerprint": toolcontract.String("Server execution identity."),
 		"catalog_state":      toolcontract.OpenObject("Freshness and absence authority."),
 		"complete":           toolcontract.Boolean("Whether this catalog is complete."),
@@ -269,6 +289,8 @@ func catalogSchemaProperties() map[string]any {
 			"name": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"},
 			"title": map[string]any{"type": "string"}, "tool_name": map[string]any{"type": "string"},
 			"qualified_name": map[string]any{"type": "string"}, "server": map[string]any{"type": "string"},
+			"scope": map[string]any{"type": "string"}, "origin": map[string]any{"type": "string"},
+			"discover_via": map[string]any{"type": "string"}, "inspect_via": map[string]any{"type": "string"}, "invoke_via": map[string]any{"type": "string"},
 			"server_fingerprint": map[string]any{"type": "string"}, "catalog_revision": map[string]any{"type": "string"},
 			"schema_digest": map[string]any{"type": "string"}, "annotations_digest": map[string]any{"type": "string"},
 			"source_type": map[string]any{"type": "string"}, "plugin_name": map[string]any{"type": "string"},

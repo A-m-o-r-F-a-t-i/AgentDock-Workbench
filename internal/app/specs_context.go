@@ -89,6 +89,11 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 				item := maps.Clone(originalItem)
 				if originalProperties, ok := item["properties"].(map[string]any); ok {
 					properties := maps.Clone(originalProperties)
+					properties["scope"] = map[string]any{"type": "string", "const": "agentdock_mcp"}
+					properties["origin"] = map[string]any{"type": "string", "pattern": "^agentdock_mcp:[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"}
+					properties["discover_via"] = map[string]any{"type": "string", "const": "mcp_tool_list"}
+					properties["inspect_via"] = map[string]any{"type": "string", "const": "mcp_tool_inspect"}
+					properties["invoke_via"] = map[string]any{"type": "string", "const": "mcp_tool_call"}
 					properties["revision"] = map[string]any{"type": "string"}
 					properties["server_version"] = map[string]any{"type": "string"}
 					properties["tool_count_known"] = map[string]any{"type": "boolean"}

@@ -63,6 +63,9 @@ type Tool struct {
 }
 
 type ToolSummary struct {
+	Scope             string         `json:"scope,omitempty"`
+	Origin            string         `json:"origin,omitempty"`
+	InvokeVia         string         `json:"invoke_via,omitempty"`
 	SourceType        string         `json:"source_type,omitempty"`
 	PluginName        string         `json:"plugin_name,omitempty"`
 	Name              string         `json:"name"`

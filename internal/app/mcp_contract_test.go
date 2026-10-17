@@ -89,6 +89,19 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 				}
 				item = withoutLocalContextProperty(t, item, field)
 			}
+			for field, expected := range map[string]map[string]any{
+				"scope":        {"type": "string", "const": "agentdock_mcp"},
+				"origin":       {"type": "string", "pattern": "^agentdock_mcp:[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+				"discover_via": {"type": "string", "const": "mcp_tool_list"},
+				"inspect_via":  {"type": "string", "const": "mcp_tool_inspect"},
+				"invoke_via":   {"type": "string", "const": "mcp_tool_call"},
+			} {
+				property := item["properties"].(map[string]any)[field]
+				if !reflect.DeepEqual(property, expected) {
+					t.Fatalf("invalid local MCP route schema %s: %#v", field, property)
+				}
+				item = withoutLocalContextProperty(t, item, field)
+			}
 			dynamic["items"] = item
 			rootProperties["dynamic_mcp"] = dynamic
 			actualOutput["properties"] = rootProperties
