@@ -71,6 +71,8 @@
 
 　　Windows 界面源码中的 catalog、route、required action 和 recovery 展示已复核，并修复标题提示字符串。设备仅安装 .NET Runtime、未安装 .NET SDK，因此本机 Windows 项目未进入编译；不为本次修改额外安装 SDK。Windows 与 macOS 的原生编译继续由仓库现有 GitHub Actions 完成。
 
+　　候选 Core 已通过一条真实 EasyEDA managed-MCP 回归：加载 `easyeda` Heavy 插件，精确解析 `pcb_list_targets`、`pcb_status`、`pcb_objects` 和 `pcb_modify`，读取完整 PCB Skill，使用 `mcp_result_continue` 无重放消费六页状态结果；随后在板外添加未保存的临时顶层丝印、独立读回精确句柄、按句柄删除并再次读回。最终区域为空，document revision 恢复到初始值，生产 Core 与工程文件均未替换或保存。受限证据见 `docs/validation/1.1.9/easyeda-managed-mcp-live.json`。
+
 待完成项：
 
 - 推送本批实现，完成 PR #126 的现有 GitHub Actions，按真实失败修正剩余契约或平台编译问题。

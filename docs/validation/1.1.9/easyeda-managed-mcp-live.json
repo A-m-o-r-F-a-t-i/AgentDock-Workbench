@@ -1,0 +1,133 @@
+{
+  "schema": "agentdock-easyeda-managed-mcp-live/v1",
+  "result": "pass",
+  "tested_source_commit": "f8571f0c1e65ee6cbd42149212ed606d2cfbdc1f",
+  "candidate": {
+    "path": "artifacts/source-corrected-20261015/candidate-post-main-core.exe",
+    "sha256": "1fde9ac8440e7d9068c86b5e411b68f4169145dd89ee85642032a571154f9081",
+    "version": "1.1.9",
+    "endpoint": "http://127.0.0.1:18765/mcp",
+    "isolated_home": true,
+    "production_core_replaced": false
+  },
+  "transport": {
+    "protocol": "2025-11-25",
+    "context_semantic_pages": 2,
+    "request_correlation_verified": true
+  },
+  "plugin": {
+    "name": "easyeda",
+    "server": "easyeda-pcb",
+    "mcp_version": "6.0.0",
+    "bridge_version": "2.1.0",
+    "gateway_version": "1.4.6",
+    "native_runtime_version": "1.1.4",
+    "compatibility": "COMPATIBLE",
+    "tool_count": 14,
+    "catalog_revision": "28cdd3dab40dd86c695e69f8:1:1",
+    "catalog_state": "fresh",
+    "absence_authoritative": true
+  },
+  "resolution": {
+    "pcb_list_targets": "exact_qualified_name",
+    "pcb_status": "exact_qualified_name",
+    "pcb_objects": "exact_qualified_name",
+    "pcb_modify": "exact_qualified_name",
+    "pcb_modify_schema_pages": 2,
+    "pcb_modify_schema_digest": "510962647b62a8ff1b4e3f69db02fdeb0f77c1b1137ccefa320d77b048f843a1"
+  },
+  "skill": {
+    "uri": "skill://plugin/easyeda/easyeda-pcb-layout-routing/SKILL.md",
+    "version": "8.0.0",
+    "complete": true
+  },
+  "target": {
+    "units": "mil",
+    "coordinate_frame": "native_board_xy_top_observation",
+    "rotation": "top_view_physical_counter_clockwise"
+  },
+  "status_delivery": {
+    "document_revision": "96f3e1ebaa01f69619d309116087f4ef6ca45c3b97c9b4e0236a45b9c3d85935",
+    "result_id": "ddea6185-a42a-4c72-8e56-f4b32d9e2266",
+    "host_page_count": 6,
+    "continuation_tool": "mcp_result_continue",
+    "business_call_reexecuted": false,
+    "continuation_pages_replayed": false
+  },
+  "board_outline": {
+    "object_type": "polyline",
+    "width_mil": 1299.2126,
+    "height_mil": 1653.5433,
+    "corner_radius_mil": 118.1102,
+    "object_count": 1
+  },
+  "temporary_edit": {
+    "marker": "AD-E2E-7BC132D",
+    "region_mil": {
+      "left": -500,
+      "right": 0,
+      "top": 0,
+      "bottom": -500
+    },
+    "prewrite_count": 0,
+    "write": {
+      "call_id": "call_701d463af866a1e7d8428df102d30019",
+      "approval_id": "approval_fd9adfd95c1c300f52d654d0a1a863c3",
+      "approval_dispatch_count": 1,
+      "request_id": "agentdock-e2e-text-7bc132d-20261017",
+      "save": false,
+      "base_revision": "96f3e1ebaa01f69619d309116087f4ef6ca45c3b97c9b4e0236a45b9c3d85935",
+      "result_revision": "e349c9e9d4d6228635363338a0bcdc31bfdfc0de74df19571feb6ff905826ddc",
+      "result_id": "404aeffc-87dc-4095-9d3e-df2eb9f9483f",
+      "counts": {
+        "applied": 1,
+        "failed": 0,
+        "notExecuted": 0,
+        "unknown": 0
+      }
+    },
+    "independent_readback": {
+      "call_id": "call_8ffcff75757953da6429b4d7f9cfa824",
+      "approval_id": "approval_f5383f6fcc416c1e9340d951f9a1b779",
+      "approval_dispatch_count": 1,
+      "returned": 1,
+      "text": "AD-E2E-7BC132D",
+      "native_id": "44769dcf7393faa4",
+      "handle_sha256": "d9b604a711099c10ac193b6b89d6ea1df50e8774ecaff4443d0c962f904473af",
+      "revision": "e349c9e9d4d6228635363338a0bcdc31bfdfc0de74df19571feb6ff905826ddc"
+    },
+    "cleanup": {
+      "method": "exact_handle_delete",
+      "reason": "Activity redacted the undo token; the independently read exact object handle was used instead of guessing or replaying a broad selector.",
+      "call_id": "call_cf576e6f7efe7a9687fd91f68e537b78",
+      "approval_id": "approval_c5cfe768035ead19c8ddcb0ca8f8b9e2",
+      "approval_dispatch_count": 1,
+      "request_id": "agentdock-e2e-delete-7bc132d-20261017",
+      "save": false,
+      "base_revision": "e349c9e9d4d6228635363338a0bcdc31bfdfc0de74df19571feb6ff905826ddc",
+      "applied": 1,
+      "failed": 0,
+      "unknown": 0
+    },
+    "final_readback": {
+      "call_id": "call_378bdecee7cac503a5740c2c7c0c051b",
+      "approval_id": "approval_05cd7e21f811b60f4f8fe3022db84b1a",
+      "approval_dispatch_count": 1,
+      "returned": 0,
+      "remaining": 0,
+      "document_revision": "96f3e1ebaa01f69619d309116087f4ef6ca45c3b97c9b4e0236a45b9c3d85935",
+      "snapshot_consistent": true,
+      "restored_to_initial_revision": true
+    }
+  },
+  "safety": {
+    "project_saved": false,
+    "temporary_object_remaining": false,
+    "raw_pcb_data_in_evidence": false,
+    "undo_token_in_evidence": false,
+    "secrets_in_evidence": false,
+    "fixed_requests_approved_once": true,
+    "candidate_process_stopped_after_validation": true,
+    "project_identity_omitted": true
+  }
+}

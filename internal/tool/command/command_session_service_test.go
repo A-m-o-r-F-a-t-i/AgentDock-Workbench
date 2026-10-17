@@ -378,7 +378,7 @@ func TestKillSessionWaitsForProcessExit(t *testing.T) {
 	default:
 		t.Fatal("killSession() returned before process completion")
 	}
-	if result["status"] != "killed" {
+	if result["status"] != "cancelled" {
 		t.Fatalf("kill result status = %#v", result["status"])
 	}
 	if _, ok := result["exit_code"]; !ok {
@@ -391,7 +391,7 @@ func TestKillSessionWaitsForProcessExit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("observe killed session error = %v", err)
 	}
-	if observed["status"] != "killed" || observed["command_ok"] != false {
+	if observed["status"] != "cancelled" || observed["command_ok"] != false {
 		t.Fatalf("retained killed result = %#v", observed)
 	}
 }
@@ -450,7 +450,7 @@ func TestKillAllSessionsWaitsForEveryProcess(t *testing.T) {
 			t.Fatalf("session %s was removed after kill_all", stored.ID)
 		}
 		observed, err := runtime.sessionStatusArgs(map[string]any{"session_id": stored.ID})
-		if err != nil || observed["status"] != "killed" {
+		if err != nil || observed["status"] != "cancelled" {
 			t.Fatalf("retained killed session %s = %#v, %v", stored.ID, observed, err)
 		}
 	}
