@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 // ToolCatalogRevision identifies only published directory and conversation
@@ -64,8 +66,15 @@ func contextCatalogSummary(servers []any, warnings any, revision string) map[str
 		if server["tool_count_known"] != true {
 			known = false
 		}
-		if value, ok := server["tool_count"].(float64); ok {
-			total += int(value)
+		value := -1
+		switch server["tool_count"].(type) {
+		case int, float64, json.Number:
+			value = toolcore.IntArg(server, "tool_count", -1)
+		}
+		if value < 0 || value > math.MaxInt-total {
+			known = false
+		} else {
+			total += value
 		}
 		catalog := modelObject(server["catalog_state"])
 		candidate, _ := catalog["state"].(string)
@@ -110,7 +119,7 @@ func (r *Runtime) refreshContextBootstrapReference(ctx context.Context, referenc
 		servers = []any{}
 		for _, snapshot := range r.capabilityManager.Snapshots(names) {
 			servers = append(servers, map[string]any{
-				"tool_count": float64(snapshot.ToolCount), "tool_count_known": snapshot.ToolCountKnown,
+				"tool_count": snapshot.ToolCount, "tool_count_known": snapshot.ToolCountKnown,
 				"catalog_state": map[string]any{"state": snapshot.CatalogState.State},
 			})
 		}
