@@ -80,8 +80,18 @@ func newStoreSnapshots(root string, budget time.Duration) *storeSnapshots {
 		if err != nil {
 			return true
 		}
-		first := strings.Split(filepath.ToSlash(rel), "/")[0]
-		return first != ".locks" && first != ".tmp" && first != ".data"
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) == 0 {
+			return true
+		}
+		switch parts[0] {
+		case ".locks", ".tmp", ".data", ".runtime":
+			return false
+		case ".state":
+			return len(parts) < 2 || (parts[1] != "transactions" && parts[1] != "generations")
+		default:
+			return true
+		}
 	}
 	resources := &storeSnapshots{cache: snapshot.New[*Directory](4, budget, time.Minute), files: snapshot.NewTreeFiles(root, filter)}
 	for _, dir := range []string{root, filepath.Join(root, ".state"), filepath.Join(root, ".config")} {
@@ -305,7 +315,7 @@ func (s *Store) buildSnapshot(ctx context.Context, requested, published string) 
 		record := records[name]
 		for _, skill := range sortedKeys(record.skillPaths) {
 			enabled := record.state.Enabled && memberEnabled(record.state.Skills, skill)
-			member := SkillMember{Name: skill, Plugin: name, Path: record.skillPaths[skill], Description: record.skillDescriptions[skill], Heavy: record.definition.Heavy, Enabled: enabled}
+			member := SkillMember{Generation: record.state.Generation, Name: skill, Plugin: name, Path: record.skillPaths[skill], Description: record.skillDescriptions[skill], Heavy: record.definition.Heavy, Enabled: enabled}
 			directory.skills[skill] = member
 			directory.orderedSkills = append(directory.orderedSkills, member)
 			directory.skillMembership[skill] = Membership{Plugin: name, Enabled: enabled, Heavy: record.definition.Heavy}

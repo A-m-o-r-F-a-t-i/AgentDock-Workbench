@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
+	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
 	registry "github.com/uvwt/agentdock/internal/plugin"
 )
 
@@ -49,10 +51,145 @@ type Service struct {
 	store       *registry.Store
 	skillLookup SkillLookup
 	mcpLookup   MCPLookup
+
+	mcpClients     *mcpclient.Manager
+	mcpReconcileMu sync.Mutex
+	mcpMu          sync.Mutex
+	mcpConfigs     map[string]mcpclient.ServerConfig
+	mcpLeases      map[string]func()
 }
 
 func New(store *registry.Store, skillLookup SkillLookup, mcpLookup MCPLookup) *Service {
-	return &Service{store: store, skillLookup: skillLookup, mcpLookup: mcpLookup}
+	return &Service{
+		store: store, skillLookup: skillLookup, mcpLookup: mcpLookup,
+		mcpConfigs: make(map[string]mcpclient.ServerConfig), mcpLeases: make(map[string]func()),
+	}
+}
+
+func (s *Service) SetMCPManager(manager *mcpclient.Manager) {
+	s.mcpClients = manager
+}
+
+func (s *Service) ReconcileMCP(ctx context.Context) error {
+	return s.reconcileMCP(ctx, "", "", "")
+}
+
+func (s *Service) reconcileMCP(ctx context.Context, excludedPlugin, activationPlugin, activationOwner string) error {
+	if s == nil || s.mcpClients == nil {
+		return nil
+	}
+	s.mcpReconcileMu.Lock()
+	defer s.mcpReconcileMu.Unlock()
+
+	configs, leases, err := s.buildMCPSet(ctx, excludedPlugin, activationPlugin, activationOwner)
+	if err != nil {
+		releasePluginMCPLeases(leases)
+		return err
+	}
+	s.mcpMu.Lock()
+	previousConfigs := s.mcpConfigs
+	previousLeases := s.mcpLeases
+	s.mcpConfigs = configs
+	s.mcpMu.Unlock()
+
+	if err := s.mcpClients.SetExternalServerProvider(s.externalMCPProvider); err != nil {
+		s.mcpMu.Lock()
+		s.mcpConfigs = previousConfigs
+		s.mcpMu.Unlock()
+		restoreErr := s.mcpClients.SetExternalServerProvider(s.externalMCPProvider)
+		releasePluginMCPLeases(leases)
+		return errors.Join(err, restoreErr)
+	}
+	s.mcpMu.Lock()
+	s.mcpLeases = leases
+	s.mcpMu.Unlock()
+	releasePluginMCPLeases(previousLeases)
+	return nil
+}
+
+func (s *Service) buildMCPSet(ctx context.Context, excludedPlugin, activationPlugin, activationOwner string) (map[string]mcpclient.ServerConfig, map[string]func(), error) {
+	definitions, err := s.store.List()
+	if err != nil {
+		return nil, nil, err
+	}
+	configs := make(map[string]mcpclient.ServerConfig)
+	leases := make(map[string]func())
+	addPackage := func(pkg registry.RuntimePackage, release func()) error {
+		if len(pkg.MCPServers) == 0 {
+			release()
+			return nil
+		}
+		for name, cfg := range pkg.MCPServers {
+			if _, exists := configs[name]; exists {
+				release()
+				return fmt.Errorf("Plugin MCP server %q is owned by multiple runtime packages", name)
+			}
+			configs[name] = mcpclient.NormalizeServerConfig(cfg)
+		}
+		leases[pkg.Name] = release
+		return nil
+	}
+	for _, definition := range definitions {
+		if definition.Name == excludedPlugin || definition.Name == activationPlugin || len(definition.MCPServers) == 0 {
+			continue
+		}
+		pkg, release, acquireErr := s.store.RuntimeMCPPackage(ctx, definition.Name)
+		if acquireErr != nil {
+			releasePluginMCPLeases(leases)
+			return nil, nil, acquireErr
+		}
+		if err := addPackage(pkg, release); err != nil {
+			releasePluginMCPLeases(leases)
+			return nil, nil, err
+		}
+	}
+	if activationPlugin != "" {
+		pkg, release, acquireErr := s.store.ActivationMCPPackage(ctx, activationPlugin, activationOwner)
+		if acquireErr != nil {
+			releasePluginMCPLeases(leases)
+			return nil, nil, acquireErr
+		}
+		if err := addPackage(pkg, release); err != nil {
+			releasePluginMCPLeases(leases)
+			return nil, nil, err
+		}
+	}
+	return configs, leases, nil
+}
+
+func (s *Service) externalMCPProvider(ctx context.Context) (map[string]mcpclient.ServerConfig, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mcpMu.Lock()
+	defer s.mcpMu.Unlock()
+	configs := make(map[string]mcpclient.ServerConfig, len(s.mcpConfigs))
+	for name, cfg := range s.mcpConfigs {
+		configs[name] = mcpclient.NormalizeServerConfig(cfg)
+	}
+	return configs, nil
+}
+
+func (s *Service) ReleaseMCPLeases() {
+	if s == nil {
+		return
+	}
+	s.mcpReconcileMu.Lock()
+	defer s.mcpReconcileMu.Unlock()
+	s.mcpMu.Lock()
+	leases := s.mcpLeases
+	s.mcpLeases = make(map[string]func())
+	s.mcpConfigs = make(map[string]mcpclient.ServerConfig)
+	s.mcpMu.Unlock()
+	releasePluginMCPLeases(leases)
+}
+
+func releasePluginMCPLeases(leases map[string]func()) {
+	for _, release := range leases {
+		if release != nil {
+			release()
+		}
+	}
 }
 
 func (s *Service) Definitions() ([]registry.Definition, error) {
@@ -80,6 +217,49 @@ func (s *Service) SkillMembership(name string) (registry.Membership, bool, error
 
 func (s *Service) MCPMembership(name string) (registry.Membership, bool, error) {
 	return s.store.MCPMembership(name)
+}
+
+func (s *Service) activatePreparedCandidate(ctx context.Context, candidate registry.PreparedSource, reviewToken string, replace, confirmSourceChange bool) (registry.Definition, error) {
+	activation, err := s.store.BeginPreparedActivation(ctx, candidate, reviewToken, replace, confirmSourceChange)
+	if err != nil {
+		return registry.Definition{}, err
+	}
+	if activation.OwnerID == "" {
+		if err := s.ReconcileMCP(ctx); err != nil {
+			return registry.Definition{}, err
+		}
+		return activation.Definition, nil
+	}
+	if err := s.reconcileMCP(ctx, "", activation.Name, activation.OwnerID); err != nil {
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		return registry.Definition{}, errors.Join(err, abortErr, restoreErr)
+	}
+	definition, err := s.store.FinalizeActivation(activation.Name, activation.OwnerID)
+	if err != nil {
+		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		return registry.Definition{}, errors.Join(err, restoreErr, abortErr)
+	}
+	return definition, nil
+}
+
+func (s *Service) removePlugin(ctx context.Context, name string) error {
+	activation, err := s.store.BeginRemoval(ctx, name)
+	if err != nil {
+		return err
+	}
+	if err := s.reconcileMCP(ctx, activation.Name, "", ""); err != nil {
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		return errors.Join(err, abortErr, restoreErr)
+	}
+	if err := s.store.FinalizeRemoval(activation.Name, activation.OwnerID); err != nil {
+		restoreErr := s.ReconcileMCP(context.WithoutCancel(ctx))
+		abortErr := s.store.AbortActivation(activation.Name, activation.OwnerID)
+		return errors.Join(err, restoreErr, abortErr)
+	}
+	return nil
 }
 
 func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, error) {
@@ -134,19 +314,22 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 			return nil, err
 		}
 		candidate.Enabled = request.Enabled
-		definition, err := s.store.InstallPrepared(ctx, candidate, request.ReviewToken, action == "update", request.ConfirmedSourceChange)
+		definition, err := s.activatePreparedCandidate(ctx, candidate, request.ReviewToken, action == "update", request.ConfirmedSourceChange)
 		if err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "plugin": definition, "review": candidate.Review}, nil
 	case "remove":
-		if err := s.store.Remove(request.Name); err != nil {
+		if err := s.removePlugin(ctx, request.Name); err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "name": strings.TrimSpace(request.Name), "removed": true}, nil
 	case "enable", "disable":
 		definition, err := s.store.SetEnabled(request.Name, action == "enable")
 		if err != nil {
+			return nil, pluginToolError(err)
+		}
+		if err := s.ReconcileMCP(ctx); err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "plugin": definition}, nil
@@ -159,6 +342,9 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 	case "member_enable", "member_disable":
 		definition, err := s.store.SetMemberEnabled(request.Name, request.MemberType, request.Member, action == "member_enable")
 		if err != nil {
+			return nil, pluginToolError(err)
+		}
+		if err := s.ReconcileMCP(ctx); err != nil {
 			return nil, pluginToolError(err)
 		}
 		return Result{"action": action, "plugin": definition, "member_type": request.MemberType, "member": request.Member}, nil
@@ -275,7 +461,9 @@ func pluginToolError(err error) error {
 	}
 	category := "validation"
 	switch registryErr.Code {
-	case "PLUGIN_STORE_READ_FAILED", "PLUGIN_STORE_WRITE_FAILED", "PLUGIN_STORE_LOCK_FAILED", "PLUGIN_STATE_WRITE_FAILED", "PLUGIN_INSTALL_FAILED":
+	case "PLUGIN_STORE_READ_FAILED", "PLUGIN_STORE_WRITE_FAILED", "PLUGIN_STORE_LOCK_FAILED", "PLUGIN_STATE_WRITE_FAILED", "PLUGIN_INSTALL_FAILED",
+		"PLUGIN_RECOVERY_REQUIRED", "PLUGIN_ACTIVATION_FAILED", "PLUGIN_REMOVAL_FAILED", "PLUGIN_STATE_CHANGED",
+		"PLUGIN_CANDIDATE_DRIFT", "PLUGIN_GENERATION_DRIFT", "PLUGIN_GENERATION_MISSING", "PLUGIN_ACTIVATION_IN_PROGRESS":
 		category = "runtime"
 	case "PLUGIN_NOT_FOUND", "PLUGIN_MEMBER_NOT_FOUND":
 		category = "not_found"

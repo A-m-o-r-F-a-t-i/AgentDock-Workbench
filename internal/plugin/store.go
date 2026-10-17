@@ -67,6 +67,12 @@ func New(agentDockHome string, budgets ...time.Duration) (*Store, error) {
 	if err := store.EnsureLayout(); err != nil {
 		return nil, err
 	}
+	if err := store.recoverLifecycleTransactions(); err != nil {
+		return nil, err
+	}
+	if err := store.ensureInstalledGenerations(); err != nil {
+		return nil, err
+	}
 	store.snapshots = newStoreSnapshots(root, budget)
 	runtime.AddCleanup(store, func(resources *storeSnapshots) { resources.Close() }, store.snapshots)
 	if _, err := store.scan(); err != nil {
@@ -80,7 +86,19 @@ func (s *Store) Root() string { return s.root }
 func (s *Store) Path() string { return s.root }
 
 func (s *Store) EnsureLayout() error {
-	for _, path := range []string{s.root, filepath.Dir(s.lockPath), s.tempRoot, filepath.Join(s.root, ".state"), filepath.Join(s.root, ".config"), filepath.Join(s.root, ".data")} {
+	for _, path := range []string{
+		s.root,
+		filepath.Dir(s.lockPath),
+		s.tempRoot,
+		filepath.Join(s.root, ".state"),
+		filepath.Join(s.root, ".state", "transactions"),
+		filepath.Join(s.root, ".state", "transactions", "data"),
+		filepath.Join(s.root, ".state", "generations"),
+		filepath.Join(s.root, ".runtime"),
+		filepath.Join(s.root, ".locks", "generations"),
+		filepath.Join(s.root, ".config"),
+		filepath.Join(s.root, ".data"),
+	} {
 		if _, err := containedPath(s.root, path, true); err != nil {
 			return err
 		}
@@ -146,145 +164,34 @@ func (s *Store) Install(source string, replace bool) (Definition, error) {
 }
 
 func (s *Store) installPrepared(root string, replace bool, candidate *PreparedSource, confirmSourceChange bool) (Definition, error) {
-	sourceRecord, err := readPackage(root, false)
-	if err != nil {
-		return Definition{}, err
-	}
-
-	release, err := s.acquire()
-	if err != nil {
-		return Definition{}, err
-	}
-	defer func() { s.Invalidate(); release() }()
-	installed, err := s.scanUnlocked()
-	if err != nil {
-		return Definition{}, err
-	}
-	if _, ok := installed[sourceRecord.manifest.Name]; !ok && replace {
-		return Definition{}, newError("PLUGIN_NOT_FOUND", "plugin update requires an existing installed plugin", map[string]any{"name": sourceRecord.manifest.Name}, nil)
-	}
-	if existing, ok := installed[sourceRecord.manifest.Name]; ok && !replace {
-		return Definition{}, newError("PLUGIN_ALREADY_INSTALLED", "plugin is already installed", map[string]any{"name": existing.manifest.Name, "version": existing.manifest.Version}, nil)
-	}
-	if err := ensureUniqueOwnership(installed, sourceRecord, sourceRecord.manifest.Name); err != nil {
-		return Definition{}, err
-	}
-
-	work, err := os.MkdirTemp(s.tempRoot, "install-")
-	if err != nil {
-		return Definition{}, newError("PLUGIN_INSTALL_FAILED", "create plugin staging directory", nil, err)
-	}
-	keepBackup := false
-	defer func() {
-		if !keepBackup {
-			_ = os.RemoveAll(work)
-		}
-	}()
-	staged := filepath.Join(work, sourceRecord.manifest.Name)
-	if err := copyPackageTree(root, staged); err != nil {
-		return Definition{}, err
-	}
-
-	state := defaultState(sourceRecord)
-	destination := filepath.Join(s.root, sourceRecord.manifest.Name)
-	if info, err := os.Lstat(destination); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return Definition{}, newError("PLUGIN_INSTALL_FAILED", "plugin destination must not be a symlink", map[string]any{"name": sourceRecord.manifest.Name}, nil)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return Definition{}, newError("PLUGIN_INSTALL_FAILED", "inspect plugin destination", map[string]any{"name": sourceRecord.manifest.Name}, err)
-	}
-	var oldRecord packageRecord
-	var hadOld bool
-	if existing, ok := installed[sourceRecord.manifest.Name]; ok {
-		oldRecord, hadOld = existing, true
-		state = mergeState(existing.state, sourceRecord)
-	}
+	prepared := PreparedSource{Root: root}
 	if candidate != nil {
-		if candidate.Enabled != nil {
-			state.Enabled = *candidate.Enabled
-		}
-		if hadOld && oldRecord.state.Source != nil && !samePluginSourceBinding(*oldRecord.state.Source, candidate.Source) && !confirmSourceChange {
-			return Definition{}, pluginError("PLUGIN_SOURCE_CHANGE_CONFIRMATION_REQUIRED", "update.source", errors.New("Plugin source binding changed; set confirmed_source_change=true to rebind"))
-		}
-		source := candidate.Source
-		compatibility := candidate.Compatibility
-		state.Source = &source
-		state.Compatibility = &compatibility
+		prepared = *candidate
+		prepared.Root = root
 	}
-	if _, err := readPackage(staged, false); err != nil {
+	activation, err := s.beginPreparedActivation(context.Background(), prepared, replace, confirmSourceChange)
+	if err != nil {
 		return Definition{}, err
 	}
-
-	backup := ""
-	if hadOld {
-		backup = filepath.Join(work, sourceRecord.manifest.Name+".previous")
-		if err := os.Rename(destination, backup); err != nil {
-			return Definition{}, newError("PLUGIN_INSTALL_FAILED", "stage existing plugin for replacement", map[string]any{"name": sourceRecord.manifest.Name}, err)
-		}
+	if activation.OwnerID == "" {
+		return cloneDefinition(activation.Definition), nil
 	}
-	if err := os.Rename(staged, destination); err != nil {
-		if hadOld {
-			if restoreErr := os.Rename(backup, destination); restoreErr != nil {
-				keepBackup = true
-				return Definition{}, newError("PLUGIN_RECOVERY_REQUIRED", "restore previous plugin directory failed; backup retained", map[string]any{"backup": backup}, errors.Join(err, restoreErr))
-			}
-		}
-		return Definition{}, newError("PLUGIN_INSTALL_FAILED", "activate installed plugin directory", map[string]any{"name": sourceRecord.manifest.Name}, err)
-	}
-	rollback := func(cause error) (Definition, error) {
-		removeErr := os.RemoveAll(destination)
-		if hadOld {
-			renameErr := os.Rename(backup, destination)
-			stateErr := writeState(destination, oldRecord.state)
-			if renameErr != nil || stateErr != nil {
-				keepBackup = true
-				return Definition{}, newError("PLUGIN_RECOVERY_REQUIRED", "plugin update rollback failed; recovery files retained", map[string]any{"backup": backup}, errors.Join(cause, removeErr, renameErr, stateErr))
-			}
-			return Definition{}, errors.Join(cause, removeErr)
-		}
-		stateErr := os.Remove(hostStatePath(destination))
-		if errors.Is(stateErr, os.ErrNotExist) {
-			stateErr = nil
-		}
-		return Definition{}, errors.Join(cause, removeErr, stateErr)
-	}
-	if err := writeState(destination, state); err != nil {
-		return rollback(err)
-	}
-	installedRecord, err := readPackage(destination, true)
+	definition, err := s.FinalizeActivation(activation.Name, activation.OwnerID)
 	if err != nil {
-		return rollback(err)
+		abortErr := s.AbortActivation(activation.Name, activation.OwnerID)
+		return Definition{}, errors.Join(err, abortErr)
 	}
-	if hadOld {
-		if err := os.RemoveAll(backup); err != nil {
-			return Definition{}, err
-		}
-	}
-	return cloneDefinition(installedRecord.definition), nil
+	return definition, nil
 }
 
 func (s *Store) Remove(name string) error {
-	name = strings.TrimSpace(name)
-	if err := validateIdentifier("plugin", name); err != nil {
-		return err
-	}
-	release, err := s.acquire()
+	activation, err := s.BeginRemoval(context.Background(), name)
 	if err != nil {
 		return err
 	}
-	defer func() { s.Invalidate(); release() }()
-	path := filepath.Join(s.root, name)
-	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
-		return newError("PLUGIN_NOT_FOUND", "plugin is not installed", map[string]any{"name": name}, nil)
-	} else if err != nil {
-		return newError("PLUGIN_STORE_READ_FAILED", "inspect plugin directory", map[string]any{"name": name}, err)
-	}
-	if err := os.RemoveAll(path); err != nil {
-		return newError("PLUGIN_STORE_WRITE_FAILED", "remove plugin directory", map[string]any{"name": name}, err)
-	}
-	if err := os.Remove(hostStatePath(path)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	if err := s.FinalizeRemoval(activation.Name, activation.OwnerID); err != nil {
+		abortErr := s.AbortActivation(activation.Name, activation.OwnerID)
+		return errors.Join(err, abortErr)
 	}
 	return nil
 }
@@ -335,6 +242,9 @@ func (s *Store) updateState(name string, mutate func(packageRecord, *State) erro
 		return Definition{}, err
 	}
 	defer func() { s.Invalidate(); release() }()
+	if err := s.rejectPendingLifecycleUnlocked(name); err != nil {
+		return Definition{}, err
+	}
 	record, err := s.readInstalledUnlocked(name)
 	if err != nil {
 		return Definition{}, err

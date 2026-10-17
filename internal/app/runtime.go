@@ -141,20 +141,6 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		}
 	}()
 	mcpClients.SetExternalServerPreparation(pluginStore.PrepareMCPData)
-	if err := mcpClients.SetExternalServerProvider(func(ctx context.Context) (map[string]mcpclient.ServerConfig, error) {
-		members, providerErr := pluginStore.MCPServersContext(ctx)
-		if providerErr != nil {
-			return nil, providerErr
-		}
-		servers := make(map[string]mcpclient.ServerConfig, len(members))
-		for name, member := range members {
-			servers[name] = member.Config
-		}
-		return servers, nil
-	}); err != nil {
-		_ = mcpClients.Close()
-		return nil, fmt.Errorf("initialize plugin MCP provider: %w", err)
-	}
 	tasks, err := taskstate.New(filepath.Join(cfg.AgentDockHome, "tasks"))
 	if err != nil {
 		_ = mcpClients.Close()
@@ -218,7 +204,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		func(name string) (toolskill.PluginSkill, bool, error) {
 			member, found, lookupErr := pluginStore.Skill(name)
 			return toolskill.PluginSkill{
-				Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
+				Generation: member.Generation, Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
 			}, found, lookupErr
 		},
 		func() ([]toolskill.PluginSkill, error) {
@@ -229,7 +215,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 			items := make([]toolskill.PluginSkill, 0, len(members))
 			for _, member := range members {
 				items = append(items, toolskill.PluginSkill{
-					Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
+					Generation: member.Generation, Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
 				})
 			}
 			return items, nil
@@ -238,6 +224,15 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		_ = mcpClients.Close()
 		return nil, fmt.Errorf("initialize plugin Skill provider: %w", err)
 	}
+	runtime.skills.SetPluginSkillAcquire(func(ctx context.Context, pluginName, skillName string) (toolskill.PluginSkill, func(), error) {
+		member, release, acquireErr := pluginStore.AcquireSkillMember(ctx, pluginName, skillName)
+		if acquireErr != nil {
+			return toolskill.PluginSkill{}, nil, acquireErr
+		}
+		return toolskill.PluginSkill{
+			Generation: member.Generation, Name: member.Name, Plugin: member.Plugin, Path: member.Path, Enabled: member.Enabled,
+		}, release, nil
+	})
 	runtime.command = toolcommand.New(func() config.Config { return runtime.cfg }, ws, envs, func(ctx context.Context, ref string) (toolcommand.SkillLease, error) {
 		resolved, release, err := skills.Acquire(ctx, ref)
 		if err != nil {
@@ -299,6 +294,11 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 			}, found, lookupErr
 		},
 	)
+	runtime.plugins.SetMCPManager(mcpClients)
+	if err := runtime.plugins.ReconcileMCP(context.Background()); err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("initialize plugin MCP generations: %w", err)
+	}
 	runtime.skills.SetPluginMembershipLookup(func(name string) (string, bool, bool, error) {
 		membership, owned, lookupErr := runtime.plugins.SkillMembership(name)
 		return membership.Plugin, membership.Enabled, owned, lookupErr
@@ -409,6 +409,9 @@ func (r *Runtime) Close() error {
 			if err := r.dynamicMCP.Close(); err != nil {
 				closeErrors = append(closeErrors, fmt.Errorf("close dynamic MCP clients: %w", err))
 			}
+		}
+		if r.plugins != nil {
+			r.plugins.ReleaseMCPLeases()
 		}
 		if err := r.drainExecutionsOnClose(); err != nil {
 			closeErrors = append(closeErrors, err)
