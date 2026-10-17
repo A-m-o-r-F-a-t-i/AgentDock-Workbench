@@ -1,6 +1,6 @@
-# Core 集成质量审查与验证（1.1.9，功能合并后快照）
+# Core 集成质量审查与验证（1.1.9，PR #143 修复验证快照）
 
-> **状态截止：2026-10-17 09:14:05 UTC。** 本轮 Core 功能 PR 已全部合并，质量分支已接入准确 main。本文分别记录历史验证、功能分支检查、Windows 全仓诊断及三个失败包的环境复验；独立质量 PR 尚未创建，其最终检查、构建与发布仍待实际完成。
+> **状态截止：2026-10-17 11:07:12 UTC。** 本轮 Core 功能 PR 全部合并后，已单独建立 [质量 PR #143](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/pull/143)。本文保留创建 head 的首轮 CI 失败与取消，并记录后续 Context、Common watcher、scope 容量及别名修复。12 个冻结源码文件已按 manifest 哈希写回 Windows 独立工作树；最终 Linux race、app/snapshot Windows amd64 交叉编译和真实 Windows 定向均退出 0，但 Windows 七项 symlink 子例因权限不足跳过，不计覆盖。源码仍为 `1fec364` 加未提交的 12 文件，新 head CI、原生全仓和最终 release 尚待完成。最终 quality head、CI、合并与发布以 PR 正文及最终报告的后续实际记录为准。
 
 ## 目的与基线
 
@@ -8,17 +8,19 @@
 
 | 项目 | 本文记录的实际状态 |
 | --- | --- |
-| 功能合并 main / 质量代码汇合 | main 为 `34270eca8286867ec47930ac1023acd1ecf9e4f8`；本文更新前质量汇合提交为 `0b68ee4d05edbf9323eec74a7778b04021a4be8f`，tree 与原 `14a9997` 完全相同 |
-| 验证源码 | Windows 全仓诊断与环境复验均绑定 `7e60922f8ea73a553de688dea261ff3a41cf55ad`；包含 `243a801` 分类修复和 `836fb50` 安装器修复。实机 smoke 二进制仍对应 `516a3ba` |
+| 功能合并 main / 质量代码汇合 | main 为 `34270eca8286867ec47930ac1023acd1ecf9e4f8`；创建 PR 前的质量汇合提交为 `0b68ee4d05edbf9323eec74a7778b04021a4be8f`，tree 与原 `14a9997` 完全相同；随后文档提交 `1fec364` 成为 PR 创建 head |
+| 验证源码 | 历史 Windows 全仓诊断与环境复验绑定 `7e60922f8ea73a553de688dea261ff3a41cf55ad`，包含 `243a801` 分类修复和 `836fb50` 安装器修复；历史实机 smoke 二进制对应 `516a3ba`。本次 Context/watcher 定向验证为 `1fec364` 加按 manifest 哈希写回的 12 个冻结文件，尚无新提交 |
 | 功能 PR 合并结果 | #126 head `836fb50846cfa7143bb219fd82318c71877d2aee` 于 09:01:37 UTC 合并为 `043d7316cf77b1fa09c9bf2025cbc1b88bf1f752`；#140 head `898bc766c490d448306fbbe623a8ee5661e903c6` 合并为 `34270eca`；#142 已通过 `2fe6b93` 并入本轮主线来源 |
 | 功能 PR 检查 | #126 与 #140 各自最终为 37 success、2 skipped，均无未解决 review threads；#140 单次原门槛复验及原失败详见下文 |
 | 历史 Linux 全仓 Go | `a7f2bba` 已执行；只有 installer 的服务账号夹具失败，整体命令仍为失败，详见验证状态 |
-| Windows 全仓诊断与环境复验 | 原 20 分钟外层超时保留；同源 JSON 全仓正常结束但 exit 1：63 包 PASS、8 包无测试 skip、3 包失败。仅对三个实际失败包设置本次进程的 `GOFLAGS=-buildvcs=false` 复验后全部通过；不记为单次全仓 PASS |
-| 独立质量 PR | 尚未创建；功能合并前置条件已经满足，接下来从上述准确 main 单独提交质量增量 |
-| 最终质量 head / PR 编号 / 合并 main | **待独立质量 PR 实际创建、检查与合并后填写** |
+| PR 创建前 Windows 诊断与环境复验 | `7e60922` 原 20 分钟外层超时保留；同源 JSON 全仓正常结束但 exit 1：63 包 PASS、8 包无测试 skip、3 包失败。仅对三个实际失败包设置本次进程的 `GOFLAGS=-buildvcs=false` 复验后全部通过；不记为单次全仓 PASS，也不替代 #143 CI |
+| 独立质量 PR | [#143](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/pull/143) 已在 #126/#140 全部合并之后建立；base `34270eca8286867ec47930ac1023acd1ecf9e4f8`，创建 head `1fec3643fab618ee55bbbe1e168c54b46deda5e9` |
+| #143 创建 head 的首轮 CI 终态 | 27 success、2 skipped、5 failure（同一旧 Context 断言）、1 cancelled。Windows 全仓 Go 作业因超过 35 分钟预算取消；API 与 gh 均未取得日志，具体测试与原因不能归因于 watcher。后续工作树定向通过不改写此 CI 终态 |
+| 顶层 Context 重新验证修复 | 当前质量工作树的未提交三文件补丁；真实完整 source 交付后，规则/Common 同 mtime 变更及重新验证周期推进的四项回归修前全部失败，修后与既有 cursor/revision 边界定向通过，详见下文 |
+| 最终质量 head / 合并 main | **待修复提交、对应 CI 和质量合并实际完成后，由 PR 正文及最终报告填写** |
 | 最终 CI、构建、安装与发布 | **待按最终提交分别填写**；生产 Core 未替换，隔离候选已停止，发布前备份已完成 |
 
-本文同时记录已回送功能分支的交互修复和仍在独立质量分支中的修改。本文更新前 `34270eca..0b68ee4` 的差异为 66 个文件、2614 行新增、197 行删除，与原审查树相同；本次文档更新另行提交。正式 PR 以其实际 `base main..quality head` 为准，不重复提交功能分支已经吸收的实现。例如 direct guidance 和 Windows 升级停止修复已进入 main，其目标继续在质量汇合集保留。
+本文同时记录已回送功能分支的交互修复和仍在独立质量分支中的修改。创建 PR 前 `34270eca..0b68ee4` 的差异为 66 个文件、2614 行新增、197 行删除，与原审查树相同；随后文档变更及 #143 后续修复分别记录。正式差异以 PR 实际 `base main..quality head` 为准，不重复提交功能分支已经吸收的实现。例如 direct guidance 和 Windows 升级停止修复已进入 main，其目标继续在质量汇合集保留。
 
 ## 功能目标与审查范围
 
@@ -42,6 +44,10 @@
 | 完整来源被宿主页覆盖 | 默认 Activity `OutputSource` 变成首个约 5.7 KB 的宿主短页；来源保存失败时却出现 `source_complete=true` | `app/specs_mcp.go` 先留存原响应；`prepareModelOutput` 和 `RetainResponseSource` 复用原 MCP owner 的完整源，禁止把 host page 再存成默认源 | 完整错误 envelope、`_meta`、非等价文本和原生内容可独立读回；保存失败不改变实际业务状态，也不重跑业务 |
 | 子 Activity 续页丢失来源状态 | 续页折叠为 child 后触发通用提前返回，`capture` 与 `source_complete` 消失 | 只让真实 `mcp_result_continue` host page 进入对应投影；`mcpResultOrigin` 校验原调用作用域，按精确 `raw_result_ref` 读取原来源或保留版本 | 所有成功页引用相同来源；来源失败继续为 false；末页完成只表示交付完成；child 不创建新的 OutputSource |
 | Context 工具数量错误 | `Remarshal` 改为 `UseNumber` 后，旧的 `tool_count.(float64)` 把实际非零目录报为 0；旧转换还会截断小数或使越界值变负 | `contextCatalogSummary` 使用现有严格整数 helper；限定数值类型并检查负数、单项范围和合计溢出；reference 直接保留 `Snapshot.ToolCount` | full/reference 使用同一数量和目录状态规则；非法值令数量未知，不伪造已知 0；#142 域字段在同一 summary owner 中生成 |
+| Common Skill 缺失根的监听范围过大（#143 后续修复） | Windows 补全续页后仍出现 `Context immutable snapshot changed`；四次 identity 仅 `files[2]` 从 0→2→4→8 变化，八条 nil-filter 事件均为 `WRITE testRoot/home` | Common owner 一次解析选择根与稳定 UserHome 父根，复用既有 tree watcher，以登记范围过滤无关事件；最终 Linux race 和 Windows 定向通过，Windows symlink 子例的权限跳过不计覆盖 | 普通 Core 记账不使固定 Context 来源失效；真正公共 Skill 变更须使当前 Context 重新构建，规则与安全绑定变化仍由原 guard 检查续读资格。Windows 不回退为 nested handles；外部目标使用直接稳定父根，不承诺稳定根以上任意祖先的物理 rename |
+| 新增 scope 容量失稳（普通子目录修后回归通过） | 已选 Common 根覆盖普通子路径，但 `NewScopedFiles.Add` 仍将每条路径计入 scope LRU；2057 项相同登记重复三遍，无文件变更却使 source 为 `9-unhealthy → 2066-unhealthy → 4123-unhealthy`，实际仅 3 个目录监听句柄 | 普通 lexical/resolved 均被已选范围覆盖时复用并更新覆盖项使用顺序，仍执行原平台订阅；正式 `covered_descendants` 修后回归通过，目录 scope 为 1，重复扫描 revision 稳定 | 冗余范围登记不制造 source 变化；外部别名与真实不同范围仍受登记、容量及失效约束。普通模式超过 2048 个真实监听句柄的原有边界及独立外部目标容量策略未改；不能据周期重新验证保证任意规模的构建成功 |
+| 已覆盖别名目标变更未更新 canonical 映射 | 别名从 A 改指已受其他 scope 覆盖的 B 后，覆盖判断提前返回，原 canonical 映射未更新；修前回归 FAIL，snapshot 0.008s | 修复先更新已有 canonical 映射，仅在观察到目标变化时推进 revision；最终 Linux race 已包含修后回归并通过，两个包的 Windows 交叉编译通过；Windows symlink 权限跳过不计该场景覆盖 | 新目标继续按实际映射处理；旧的独立 canonical scope 按既有有界历史选择保留，可能保守地多失效，不宣称所有旧目标立即退订；原外部目标容量边界保持 |
+| 顶层 Context 绕过下层重新验证（#143 后续本地修复） | 无 watcher 事件、保持大小与 mtime 的真实规则/Common 内容变更后，下层重新验证周期已推进，顶层完整缓存仍返回旧内容，已交付路径仍返回旧 reference | `context_delivery.go` 将现有 tracker 的 cache revision 与稳定 source identity 分开；完整缓存及当前引用使用 cache eligibility，`required_output.go` 保存同一资格供 retained source 去重 | 周期推进触发重新构建；实际内容变化才改变 `ContextRevision`。纯时钟变化不改变稳定 source identity 或续页 guard；旧 source 失去当前引用资格后仍按原授权、规则 guard、TTL 留存，不因缓存过期直接删除 |
 | 命令与 Android 输出合同不一致 | 三个命令工具的空成功结果错误通过已注册验证器；收紧后暴露 Android status 错用 exec 根 Schema | 命令 owner 要求 session/status 或显式 sessions/count；Android owner 只复用公共字段，并按 action 用 `if/then/else` 定义自己的分支 | operation/capture 元数据不能代替业务结果；Android status 要有 device_status，执行分支保留 session/status 与 action/backend |
 | WSL Skill 环境与 Android 直接入口 | WSL 忽略 `skill_env`，未从真实 Plugin lease 派生私有数据路径；WSLENV 继承 `/p`、`/w` 会重复转换或抑制转发；Android Service.Exec 携带 origin 仍创建 queued session | native/WSL 共用 `applySkillEnvironment`；由 lease.PluginName 创建私有数据目录并转 POSIX，清理受管变量的 WSLENV 修饰；Android owner 在 broker dispatch 前拒绝 `origin_call_id` | 独立环境选择保留默认 workdir；普通环境变量、冲突检测、受管变量保护及原 lease release owner 保持一致；Android 拒绝时零派发 |
 | Skill 准备失败误记业务执行 | `516a3ba` 实机请求在 20 秒准备预算内未完成 Plugin runtime 文件校验，没有 Session，却被通用失败投影记为 `execution_performed=true/effect_state=unknown`；Runtime 回归同时复现返回与 Activity 误分类 | `243a801` 仅在 native/WSL 共用 `acquireSkill` 的 resolver 错误返回点保留 cause 与已有 ToolError 信息，并附明确的非执行事实；该边界位于恢复授权和 `invocation.start` 之前 | `execution_performed=false/effect_state=none/retry_safe=false`；保留内部运行副本及 Activity 可能写入的事实。命令启动后的失败、远端 backend、超时预算和 Plugin 完整摘要校验保持原语义，不按 deadline 或缺少 Session 全局推断零副作用 |
@@ -63,6 +69,9 @@
 | 完整来源 / envelope | `TestMCPResultContinuationUsesItsOwnCursor`、`TestToolOutputRedactionAndOriginalTruncationRemainExplicit`、`TestDynamicMCPModelProjectionPreservesNonEquivalentTextAndMetadata`；`quality-source-before.log` / `quality-source-after.log` | 修前真实默认源错误及来源失败误报；修后 app 0.325s、mcp 0.017s 通过 |
 | 子 Activity 续页 | 增强 `TestMCPResultContinuationUsesItsOwnCursor` 与来源失败续页子用例；`TestResultFailureFactsSurviveFragmentPagingAndReplay` 保留错误分片/重放/原始读取检查 | 源状态丢失修复后 app 0.255s 定向通过；读完全部页并再次独立读回 100 条完整记录和 metadata，业务调用仍为 1，child 无新 OutputSource |
 | Context 数量 | `context_bootstrap_precision_test.go` 三组：Remarshal 数量、非法/越界值、full/reference；`context-bootstrap-counts-before.log` / `context-bootstrap-counts-after.log` | 修前 7+12 报 0、7.5 被截成 7、溢出变负、实际单工具目录报 0；修后 app 0.241s 通过 |
+| scope 容量与重复登记 | 临时 Go overlay `TestScopedFilesRepeatedCoveredSelectionsKeepSourceStable`；`scope-capacity-overlay_test.go`、`scope-capacity-overlay.json`、`scope-capacity-before.log`；作者随后采用正式 `covered_descendants` 回归 | 修前：真实 Home/.agents/skills 根，2056 个缺失子路径；三遍相同登记的 source 为 `9-unhealthy → 2066-unhealthy → 4123-unhealthy`，scopes 恒 2048、真实 directory watches 恒 3，元数据未变且根仍为空，**FAIL，snapshot 0.235s**。作者正式容量回归的独立修前运行也 FAIL，snapshot 0.082s；修后 **PASS，snapshot 3.303s**，目录 scope 为 1，重复扫描 revision 稳定；最终 Linux race 和 Windows 定向另行记录 |
+| 已覆盖别名从 A 改指 B | `common-covered-alias-before.log`；目标 B 已由既有 scope 覆盖的真实别名变更回归 | 修前 **FAIL，snapshot 0.008s**；修后纳入 `common-scoped-tree-final-race.log`，最终 Linux race 通过。Windows amd64 交叉编译退出 0；Windows 原生的 symlink 权限跳过不能记为此场景实际通过 |
+| 顶层 Context 重新验证与不可变来源 | `TestContextRevalidationRefreshesDeliveredContext`，覆盖 rules/Common × 完整缓存/已交付 reference；`context-top-revalidation-before.log` / `context-top-revalidation-after.log` / `context-top-revalidation-boundaries.log` | 通过真实 Runtime 读取 source 至 EOF，再同大小、同 mtime 修改文件并仅推进既有可控周期：修前四项全部 FAIL，app 0.537s；修后全部 `TestContextRevalidation` PASS，app 0.981s。加入既有 cursor、目录/.git/规则边界、`ContextRevision` 与 source identity 回归后 PASS，app 1.516s；纯时钟推进的内容 revision 不变。仅为当前未提交补丁的本地 Linux 定向结果 |
 | 命令与 Android 输出 | `TestCommandOutputContractRejectsMissingSessionFacts` 与 `TestAndroidDevice*`；`command-contract-before.log`、`command-contract-after.log`、`command-contract-android-after.log` | 修前三工具空输出全部错误通过；命令 owner 定向 app 0.101s，Android owner 收敛后 app 0.362s 通过；旧 packages 日志中的两个 Android 失败不作成功证据 |
 | WSL / Android 平台边界 | `TestBuildWSLProcessEnvProtectsRuntimeDataPathForwarding`、`TestAndroidExecRejectsRecoveryOriginBeforeDispatch`、`TestPrepareWSLSkillInvocationUsesPrivateDataDirectory`；`plugin-backend-skill-env-targeted.log` | overlay 已复现错误 WSLENV 修饰和 Android queued session；共享 SkillEnv 后 app 0.241s、command 0.016s 定向通过；Windows 62fc9b6 已执行 plugin/managed/environment_only invocation 三场景，未启动真实 WSL |
 | 命令准备失败与启动后失败 | `TestCommandSkillPreparationFailureReportsNoExecution`、`TestCommandFailureAfterStartRetainsExecutedOutcome`；`core-command-preparation-before.log` / `core-command-preparation-after.log` | 修前实际 Runtime 返回及 Activity 均错误报告业务已执行；修后本地 app 1.186s、command 0.123s 定向通过，包含既有取消、完成通知和 unknown settlement 回归。`243a801` 同步设备后原生 Windows app 6.896s 通过，覆盖 native/WSL 准备失败与启动后写 marker、exit 7 的真实终态；未改变命令超时和 Plugin 校验 |
@@ -92,7 +101,8 @@
 | `7e60922`，Windows 原全仓请求 | 08:47:46 UTC 外层 20 分钟工具超时，exit 1，仅确认 8 包 PASS；原日志与会话保留 | 超时原因仍未知，不能从后续 VCS 失败反推原超时原因，也不能记为全仓通过 |
 | `7e60922`，Windows JSON 全仓诊断 | 09:02:49–09:06:40 UTC 正常跑完，exit 1：63 包 PASS、8 包无测试 skip、3 包失败；app PASS 220.748s，真实搜索/目录分页回归 PASS（80/120，14.57s） | 四个失败用例均为嵌套 `go build` 的 VCS 状态 128；这是完整诊断结果，仍为失败命令 |
 | `7e60922`，三个失败包的环境复验 | 09:09:39–09:10:27 UTC，仅为本次进程设置 `GOFLAGS=-buildvcs=false`，exit 0：installer 20.302s、desktopruntime 23.390s、scripts 24.748s 全部 PASS，四个原失败用例均实际通过 | 源码、父级 Git、全局缓存、CI 和断言未改；应表述为“全仓诊断加三个失败包的环境复验通过”，不是单次全仓 PASS |
-| 功能合并 main / 独立质量 PR | main `34270eca` 已接入质量代码汇合提交 `0b68ee4`；独立质量 PR 尚未创建 | 最终质量 head、编号、Actions、CodeQL、构建、安装、发布均待实际完成 |
+| #143 创建 head `1fec364`，首轮 CI 终态 | base `34270eca`；27 success、2 skipped、5 failure（同一旧 Context 断言）、1 cancelled。Windows full Go run `39020827940` / job `117362145082` 超过 35 分钟作业预算取消 | API 与 gh 均未取得该 Windows 作业日志，不知道停在哪个测试或调用栈，不能归因于 watcher。后续修复的本地结果不改写此 head 的 CI 终态 |
+| #143 后续未提交 Context / watcher 冻结修复 | 12 文件按 manifest 哈希写回 Windows 独立工作树，`git diff --check` 通过；Linux 最终 race：app 6.033s、snapshot 41.335s；两个包 Windows amd64 交叉编译退出 0。原生 Windows 定向退出 0：app 21.8s、snapshot 128.348s，七项 symlink 权限跳过单独列出 | 源码仍为 `1fec364` 加 12 个冻结文件；不等同新的提交、原生全仓或 PR head CI，未提交、合并或发布；跳过项不计覆盖 |
 
 本地全仓日志：`core-quality-tool-domain-full-go.log`。唯一失败为 `TestEngineInstallsLinuxLayoutWithoutStartingServices`，`engine_test.go:64` 在既有测试准备阶段直接 `activateLinux` 时执行 `user.Lookup("agentdock")`，当前 root 沙箱缺少该服务账号，返回 `unknown user agentdock`。失败发生在本轮 Home hydrate 路径之前；没有跳过或放宽该用例，仍需最终 Linux 原生 CI 确认正式门禁。
 
@@ -105,6 +115,65 @@ Windows 原超时请求为 `session-5432d9402b55160d33ad2ba1`，日志 `core-qua
 历史 Windows 升级 artifact 支持“目标 generation Tray 文件访问被拒绝（AccessDenied）”这一事实，但没有导致占用的 PID 证据，因此不能将父子进程停止竞态断言为该历史失败的唯一原因。定向回归证明了真实可重现的停止缺口及修复，随后 `836fb50` 的历史升级门禁通过；门禁通过仍不提供原占用 PID 或唯一根因证据。原故障后的最终 rollback 状态实际为 `healthy/rolled_back`，本轮没有改写该状态机或将成功回滚误记为失败。停止 helper 固定精确路径对应的进程句柄，先等待 stable launcher 再读取新的 generation 进程集合；rollback 不传观察引用，保持原来的 Core/Tray 运行快照。共享 15 秒预算限制等待和重试，不能据此宣称 `Get-CimInstance`/WMI 本身有硬截止。
 
 Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.94s、member_disable 1.55s，三个场景合计 3.62s；它们验证阻塞 stdio 调用仍能读取原 generation。该源码编译得到 `candidate-quality-516a3ba-core.exe`，大小为 `35807232` bytes，SHA256 为 `9bf00605a85610032c43c1026a6c52425b2f976b4b9bbab9a624b07a3fe18c24`，已执行 version 校验并运行以下隔离 smoke，未安装到生产。该文件是质量分支历史候选，不能作为尚未完成质量 PR 合并的最终 main 发布产物。
+
+### PR #143 首轮 Context 失败与后续诊断
+
+[PR #143](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/pull/143) 在本批功能 PR 完成合并后独立建立，创建 head 为 `1fec3643fab618ee55bbbe1e168c54b46deda5e9`。首轮已读到五项 Context 相同断言失败；这批失败的处理包含两个不同层次，不能归并成“只是旧测试问题”。
+
+该 head 的首轮 CI 已结束，35 项检查为 27 success、2 skipped、5 failure、1 cancelled。Windows full Go run `39020827940` attempt 1 / job `117362145082` 于 09:21:55–10:01:55 UTC 运行后取消；唯一 annotation 原文为 `The job has exceeded the maximum execution time of 35m0s`。API 与 gh 均未取得作业日志，无法定位具体测试或调用栈；目前只确认作业超过规定预算，不能据此归因于 Common watcher 或下文的缓存缺口。
+
+旧计数测试只消费字符串 `next_cursor`，漏掉 `structured_output.continue_read` 的合法来源续读；没有 cursor 并不证明整份 Context 已交付。补齐该消费路径后，继续要求同一不可变来源完成交付并进入 reference，未放宽运行时绑定或来源变化校验。
+
+| 验证/诊断 | 已确认事实 | 当前边界 |
+| --- | --- | --- |
+| 补全续页后的 Linux 常规定向 | 已取得 exit 0 | 最终耗时未读回，不填写推测耗时；不代替 Windows 或完整 CI |
+| alias 路径复验 | 首次触发 Home symlink 祖先的安全拒绝，原结果保留 | 路径规范化后的请求未被 exec-server 创建，记为未执行；不计通过，也不放宽安全边界 |
+| Windows 新测试首次复验 | 测试文件摘要 `24864981…53e4e`；第 117 行报 `Context immutable snapshot changed`，计数用例 0.51s、app 6.160s，FAIL | 已补齐续页仍失败，表明还存在真实来源失效问题 |
+| 一次 Go overlay 诊断 | 同一断言继续 FAIL，计数用例 0.48s、app 6.136s；四次 identity 仅 `files[2]` 为 0→2→4→8，八条 nil-filter 事件均为 `WRITE testRoot/home` | overlay 只增加诊断，不修改生产文件；定位缺失 Common 根的 watcher 回退到 UserHome，将 Core 自身写入误判为公共 Skill 变更 |
+| owner 范围及稳定 tree 修复 | Common owner 统一选定扫描根与稳定 UserHome 父根，外部解析目标由有界直接稳定父根覆盖；复用既有 tree watcher 与登记范围过滤，不回退 Windows nested handles | 最终 Linux race 和真实 Windows 定向退出 0；普通祖先替换、Close/burst 等非 skip 场景通过。七项 symlink 因权限不足跳过，不能把 package PASS 写成这些子例通过 |
+| 新增 scope 容量诊断与修后回归 | 临时 Go overlay 连续登记相同 2057 项，无文件变化仍每遍推进 source；仅 3 个真实目录监听句柄，修前 snapshot 0.235s，FAIL。作者正式 `covered_descendants` 修后 PASS，snapshot 3.303s，scope 为 1，重复扫描 revision 稳定 | 最终 Linux race 和 Windows 定向均包含实际容量场景；结果覆盖普通冗余子范围，不证明任意独立目标数量均可构建 |
+| 已覆盖别名目标变更 | A→已覆盖 B 的回归修前 FAIL，snapshot 0.008s，见 `common-covered-alias-before.log`；canonical 映射与对应 revision 更新已修复，最终 Linux race 含修后回归并通过 | 两个包 Windows 交叉编译退出 0；Windows 原生该 symlink 场景因权限不足跳过。旧独立 canonical scope 保持原有有界历史选择，不保证旧目标即时退订 |
+
+Windows 证据保存在设备日志 `pr143-context-source-windows-final.log` 和 `pr143-context-source-diagnostic.log`，后者 14,740 bytes。这些记录支持将 watcher 范围过大列为实际生产路径缺陷；它与旧测试遗漏来源续读分开修正。此前 `7e60922` 的全仓诊断、三个 VCS 环境失败包复验以及旧候选实机来源仍保留，不作为这个新增缺陷已消除的证据。
+
+scope 容量回归的元数据和目录内容断言证明扫描期间没有真实文件变化；source 推进来自新增 scope LRU 的主动淘汰。该逻辑发生在平台订阅分派之前，因此 Windows 即使由一个稳定递归 tree 覆盖全部普通子路径，也会经过原有冗余 scope 路径；此结论来自共同调用路径，本次容量运行环境仍是 Linux。当前修复在 lexical/resolved 两侧都受已有范围覆盖时复用 scope，继续执行平台订阅；正式普通子目录回归已证明 scope 保持为 1、重复扫描 revision 稳定。
+
+后续别名回归另行暴露 A→已覆盖 B 时 canonical 映射未更新，修前结果独立保留。实现现已更新该映射，并只在实际观察到目标变化时推进 revision；最终 Linux race 包含修后回归并通过，Windows symlink 权限跳过独立记录。旧的独立 canonical scope 作为既有有界历史选择继续保留，旧目标上的事件可能保守地增加失效，不宣称它们全部即时退订。普通监听模式超过 2048 个真实句柄、或大量独立外部目标的原有容量策略未在本次改为新策略，仍可能导致有界构建冲突；周期重新验证不会保证任何规模都能完成一致构建。本次修复不扩大容量、不放宽内容一致性，也不删除真实变更校验。
+
+### 顶层 Context 缓存资格与来源保留
+
+独立复审还确认一个与 watcher 范围修复不同的缺口：下层规则、Skill 和 Common 缓存在 watcher 不健康时使用既有重新验证周期，但 `executeContextHandler` 的完整缓存键、已交付引用和 retained source 去重只看稳定 source stamp。真实文件内容在大小与 mtime 均未改变、没有 watcher 事件的条件下变化时，顶层可以阻止下层重新读取，并继续把旧内容作为当前 Context。
+
+当前未提交补丁仅修改 `internal/app/context_delivery.go`、`internal/app/context_revalidation_test.go` 和 `internal/app/required_output.go`。同一次 tracker `Revisions()` 读取同时取得稳定源标识与 cache revision，避免新增扫描、store 或 runtime。完整缓存、当前 reference 和 retained source 去重复用包含 cache revision 的资格；构建前后的一致性仍只比较稳定 source identity，`ContextRevision` 仍由实际内容决定。`ContextGuardStamp` 不含重新验证时钟；旧 source 不再满足当前引用资格时仅退出引用候选，原有 TTL、权限和规则 guard 继续决定其独立读取资格，不直接销毁已留存来源。
+
+新增回归通过正式 `Runtime.Call` 完成 source 逐页读取至 EOF，并在有对话的场景先确认同一内容实际进入 reference；随后对真实规则或 Common 描述做同大小、同 mtime 修改，仅推进现有可控重新验证周期。修前四项全部失败，分别读到旧内容或旧 reference；修后全部通过，且只有时钟推进、内容未变时 `ContextRevision` 保持不变。既有目录/.git 变化后续页、规则变化拒绝以及 source identity 回归同时通过。上述本地前后对比已独立只读复核；随后冻结集合的 Linux race 与原生 Windows 定向另按其实际覆盖记录，仍不是新的提交或 CI。
+
+### 冻结源码的 Linux 与原生 Windows 验证
+
+本次来源为创建 head `1fec3643fab618ee55bbbe1e168c54b46deda5e9` 加 12 个冻结源码文件：Common 稳定 tree、scope、alias 及 Context source 测试的 9 文件集合（`pr143-common-scoped-watch-freeze.json`），以及顶层 Context cache eligibility 的 3 文件修复。所有文件已按 manifest 哈希写回 Windows 独立工作树，`git diff --check` 通过；截至本快照尚未新 commit/push。
+
+| 验证层次 | 已确认终态 | 范围与限制 |
+| --- | --- | --- |
+| 最终 Linux race | `common-scoped-tree-final-race.log`：app 6.033s、snapshot 41.335s，退出 0 | 包含正式 scope 容量、别名修后与 Context 重新验证回归；属于定向 race，不是全仓 race |
+| Windows amd64 交叉编译 | app、snapshot 两个包均退出 0 | 证明可编译，不替代原生执行 |
+| 首个 Windows 测试启动请求 | `call_6ff...` 因根流程引号拼接错误在解析阶段退出；`ParseInput` 确认 1 个 missing-quote 错误，没有测试 log/result | 此请求未启动 Core 测试，不计为 Core 回归失败，也不计为已执行测试 |
+| 修正后的真实 Windows 定向 | 10:59:35.7707389–11:01:47.0505740 UTC，退出 0；app 21.8s、snapshot 128.348s；日志 `pr143-final-context-watch-native.log` | JSON 独立归并为 291 events、67,878 bytes，`active_tests={}`、`failed_tests={}`、2 个 package PASS；七项 symlink 权限跳过如下，未计覆盖 |
+
+实际 Windows short/case paths、普通祖先替换、Close/burst、Context counts/revalidation 及容量 case 均为非 skip 并通过。以下七项因缺少 symlink privilege 跳过，package PASS 不代表这些场景已在 Windows 验证：
+
+- `app/TestCommonContextCacheTracksSymlinkTargets/ancestor`
+- `app/TestCommonContextCacheTracksSymlinkTargets/root`
+- `app/TestCommonContextCacheTracksSymlinkTargets/package`
+- `app/TestCommonContextCacheTracksSymlinkTargets/document`
+- `app/TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules/marker_symlink_target`
+- `snapshot/TestScopedWatchUpdatesAliasWhenTargetBecomesCovered`
+- `snapshot/TestScopedWatchWindowsAllowsExternalAliasTargetReplacement`
+
+临时目录 junction 补充探针仍由根流程另行处理，不修改仓库源码；本快照不预填其结果。后续补充进入 PR 正文或最终证据，不改写本次七项 SKIP。原生全仓、新 head CI 和最终 release 继续待完成，原 `1fec364` 首轮 CI 的 35 分钟取消以及各项 before 失败全部保留。
+
+### 最终产物核对与只读候选启动准备
+
+发布核对与只读候选 helper 三文件已写入设备 artifact。`candidate-final-lifecycle.ps1` 已在真实 Windows PowerShell `5.1.22621.6133` 执行 `ParseFile`，结果为 **0 syntax errors**；此步骤只检查语法，尚未执行候选启动、环境隔离、监听归属检查或终止流程。最终 release artifact 的摘要、完整 commit/build run 绑定和独立只读 smoke 均待实际执行；下节 `516a3ba` 的历史实机证据不因此改记为最终产物验证。
 
 ### 隔离候选实机证据与清理
 
@@ -121,7 +190,7 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 
 原错误的 `context deadline exceeded` 表示校验被截止打断，不证明被点名文件发生内容漂移。代码在每次取得 Skill runtime 时仍执行 generation 摘要及运行副本比较；复用副本只可能节省复制，因此没有证据将本次问题归为“首次缓存慢”。第二个请求使用 120 秒的显式预算，以新的 call_id 单独记录，并保留原 call 的失败事实；Core 超时语义和完整校验没有改变，成功结果也不证明原 20 秒预算已足够。内部准备可能创建运行副本或写入 Activity，与请求的业务命令是否启动分开记录。
 
-## 合并后的独立只读复核
+## 历史合并后的独立只读复核
 
 对 `a7f2bba` 复核，并确认 `516a3ba` 的 3 文件 guidance 增量没有改动以下路径：
 
@@ -130,7 +199,7 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 - `mcp_result_raw` 使用独立的原始字节、作用域校验和诊断读取进度；规范化分页或 cursor 重放不会改写 raw_result_ref 指向的来源。
 - 原有精度/非等价文本回归与错误分片/重放回归同时保留，未在合并冲突中互相覆盖。
 
-该复核没有发现上述链路的新增实现缺口。现有回归分别验证非零计数与 full/reference、域字段及 SDK full/summary；尚无单个 fixture 联合逐值比对全部三者，不能声称该组合已单独实测。本段是代码及回归覆盖审查，不新增一次测试运行记录。
+当时的该范围复核没有发现上述链路的新增实现缺口，回归分别验证非零计数与 full/reference、域字段及 SDK full/summary；当时没有单个 fixture 联合逐值比对全部三者。本段保留为历史代码审查记录，不新增测试运行，也不覆盖后来 #143 通过 Windows 诊断确认的 Common Skill watcher 缺陷。
 
 ## 明确限制
 
@@ -139,7 +208,9 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 3. 当前 Linux 沙箱缺服务账号的全仓失败仍保留。环境归因不替代最终原生 CI 结果，不据此豁免安装门禁。
 4. 仓库既有 EasyEDA 实机记录对应旧候选，仅说明原功能曾执行读取、最小编辑、独立读回和清理；不能代替最终质量 head 的验收。本材料未重新操作 PCB 或生产 Core。
 5. 功能 PR 检查、独立质量 PR 检查、候选构建、安装测试和发布是不同状态。完整候选须绑定最终精确 main SHA；状态缺失时保持待填。
-6. #126/#140 的最终检查与合并已完成。`7e60922` 的原超时、JSON 全仓失败以及三个实际失败包的环境复验分别保留，不能拼接成单次全仓 PASS。独立质量 PR 的正常 checkout 检查仍待运行；本次进程环境复验不修改或豁免其门禁。
+6. #126/#140 的最终检查与合并已完成；#143 创建 head 的首轮 CI 定格为 27 success、2 skipped、5 failure、1 cancelled。Windows 作业超过 35 分钟预算，但日志未取得，不能进一步归因。后续 12 文件的 Linux race、Windows 交叉编译和原生定向均退出 0，Windows 七项 symlink 权限跳过不计覆盖；新提交、原生全仓及新 head CI 尚待完成。`7e60922` 的原超时、JSON 全仓失败以及三个实际失败包的环境复验分别保留，不能拼接成单次全仓 PASS，也不能替代 #143 最终 head 的正常 checkout 检查。
+7. 发布 helper 写入和 Windows PowerShell `ParseFile` 通过仅证明文件已落地及脚本语法可解析，不证明最终产物、候选隔离、启动/停止或业务 smoke 已验证。本轮尚未启动最终 release artifact 候选。
+8. scope 合并只消除被已有 lexical/canonical 范围覆盖的冗余项。旧独立 canonical 选择有界保留，允许保守的额外失效；原有超过 2048 个物理句柄或大量独立外部目标的容量边界仍存在，可能触发有界构建冲突。未通过周期重新验证承诺任意规模成功，也未改用无限容量或第二套监听策略。Windows 无 nested fallback，外部目标用直接稳定父根；不承诺稳定根以上任意祖先可物理 rename。
 
 ## 可复核交付入口与后续替换
 
@@ -148,8 +219,8 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 | 交付字段 | 当前可复核入口 | 最终替换条件 |
 | --- | --- | --- |
 | 本轮功能 PR 与合并提交 | #126 `043d7316cf77b1fa09c9bf2025cbc1b88bf1f752`；#140 `34270eca8286867ec47930ac1023acd1ecf9e4f8`；各自最终 37 success、2 skipped | 本批 Core 功能合并已完成；保留对应 head、原失败与复验记录 |
-| 独立质量 PR 的 base main / head / 编号 | base main `34270eca8286867ec47930ac1023acd1ecf9e4f8`；本文更新前代码汇合提交 `0b68ee4d05edbf9323eec74a7778b04021a4be8f`；PR 尚未创建 | 从该准确 main 提交独立质量增量，填写包含本次文档提交的真实 head 和 PR 编号 |
+| 独立质量 PR 的 base main / 创建 head / 编号 | [#143](https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/pull/143)；base `34270eca8286867ec47930ac1023acd1ecf9e4f8`，创建 head `1fec3643fab618ee55bbbe1e168c54b46deda5e9` | 本文保留创建及首轮审查快照；后续最终 head、CI 与合并 SHA 由 PR 正文和最终报告按实际结果填写 |
 | 最终差异与原修复目标 | 本文问题—修复—行为表及上述精确源码 | 按 PR 实际 `base main..quality head` 逐项复核；已进入 main 的实现不重复提交 |
-| Windows 诊断与最终质量门禁 | `7e60922` 原超时日志、JSON 全仓诊断及三个失败包环境复验均已有真实终态；历史 Linux 失败范围见本文 | 分别链接最终质量 Actions、CodeQL、Windows/Linux 原生和安装检查的对应提交与结果；CI 不使用本次手工 `GOFLAGS` |
+| Windows 诊断与最终质量门禁 | `7e60922` 历史终态及环境复验保留；#143 旧 Windows 新测试和 overlay 失败、首轮 full Go 35 分钟预算取消且无日志均保留。12 文件修复已完成 Linux race、Windows 交叉编译及真实定向，七项 symlink SKIP 独立列出 | 提交冻结修复，再链接新 head 的 Actions、CodeQL、Windows/Linux 全仓和安装检查；Windows 链接补充探针若实际执行，另入 PR 正文及最终证据，不改写本次跳过结果 |
 | 候选源码、构建与实机验证 | [516a3ba 机器证据](core-quality-candidate-readonly.json)；`243a801` 原生分类回归；`836fb50` 安装器定向回归；隔离候选已停止 | 按质量 PR 合并后的最终 main 填写候选构建 run、可执行文件摘要、必要实机读取及安装门禁；历史候选不改标为最终产物 |
-| 发布与资产核对 | 发布前备份已完成，生产 Core 未替换；尚未进行本轮最终 main 发布 | 实际完成后填写标签指向的提交、发布记录、资产及摘要；测试或候选编译成功不表示已发布 |
+| 发布与资产核对 | 发布前备份已完成，生产 Core 未替换；helper 三文件已写入设备 artifact，生命周期脚本仅完成 Windows PowerShell 5.1 语法检查，未执行最终候选或本轮最终 main 发布 | 实际完成后填写精确源码与 build run、资产及摘要、隔离候选证据、标签和发布记录；脚本语法或候选编译成功不表示已启动或发布 |

@@ -13,11 +13,22 @@ func commonSkillCapabilityIndex() (*capabilityCommonSkillIndex, error) {
 }
 
 func commonSkillCapabilityIndexContext(ctx context.Context, watch func(string)) (*capabilityCommonSkillIndex, error) {
-	home, err := os.UserHomeDir()
+	root, _, err := commonSkillPaths()
 	if err != nil {
 		return nil, err
 	}
-	root := filepath.Join(home, ".agents", "skills")
+	return commonSkillCapabilityIndexAtRootContext(ctx, root, watch)
+}
+
+func commonSkillPaths() (root, home string, err error) {
+	home, err = os.UserHomeDir()
+	if err != nil {
+		return "", "", err
+	}
+	return filepath.Join(home, ".agents", "skills"), home, nil
+}
+
+func commonSkillCapabilityIndexAtRootContext(ctx context.Context, root string, watch func(string)) (*capabilityCommonSkillIndex, error) {
 	index, err := scanCommonFilesystemSkillsContext(ctx, root, watch)
 	if err != nil {
 		return nil, err

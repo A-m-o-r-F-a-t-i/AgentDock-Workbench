@@ -70,6 +70,239 @@ func TestCommonContextCacheCopiesAndSameTimestampInvalidation(t *testing.T) {
 	}
 }
 
+func TestCommonContextCacheTracksOnlySelectedDirectories(t *testing.T) {
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	setUserHomeForTest(t, home)
+	root := filepath.Join(home, ".agents", "skills")
+	rt := newContextRegressionRuntime(t)
+	first, firstInfo, err := rt.cachedCommonSkillIndex(t.Context())
+	if err != nil || len(first.Items) != 0 {
+		t.Fatalf("missing root index: %#v %v", first, err)
+	}
+	files := rt.contextSnapshots.commonFiles
+	revision := files.Revision()
+	// A missing Common root is watched through its existing ancestor. Core's
+	// own Home and a sibling with the same prefix do not belong to that source.
+	for _, dir := range []string{filepath.Join(home, "home"), filepath.Join(home, ".agents-backup")} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for deadline := time.Now().Add(100 * time.Millisecond); time.Now().Before(deadline); {
+		cached, info, err := rt.cachedCommonSkillIndex(t.Context())
+		if err != nil || !info.CacheHit || info.BuildID != firstInfo.BuildID || len(cached.Items) != 0 || files.Revision() != revision {
+			t.Fatalf("unrelated Home write invalidated Common: index=%#v info=%#v revision=%s before=%s err=%v", cached, info, files.Revision(), revision, err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	waitForChange := func(before string) {
+		t.Helper()
+		deadline := time.Now().Add(time.Second)
+		for files.Revision() == before && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if files.Revision() == before {
+			t.Fatal("selected Common directory change was not observed")
+		}
+	}
+	// Discover the missing ancestor first; the next read must then watch it so
+	// later root creation and actual document edits cannot remain cached empty.
+	if err := os.Mkdir(filepath.Dir(root), 0700); err != nil {
+		t.Fatal(err)
+	}
+	waitForChange(revision)
+	if index, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(index.Items) != 0 {
+		t.Fatalf("missing child root index: %#v %v", index, err)
+	}
+	revision = files.Revision()
+	if err := os.Rename(filepath.Dir(root), filepath.Join(home, ".agents-retired")); err != nil {
+		t.Fatal(err)
+	}
+	waitForChange(revision)
+	if index, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(index.Items) != 0 {
+		t.Fatalf("removed ancestor index: %#v %v", index, err)
+	}
+	revision = files.Revision()
+	if err := os.Mkdir(filepath.Dir(root), 0700); err != nil {
+		t.Fatal(err)
+	}
+	waitForChange(revision)
+	if index, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(index.Items) != 0 {
+		t.Fatalf("replacement ancestor index: %#v %v", index, err)
+	}
+	revision = files.Revision()
+	writeCommonSkillForTest(t, root, "created-skill", "created-skill", "before")
+	waitForChange(revision)
+	created, createdInfo, err := rt.cachedCommonSkillIndex(t.Context())
+	if err != nil || len(created.Items) != 1 || created.Items[0].Description != "before" || createdInfo.BuildID == firstInfo.BuildID {
+		t.Fatalf("created root remained cached empty: %#v %#v %v", created, createdInfo, err)
+	}
+	revision = files.Revision()
+	rewriteRevalidationFixture(t, filepath.Join(root, "created-skill", "SKILL.md"), "before", "after!")
+	waitForChange(revision)
+	updated, _, err := rt.cachedCommonSkillIndex(t.Context())
+	if err != nil || len(updated.Items) != 1 || updated.Items[0].Description != "after!" {
+		t.Fatalf("same-stamp edit after root creation remained cached: %#v %v", updated, err)
+	}
+}
+
+func TestCommonContextCacheTracksSymlinkTargets(t *testing.T) {
+	for _, link := range []string{"ancestor", "root", "package", "document"} {
+		t.Run(link, func(t *testing.T) {
+			home, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			setUserHomeForTest(t, home)
+			root := filepath.Join(home, ".agents", "skills")
+			external := t.TempDir()
+			if link == "ancestor" {
+				external = filepath.Join(external, "skills")
+			}
+			writeCommonSkillForTest(t, external, "linked-skill", "linked-skill", "before")
+			path, target := root, external
+			if link == "ancestor" {
+				path, target = filepath.Dir(root), filepath.Dir(external)
+			} else if link != "root" {
+				path, target = filepath.Join(root, "linked-skill"), filepath.Join(external, "linked-skill")
+			}
+			if link == "document" {
+				path, target = filepath.Join(path, "SKILL.md"), filepath.Join(target, "SKILL.md")
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, path); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+			rt := newContextRegressionRuntime(t)
+			first, _, err := rt.cachedCommonSkillIndex(t.Context())
+			if err != nil || len(first.Items) != 1 || first.Items[0].Description != "before" {
+				t.Fatalf("initial linked Common index: %#v %v", first, err)
+			}
+			files := rt.contextSnapshots.commonFiles
+			revision := files.Revision()
+			document := filepath.Join(external, "linked-skill", "SKILL.md")
+			rewriteRevalidationFixture(t, document, "before", "after!")
+			deadline := time.Now().Add(time.Second)
+			for files.Revision() == revision && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if files.Revision() == revision {
+				t.Fatal("linked Common document edit was not observed")
+			}
+			updated, _, err := rt.cachedCommonSkillIndex(t.Context())
+			if err != nil || len(updated.Items) != 1 || updated.Items[0].Description != "after!" {
+				t.Fatalf("stale linked Common document: %#v %v", updated, err)
+			}
+			// Retarget the lexical link as well as editing through its target.
+			// Keep the exposed root stamp unchanged where the root is a real
+			// directory, so the notification revision must carry this change.
+			rootInfo, err := os.Stat(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replacement := t.TempDir()
+			if link == "ancestor" {
+				replacement = filepath.Join(replacement, "skills")
+			}
+			writeCommonSkillForTest(t, replacement, "linked-skill", "linked-skill", "fresh!")
+			if err := os.Chtimes(replacement, rootInfo.ModTime(), rootInfo.ModTime()); err != nil {
+				t.Fatal(err)
+			}
+			nextTarget := replacement
+			if link == "ancestor" {
+				nextTarget = filepath.Dir(replacement)
+			} else if link != "root" {
+				nextTarget = filepath.Join(replacement, "linked-skill")
+			}
+			if link == "document" {
+				nextTarget = filepath.Join(nextTarget, "SKILL.md")
+			}
+			revision = files.Revision()
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(nextTarget, path); err != nil {
+				t.Fatal(err)
+			}
+			deadline = time.Now().Add(time.Second)
+			for files.Revision() == revision && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if files.Revision() == revision {
+				t.Fatal("retargeted Common link was not observed")
+			}
+			retargeted, _, err := rt.cachedCommonSkillIndex(t.Context())
+			if err != nil || len(retargeted.Items) != 1 || retargeted.Items[0].Description != "fresh!" {
+				t.Fatalf("retargeted Common link remained cached: %#v %v", retargeted, err)
+			}
+			document = filepath.Join(replacement, "linked-skill", "SKILL.md")
+			revision = files.Revision()
+			if err := os.Remove(document); err != nil {
+				t.Fatal(err)
+			}
+			deadline = time.Now().Add(time.Second)
+			for files.Revision() == revision && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if files.Revision() == revision {
+				t.Fatal("deleted linked Common document was not observed")
+			}
+			removed, _, err := rt.cachedCommonSkillIndex(t.Context())
+			if err != nil || len(removed.Items) != 0 {
+				t.Fatalf("removed linked Common document remained cached: %#v %v", removed, err)
+			}
+		})
+	}
+}
+
+func TestCommonContextCacheRearmsAfterAncestorReplacement(t *testing.T) {
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	setUserHomeForTest(t, home)
+	root := filepath.Join(home, ".agents", "skills")
+	writeCommonSkillForTest(t, root, "replaced-skill", "replaced-skill", "before")
+	rt := newContextRegressionRuntime(t)
+	if first, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(first.Items) != 1 {
+		t.Fatalf("initial Common index: %#v %v", first, err)
+	}
+	files := rt.contextSnapshots.commonFiles
+	waitForChange := func(before string) {
+		t.Helper()
+		deadline := time.Now().Add(time.Second)
+		for files.Revision() == before && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if files.Revision() == before {
+			t.Fatal("Common source change was not observed")
+		}
+	}
+	revision := files.Revision()
+	if err := os.Rename(filepath.Dir(root), filepath.Join(home, ".agents-retired")); err != nil {
+		t.Fatal(err)
+	}
+	waitForChange(revision)
+	writeCommonSkillForTest(t, root, "replaced-skill", "replaced-skill", "fresh!")
+	if replaced, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(replaced.Items) != 1 || replaced.Items[0].Description != "fresh!" {
+		t.Fatalf("replacement Common index: %#v %v", replaced, err)
+	}
+	revision = files.Revision()
+	rewriteRevalidationFixture(t, filepath.Join(root, "replaced-skill", "SKILL.md"), "fresh!", "after!")
+	waitForChange(revision)
+	if updated, _, err := rt.cachedCommonSkillIndex(t.Context()); err != nil || len(updated.Items) != 1 || updated.Items[0].Description != "after!" {
+		t.Fatalf("replacement kept watching the retired directory: %#v %v", updated, err)
+	}
+}
+
 func TestRuntimeCloseReleasesAllContextCaches(t *testing.T) {
 	rt := newContextRegressionRuntime(t)
 	if err := rt.Close(); err != nil {

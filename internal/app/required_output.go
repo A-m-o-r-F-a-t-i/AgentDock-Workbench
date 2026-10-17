@@ -60,9 +60,11 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			ctx = activity.WithSource(ctx, p.source)
-			retained.ContextStamp, err = r.contextSourceStamp(ctx, retained.ContextWorkdir, retained.Binding)
+			// ContextStamp controls current-reference reuse and deduplication;
+			// the separate guard below owns immutable continuation validity.
+			retained.ContextStamp, err = r.contextCacheStamp(ctx, retained.ContextWorkdir, retained.Binding)
 			if err != nil {
-				retained.SourceReason = appendStructuredReason(retained.SourceReason, "Context source identity could not be revalidated: "+err.Error())
+				retained.SourceReason = appendStructuredReason(retained.SourceReason, "Context cache eligibility could not be revalidated: "+err.Error())
 			}
 			retained.ContextGuardStamp, err = r.contextContinuationStamp(ctx, retained.ContextWorkdir, retained.Binding)
 			cancel()

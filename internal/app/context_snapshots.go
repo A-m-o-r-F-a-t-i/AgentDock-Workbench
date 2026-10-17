@@ -60,7 +60,7 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter)}
 	resources.complete = snapshot.New[Result](32, cfg.ContextBudget(), 15*time.Minute)
 	resources.common = snapshot.New[*capabilityCommonSkillIndex](4, cfg.ContextBudget(), time.Minute)
-	resources.commonFiles = snapshot.NewFiles(nil)
+	resources.commonFiles = snapshot.NewScopedFiles(nil)
 	for _, dir := range []string{skillRoot, filepath.Join(skillRoot, ".state"), filepath.Join(skillRoot, ".system"), filepath.Join(skillRoot, ".versions")} {
 		resources.skillFiles.Add(dir)
 	}

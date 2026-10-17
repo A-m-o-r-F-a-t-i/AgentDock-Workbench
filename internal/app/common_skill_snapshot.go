@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/uvwt/agentdock/internal/snapshot"
 )
 
 func (r *Runtime) cachedCommonSkillIndex(ctx context.Context) (*capabilityCommonSkillIndex, snapshot.Info, error) {
-	home, err := os.UserHomeDir()
+	root, home, err := commonSkillPaths()
 	if err != nil {
 		return nil, snapshot.Info{}, err
 	}
-	root := filepath.Join(home, ".agents", "skills")
 	files := r.contextSnapshots.commonFiles
+	if trees, ok := files.(interface{ SetStableRoot(string) }); ok {
+		trees.SetStableRoot(home)
+	}
 	files.Add(root)
 	keyFor := func() (source, cache string, err error) {
 		if err := files.Sync(ctx); err != nil {
@@ -33,7 +33,7 @@ func (r *Runtime) cachedCommonSkillIndex(ctx context.Context) (*capabilityCommon
 		}
 		value, info, err := r.contextSnapshots.common.Get(ctx, key, func(buildCtx context.Context) (*capabilityCommonSkillIndex, error) {
 			before := files.Revision()
-			value, err := commonSkillCapabilityIndexContext(buildCtx, files.Add)
+			value, err := commonSkillCapabilityIndexAtRootContext(buildCtx, root, files.Add)
 			if err != nil {
 				return nil, err
 			}
