@@ -69,3 +69,21 @@ PR #144 于 14:17:30 UTC 合并为 `8d517f5171b2e025ca86f66f65e4bbfc30e2898b`，
 新的完整构建需核对所有平台原生门禁、发行 manifest、逐项 SHA-256、Android 签名与内嵌 Core 来源，然后用该构建的 Windows 载荷运行隔离的只读候选验收并清理。生产安装不是隔离候选验收的一部分。
 
 发布前重新核对已备份的 v1.1.9 Release、标签、现存资产和 Latest，按用户授权执行同版本正式发布。发布后以独立 API 读回确认准确标签、源码与构建关联、8 个公开安装资产、最终签名 APK、canonical Release 正文以及 Latest 指向。实际构建 run、发布 run、最终摘要和这些状态在完成后写入 PR 正文与最终报告；本文不提前宣称正式发布成功。
+
+## 6. 正式构建候选暴露的 Plugin 冷加载期限
+
+完整构建 run `39048163659` 的 attempt 2 已绑定 main `2af0eca7c06d7ea45077c5eacafd9f1e02cf5eba`，23 个最新作业均为 success 或既有条件 skipped，完整产物校验通过。随后用该次 Windows amd64 载荷和真实 EasyEDA Plugin 4.12.0（5,574 个文件、25,754,449 bytes）建立隔离候选。候选没有安装到生产环境，但首次 `plugin_load` 在运行副本完整性校验阶段持续返回 `context deadline exceeded`，因此该构建不能发布。
+
+原实现从动态 MCP 的 30 秒 transport timeout 中同时扣除本地 Plugin generation 摘要、运行副本创建和逐文件校验。对相同 generation 与 runtime 运行原 owner 的实测为：package digest `1.4594018s`，5,574 个文件逐项比较 `1m23.8619134s`，结果无差异。实际工作量超过默认 transport timeout；失败不表示 Plugin 包损坏，也不能通过跳过摘要或逐文件校验解决。
+
+修复提交 `6cdfc992a6523903fc48ca54129226ea5af7b982` 将本地 external preparation 与 MCP transport 阶段分开：准备阶段使用至少 2 分钟的有界期限，显式更大的 server timeout 继续生效，调用方取消或更短的父 deadline 仍可立即终止；准备成功后才开始原 transport timeout。`ListTools`、`RefreshCatalog` 和 `PrepareCall` 共用该边界，没有增加后台任务、缓存旁路或第二套校验实现。
+
+定向新用例覆盖三条启动路径以及父调用取消；`internal/mcp/client`、`internal/tool/plugin`、`internal/plugin` 三包完整通过，冻结提交的 `internal/mcp/client` 再次完整通过。修复后的本地回归候选自报 AgentDock Workbench 1.1.9、commit `6cdfc992a652`，只用于隔离验证，不是发行资产。
+
+真实冷加载的原调用 `call_916ed942b8b606739837041170697f3a` 在 `46.296s` 后完成，`easyeda-pcb` 状态为 `ready`，公开 14 个工具且 `unavailable_members=[]`。原验收客户端固定 30 秒 HTTP 等待，因此先于 Core 完成断开；Activity 的完整来源保留了成功终态。验收脚本的隔离副本仅将 HTTP 等待改为允许的 120 秒，第二次 `plugin_load` 从现有目录在 `78ms` 返回。该调整没有进入产品代码。
+
+Plugin WSL 环境检查的准确固定命令经一次显式批准后执行，原调用 `call_9b1285650a6d938a1108b59fae956b61` 退出 0：cwd 与 `PLUGIN_DATA_DIR` 均为可读 POSIX 目录，cwd 含 `SKILL.md`，`SKILL_DATA_DIR` 未注入。批准前尝试建立 workspace 持久规则因调用没有固定 workspace 被拒绝，没有写入持久规则；随后只批准该固定请求一次。对 retained source 的独立解析生成 `candidate-readonly-report-reconciled.json`，结果为 `completed_after_approval_reconciliation`、`ok=true`。
+
+停止前，候选中 pending approval 与 running call 均为 0。候选 PID 11808 的准确进程已停止，端口 18769 清空，Windows 与 WSL 均未发现引用候选根目录的残留进程。停止记录为 `forced_exact_process`，所以不把它表述为已证明 graceful runtime close；本轮只确认准确进程、监听和可见后代已清理。生产 Core、生产 Home 和 PCB 工程均未修改。
+
+该修复必须先通过独立 PR 与现有 Actions，再从新的最终 main SHA 重新执行全部平台构建、产物校验和最终隔离候选。`39048163659` 的原产物仅作为问题证据，不能上传为正式 1.1.9。

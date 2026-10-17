@@ -229,17 +229,21 @@ func (m *Manager) RefreshCatalog(ctx context.Context, server string) (Catalog, e
 	if !cfg.Enabled {
 		return Catalog{}, newError("MCP_SERVER_DISABLED", "dynamic MCP server is disabled", false, map[string]any{"server": server}, nil)
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
-	defer cancel()
-	if state.client == nil || !state.discovered {
-		runtimeCfg, prepareErr := m.prepareRuntimeConfig(ctx, cfg)
-		if prepareErr != nil {
-			recordStateError(state, prepareErr)
-			return Catalog{}, prepareErr
+	needsStart := state.client == nil || !state.discovered
+	var runtimeCfg ServerConfig
+	if needsStart {
+		runtimeCfg, err = m.prepareRuntimeConfig(ctx, cfg)
+		if err != nil {
+			recordStateError(state, err)
+			return Catalog{}, err
 		}
-		_, err = refreshStateLocked(ctx, runtimeCfg, state)
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
+	defer cancel()
+	if needsStart {
+		_, err = refreshStateLocked(operationCtx, runtimeCfg, state)
 	} else {
-		_, err = reloadCatalogLocked(ctx, cfg, state)
+		_, err = reloadCatalogLocked(operationCtx, cfg, state)
 	}
 	if err != nil {
 		return Catalog{}, err

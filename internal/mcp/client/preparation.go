@@ -1,6 +1,14 @@
 package client
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+// Local Plugin runtime verification must not consume the transport timeout.
+// Callers may extend this with an explicit larger server timeout, while their
+// own cancellation or deadline always remains authoritative.
+const minimumExternalPreparationTimeout = 2 * time.Minute
 
 // Metadata providers are read-only. Filesystem preparation is reserved for the
 // one selected service, never a side effect of context or metadata listing.
@@ -53,12 +61,22 @@ func (m *Manager) prepareExternalServer(ctx context.Context, cfg ServerConfig) e
 	return ctx.Err()
 }
 
+func externalPreparationTimeout(cfg ServerConfig) time.Duration {
+	timeout := time.Duration(cfg.TimeoutMS) * time.Millisecond
+	if timeout < minimumExternalPreparationTimeout {
+		return minimumExternalPreparationTimeout
+	}
+	return timeout
+}
+
 func (m *Manager) prepareRuntimeConfig(ctx context.Context, cfg ServerConfig) (ServerConfig, error) {
 	resolved, err := m.runtimeConfig(cfg)
 	if err != nil {
 		return ServerConfig{}, err
 	}
-	if err := m.prepareExternalServer(ctx, resolved); err != nil {
+	prepareCtx, cancel := context.WithTimeout(ctx, externalPreparationTimeout(resolved))
+	defer cancel()
+	if err := m.prepareExternalServer(prepareCtx, resolved); err != nil {
 		return ServerConfig{}, err
 	}
 	return resolved, nil

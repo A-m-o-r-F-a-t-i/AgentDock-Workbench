@@ -241,6 +241,117 @@ func TestManagerStdioFlow(t *testing.T) {
 	}
 }
 
+func TestPluginPreparationHasIndependentDeadline(t *testing.T) {
+	const (
+		serverName       = "plugin.slow.prepare"
+		transportTimeout = 500 * time.Millisecond
+		preparationDelay = 650 * time.Millisecond
+	)
+	run := func(t *testing.T, operation func(*Manager) error) {
+		t.Helper()
+		manager, err := NewManager(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer manager.Close()
+		pluginRoot, pluginData := t.TempDir(), t.TempDir()
+		manager.SetExternalServerPreparation(func(ctx context.Context, cfg ServerConfig) error {
+			if cfg.PluginRoot != pluginRoot {
+				t.Fatalf("preparation Plugin root = %q", cfg.PluginRoot)
+			}
+			timer := time.NewTimer(preparationDelay)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-timer.C:
+				return nil
+			}
+		})
+		if err = manager.SetExternalServerProvider(func(context.Context) (map[string]ServerConfig, error) {
+			return map[string]ServerConfig{serverName: {
+				Name: serverName, Description: "Slow local Plugin preparation",
+				Transport: TransportStdio, Command: os.Args[0],
+				Args:       []string{"-test.run=TestMCPStdioHelperProcess"},
+				PackageEnv: map[string]string{"GO_WANT_MCP_HELPER": "1"},
+				SourceType: "plugin", PluginName: "slow.plugin",
+				PluginRoot: pluginRoot, PluginData: pluginData, Enabled: true,
+				TimeoutMS: int(transportTimeout / time.Millisecond),
+			}}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		started := time.Now()
+		if err = operation(manager); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(started); elapsed < preparationDelay {
+			t.Fatalf("operation returned before preparation completed: %s", elapsed)
+		}
+	}
+	t.Run("list_tools", func(t *testing.T) {
+		run(t, func(manager *Manager) error {
+			tools, err := manager.ListTools(t.Context(), serverName)
+			if err == nil && (len(tools) != 1 || tools[0].Name != "echo") {
+				t.Fatalf("ListTools() = %#v", tools)
+			}
+			return err
+		})
+	})
+	t.Run("refresh_catalog", func(t *testing.T) {
+		run(t, func(manager *Manager) error {
+			catalog, err := manager.RefreshCatalog(t.Context(), serverName)
+			if err == nil && (!catalog.Complete || catalog.Tools["echo"].Name != "echo") {
+				t.Fatalf("RefreshCatalog() = %#v", catalog)
+			}
+			return err
+		})
+	})
+	t.Run("prepare_call", func(t *testing.T) {
+		run(t, func(manager *Manager) error {
+			prepared, err := manager.PrepareCall(t.Context(), serverName+":echo", map[string]any{"text": "ready"})
+			if err == nil && !prepared.Matches(serverName+":echo", map[string]any{"text": "ready"}) {
+				t.Fatal("PrepareCall() did not retain the request identity")
+			}
+			return err
+		})
+	})
+}
+
+func TestPluginPreparationRespectsCallerCancellation(t *testing.T) {
+	manager, err := NewManager(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	pluginRoot := t.TempDir()
+	manager.SetExternalServerPreparation(func(ctx context.Context, _ ServerConfig) error {
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	const serverName = "plugin.cancel.prepare"
+	if err = manager.SetExternalServerProvider(func(context.Context) (map[string]ServerConfig, error) {
+		return map[string]ServerConfig{serverName: {
+			Name: serverName, Description: "Cancelled local Plugin preparation",
+			Transport: TransportStdio, Command: os.Args[0],
+			Args: []string{"-test.run=TestMCPStdioHelperProcess"}, PackageEnv: map[string]string{"GO_WANT_MCP_HELPER": "1"},
+			SourceType: "plugin", PluginName: "cancel.plugin", PluginRoot: pluginRoot, PluginData: t.TempDir(), Enabled: true,
+		}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err = manager.ListTools(ctx, serverName)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ListTools() error = %v, want caller deadline", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("caller cancellation was delayed: %s", elapsed)
+	}
+}
+
 func TestManagerRejectsReservedHTTPHeaders(t *testing.T) {
 	manager, err := NewManager(t.TempDir())
 	if err != nil {

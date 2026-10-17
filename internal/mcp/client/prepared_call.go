@@ -131,12 +131,10 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 		return nil, newError("MCP_SERVER_DISABLED", "dynamic MCP server is disabled", false, map[string]any{"server": server}, nil)
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
-	defer cancel()
 	var runtimeCfg ServerConfig
 	needsStart := state.client == nil || !state.discovered
 	if needsStart {
-		runtimeCfg, err = m.prepareRuntimeConfig(callCtx, cfg)
+		runtimeCfg, err = m.prepareRuntimeConfig(ctx, cfg)
 	} else {
 		runtimeCfg, err = m.runtimeConfig(cfg)
 	}
@@ -151,6 +149,8 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 	if err = checkExpectedMCPIdentity(ctx, qualifiedName, fingerprint, "", ""); err != nil {
 		return nil, err
 	}
+	callCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
+	defer cancel()
 	if needsStart {
 		if _, err = refreshStateLocked(callCtx, runtimeCfg, state); err != nil {
 			return nil, err
