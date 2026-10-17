@@ -115,11 +115,6 @@ func (svc *Service) prepareNativePatch(ctx context.Context, request ApplyPatchRe
 			if err != nil {
 				return nil, err
 			}
-			if info, inspectErr := os.Lstat(joined); inspectErr == nil && !info.Mode().IsRegular() {
-				return nil, v4AConflict(index, *value, "patch target must be a regular file, not a symlink or special file")
-			} else if inspectErr != nil && !errors.Is(inspectErr, os.ErrNotExist) {
-				return nil, inspectErr
-			}
 			if runtime.GOOS == "windows" && strings.Contains(strings.TrimPrefix(joined, filepath.VolumeName(joined)), ":") {
 				return nil, v4AConflict(index, *value, "alternate data streams are not text-file patch targets")
 			}
@@ -161,6 +156,10 @@ func (svc *Service) prepareNativePatch(ctx context.Context, request ApplyPatchRe
 	// Check type before opening, including dangling symlinks and special files.
 	originalBytes := int64(0)
 	for _, target := range paths {
+		// target was canonicalized by Workspace.ResolveForWrite and, when the
+		// request is workspace-bound, verified against the bound workspace.
+		// This lstat only rejects a symlink or special file before staging.
+		// codeql[go/path-injection]
 		info, err := os.Lstat(target)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err

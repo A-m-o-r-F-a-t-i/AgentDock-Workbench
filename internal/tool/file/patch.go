@@ -171,6 +171,10 @@ func ensurePatchPathUnused(staged map[string]stagedPatchFile, absPath, displayPa
 }
 
 func readPatchFile(path string) (os.FileInfo, []byte, error) {
+	// Callers pass either a canonical Workspace-resolved path or a private
+	// transaction backup path created beside such a target. The lstat keeps
+	// text operations from following a final symlink or opening a special file.
+	// codeql[go/path-injection]
 	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, nil, err
