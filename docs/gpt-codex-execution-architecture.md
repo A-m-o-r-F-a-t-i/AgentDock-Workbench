@@ -51,9 +51,11 @@
 
 ## Managed MCP 恢复与统一结果
 
-　　真实 `mcp_tool_call` 只有在业务调用返回受控连接类错误、且实际效果为 `none` 时，才在原 Activity 上建立十分钟恢复资格。资格校验固定认证所有者、Conversation、Workspace、server、执行配置指纹与工具 Schema；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
+　　真实 `mcp_tool_call` 返回受控连接类错误，并满足原调用来源、绑定及配置身份条件时，可在原 Activity 上建立十分钟连接恢复资格。连接恢复资格与业务重试资格分别管理。资格校验固定认证所有者、Conversation、Workspace、server 和执行配置指纹；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
 
-　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复资格先原子领取，再关联恢复调用和唯一重试调用；并发领取只有一个成功者。恢复启动失败、异步失败、取消或到期均落下终态，不能留下永远占用的恢复资格。恢复完成后只重试原业务参数一次，目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。未知副作用只允许恢复连接，仍要求独立业务读回。
+　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复资格先原子领取并关联恢复调用，仅在业务重试获准时关联唯一重试调用；并发领取只有一个成功者。恢复启动失败、异步失败、取消或到期均落下终态，不能留下永远占用的恢复资格。只有原 Activity 记录 `effect_state=none` 且 `retry_safe=true` 时，恢复完成后才可使用原业务参数重试至多一次；目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。
+
+　　实际效果为 `unknown`，或原 Activity 的 `RetrySafe` 缺失、为 `false` 时，资格合法的调用仍可完成一次受控连接恢复，但不会重放原业务请求。Core 返回 `retry_performed=false`，并通过 `required_action` 的 `reconcile_unknown_mcp_effects` 原因要求核对未知效果。独立业务读回由模型依据该后续动作执行；连接恢复成功不代表 Core 已自动完成读回或验证原业务效果。
 
 　　Canonical Result 统一记录 `operation_status`、`error_kind`、`effect_state`、`execution_performed`、`retry_safe` 和分类 `required_action`。相同认证作用域、Workspace、参数、原因和目录 revision 的重复协议前置条件失败，返回首个 origin、原恢复动作与递增 `repeat_count`；完整结果先留存，再生成模型短回执。
 
