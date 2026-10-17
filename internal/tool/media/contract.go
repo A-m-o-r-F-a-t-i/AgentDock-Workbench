@@ -18,8 +18,6 @@ func InputSchema(name string) (map[string]any, bool) {
 	boolProp := toolcontract.Boolean
 	boundedIntProp := toolcontract.BoundedInteger
 	props := map[string]any{}
-	var required []string
-
 	switch name {
 	case ToolViewImage:
 		props["artifact_id"] = stringProp("Artifact id returned by an AgentDock image-producing tool.")
@@ -52,13 +50,58 @@ func InputSchema(name string) (map[string]any, bool) {
 		}
 		return schema, true
 	case ToolFilePublish:
-		props["file"] = map[string]any{"type": "string", "format": "binary", "description": "Top-level file parameter. Connector runtimes should pass the mounted local path when available."}
+		props["file"] = map[string]any{
+			"description": "Connector file input. Accepts the host-mounted binary path or the documented OpenAI connector file object.",
+			"anyOf": []map[string]any{
+				{
+					"type":        "string",
+					"format":      "binary",
+					"description": "Host-mounted local path supplied by the connector runtime.",
+				},
+				{
+					"type":                 "object",
+					"description":          "Connector-mounted file object. A mounted path is preferred when the object also contains download metadata.",
+					"additionalProperties": true,
+					"properties": map[string]any{
+						"local_path": stringProp("Mounted local path."),
+						"file_path":  stringProp("Mounted local path used by compatible connector runtimes."),
+						"mount_path": stringProp("Mounted local path used by compatible connector runtimes."),
+						"path":       stringProp("Mounted local path used by compatible connector runtimes."),
+						"filename":   stringProp("Absolute mounted path used by compatible connector runtimes."),
+					},
+					"anyOf": []map[string]any{
+						{"required": []string{"local_path"}},
+						{"required": []string{"file_path"}},
+						{"required": []string{"mount_path"}},
+						{"required": []string{"path"}},
+						{"required": []string{"filename"}},
+					},
+				},
+				{
+					"type":                 "object",
+					"description":          "OpenAI connector file object. download_url and file_id are required; file_name and mime_type are optional.",
+					"additionalProperties": true,
+					"properties": map[string]any{
+						"download_url": stringProp("Temporary HTTP(S) URL used only when no mounted local path is available."),
+						"file_id":      stringProp("Stable connector file identity; it is never treated as a path or URL."),
+						"file_name":    stringProp("Optional original file name."),
+						"mime_type":    stringProp("Optional declared media type."),
+					},
+					"required": []string{"download_url", "file_id"},
+				},
+			},
+		}
 		props["path"] = stringProp("Local file or directory path visible to this AgentDock instance. Relative paths resolve from ~/AgentDock.")
 		props["retention_seconds"] = boundedIntProp("Signed URL retention seconds. Zero uses the default 86400 and values are capped at 604800.", 0, int(publicartifacts.MaxRetention/time.Second))
+		schema := toolcontract.InputObject(props)
+		schema["oneOf"] = []map[string]any{
+			{"type": "object", "required": []string{"file"}},
+			{"type": "object", "required": []string{"path"}},
+		}
+		return schema, true
 	default:
 		return nil, false
 	}
-	return toolcontract.InputObject(props, required...), true
 }
 
 func OutputSchema(name string) (map[string]any, bool) {
