@@ -23,4 +23,29 @@ func TestSameFilesystemPathResolvesPlatformAliases(t *testing.T) {
 	if !sameFilesystemPath(filepath.Join(alias, "missing"), filepath.Join(root, "missing")) {
 		t.Fatalf("filesystem-resolved aliases were treated as different: %q and %q", alias, root)
 	}
+	store, err := New(filepath.Join(alias, "home"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	source := writePluginPackage(t, t.TempDir(), "alias-demo", "1.0.0", []string{"alias-skill"}, nil)
+	if _, err := store.Install(source, false); err != nil {
+		t.Fatal(err)
+	}
+	member, releaseRead, err := store.AcquireSkillMember(t.Context(), "alias-demo", "alias-skill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseRead()
+	commandRoot, releaseCommand, err := store.CreateSkillRuntime(t.Context(), member)
+	if err != nil {
+		t.Fatalf("Skill generation with a filesystem alias could not execute: %v", err)
+	}
+	defer releaseCommand()
+	if sameFilesystemPath(commandRoot, member.Path) {
+		t.Fatal("Skill command uses its immutable resource directory")
+	}
+	if _, err := os.Stat(filepath.Join(commandRoot, "SKILL.md")); err != nil {
+		t.Fatalf("Skill command directory lost its selected document: %v", err)
+	}
 }
