@@ -52,7 +52,7 @@ func TestWindowsSessionActKillTerminatesNativeChildTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session_act(kill) error = %v", err)
 	}
-	if result["status"] != "killed" {
+	if result["status"] != "cancelled" || result["command_ok"] != false || result["operation_status"] != "failed" {
 		t.Fatalf("kill result = %#v", result)
 	}
 	if err := waitForWindowsPort(port, false, 2*time.Second); err != nil {

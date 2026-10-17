@@ -26,9 +26,16 @@ func buildToolSpecs() []ToolSpec {
 }
 
 var (
-	toolSpecs     = buildToolSpecs()
-	toolSpecIndex = indexToolSpecs(toolSpecs)
+	toolSpecs     []ToolSpec
+	toolSpecIndex map[string]ToolSpec
 )
+
+// Handlers may re-enter Runtime.Call for a scoped recovery child. Build the
+// immutable directory after variable initialization to avoid a static cycle.
+func init() {
+	toolSpecs = buildToolSpecs()
+	toolSpecIndex = indexToolSpecs(toolSpecs)
+}
 
 func indexToolSpecs(specs []ToolSpec) map[string]ToolSpec {
 	index := make(map[string]ToolSpec, len(specs))

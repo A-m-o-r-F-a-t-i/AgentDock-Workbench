@@ -67,8 +67,8 @@ func TestServeStdioAdvertisesStableContextInstructions(t *testing.T) {
 		cfg  config.Config
 		want string
 	}{
-		{name: "without Nexus", cfg: config.Config{}, want: baseServerInstructions},
-		{name: "with Nexus", cfg: config.Config{NexusEndpoint: "http://127.0.0.1:18777"}, want: nexusServerInstructions},
+		{name: "without Nexus", cfg: config.Config{}, want: deviceRuntimeInstructions},
+		{name: "with Nexus", cfg: config.Config{NexusEndpoint: "http://127.0.0.1:18777"}, want: deviceRuntimeInstructions},
 	}
 
 	for _, test := range tests {
@@ -92,12 +92,12 @@ func TestServeStdioAdvertisesStableContextInstructions(t *testing.T) {
 				t.Fatalf("Connect() error = %v", err)
 			}
 			result := session.InitializeResult()
-			if result == nil || !strings.HasPrefix(result.Instructions, test.want) {
+			if result == nil || result.Instructions != test.want {
 				t.Fatalf("InitializeResult() = %#v, want stable instructions %q", result, test.want)
 			}
-			for _, want := range []string{"AGENTDOCK_USER_INSERT_V1", "transport-managed", "workdir"} {
+			for _, want := range []string{"agentdock_context", "tools/list", "response_additions", "command status and exit code", "connection-class"} {
 				if !strings.Contains(result.Instructions, want) {
-					t.Fatalf("fork guidance missing %q", want)
+					t.Fatalf("device contract missing %q", want)
 				}
 			}
 			if err := session.Close(); err != nil {
@@ -115,7 +115,7 @@ func TestServeStdioAdvertisesStableContextInstructions(t *testing.T) {
 	}
 }
 
-func TestServeStdioPreservesScopedStartupAGENTSContent(t *testing.T) {
+func TestServeStdioPreservesScopedAGENTSContentThroughContext(t *testing.T) {
 	root := t.TempDir()
 	cfg := config.Config{
 		AgentDockHome:       filepath.Join(root, "state"),
@@ -155,13 +155,17 @@ func TestServeStdioPreservesScopedStartupAGENTSContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := session.InitializeResult()
-	if result == nil || !strings.HasPrefix(result.Instructions, baseServerInstructions) {
+	if result == nil || result.Instructions != deviceRuntimeInstructions {
 		t.Fatalf("InitializeResult() = %#v, want stable instructions only", result)
 	}
 	for _, marker := range []string{"GLOBAL-AGENTS-MARKER", "WORKSPACE-AGENTS-MARKER"} {
-		if !strings.Contains(result.Instructions, marker) {
-			t.Fatalf("MCP initialize lost scoped AGENTS.md content %q", marker)
+		if strings.Contains(result.Instructions, marker) {
+			t.Fatalf("MCP initialize duplicated scoped AGENTS.md content %q", marker)
 		}
+	}
+	instructions := readMCPInstructionSnapshot(t, session, cfg.AgentDockDefaultDir)
+	if len(instructions.Files) != 2 || instructions.Files[0].Content != "GLOBAL-AGENTS-MARKER" || instructions.Files[1].Content != "WORKSPACE-AGENTS-MARKER" {
+		t.Fatalf("MCP context lost scoped AGENTS.md content or rule order: %#v", instructions.Files)
 	}
 	if err := session.Close(); err != nil {
 		t.Fatal(err)

@@ -147,8 +147,14 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"bundles": map[string]any{
 			"type": "array", "maxItems": len(builtinBundles), "items": bundleItem,
 		},
-		"loaded_bundle":        map[string]any{"type": "string"},
-		"revealed_tools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"next_required_action": map[string]any{"type": "string"},
+		"loaded":                map[string]any{"type": "boolean"},
+		"bundle":                map[string]any{"type": "string"},
+		"tool_catalog_revision": map[string]any{"type": "string"},
+		"host_refresh_required": map[string]any{"type": "boolean"},
+		"execution_performed":   map[string]any{"type": "boolean"},
+		"required_action":       toolcontract.OpenObject("Host directory refresh required before the original business call."),
+		"loaded_bundle":         map[string]any{"type": "string"},
+		"revealed_tools":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"next_required_action":  map[string]any{"type": "string"},
 	}, "action", "scoped", "changed", "directory_changed", "bundles"), true
 }

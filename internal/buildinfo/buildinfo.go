@@ -11,7 +11,7 @@ import (
 const Version = "1.1.9"
 
 // ProductName is the display identity from 1.1.7 onward; machine IDs remain stable.
-const ProductName = "AgentDock Workbench"
+const ProductName = "ACTOVO"
 
 var (
 	Commit    string

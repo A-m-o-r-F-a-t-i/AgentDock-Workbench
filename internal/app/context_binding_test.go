@@ -27,9 +27,15 @@ func assertContextScope(t *testing.T, result Result, root, body string) workspac
 	}
 	diagnostics, _ := result["context_diagnostics"].(map[string]any)
 	guidance, _ := result["agentdock_guidance"].(map[string]any)
+	guidanceWorkspace := any(nil)
+	guidanceConsistent := true
+	if guidance != nil {
+		guidanceWorkspace = guidance["workspace_id"]
+		guidanceConsistent = guidanceWorkspace == nil || guidanceWorkspace == selected.ID
+	}
 	if diagnostics["complete"] != true || !sameExistingTestPath(selected.Root, root) || !sameExistingTestPath(instructions.Workdir, root) ||
-		result["workspace_id"] != selected.ID || guidance["workspace_id"] != selected.ID || !strings.Contains(instructionBodies(&instructions), body) {
-		t.Fatalf("inconsistent context: expected directory=%q, selected=%q, instructions=%q, selected ID=%q, result ID=%v, guidance ID=%v, complete=%v, binding=%v, required rules present=%v", root, selected.Root, instructions.Workdir, selected.ID, result["workspace_id"], guidance["workspace_id"], diagnostics["complete"], diagnostics["binding_status"], strings.Contains(instructionBodies(&instructions), body))
+		result["workspace_id"] != selected.ID || !guidanceConsistent || !strings.Contains(instructionBodies(&instructions), body) {
+		t.Fatalf("inconsistent context: expected directory=%q, selected=%q, instructions=%q, selected ID=%q, result ID=%v, guidance ID=%v, complete=%v, binding=%v, required rules present=%v", root, selected.Root, instructions.Workdir, selected.ID, result["workspace_id"], guidanceWorkspace, diagnostics["complete"], diagnostics["binding_status"], strings.Contains(instructionBodies(&instructions), body))
 	}
 	return selected
 }

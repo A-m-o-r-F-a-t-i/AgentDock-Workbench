@@ -32,6 +32,11 @@ type AffectedFile struct {
 // AffectedFiles can describe planned edits when DryRun is true. Changed must
 // never claim that preview statistics were actually written to disk.
 type FileEditDetails struct {
+	OperationStatus    string         `json:"operation_status,omitempty"`
+	EffectState        string         `json:"effect_state,omitempty"`
+	ErrorKind          string         `json:"error_kind,omitempty"`
+	Phase              string         `json:"phase,omitempty"`
+	RetrySafe          *bool          `json:"retry_safe,omitempty"`
 	Action             string         `json:"action"`
 	Path               string         `json:"path,omitempty"`
 	NewPath            string         `json:"new_path,omitempty"`

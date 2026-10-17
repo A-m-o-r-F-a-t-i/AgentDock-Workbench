@@ -7,19 +7,19 @@ import (
 	"testing"
 )
 
-func TestFileEditPatchSchemaDescribesStructuredEnvelope(t *testing.T) {
-	properties := testInputSchema("file_edit")["properties"].(map[string]any)
+func TestApplyPatchSchemaDescribesStructuredEnvelope(t *testing.T) {
+	properties := testInputSchema("apply_patch")["properties"].(map[string]any)
 	patch := properties["patch"].(map[string]any)
 	description, _ := patch["description"].(string)
 	for _, marker := range []string{"*** Begin Patch", "*** Update File: <path>", "@@ [<optional context line>]", "*** End of File"} {
 		if !strings.Contains(description, marker) {
-			t.Fatalf("file_edit patch description missing %q: %q", marker, description)
+			t.Fatalf("apply_patch description missing %q: %q", marker, description)
 		}
 	}
 }
 
 func TestNonWindowsFileToolSchemasDoNotExposeWSLRuntime(t *testing.T) {
-	for _, name := range []string{"read_file", "list_dir", "search_text", "file_edit"} {
+	for _, name := range []string{"read_file", "list_dir", "search_text"} {
 		properties := testInputSchema(name)["properties"].(map[string]any)
 		if _, ok := properties["runtime"]; ok {
 			t.Fatalf("%s input schema unexpectedly exposes runtime", name)

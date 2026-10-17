@@ -1,6 +1,6 @@
 //go:build linux
 
-package file
+package file_test
 
 import (
 	"encoding/json"
@@ -10,10 +10,11 @@ import (
 	"syscall"
 	"testing"
 
+	toolfile "github.com/uvwt/agentdock/internal/tool/file"
 	"github.com/uvwt/agentdock/internal/wslfilehelper"
 )
 
-func runWSLFileHelperForTest(t *testing.T, request map[string]any) Result {
+func runWSLFileHelperForTest(t *testing.T, request map[string]any) toolfile.Result {
 	t.Helper()
 	payload, err := json.Marshal(request)
 	if err != nil {
@@ -25,7 +26,7 @@ func runWSLFileHelperForTest(t *testing.T, request map[string]any) Result {
 	}
 	helperResponse, dispatchErr := wslfilehelper.Dispatch(&helperRequest)
 	if dispatchErr != nil {
-		result := Result{"ok": false, "code": "WSL_FILE_RUNTIME_ERROR", "message": dispatchErr.Error()}
+		result := toolfile.Result{"ok": false, "code": "WSL_FILE_RUNTIME_ERROR", "message": dispatchErr.Error()}
 		var failure *wslfilehelper.ToolFailure
 		if errors.As(dispatchErr, &failure) {
 			result["code"] = failure.Code
@@ -39,14 +40,14 @@ func runWSLFileHelperForTest(t *testing.T, request map[string]any) Result {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := Result{}
+	result := toolfile.Result{}
 	if err := json.Unmarshal(encoded, &result); err != nil {
 		t.Fatal(err)
 	}
 	return result
 }
 
-func requireWSLHelperOK(t *testing.T, result Result) {
+func requireWSLHelperOK(t *testing.T, result toolfile.Result) {
 	t.Helper()
 	if ok, _ := result["ok"].(bool); !ok {
 		t.Fatalf("helper result = %#v", result)

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/uvwt/agentdock/internal/fs/securepath"
 	workspacepkg "github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -18,7 +19,7 @@ func patchPathInBase(basePath, rawPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if cleanBase == "." {
+	if cleanBase == "." || filepath.IsAbs(cleanRaw) || strings.HasPrefix(cleanRaw, "~") {
 		return cleanRaw, nil
 	}
 	return filepath.ToSlash(filepath.Join(filepath.FromSlash(cleanBase), filepath.FromSlash(cleanRaw))), nil
@@ -29,112 +30,9 @@ func (svc *Service) applyEnvelopePatch(patch string, dryRun bool, basePath strin
 	if err != nil {
 		return nil, err
 	}
-	staged := map[string]stagedPatchFile{}
-	affected := make([]map[string]any, 0)
-	summaries := make([]string, 0)
-
-	for _, op := range operations {
-		switch op.Kind {
-		case "add":
-			targetPath, err := patchPathInBase(basePath, op.Path)
-			if err != nil {
-				return nil, err
-			}
-			target, err := svc.ws.ResolveForWrite(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			if target.Exists {
-				return nil, toolError("PATCH_FAILED", "cannot add file that already exists", "validation")
-			}
-			if err := ensurePatchPathUnused(staged, target.Abs, target.Display); err != nil {
-				return nil, err
-			}
-			content := op.AddContent
-			staged[target.Abs] = stagedPatchFile{Abs: target.Abs, Display: target.Display, Content: &content, Mode: 0o644}
-			affected = append(affected, map[string]any{"path": target.Display, "operation": "add"})
-			summaries = append(summaries, "A "+target.Display)
-		case "delete":
-			targetPath, err := patchPathInBase(basePath, op.Path)
-			if err != nil {
-				return nil, err
-			}
-			target, err := svc.ws.ResolveExisting(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			if err := ensurePatchPathUnused(staged, target.Abs, target.Display); err != nil {
-				return nil, err
-			}
-			info, original, err := readPatchFile(target.Abs)
-			if err != nil {
-				return nil, err
-			}
-			staged[target.Abs] = stagedPatchFile{Abs: target.Abs, Display: target.Display, Mode: info.Mode().Perm(), Original: original, OriginalExists: true}
-			affected = append(affected, map[string]any{"path": target.Display, "operation": "delete"})
-			summaries = append(summaries, "D "+target.Display)
-		case "update":
-			sourcePath, err := patchPathInBase(basePath, op.Path)
-			if err != nil {
-				return nil, err
-			}
-			source, err := svc.ws.ResolveExisting(sourcePath)
-			if err != nil {
-				return nil, err
-			}
-			current, exists := staged[source.Abs]
-			if exists && current.Content == nil {
-				return nil, toolError("PATCH_FAILED", "cannot update a deleted file", "validation")
-			}
-			if !exists {
-				info, original, err := readPatchFile(source.Abs)
-				if err != nil {
-					return nil, err
-				}
-				content := string(original)
-				current = stagedPatchFile{Abs: source.Abs, Display: source.Display, Content: &content, Mode: info.Mode().Perm(), Original: original, OriginalExists: true}
-			}
-			updated, err := applyUpdateHunks(*current.Content, op.Chunks, source.Display)
-			if err != nil {
-				return nil, err
-			}
-			if op.MoveTo == "" {
-				current.Content = &updated
-				staged[source.Abs] = current
-				affected = append(affected, map[string]any{"path": source.Display, "operation": "update"})
-				summaries = append(summaries, "M "+source.Display)
-				continue
-			}
-
-			destPath, err := patchPathInBase(basePath, op.MoveTo)
-			if err != nil {
-				return nil, err
-			}
-			dest, err := svc.ws.ResolveForWrite(destPath)
-			if err != nil {
-				return nil, err
-			}
-			if dest.Abs == source.Abs {
-				current.Content = &updated
-				staged[source.Abs] = current
-				affected = append(affected, map[string]any{"path": source.Display, "operation": "update"})
-				summaries = append(summaries, "M "+source.Display)
-				continue
-			}
-			if dest.Exists {
-				return nil, toolError("PATCH_FAILED", "cannot move over an existing file", "validation")
-			}
-			if err := ensurePatchPathUnused(staged, dest.Abs, dest.Display); err != nil {
-				return nil, err
-			}
-			staged[source.Abs] = stagedPatchFile{Abs: source.Abs, Display: source.Display, Mode: current.Mode, Original: current.Original, OriginalExists: true}
-			staged[dest.Abs] = stagedPatchFile{Abs: dest.Abs, Display: dest.Display, Content: &updated, Mode: current.Mode, MoveFrom: source.Abs}
-			affected = append(affected, map[string]any{"path": source.Display, "operation": "move", "move_to": dest.Display})
-			summaries = append(summaries, "R "+source.Display+" -> "+dest.Display)
-		}
-	}
-	if len(affected) == 0 {
-		return nil, toolError("PATCH_FAILED", "no files were modified", "validation")
+	staged, affected, summaries, err := svc.stageEnvelopePatch(operations, basePath)
+	if err != nil {
+		return nil, err
 	}
 	fileStatistics := []editFileStatistics{}
 	diffPreview, diffTruncated, stats, err := stagedDiffPreview(staged, 65536, &fileStatistics)
@@ -149,6 +47,118 @@ func (svc *Service) applyEnvelopePatch(patch string, dryRun bool, basePath strin
 	return Result{"dry_run": dryRun, "workdir": basePath, "affected_files": affected, "file_statistics": fileStatistics, "summary": strings.Join(summaries, "\n"), "diff_preview": diffPreview, "truncated": diffTruncated, "files_changed": stats.FilesChanged, "insertions": stats.Insertions, "deletions": stats.Deletions}, nil
 }
 
+// Shared preflight: build the complete overlay without writing any target.
+func (svc *Service) stageEnvelopePatch(operations []patchOperation, basePath string) (map[string]stagedPatchFile, []map[string]any, []string, error) {
+	staged := map[string]stagedPatchFile{}
+	affected := make([]map[string]any, 0)
+	summaries := make([]string, 0)
+
+	for _, op := range operations {
+		switch op.Kind {
+		case "add":
+			targetPath, err := patchPathInBase(basePath, op.Path)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			target, err := svc.ws.ResolveForWrite(targetPath)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if target.Exists {
+				return nil, nil, nil, toolError("PATCH_FAILED", "cannot add file that already exists", "validation")
+			}
+			if err := ensurePatchPathUnused(staged, target.Abs, target.Display); err != nil {
+				return nil, nil, nil, err
+			}
+			content := op.AddContent
+			staged[target.Abs] = stagedPatchFile{Abs: target.Abs, Display: target.Display, Content: &content, Mode: 0o644}
+			affected = append(affected, map[string]any{"path": target.Display, "operation": "add"})
+			summaries = append(summaries, "A "+target.Display)
+		case "delete":
+			targetPath, err := patchPathInBase(basePath, op.Path)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			target, err := svc.ws.ResolveExisting(targetPath)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if err := ensurePatchPathUnused(staged, target.Abs, target.Display); err != nil {
+				return nil, nil, nil, err
+			}
+			info, original, err := readPatchFile(target.Abs)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			staged[target.Abs] = stagedPatchFile{Abs: target.Abs, Display: target.Display, Mode: info.Mode().Perm(), Original: original, OriginalExists: true}
+			affected = append(affected, map[string]any{"path": target.Display, "operation": "delete"})
+			summaries = append(summaries, "D "+target.Display)
+		case "update":
+			sourcePath, err := patchPathInBase(basePath, op.Path)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			source, err := svc.ws.ResolveExisting(sourcePath)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			current, exists := staged[source.Abs]
+			if exists && current.Content == nil {
+				return nil, nil, nil, toolError("PATCH_FAILED", "cannot update a deleted file", "validation")
+			}
+			if !exists {
+				info, original, err := readPatchFile(source.Abs)
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				content := string(original)
+				current = stagedPatchFile{Abs: source.Abs, Display: source.Display, Content: &content, Mode: info.Mode().Perm(), Original: original, OriginalExists: true}
+			}
+			updated, err := applyUpdateHunks(*current.Content, op.Chunks, source.Display)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if op.MoveTo == "" {
+				current.Content = &updated
+				staged[source.Abs] = current
+				affected = append(affected, map[string]any{"path": source.Display, "operation": "update"})
+				summaries = append(summaries, "M "+source.Display)
+				continue
+			}
+
+			destPath, err := patchPathInBase(basePath, op.MoveTo)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			dest, err := svc.ws.ResolveForWrite(destPath)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if dest.Abs == source.Abs {
+				current.Content = &updated
+				staged[source.Abs] = current
+				affected = append(affected, map[string]any{"path": source.Display, "operation": "update"})
+				summaries = append(summaries, "M "+source.Display)
+				continue
+			}
+			if dest.Exists {
+				return nil, nil, nil, toolError("PATCH_FAILED", "cannot move over an existing file", "validation")
+			}
+			if err := ensurePatchPathUnused(staged, dest.Abs, dest.Display); err != nil {
+				return nil, nil, nil, err
+			}
+			staged[source.Abs] = stagedPatchFile{Abs: source.Abs, Display: source.Display, Mode: current.Mode, Original: current.Original, OriginalExists: true}
+			staged[dest.Abs] = stagedPatchFile{Abs: dest.Abs, Display: dest.Display, Content: &updated, Mode: current.Mode, MoveFrom: source.Abs}
+			affected = append(affected, map[string]any{"path": source.Display, "operation": "move", "move_to": dest.Display})
+			summaries = append(summaries, "R "+source.Display+" -> "+dest.Display)
+		}
+	}
+	if len(affected) == 0 {
+		return nil, nil, nil, toolError("PATCH_FAILED", "no files were modified", "validation")
+	}
+	return staged, affected, summaries, nil
+}
+
 func ensurePatchPathUnused(staged map[string]stagedPatchFile, absPath, displayPath string) error {
 	if _, exists := staged[absPath]; !exists {
 		return nil
@@ -161,8 +171,50 @@ func ensurePatchPathUnused(staged map[string]stagedPatchFile, absPath, displayPa
 	)
 }
 
+// Paths have already been resolved against the selected host/workspace target.
+// Keep that absolute target, then constrain filesystem access to its leaf name.
+func patchTargetLocation(path string) (string, string, error) {
+	if !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
+		return "", "", toolError("INVALID_PATH", "patch target must be an absolute resolved path", "validation")
+	}
+	name := filepath.Base(path)
+	if !filepath.IsLocal(name) || name == "." {
+		return "", "", toolError("INVALID_PATH", "patch target must name a local file", "validation")
+	}
+	return filepath.Dir(path), name, nil
+}
+
+func lstatPatchTarget(path string) (os.FileInfo, error) {
+	parent, name, err := patchTargetLocation(path)
+	if err != nil {
+		return nil, err
+	}
+	directory, err := os.OpenRoot(parent)
+	if err != nil {
+		return nil, err
+	}
+	defer directory.Close()
+	return directory.Lstat(name)
+}
+
 func readPatchFile(path string) (os.FileInfo, []byte, error) {
-	read, err := readBoundedFile(path, int64(maxTextFileReadBytes))
+	info, err := lstatPatchTarget(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, nil, toolError("NOT_REGULAR_FILE", "patch targets must be regular text files", "validation")
+	}
+	parent, name, err := patchTargetLocation(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, _, err := securepath.OpenRegular(parent, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+	read, err := readBoundedFileHandle(file, int64(maxTextFileReadBytes))
 	if err != nil {
 		return nil, nil, err
 	}

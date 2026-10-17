@@ -18,6 +18,11 @@ func readBoundedFile(path string, maxBytes int64) (boundedFileRead, error) {
 		return boundedFileRead{}, err
 	}
 	defer file.Close()
+	return readBoundedFileHandle(file, maxBytes)
+}
+
+// The caller owns the handle, allowing protected openers to use the same limit.
+func readBoundedFileHandle(file *os.File, maxBytes int64) (boundedFileRead, error) {
 	info, err := file.Stat()
 	if err != nil {
 		return boundedFileRead{}, err

@@ -183,7 +183,7 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     public string Workdir => _value.Text("workdir");
     public string[] FileLocations => FileExplorerReveal.Locations(_value);
     public bool ReadOnlyLegacy => _value.Flag("read_only_legacy");
-    public string Summary => string.Join(" · ", new[] { _value.Text("summary"), OutputStateSummary }.Where(value => value.Length > 0));
+    public string Summary => string.Join(" · ", new[] { _value.Text("summary"), OutputStateSummary, ToolExecutionSummary }.Where(value => value.Length > 0));
     public string OutputStateSummary => string.Join(" · ", new[]
     {
         _value.Field("operation").Field("ok").ValueKind == JsonValueKind.False ? "业务执行失败" : "",
@@ -193,7 +193,7 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
     }.Where(value => value.Length > 0));
     public string OriginalLabel => _value.Text("activity_label", _value.Text("display_title", _value.Text("title", Tool)));
     public string Title => IsInsertion ? "用户补充" : ExecutionTitleFormatter.Format(ActualTool, Tool == "read_file" && _value.Text("display_title").StartsWith("读取 Skill", StringComparison.Ordinal) ? "读取 Skill" : OriginalLabel, _value.Text("action"));
-    public string TitleTooltip => Title + (OriginalLabel.Length > 0 && OriginalLabel != Title ? "\n原始说明：" + OriginalLabel : "");
+    public string TitleTooltip => Title + (OriginalLabel.Length > 0 && OriginalLabel != Title ? "\n原始说明：" + OriginalLabel : "") + (ToolExecutionDetails.Length > 0 ? "\n\n" + ToolExecutionDetails : "");
     public DateTimeOffset? RequestReceivedAt => _value.Date("request_received_at");
     public DateTimeOffset? LastActivityAt => _value.Date("last_activity_at");
     public DateTimeOffset? LastInteractionAt => _value.Date("last_interaction_at");
@@ -245,9 +245,88 @@ public sealed partial class ExecutionCallRow : INotifyPropertyChanged
             var addedKey = preview ? "proposed_insertions" : "insertions";
             var removedKey = preview ? "proposed_deletions" : "deletions";
             var files = edit.Array("affected_files").Select(file => file.Text("path") + (file.Text("move_to").Length > 0 ? " → " + file.Text("move_to") : "") + "  +" + (file.OptionalNumber(addedKey)?.ToString() ?? "—") + " −" + (file.OptionalNumber(removedKey)?.ToString() ?? "—"));
-            return $"{Tool} · {edit.Text("action")}\n目标：{edit.Text("path")}\n预览：{(edit.Flag("dry_run") ? "是，未写入" : "否")}\n已派发：{(edit.Flag("executed") ? "是" : "否")}\n实际修改：{changed}\n影响文件数：{edit.OptionalNumber("affected_count")?.ToString() ?? "未记录"}\n统计：{(PartialEditStatistics ? "部分执行，仅含已确认变化" : preview ? "预演计划" : edit.Text("stats_state", "旧记录"))}\n{(preview ? "拟议" : "实际")}新增/删除行：{edit.OptionalNumber(addedKey)?.ToString() ?? "未记录"} / {edit.OptionalNumber(removedKey)?.ToString() ?? "未记录"}\n" + string.Join("\n", files) + (edit.Flag("files_truncated") ? "\n文件明细超过预览上限。" : "") + "\n\n" + edit.Text("diff_preview") + (edit.Flag("diff_truncated") ? "\n差异预览已截断。" : "");
+            return PatchEffectDetails(edit) + $"{Tool} · {edit.Text("action")}\n目标：{edit.Text("path")}\n预览：{(edit.Flag("dry_run") ? "是，未写入" : "否")}\n已派发：{(edit.Flag("executed") ? "是" : "否")}\n实际修改：{changed}\n影响文件数：{edit.OptionalNumber("affected_count")?.ToString() ?? "未记录"}\n统计：{(PartialEditStatistics ? "部分执行，仅含已确认变化" : preview ? "预演计划" : edit.Text("stats_state", "旧记录"))}\n{(preview ? "拟议" : "实际")}新增/删除行：{edit.OptionalNumber(addedKey)?.ToString() ?? "未记录"} / {edit.OptionalNumber(removedKey)?.ToString() ?? "未记录"}\n" + string.Join("\n", files) + (edit.Flag("files_truncated") ? "\n文件明细超过预览上限。" : "") + "\n\n" + edit.Text("diff_preview") + (edit.Flag("diff_truncated") ? "\n差异预览已截断。" : "");
         }
     }
+    private static string PatchEffectDetails(JsonElement edit)
+    {
+        var state = edit.Text("effect_state");
+        if (state.Length == 0) return "";
+        var label = state switch { "none" => "未写入", "complete" => "全部修改已核对", "partial" => "部分修改已生效", "unknown" => "修改效果待核对", _ => state };
+        var retry = edit.Field("retry_safe").ValueKind switch { JsonValueKind.True => "已确认无重复副作用", JsonValueKind.False => "先检查实际效果，勿直接重放", _ => "未记录" };
+        return $"执行状态：{edit.Text("operation_status", "未记录")}\n修改效果：{label}\n阶段：{edit.Text("phase", "未记录")}\n重试条件：{retry}\n";
+    }
+
+    public string ToolExecutionSummary
+    {
+        get
+        {
+            var detail = _value.Field("tool_execution");
+            if (detail.ValueKind != JsonValueKind.Object) return "";
+            var parts = new List<string>();
+            var catalog = detail.Text("catalog_state");
+            if (catalog.Length > 0 && catalog != "fresh") parts.Add("目录 " + CatalogStateText(catalog));
+            var route = detail.Text("route_status");
+            if (route is "blocked" or "incomplete" or "ambiguous") parts.Add("路由 " + route);
+            var next = detail.Field("required_action").Text("tool");
+            if (next.Length > 0) parts.Add("下一步 " + next);
+            var recovery = detail.Field("recovery").Text("state");
+            if (recovery.Length > 0) parts.Add("恢复 " + RecoveryStateText(recovery));
+            if (detail.Flag("host_refresh_required")) parts.Add("Host 需刷新工具目录");
+            if (detail.OptionalNumber("repeat_count") is > 1) parts.Add("重复前置条件 ×" + detail.Number("repeat_count"));
+            return string.Join(" · ", parts);
+        }
+    }
+    public string ToolExecutionDetails
+    {
+        get
+        {
+            var detail = _value.Field("tool_execution");
+            if (detail.ValueKind != JsonValueKind.Object) return "";
+            var lines = new List<string>();
+            void Add(string label, string value) { if (value.Length > 0) lines.Add(label + "：" + value); }
+            Add("MCP 服务", detail.Text("server"));
+            Add("正式工具名", detail.Text("qualified_name"));
+            Add("目录状态", CatalogStateText(detail.Text("catalog_state")));
+            Add("目录 revision", detail.Text("catalog_revision"));
+            Add("匹配方式", detail.Text("match_kind"));
+            Add("路由状态", detail.Text("route_status"));
+            Add("业务状态", detail.Text("operation_status"));
+            Add("实际效果", detail.Text("effect_state"));
+            Add("错误类别", detail.Text("error_kind"));
+            if (detail.Field("execution_performed").ValueKind != JsonValueKind.Undefined)
+                Add("业务派发", detail.Field("execution_performed").ValueKind switch { JsonValueKind.True => "是", JsonValueKind.False => "否", _ => "待核对" });
+            if (detail.Field("retry_safe").ValueKind is JsonValueKind.True or JsonValueKind.False)
+                Add("原请求重试安全性", detail.Flag("retry_safe") ? "已确认无重复业务变更；仍需原调用校验" : "需先核对实际效果");
+            if (detail.Flag("host_refresh_required")) Add("Host", "需要重新获取 tools/list");
+            Add("原调用", detail.Text("origin_call_id", _value.Text("retry_of_call_id")));
+            var action = detail.Field("required_action");
+            Add("下一步类别", action.Text("category"));
+            Add("下一工具", action.Text("tool"));
+            Add("下一步原因", action.Text("reason_code"));
+            var arguments = action.Text("arguments");
+            if (arguments != "null") Add("下一步参数", arguments);
+            if (action.Flag("arguments_truncated")) Add("下一步参数", "这里只显示预览，完整动作见原调用输出");
+            var recovery = detail.Field("recovery");
+            Add("恢复状态", RecoveryStateText(recovery.Text("state")));
+            Add("恢复调用", recovery.Text("call_id"));
+            Add("重试调用", recovery.Text("retry_call_id"));
+            Add("恢复 Skill", recovery.Text("skill_ref"));
+            if (recovery.Date("expires_at") is { } expiry) Add("恢复有效期至", expiry.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            if (recovery.Date("consumed_at") is { } consumed) Add("重试消费时间", consumed.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            return string.Join("\n", lines);
+        }
+    }
+    private static string CatalogStateText(string state) => state switch
+    {
+        "fresh" => "最新", "cached" => "缓存", "stale" => "待刷新", "refresh_failed" => "刷新失败", "unavailable" => "不可用", _ => state
+    };
+    private static string RecoveryStateText(string state) => state switch
+    {
+        "eligible" => "资格已记录", "claimed" => "步骤已领取", "recovered" => "连接已恢复", "consumed" => "重试已消费",
+        "retry_succeeded" => "重试成功", "retry_failed" => "重试失败", "retry_cancelled" => "重试已取消", "retry_unknown" => "重试结果待核对", _ => state
+    };
+
     private static string FormatDuration(long? milliseconds) => milliseconds is >= 0 ? (milliseconds.Value / 1000.0).ToString("0.000") + " s" : "未记录";
     public string When => DateTimeOffset.TryParse(_value.Text("created_at"), out var date) ? date.ToLocalTime().ToString("HH:mm:ss") : "";
     public string Rule => string.Join(" · ", new[] { _value.Text("rule_id"), ExecutionJson.Mode(_value.Text("permission_mode")) }.Where(value => value.Length > 0));

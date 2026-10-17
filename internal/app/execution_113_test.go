@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,7 +29,7 @@ func Test113ConversationTerminationBlocksAllNewExecutionAndKeepsHistory(t *testi
 	boot := scopeRead(t, r, ctx)
 	id := stringArg(boot, "conversation_id")
 	scopeRead(t, r, other)
-	pending, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "never-written.txt", "content": "must not run"})
+	pending, err := r.Call(ctx, "apply_patch", patchAddRequest("never-written.txt", "must not run"))
 	if err != nil || pending["status"] != "pending_approval" {
 		t.Fatalf("pending fixture: %+v %v", pending, err)
 	}
@@ -42,7 +43,7 @@ func Test113ConversationTerminationBlocksAllNewExecutionAndKeepsHistory(t *testi
 	for _, test := range []struct {
 		name string
 		args map[string]any
-	}{{"agentdock_context", nil}, {"read_file", map[string]any{"path": "nonexistent"}}, {"file_edit", map[string]any{"action": "add", "path": "denied.txt", "content": "no"}}, {"task_manage", map[string]any{"action": "list"}}, {"unregistered-tool", nil}} {
+	}{{"agentdock_context", nil}, {"read_file", map[string]any{"path": "nonexistent"}}, {"apply_patch", patchAddRequest("denied.txt", "no")}, {"task_manage", map[string]any{"action": "list"}}, {"unregistered-tool", nil}} {
 		_, err := r.Call(ctx, test.name, test.args)
 		assert113Terminated(t, err)
 	}
@@ -142,7 +143,7 @@ func Test113TerminationApprovalRaceClosesAdmissionBeforeReturning(t *testing.T) 
 				t.Fatal(err)
 			}
 		}
-		pending, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "race-write.txt", "content": "admitted before gate", "overwrite": true})
+		pending, err := r.Call(ctx, "apply_patch", patchAddRequest(fmt.Sprintf("race-write-%d.txt", round), "admitted before gate"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -159,7 +160,7 @@ func Test113TerminationApprovalRaceClosesAdmissionBeforeReturning(t *testing.T) 
 		waitExecutionTerminal(t, r, stringArg(pending, "call_id"))
 		// A request admitted before the gate may already have completed. Nothing
 		// submitted after this point may dispatch, regardless of the race winner.
-		_, err = r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "after-gate.txt", "content": "no"})
+		_, err = r.Call(ctx, "apply_patch", patchAddRequest("after-gate.txt", "no"))
 		assert113Terminated(t, err)
 		time.Sleep(time.Millisecond)
 	}

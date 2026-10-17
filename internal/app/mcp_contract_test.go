@@ -40,8 +40,8 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			t.Fatalf("%s complete validation output extension drifted", name)
 		}
 		if name == mcpcontract.ToolAgentDockContext {
-			// Standalone AgentDock adds only optional local context fields. Compare
-			// every remaining field against the unchanged shared protocol contract.
+			// Standalone AgentDock owns its optional local indexes and ACP profile
+			// summary. Other fields retain the shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
 			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
 			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
@@ -51,7 +51,9 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "plugins")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "tasks")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "workspace")
-			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_revision")
+			for _, field := range []string{"context_revision", "bootstrap_complete", "dynamic_mcp_summary", "git", "host_tools", "running_sessions", "task_binding", "terminal_completions_pending", "tool_catalog_revision", "workdir"} {
+				actualOutput = withoutLocalContextProperty(t, actualOutput, field)
+			}
 			if bundles := actualOutput["properties"].(map[string]any)["builtin_tool_bundles"]; !reflect.DeepEqual(bundles, builtinToolBundleIndexSchema()) {
 				t.Fatalf("built-in tool bundle schema drifted: %#v", bundles)
 			}
@@ -79,6 +81,7 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			rootProperties["runtime"] = runtimeSchema
 			dynamic := maps.Clone(rootProperties["dynamic_mcp"].(map[string]any))
 			item := dynamic["items"].(map[string]any)
+			item = withoutLocalContextProperty(t, item, "catalog_state")
 			for field, kind := range map[string]string{"revision": "string", "server_version": "string", "tool_count_known": "boolean"} {
 				property := item["properties"].(map[string]any)[field]
 				if !reflect.DeepEqual(property, map[string]any{"type": kind}) {
@@ -106,6 +109,11 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			t.Fatalf("%s input schema drifted from shared contract", name)
 		}
 		wantOutput, _ := workbenchCanonicalOutputSchema(name)
+		if name == mcpcontract.ToolAgentDockContext {
+			wantProperties := maps.Clone(wantOutput["properties"].(map[string]any))
+			wantProperties["acp"] = acpContextSchema()
+			wantOutput["properties"] = wantProperties
+		}
 		if !reflect.DeepEqual(actualOutput, wantOutput) {
 			t.Fatalf("%s output schema drifted from shared contract", name)
 		}

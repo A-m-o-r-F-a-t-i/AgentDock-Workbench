@@ -84,8 +84,8 @@ swiftc \
 "$TMP_ROOT/permission-checker-tests"
 
 mkdir -p "$TMP_ROOT/output"
-: > "$TMP_ROOT/output/AgentDock-macos-universal.zip"
-: > "$TMP_ROOT/output/AgentDock-macos-universal.zip.sha256"
+: > "$TMP_ROOT/output/ACTOVO-macos-universal.zip"
+: > "$TMP_ROOT/output/ACTOVO-macos-universal.zip.sha256"
 
 case "$(uname -m)" in
   arm64|aarch64) release_arch="arm64" ;;
@@ -137,8 +137,8 @@ AGENTDOCK_MACOS_OFFLINE_PAYLOAD_DIR="$payload_dir" \
   "$ROOT_DIR/packaging/macos/build-app.sh"
 
 APP="$TMP_ROOT/output/AgentDock.app"
-DMG="$TMP_ROOT/output/AgentDock-macos-universal.dmg"
-ZIP="$TMP_ROOT/output/AgentDock-macos-universal.zip"
+DMG="$TMP_ROOT/output/ACTOVO-macos-universal.dmg"
+ZIP="$TMP_ROOT/output/ACTOVO-macos-universal.zip"
 test -x "$APP/Contents/MacOS/AgentDock"
 MENU_LOGIN_HELPER="$APP/Contents/Helpers/AgentDockLoginHelper"
 test -x "$MENU_LOGIN_HELPER"
@@ -184,7 +184,7 @@ test "$(plutil -extract LimitLoadToSessionType raw -o - "$MENU_AGENT_PLIST")" = 
 # pipefail 下不要用 grep -q 提前关闭命令输出，避免上游偶发 SIGPIPE(141)。
 core_helper_version="$("$CORE_HELPER" --version)"
 [[ "$core_helper_version" == "AgentDock v"* ]]
-[[ "$core_helper_version" == *"product: AgentDock Workbench"* ]]
+[[ "$core_helper_version" == *"product: ACTOVO"* ]]
 cloudflared_helper_version="$("$CLOUDFLARED_HELPER" --version)"
 [[ "$cloudflared_helper_version" == "cloudflared version test"* ]]
 codesign --verify --strict --verbose=2 "$MENU_LOGIN_HELPER"
@@ -204,8 +204,8 @@ test -f "$DMG.sha256"
 test -f "$ZIP"
 test -f "$ZIP.sha256"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
-test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/Contents/Info.plist")" = "AgentDock Workbench"
-test "$(plutil -extract CFBundleName raw -o - "$APP/Contents/Info.plist")" = "AgentDock Workbench"
+test "$(plutil -extract CFBundleDisplayName raw -o - "$APP/Contents/Info.plist")" = "ACTOVO"
+test "$(plutil -extract CFBundleName raw -o - "$APP/Contents/Info.plist")" = "ACTOVO"
 test "$(plutil -extract CFBundleIdentifier raw -o - "$APP/Contents/Info.plist")" = "com.uvwt.agentdock"
 test "$(plutil -extract CFBundleIconFile raw -o - "$APP/Contents/Info.plist")" = "AgentDock.icns"
 test "$(plutil -extract CFBundleDevelopmentRegion raw -o - "$APP/Contents/Info.plist")" = "en"

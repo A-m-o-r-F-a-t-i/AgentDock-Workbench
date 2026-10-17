@@ -25,9 +25,11 @@ func semanticKeyRank(key string) int {
 	order := []string{
 		"runtime", "workspace", "workspace_id", "workdir", "workspace_root", "conversation_state",
 		"operation", "capture", "permission", "host_tools", "context_revision", "schema_revision",
+		"resolution_status", "match_kind", "selected", "next_call",
 		"name", "tool_name", "qualified_name", "type", "required", "additionalProperties", "input_schema", "inputSchema",
+		"instruction_files", "instructions",
 		"builtin_tool_bundles", "plugins", "dynamic_mcp", "tools", "skills", "common_skills",
-		"tasks", "instructions", "instruction_files", "rules", "properties",
+		"tasks", "rules", "properties",
 	}
 	for index, item := range order {
 		if item == key {
@@ -114,17 +116,24 @@ func requiredOutputParts(full Result, budget int) []semanticOutputPart {
 // plugin preparation is repeated while selecting a continuation page.
 func requiredPageHeader(full Result, first bool) Result {
 	page := Result{"semantic_format": "json_pointer_parts"}
-	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture"} {
+	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "bootstrap_complete"} {
 		if value, exists := full[key]; exists {
 			page[key] = value
 		}
 	}
 	if diagnostics := modelObject(full["context_diagnostics"]); diagnostics != nil {
-		page["context_diagnostics"] = map[string]any{"complete": false, "components_complete": diagnostics["components_complete"], "binding_status": diagnostics["binding_status"]}
+		// Context build completeness is independent from model-facing detail
+		// pagination. delivery.sequence_complete reports page delivery instead.
+		page["context_diagnostics"] = map[string]any{"complete": diagnostics["complete"], "components_complete": diagnostics["components_complete"], "binding_status": diagnostics["binding_status"]}
 	}
-	if first {
-		if routes, exists := full["host_tools"]; exists {
-			page["host_tools"] = routes
+	if first && full["host_tools"] != nil {
+		for _, key := range contextBootstrapHeaderKeys {
+			if value, exists := full[key]; exists {
+				page[key] = value
+			}
+		}
+		if instructions := modelObject(full["instruction_files"]); instructions != nil && instructions["revision"] != nil {
+			page["instruction_files"] = map[string]any{"complete": instructions["complete"], "revision": instructions["revision"]}
 		}
 	}
 	return page
@@ -132,8 +141,13 @@ func requiredPageHeader(full Result, first bool) Result {
 
 func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, int) {
 	body := maps.Clone(full)
-	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "host_tools"} {
+	for _, key := range []string{"context_revision", "schema_revision", "operation", "capture", "host_tools", "bootstrap_complete"} {
 		delete(body, key)
+	}
+	if _, bootstrap := full["host_tools"]; bootstrap {
+		for _, key := range contextBootstrapHeaderKeys {
+			delete(body, key)
+		}
 	}
 	headerChars, _ := toolcontract.JSONChars(requiredPageHeader(full, false))
 	// Reserve section-name accounting and array punctuation before filling a page.
@@ -168,9 +182,6 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 	start = min(max(0, start), len(groups)-1)
 	page := requiredPageHeader(full, start == 0)
 	page["sections"] = groups[start]
-	if diagnostics := modelObject(page["context_diagnostics"]); diagnostics != nil {
-		diagnostics["complete"] = modelObject(full["context_diagnostics"])["complete"] == true && start+1 == len(groups)
-	}
 	received := map[string]bool{}
 	for key := range requiredPageHeader(full, true) {
 		if key != "semantic_format" {

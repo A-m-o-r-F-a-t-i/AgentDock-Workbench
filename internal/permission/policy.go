@@ -331,6 +331,13 @@ func (s *Store) Decide(ctx context.Context, facts Facts) (decision Decision, ret
 		}
 	}()
 	matches := func(rule Rule) bool {
+		// Preserve existing edit restrictions during the model-tool rename.
+		// A narrow legacy add/replace allow must never authorize a multi-file patch.
+		if facts.Tool == "apply_patch" && rule.Tool == "file_edit" {
+			if rule.Effect == Deny || rule.Effect == Ask || rule.Action == "" || rule.Action == "patch" {
+				rule.Tool, rule.Action = "apply_patch", ""
+			}
+		}
 		return rule.Tool == facts.Tool && (rule.Action == "" || rule.Action == facts.Action) && (rule.WorkspaceID == "" || rule.WorkspaceID == facts.Binding.WorkspaceID)
 	}
 	for _, rule := range p.Rules {

@@ -65,7 +65,7 @@ final class WorkbenchSidebarViewController: NSViewController, NSOutlineViewDataS
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        let heading = WorkbenchUI.label("AgentDock Workbench", font: .systemFont(ofSize: 16, weight: .semibold))
+        let heading = WorkbenchUI.label("ACTOVO", font: .systemFont(ofSize: 16, weight: .semibold))
         let subtitle = WorkbenchUI.label(L10n.text("Task and execution center"), font: .systemFont(ofSize: 11), color: WorkbenchPalette.secondaryText)
         let titleStack = WorkbenchUI.stack(.vertical, spacing: 2)
         titleStack.addArrangedSubview(heading)

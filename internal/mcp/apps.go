@@ -46,7 +46,7 @@ func (s *Server) configuredAppResourceDefinitions() []appResourceDefinition {
 			URI:         protocol.FileChangeUIResourceURI,
 			Name:        "agentdock-file-change",
 			Title:       "AgentDock file change",
-			Description: "Read-only view of the file_edit result, including diff preview and file operation summary.",
+			Description: "Read-only view of the apply_patch result, including diff preview and file operation summary.",
 			HTML:        mcpapps.HTML("file_change", "File change"),
 		},
 		{

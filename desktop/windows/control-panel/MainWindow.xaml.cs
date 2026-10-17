@@ -222,7 +222,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             statusTarget.Text = ex.Message;
-            MessageBox.Show(this, ex.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, ex.Message, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
     }
@@ -532,7 +532,7 @@ public partial class MainWindow : Window
             }
             if (!TryReadAcpArguments(argsInput.Text, out _))
             {
-                MessageBox.Show(dialog, UiText.Get("ArgsJsonInvalid"), "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(dialog, UiText.Get("ArgsJsonInvalid"), "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 argsInput.Focus();
                 return;
             }
@@ -797,7 +797,7 @@ public partial class MainWindow : Window
         var confirm = MessageBox.Show(
             this,
             UiText.Get("LanguageChangeDiscardWarning"),
-            "AgentDock Workbench",
+            "ACTOVO",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
@@ -818,7 +818,7 @@ public partial class MainWindow : Window
             SelectUiLanguage(UiText.ReadPreference());
             _updatingUi = false;
             SettingsStatusText.Text = UiText.Format("LanguageChangeFailed", ex.Message);
-            MessageBox.Show(this, SettingsStatusText.Text, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, SettingsStatusText.Text, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -843,36 +843,36 @@ public partial class MainWindow : Window
         if (_settingsSaving || !_settingsLoaded) return;
         if (!int.TryParse(PortTextBox.Text.Trim(), out var port) || port is < 1 or > 65535)
         {
-            MessageBox.Show(this, UiText.Get("PortInvalid"), "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiText.Get("PortInvalid"), "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         var acpEnabled = AcpEnabledCheckBox.IsChecked == true;
         if (acpEnabled && !_acpProfiles.Any(profile => profile.Enabled))
         {
-            MessageBox.Show(this, "Enable at least one Coding Agent profile.", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Enable at least one Coding Agent profile.", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         foreach (var profile in _acpProfiles)
         {
             if (!IsValidAcpProfileId(profile.Id))
             {
-                MessageBox.Show(this, $"Invalid Coding Agent profile ID: {profile.Id}", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, $"Invalid Coding Agent profile ID: {profile.Id}", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if ((profile.Kind is "codex" or "claude" or "grok") && profile.Id != profile.Kind)
             {
-                MessageBox.Show(this, $"Built-in Coding Agent {profile.Kind} must use profile ID {profile.Kind}.", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, $"Built-in Coding Agent {profile.Kind} must use profile ID {profile.Kind}.", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (profile.Kind == "custom" && (profile.Id is "codex" or "claude" or "grok"))
             {
-                MessageBox.Show(this, $"Custom Coding Agent profile ID {profile.Id} is reserved.", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, $"Custom Coding Agent profile ID {profile.Id} is reserved.", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (!string.IsNullOrWhiteSpace(profile.Command) && !Path.IsPathFullyQualified(profile.Command))
             {
-                MessageBox.Show(this, $"Coding Agent profile {profile.Id} command must be an absolute path.", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, $"Coding Agent profile {profile.Id} command must be an absolute path.", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (!acpEnabled || !profile.Enabled)
@@ -882,7 +882,7 @@ public partial class MainWindow : Window
             var resolution = _runtime.ResolveAcpAdapter(profile.Kind, profile.Command, profile.Args);
             if (!resolution.Available)
             {
-                MessageBox.Show(this, resolution.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, resolution.Message, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             profile.Command = resolution.Command;
@@ -891,7 +891,7 @@ public partial class MainWindow : Window
         var defaultProfile = _acpProfiles.FirstOrDefault(profile => profile.Id == _acpDefaultProfile);
         if (acpEnabled && (defaultProfile is null || !defaultProfile.Enabled))
         {
-            MessageBox.Show(this, "The default Coding Agent profile must reference an enabled profile.", "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "The default Coding Agent profile must reference an enabled profile.", "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -899,7 +899,7 @@ public partial class MainWindow : Window
         var browserCdpUrl = BrowserCdpUrlTextBox.Text.Trim();
         if (browserConnectionMode == BrowserConnectionSpecified && string.IsNullOrWhiteSpace(browserCdpUrl))
         {
-            MessageBox.Show(this, UiText.Get("SpecifiedCdpRequired"), "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiText.Get("SpecifiedCdpRequired"), "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -958,7 +958,7 @@ public partial class MainWindow : Window
         var pairingCode = NexusPairingCodePasswordBox.Password.Trim();
         if (endpoint.Length == 0 || pairingCode.Length == 0)
         {
-            MessageBox.Show(this, UiText.Get("PairingFieldsRequired"), "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiText.Get("PairingFieldsRequired"), "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var paired = await ExecuteActionAsync(
@@ -989,7 +989,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SettingsStatusText.Text = ex.Message;
-            MessageBox.Show(this, ex.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, ex.Message, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -1085,7 +1085,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, ex.Message, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1097,7 +1097,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "AgentDock Workbench", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, ex.Message, "ACTOVO", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

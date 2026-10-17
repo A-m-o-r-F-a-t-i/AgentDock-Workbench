@@ -44,11 +44,15 @@ func TestBuiltinDiscoveryWireErrorsAndHostSchemaRecovery(t *testing.T) {
 		if details["route_status"] != "blocked" || details["required_host_tool"] != "read_file" || details["execution_performed"] != false || details["filesystem_lookup_required"] != false || details["dynamic_discovery_required"] != false {
 			t.Fatalf("wire recovery missing: %#v", details)
 		}
-		guidance := details["agentdock_guidance"].(map[string]any)
-		steps := guidance["next_required"].([]any)
-		step := steps[0].(map[string]any)
-		if len(steps) != 1 || step["action"] != "call_host_tool" || step["tool"] != "read_file" || step["arguments"] != nil {
-			t.Fatalf("wire recovery loops or fabricates arguments: %#v", steps)
+		action := asMap(body["required_action"])
+		if len(action) == 0 {
+			action = asMap(details["required_action"])
+		}
+		if action["category"] != "protocol" || action["tool"] != "read_file" || action["arguments"] != nil || action["required"] != true || action["execution_performed"] != false {
+			t.Fatalf("wire recovery loops or fabricates arguments: %#v", action)
+		}
+		if details["agentdock_guidance"] != nil || body["agentdock_guidance"] != nil {
+			t.Fatalf("wrong-namespace failure repeated legacy guidance: body=%#v details=%#v", body, details)
 		}
 	}
 	for range 20 {

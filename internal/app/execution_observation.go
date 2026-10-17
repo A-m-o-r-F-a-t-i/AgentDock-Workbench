@@ -30,6 +30,9 @@ type executionObservation struct {
 }
 
 func (r *Runtime) prepareObservedExecution(ctx context.Context, name string, args map[string]any) (executionObservation, error) {
+	if name == "apply_patch" {
+		args["action"] = "patch"
+	}
 	state := executionObservation{started: time.Now(), originals: map[string]string{}}
 	state.entryBinding = activity.FromContext(ctx)
 	var err error
@@ -55,7 +58,7 @@ func (r *Runtime) prepareObservedExecution(ctx context.Context, name string, arg
 	if name == "exec_command" && androidBackend(args) && (stringArg(args, "target_kind") != "" || stringArg(args, "external_path") != "") {
 		return state, toolError("ANDROID_TARGET_CONFLICT", "Android backend workdir is explicit in its own namespace; host target_kind/external_path must not be supplied", "validation")
 	}
-	if state.scoped && (name == "exec_command" || name == "file_edit") && !(name == "exec_command" && androidBackend(args)) {
+	if state.scoped && (name == "exec_command" || name == "apply_patch") && !(name == "exec_command" && androidBackend(args)) {
 		if runtimeName := stringArg(args, "runtime"); runtimeName != "" && runtimeName != selected.Runtime {
 			return state, workspaceFailure(errors.New("runtime conflicts with the selected workspace"), state.binding, &selected)
 		}
@@ -231,6 +234,9 @@ func bindingArguments(binding activity.Binding) map[string]string {
 func stringArg(args map[string]any, key string) string { value, _ := args[key].(string); return value }
 
 func resultReportsFailure(result Result) bool {
+	if result["operation_status"] == "failed" {
+		return true
+	}
 	if result == nil {
 		return false
 	}
@@ -315,7 +321,9 @@ func (r *Runtime) recordFileChanges(args map[string]any, result Result, state ex
 				actual = path.Join(workdir, actual)
 			}
 		} else {
-			// Existing Host results already use paths relative to the configured root, not workdir.
+			if workdir != "" && !filepath.IsAbs(actual) {
+				actual = filepath.Join(workdir, actual)
+			}
 			resolved, resolveErr := r.ws.ResolveForWrite(actual)
 			if resolveErr != nil {
 				continue
@@ -333,7 +341,7 @@ func (r *Runtime) recordFileChanges(args map[string]any, result Result, state ex
 		if logical == "" {
 			logical = value
 		}
-		event := activity.Event{Binding: state.binding, Kind: "file.changed", ToolName: "file_edit", Status: "success", Title: state.binding.Label, LogicalPath: logical, ResolvedPath: actual, Workdir: workdir, Runtime: runtimeName, Summary: fmt.Sprintf("%s: %s", stringArg(args, "action"), logical)}
+		event := activity.Event{Binding: state.binding, Kind: "file.changed", ToolName: "apply_patch", Status: "success", Title: state.binding.Label, LogicalPath: logical, ResolvedPath: actual, Workdir: workdir, Runtime: runtimeName, Summary: fmt.Sprintf("%s: %s", stringArg(args, "action"), logical)}
 		if len(paths) == 1 {
 			event.Insertions = toolcore.IntArg(generic, "insertions", 0)
 			event.Deletions = toolcore.IntArg(generic, "deletions", 0)

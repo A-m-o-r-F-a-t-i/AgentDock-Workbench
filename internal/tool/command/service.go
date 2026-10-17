@@ -15,35 +15,37 @@ import (
 type ConfigProvider func() config.Config
 
 type SkillLease struct {
-	PluginName string
-	Name       string
-	Root       string
-	EnvName    string
-	RuntimeEnv map[string]string
-	Release    func()
+	AuthorizeRecovery func(context.Context, string) error
+	PluginName        string
+	Name              string
+	Root              string
+	EnvName           string
+	RuntimeEnv        map[string]string
+	Release           func()
 }
 
 type SkillResolver func(ctx context.Context, skillRef string) (SkillLease, error)
 type CommandContext func() (context.Context, error)
 
 type Service struct {
-	android        *androidbridge.Broker
-	activityCtx    context.Context
-	activityCancel context.CancelFunc
-	activityMu     sync.Mutex
-	activeCommands map[string]*session.Session
-	activity       *activity.Store
-	activityWG     sync.WaitGroup
-	config         ConfigProvider
-	ws             *workspace.Workspace
-	envs           *envstore.Store
-	sessions       *session.Store
-	resolveSkill   SkillResolver
-	commandContext CommandContext
-	terminalMu     sync.Mutex
-	terminals      map[string]session.TerminalFuture
-	observationMu  sync.Mutex
-	observations   map[observationKey]*sharedObservation
+	android            *androidbridge.Broker
+	activityCtx        context.Context
+	activityCancel     context.CancelFunc
+	activityMu         sync.Mutex
+	activeCommands     map[string]*session.Session
+	activity           *activity.Store
+	activityWG         sync.WaitGroup
+	config             ConfigProvider
+	ws                 *workspace.Workspace
+	envs               *envstore.Store
+	sessions           *session.Store
+	resolveSkill       SkillResolver
+	commandContext     CommandContext
+	terminalMu         sync.Mutex
+	terminals          map[string]session.TerminalFuture
+	observationMu      sync.Mutex
+	observations       map[observationKey]*sharedObservation
+	observationHistory map[observationScope]observationReceipt
 }
 
 func New(configProvider ConfigProvider, ws *workspace.Workspace, envs *envstore.Store, resolveSkill SkillResolver, commandContext CommandContext) *Service {
@@ -82,3 +84,21 @@ const MaxOutputBytes = maxCommandOutputBytes
 
 // MaxSessionObserveWaitMS is the maximum bounded wait for one status observation.
 const MaxSessionObserveWaitMS = maxSessionObserveWaitMS
+
+// RunningCount is scoped to the authenticated conversation and workspace.
+func (svc *Service) RunningCount(scope activity.Binding) int {
+	if scope.SourceOwnerKey == "" || scope.ConversationID == "" {
+		return 0
+	}
+	count := 0
+	for _, running := range svc.sessions.List() {
+		if running.Completed() {
+			continue
+		}
+		binding := running.Summary().Binding
+		if binding.SourceOwnerKey == scope.SourceOwnerKey && binding.ConversationID == scope.ConversationID && binding.WorkspaceID == scope.WorkspaceID {
+			count++
+		}
+	}
+	return count
+}

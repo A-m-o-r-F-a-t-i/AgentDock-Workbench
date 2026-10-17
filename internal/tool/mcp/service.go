@@ -59,6 +59,7 @@ func (s *Service) SetHeavyPluginLookup(lookup func(string) (bool, error)) {
 }
 
 type CapabilityItem struct {
+	CatalogState   mcpclient.CatalogState
 	Revision       string
 	ServerVersion  string
 	ToolCountKnown bool
@@ -95,7 +96,8 @@ func (s *Service) CapabilityItems(ctx context.Context, directory *plugin.Directo
 			continue
 		}
 		items = append(items, CapabilityItem{
-			Name: server.Name, Description: capabilityrouting.ServerDescription(member.Plugin, server.Name, server.Description), Plugin: member.Plugin,
+			CatalogState: server.CatalogState,
+			Name:         server.Name, Description: capabilityrouting.ServerDescription(member.Plugin, server.Name, server.Description), Plugin: member.Plugin,
 			Revision: server.Revision, ServerVersion: server.ServerVersion, ToolCountKnown: server.ToolCountKnown,
 			Enabled: server.Enabled, Status: server.Status,
 			ToolCount: server.ToolCount, LastErrorCode: server.LastErrorCode,
@@ -115,7 +117,8 @@ func (s *Service) CapabilityItem(name string) (CapabilityItem, bool, error) {
 	}
 	pluginName := s.pluginName(server.Name)
 	return CapabilityItem{
-		Name: server.Name, Description: capabilityrouting.ServerDescription(pluginName, server.Name, server.Description), Plugin: pluginName,
+		CatalogState: server.CatalogState,
+		Name:         server.Name, Description: capabilityrouting.ServerDescription(pluginName, server.Name, server.Description), Plugin: pluginName,
 		Revision: server.Revision, ServerVersion: server.ServerVersion, ToolCountKnown: server.ToolCountKnown,
 		Enabled: server.Enabled, Status: server.Status,
 		ToolCount: server.ToolCount, LastErrorCode: server.LastErrorCode,

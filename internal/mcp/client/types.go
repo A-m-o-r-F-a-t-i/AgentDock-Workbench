@@ -21,10 +21,12 @@ var (
 )
 
 type ServerConfig struct {
-	SourceType  string `json:"-"`
-	PluginName  string `json:"-"`
-	DisplayName string `json:"-"`
-	StorageKey  string `json:"-"`
+	Lazy          bool   `json:"lazy,omitempty"`
+	RecoverySkill string `json:"recovery_skill,omitempty"`
+	SourceType    string `json:"-"`
+	PluginName    string `json:"-"`
+	DisplayName   string `json:"-"`
+	StorageKey    string `json:"-"`
 
 	PluginVersion   string `json:"-"`
 	revision        string
@@ -75,10 +77,22 @@ type ToolSummary struct {
 	Annotations       map[string]any `json:"annotations,omitempty"`
 }
 
+type CatalogState struct {
+	State                string `json:"state"`
+	CatalogRevision      string `json:"catalog_revision"`
+	ServerRevision       string `json:"server_revision"`
+	RefreshedAt          string `json:"refreshed_at,omitempty"`
+	RefreshAttempted     bool   `json:"refresh_attempted"`
+	RefreshErrorCode     string `json:"refresh_error_code,omitempty"`
+	AbsenceAuthoritative bool   `json:"absence_authoritative"`
+	Lazy                 bool   `json:"lazy,omitempty"`
+}
+
 type ServerSummary struct {
-	SourceType  string `json:"source_type,omitempty"`
-	PluginName  string `json:"plugin_name,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
+	CatalogState CatalogState `json:"catalog_state"`
+	SourceType   string       `json:"source_type,omitempty"`
+	PluginName   string       `json:"plugin_name,omitempty"`
+	DisplayName  string       `json:"display_name,omitempty"`
 
 	Revision          string `json:"revision"`
 	OverrideSource    string `json:"override_source"`
@@ -118,6 +132,7 @@ func newError(code, message string, retryable bool, details map[string]any, caus
 func normalizeServerConfig(cfg ServerConfig) ServerConfig {
 	cfg.Name = strings.TrimSpace(cfg.Name)
 	cfg.Description = strings.TrimSpace(cfg.Description)
+	cfg.RecoverySkill = strings.TrimSpace(cfg.RecoverySkill)
 	cfg.Transport = strings.ToLower(strings.TrimSpace(cfg.Transport))
 	cfg.URL = strings.TrimSpace(cfg.URL)
 	cfg.Command = strings.TrimSpace(cfg.Command)

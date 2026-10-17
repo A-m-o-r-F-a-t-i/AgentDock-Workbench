@@ -15,15 +15,14 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 		return nil, toolError("BINARY_FILE", "source is not a supported image", "validation")
 	}
 
-	maxBytes := intValue(request.MaxBytes, defaultViewImageBytes)
-	if maxBytes <= 0 {
-		maxBytes = defaultViewImageBytes
+	requestedMaxBytes := intValue(request.MaxBytes, defaultViewImageBytes)
+	if requestedMaxBytes <= 0 {
+		requestedMaxBytes = defaultViewImageBytes
 	}
-	if maxBytes > hardViewImageBytes {
-		maxBytes = hardViewImageBytes
+	if requestedMaxBytes > hardViewImageBytes {
+		requestedMaxBytes = hardViewImageBytes
 	}
-	requestedMaxBytes := maxBytes
-	maxBytes = min(maxBytes, modelVisibleViewImageBytes)
+	effectiveMaxBytes := min(requestedMaxBytes, modelVisibleViewImageBytes)
 	maxWidth := intValue(request.MaxWidth, 1280)
 	maxHeight := intValue(request.MaxHeight, 1280)
 	format := request.Format
@@ -34,41 +33,59 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 	crop := imageCropFromRequest(request.Crop)
 	autoResize := boolValue(request.AutoResize, true)
 
-	original := map[string]any{"size_bytes": len(loaded.Data), "width": info.Width, "height": info.Height, "mime_type": info.MIME}
-	prepared := loaded.Data
-	preparedInfo := info
-	warnings := []string{}
-	resized := false
-	if crop != nil || autoResize || strings.TrimSpace(format) != "" || quality != 72 {
-		var ok bool
-		var prepOriginal map[string]any
-		prepared, preparedInfo, prepOriginal, warnings, ok = prepareImageBytes(loaded.Data, crop, maxBytes, maxWidth, maxHeight, format, quality)
-		if prepOriginal != nil {
-			if bytes, ok := prepOriginal["bytes"]; ok {
-				prepOriginal["size_bytes"] = bytes
-				delete(prepOriginal, "bytes")
-			}
-			original = prepOriginal
+	prepared, preparedInfo, original, warnings, ok := prepareImageBytes(loaded.Data, crop, effectiveMaxBytes, maxWidth, maxHeight, format, quality, autoResize)
+	if original != nil {
+		if bytes, exists := original["bytes"]; exists {
+			original["size_bytes"] = bytes
+			delete(original, "bytes")
 		}
-		if !ok {
-			return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds max_bytes after processing", "validation", map[string]any{"bytes": len(prepared), "max_bytes": maxBytes, "auto_resize": autoResize, "warnings": warnings})
-		}
-		resized = preparedInfo.Width != info.Width || preparedInfo.Height != info.Height || len(prepared) != len(loaded.Data)
+	} else {
+		original = map[string]any{"size_bytes": len(loaded.Data), "width": info.Width, "height": info.Height, "mime_type": info.MIME}
 	}
-	if requestedMaxBytes > maxBytes && len(loaded.Data) > maxBytes {
-		warnings = append(warnings, "image compressed to the final model-response attachment budget")
+	if requestedMaxBytes > effectiveMaxBytes {
+		warnings = append(warnings, "effective max_bytes lowered to the final model-response attachment budget")
 	}
-	if len(prepared) > maxBytes {
-		return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds max_bytes", "validation", map[string]any{"bytes": len(prepared), "max_bytes": maxBytes, "auto_resize": autoResize, "warnings": warnings})
+	if !ok || len(prepared) > effectiveMaxBytes || preparedInfo.Width > maxWidth || preparedInfo.Height > maxHeight {
+		return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds the effective processing limits", "validation", imageLimitDetails(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight, len(prepared), preparedInfo, autoResize, warnings))
 	}
+	resized := preparedInfo.Width != info.Width || preparedInfo.Height != info.Height || len(prepared) != len(loaded.Data)
 
 	result := Result{
-		"source":   loaded.Source,
-		"image":    imageMetadata(loaded.Name, preparedInfo, len(prepared)),
-		"original": original,
-		"resized":  resized,
-		"warnings": warnings,
+		"source":              loaded.Source,
+		"image":               imageMetadata(loaded.Name, preparedInfo, len(prepared)),
+		"original":            original,
+		"resized":             resized,
+		"warnings":            warnings,
+		"requested_max_bytes": requestedMaxBytes,
+		"effective_max_bytes": effectiveMaxBytes,
 	}
 	attachMCPImage(result, prepared, preparedInfo.MIME)
 	return result, nil
+}
+
+func imageLimitKind(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight int, info imageInfo) string {
+	if info.Width > maxWidth || info.Height > maxHeight {
+		return "max_dimensions"
+	}
+	if effectiveMaxBytes < requestedMaxBytes {
+		return "model_response_attachment_budget"
+	}
+	return "requested_max_bytes"
+}
+
+func imageLimitDetails(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight, actualBytes int, info imageInfo, autoResize bool, warnings []string) map[string]any {
+	return map[string]any{
+		"bytes":               actualBytes,
+		"actual_bytes":        actualBytes,
+		"actual_width":        info.Width,
+		"actual_height":       info.Height,
+		"requested_max_bytes": requestedMaxBytes,
+		"effective_max_bytes": effectiveMaxBytes,
+		"max_bytes":           effectiveMaxBytes,
+		"max_width":           maxWidth,
+		"max_height":          maxHeight,
+		"limit_kind":          imageLimitKind(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight, info),
+		"auto_resize":         autoResize,
+		"warnings":            warnings,
+	}
 }

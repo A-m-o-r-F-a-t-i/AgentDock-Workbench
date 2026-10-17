@@ -130,7 +130,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	pending, err := call("native-fixture-A", "file_edit", map[string]any{"action": "add", "path": "approved.txt", "content": "native client approved fixed request"})
+	patch := "*** Begin Patch\n*** Add File: approved.txt\n+native client approved fixed request\n*** End Patch\n"
+	pending, err := call("native-fixture-A", "apply_patch", map[string]any{"patch": patch})
 	if err != nil {
 		return err
 	}

@@ -54,7 +54,7 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 		{"task_manage", "task_manage", ""}, {"exec_command", "exec_command", ""},
 		{"mcp_tool_call", "mcp_tool_call", ""}, {"session_observe", "session_observe", ""},
 		{"exec_command exact", "exec_command", ""}, {"host task_manage", "task_manage", ""},
-		{"write_file", "file_edit", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
+		{"write_file", "apply_patch", "write_file"}, {"Call a dynamic MCP tool", "mcp_tool_call", "call a dynamic mcp tool"},
 	} {
 		result, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": test.query})
 		var route *ToolError
@@ -80,8 +80,10 @@ func TestAuditBuiltinSearchNeverInitializesDynamicServers(t *testing.T) {
 	if len(rt.command.ActiveConversationBindings()) != 0 {
 		t.Fatal("discovery started a command")
 	}
-	_, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": "exec_command", "server": "unrelated-artifact-fetch"})
-	assertToolErrorCode(t, err, "MCP_AUTH_REQUIRED")
+	failed, err := rt.Call(t.Context(), "mcp_tool_search", map[string]any{"query": "exec_command", "server": "unrelated-artifact-fetch"})
+	if err != nil || failed["resolution_status"] != "incomplete" || failed["absence_authoritative"] != false || failed["required_action"] == nil {
+		t.Fatalf("selected refresh failure became an authoritative absence: %#v %v", failed, err)
+	}
 }
 
 func TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification(t *testing.T) {
@@ -133,7 +135,7 @@ func TestAuditBroadSearchReportsColdCatalogWithoutConnecting(t *testing.T) {
 			t.Fatalf("cold directory must be explicit partial discovery: %#v %v", result, err)
 		}
 		data, _ := json.Marshal(result)
-		if !strings.Contains(string(data), "offline") || !strings.Contains(string(data), "mcp_tool_list") {
+		if !strings.Contains(string(data), "offline") || !strings.Contains(string(data), "mcp_server_selection_required") {
 			t.Fatalf("cold discovery lost the selected-service recovery path: %s", data)
 		}
 		assertToolResultMatchestestOutputSchema(t, "mcp_tool_search", result)

@@ -27,7 +27,7 @@ class PhoneExecutorService : Service() {
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "本机命令执行器", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 32, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         startForeground(ID, NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_stat_agentdock)
-            .setContentTitle("AgentDock 本机执行器").setContentText("仅接受已配对本机 Core 的授权命令")
+            .setContentTitle("ACTOVO 本机执行器").setContentText("仅接受已配对本机 Core 的授权命令")
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).build())
         if (loop?.isActive != true) loop = scope.launch {
             try { (application as WorkbenchApplication).graph.phoneExecutor.run() }

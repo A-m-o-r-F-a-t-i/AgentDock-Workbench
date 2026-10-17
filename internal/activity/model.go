@@ -95,6 +95,7 @@ func (b ExecutionScope) Validate() error {
 }
 
 type Event struct {
+	ToolExecution *ToolExecutionDetails `json:"tool_execution,omitempty"`
 	*OutputStages
 	CallMeasurements
 	CommandObservation

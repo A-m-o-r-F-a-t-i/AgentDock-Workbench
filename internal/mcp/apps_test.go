@@ -10,6 +10,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	protocol "github.com/uvwt/agentdock-protocol"
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/config"
 )
@@ -151,10 +152,10 @@ func TestMCPAppsCanBeDisabledWithoutRemovingTools(t *testing.T) {
 		}
 		tools[tool.Name] = tool
 	}
-	if tools["agentdock_context"] == nil || tools["file_edit"] == nil || tools["task_manage"] == nil {
+	if tools["agentdock_context"] == nil || tools["apply_patch"] == nil || tools["task_manage"] == nil {
 		t.Fatalf("core tools disappeared when MCP Apps UI was disabled: %#v", tools)
 	}
-	for _, name := range []string{"agentdock_context", "file_edit", "task_manage", "mcp_tool_call", "file_publish"} {
+	for _, name := range []string{"agentdock_context", "apply_patch", "task_manage", "mcp_tool_call", "file_publish"} {
 		if ui := tools[name].Meta["ui"]; ui != nil {
 			t.Fatalf("%s still exposes Apps UI metadata while disabled: %#v", name, ui)
 		}
@@ -217,11 +218,11 @@ func TestMCPAppsBindResourcesDirectlyToBusinessTools(t *testing.T) {
 		t.Fatal("tools/list did not expose agentdock_context")
 	}
 	assertToolUIResource(t, contextTool, protocol.ContextUIResourceURI)
-	fileEditTool := tools["file_edit"]
-	if fileEditTool == nil {
-		t.Fatal("tools/list did not expose file_edit")
+	applyPatchTool := tools["apply_patch"]
+	if applyPatchTool == nil {
+		t.Fatal("tools/list did not expose apply_patch")
 	}
-	assertToolUIResource(t, fileEditTool, protocol.FileChangeUIResourceURI)
+	assertToolUIResource(t, applyPatchTool, protocol.FileChangeUIResourceURI)
 	taskManageTool := tools["task_manage"]
 	if taskManageTool == nil {
 		t.Fatal("tools/list did not expose task_manage")
@@ -409,11 +410,13 @@ func TestMCPAppsBindResourcesDirectlyToBusinessTools(t *testing.T) {
 		t.Fatalf("agentdock_context result=%#v err=%v", contextResult, err)
 	}
 	contextStructured := requiredSDKPayload(t, harness.session, contextResult, map[string]any{}, nil)
-	for _, field := range []string{"skills", "dynamic_mcp", "workflow_templates", "rules"} {
+	for _, field := range []string{"rules", "instruction_files", "workspace", "host_tools", "dynamic_mcp_summary"} {
 		if contextStructured[field] == nil {
 			t.Fatalf("agentdock_context structuredContent missing %s: %#v", field, contextStructured)
 		}
 	}
+	// Empty capability lists may be omitted from the model projection; their
+	// authoritative availability remains in the fixed Bootstrap summaries.
 	if contextStructured["context"] != nil {
 		t.Fatalf("agentdock_context structuredContent still contains legacy Markdown context: %#v", contextStructured)
 	}
@@ -422,39 +425,30 @@ func TestMCPAppsBindResourcesDirectlyToBusinessTools(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("alpha\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	fileEditResult, err := harness.session.CallTool(t.Context(), &mcpsdk.CallToolParams{
-		Name: "file_edit",
-		Arguments: map[string]any{
-			"action": "replace", "path": "note.txt", "old": "alpha", "new": "beta", "dry_run": true,
-		},
-	})
-	if err != nil || fileEditResult.IsError {
-		t.Fatalf("file_edit result=%#v err=%v", fileEditResult, err)
+	patchMeta := mcpsdk.Meta{"openai/session": "mcp-apps-apply-patch"}
+	contextResult, err = harness.session.CallTool(t.Context(), &mcpsdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: patchMeta})
+	if err != nil || contextResult.IsError {
+		t.Fatalf("patch context result=%#v err=%v", contextResult, err)
 	}
-	fileEditStructured, ok := fileEditResult.StructuredContent.(map[string]any)
-	if !ok || fileEditStructured["action"] != "replace" || fileEditStructured["dry_run"] != true || fileEditStructured["view"] != nil {
-		t.Fatalf("file_edit structuredContent = %#v", fileEditResult.StructuredContent)
+	patch := "*** Begin Patch\n*** Update File: note.txt\n@@\n-alpha\n+beta\n*** End Patch\n"
+	applyPatchResult, err := harness.session.CallTool(t.Context(), &mcpsdk.CallToolParams{Name: "apply_patch", Arguments: map[string]any{"patch": patch}, Meta: patchMeta})
+	if err != nil || applyPatchResult.IsError {
+		t.Fatalf("apply_patch result=%#v err=%v", applyPatchResult, err)
 	}
-	diffPreview, _ := fileEditStructured["diff_preview"].(string)
-	if !strings.Contains(diffPreview, "beta") {
-		t.Fatalf("file_edit diff_preview = %q", diffPreview)
+	applyPatchStructured, ok := applyPatchResult.StructuredContent.(map[string]any)
+	if !ok || applyPatchStructured["status"] != "pending_approval" || applyPatchStructured["executed"] != false || applyPatchStructured["view"] != nil {
+		t.Fatalf("apply_patch pending result = %#v", applyPatchResult.StructuredContent)
 	}
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil || string(fileBytes) != "alpha\n" {
-		t.Fatalf("dry-run changed file: content=%q err=%v", fileBytes, err)
+		t.Fatalf("pending patch changed file: content=%q err=%v", fileBytes, err)
 	}
-	errorResult, err := harness.session.CallTool(t.Context(), &mcpsdk.CallToolParams{
-		Name: "file_edit",
-		Arguments: map[string]any{
-			"action": "replace", "path": "note.txt", "old": "missing", "new": "beta", "expected_matches": 1, "dry_run": true,
-		},
-	})
-	if err != nil || !errorResult.IsError {
-		t.Fatalf("file_edit validation error result=%#v err=%v", errorResult, err)
+	approvalID, _ := applyPatchStructured["approval_id"].(string)
+	if approvalID == "" {
+		t.Fatalf("apply_patch pending result omitted approval id: %#v", applyPatchStructured)
 	}
-	errorStructured, ok := errorResult.StructuredContent.(map[string]any)
-	if !ok || errorStructured["code"] != "MATCH_COUNT_MISMATCH" {
-		t.Fatalf("file_edit validation structuredContent = %#v", errorResult.StructuredContent)
+	if _, err = harness.runtime.RuntimeApprovalDecision(activity.WithLocalManagement(t.Context()), approvalID, "reject", false); err != nil {
+		t.Fatalf("reject apply_patch preview: %v", err)
 	}
 
 	createdTask, err := harness.session.CallTool(t.Context(), &mcpsdk.CallToolParams{

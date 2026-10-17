@@ -1,23 +1,46 @@
 package mcp
 
-import (
-	"github.com/uvwt/agentdock/internal/contextguide"
-	"strings"
-)
+import "strings"
 
-const (
-	baseServerInstructions  = contextguide.Reuse + " 处理多步骤任务时使用 task_manage 记录有价值的执行断点。"
-	nexusServerInstructions = contextguide.Reuse + " 需要长期记忆时使用 recall_*，需要 Workflow 模板时使用 workflow_template_manage；多步骤任务使用 task_manage。"
-)
+const deviceRuntimeInstructions = `# AgentDock Device Runtime
 
-func serverInstructions(nexusEnabled bool, custom string) string {
-	instructions := baseServerInstructions
-	if nexusEnabled {
-		instructions = nexusServerInstructions
-	}
+AgentDock executes on the device and workspace bound to this conversation.
+The host model retains the user goal, semantic decisions, cross-device coordination,
+and final acceptance.
+
+Call agentdock_context when device, workspace, or rule scope is missing or changed.
+Reuse existing workspace, session, cursor, revision, and retained-source identities.
+
+Use AgentDock host tools directly. Search dynamic MCP only for external tools exposed
+by the current AgentDock context. An incomplete, stale, or cache-only catalog does not
+prove that a capability is unavailable.
+
+Resolve an exact tool name before using semantic tool search. Use the callable and input
+schema returned by discovery; do not replace a managed MCP call with shell, bridge HTTP,
+or raw RPC discovery. Discovery never executes a business tool.
+
+Load a required built-in bundle with capability_load, then refresh tools/list before
+retrying the original call. A registry change does not prove the host has refreshed.
+
+Use managed-MCP recovery only after the original business tool returns a connection-class
+error. Reuse the original server, tool, arguments, workspace, and origin call identity.
+
+Use list_dir, search_text, and read_file for source inspection; use exec_command
+for project commands; use apply_patch for text-file changes.
+
+Reuse running command sessions and delivered completion events. Determine command success
+from command status and exit code. Continue independent work while a command runs and
+observe the same session only when the next decision requires its result. Reconcile
+unknown effects before repeating a mutating operation.
+
+Apply loaded AGENTS.md and Skill instructions within their reported scope.
+Only authenticated response_additions carry mid-task user updates.`
+
+// The device contract is independent of optional services and is delivered once.
+func serverInstructions(_ bool, custom string) string {
 	custom = strings.TrimSpace(custom)
 	if custom == "" {
-		return instructions
+		return deviceRuntimeInstructions
 	}
-	return instructions + "\n\nAdditional operator instructions:\n" + custom
+	return deviceRuntimeInstructions + "\n\nAdditional operator instructions:\n" + custom
 }

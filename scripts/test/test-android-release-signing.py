@@ -41,14 +41,14 @@ class AndroidReleaseSigningTest(unittest.TestCase):
             f"{self.core_checksum}  {self.core_name}\n"
         )
         (self.inputs / "verification-linux-arm64.json").write_text(json.dumps({
-            "product_name": "AgentDock Workbench",
+            "product_name": "ACTOVO",
             "version": self.version,
             "commit": self.commit,
             "platform": "linux/arm64",
             "native_execution": "passed",
             "assets": {self.core_name: self.core_checksum},
         }))
-        self.candidate_name = f"AgentDock-Workbench-{self.version}-Android-test-signed.apk"
+        self.candidate_name = f"ACTOVO-{self.version}-Android-test-signed.apk"
         self.candidate = self.inputs / self.candidate_name
         with zipfile.ZipFile(self.candidate, "w", compression=zipfile.ZIP_STORED) as archive:
             archive.writestr("assets/agentdock-core-arm64.tgz", self.core.read_bytes())
@@ -58,7 +58,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         )
         (self.inputs / "verification-android.json").write_text(json.dumps({
             "schema_version": 1,
-            "product_name": "AgentDock Workbench",
+            "product_name": "ACTOVO",
             "version": self.version,
             "commit": self.commit,
             "platform": "android/arm64",
@@ -121,7 +121,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
 
     def test_verified_candidate_becomes_stably_signed_public_apk(self):
         report = self.sign()
-        public = self.output / f"AgentDock-Workbench-{self.version}-Android.apk"
+        public = self.output / f"ACTOVO-{self.version}-Android.apk"
         self.assertTrue(public.is_file())
         self.assertEqual(report["certificate_sha256"], CERTIFICATE)
         self.assertEqual(report["source_apk"]["sha256"], module.digest(self.candidate))
@@ -152,7 +152,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "exactly one signer"):
             self.sign()
-        self.assertFalse((self.output / f"AgentDock-Workbench-{self.version}-Android.apk").exists())
+        self.assertFalse((self.output / f"ACTOVO-{self.version}-Android.apk").exists())
 
     def test_candidate_byte_change_is_rejected_before_signing(self):
         self.candidate.write_bytes(b"changed")
@@ -178,7 +178,7 @@ class AndroidReleaseSigningTest(unittest.TestCase):
         self.report_certificate = "c" * 64
         with self.assertRaisesRegex(RuntimeError, "fingerprint mismatch"):
             self.sign()
-        self.assertFalse((self.output / f"AgentDock-Workbench-{self.version}-Android.apk").exists())
+        self.assertFalse((self.output / f"ACTOVO-{self.version}-Android.apk").exists())
 
     def test_missing_passwords_are_rejected(self):
         with patch.dict(os.environ, {}, clear=True):

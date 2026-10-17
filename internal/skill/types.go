@@ -10,10 +10,11 @@ type SkillMetadata struct {
 }
 
 type SkillDocument struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Body        string `json:"body,omitempty"`
+	RecoveryMCPServer string `json:"recovery_mcp_server,omitempty"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	Version           string `json:"version"`
+	Body              string `json:"body,omitempty"`
 }
 
 type InstallRequest struct {

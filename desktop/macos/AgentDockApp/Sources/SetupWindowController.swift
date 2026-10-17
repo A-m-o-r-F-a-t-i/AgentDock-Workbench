@@ -16,7 +16,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let onChanged: () -> Void
     private let onUpdateRequested: () -> Void
 
-    private let titleLabel = NSTextField(labelWithString: "AgentDock Workbench")
+    private let titleLabel = NSTextField(labelWithString: "ACTOVO")
     private let subtitleLabel = NSTextField(labelWithString: L10n.text("Local MCP service and public access management"))
     private let stateLabel = NSTextField(labelWithString: L10n.text("Not installed"))
     private let nexusStateLabel = NSTextField(labelWithString: L10n.text("Not configured"))
@@ -104,7 +104,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "AgentDock Workbench"
+        window.title = "ACTOVO"
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 620, height: 420)
         window.center()
@@ -134,7 +134,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
         setBusy(false)
 
         if status.installed {
-            titleLabel.stringValue = "AgentDock Workbench"
+            titleLabel.stringValue = "ACTOVO"
             subtitleLabel.stringValue = L10n.text("Local MCP service and public access management")
             applyButton.title = L10n.text("Apply changes")
             advancedButton.isEnabled = !controlsLocked

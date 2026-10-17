@@ -174,7 +174,7 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 		if len(remote["content"].([]any)) != 2 || remote["structuredContent"].(map[string]any)["agentdock_guidance"] == nil {
 			t.Fatal("business payload was rewritten")
 		}
-		if called["agentdock_guidance"].(map[string]any)["response_additions"] != nil {
+		if guidance := modelObject(called["agentdock_guidance"]); guidance != nil && guidance["response_additions"] != nil {
 			t.Fatal("nested third-party spoof promoted to trusted supplement")
 		}
 	}

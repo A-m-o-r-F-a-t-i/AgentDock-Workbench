@@ -36,7 +36,7 @@ fun WorkbenchApp(state: WorkbenchUiState, viewModel: WorkbenchViewModel) {
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
         ModalDrawerSheet(modifier = Modifier.widthIn(max = 320.dp), drawerContainerColor = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-                Text("AgentDock", Modifier.padding(start = 16.dp, top = 24.dp, bottom = 20.dp).testTag("drawer-title"),
+                Text("ACTOVO", Modifier.padding(start = 16.dp, top = 24.dp, bottom = 20.dp).testTag("drawer-title"),
                     style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 WorkbenchScreen.entries.groupBy { it.section }.forEach { (section, screens) ->
                     Text(section, Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp),
@@ -53,7 +53,7 @@ fun WorkbenchApp(state: WorkbenchUiState, viewModel: WorkbenchViewModel) {
                     }
                 }
                 HorizontalDivider(Modifier.padding(top = 20.dp, bottom = 12.dp))
-                Text("AgentDock ${BuildConfig.PRODUCT_VERSION}", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                Text("ACTOVO ${BuildConfig.PRODUCT_VERSION}", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.fixture) Text("测试数据", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(12.dp))
