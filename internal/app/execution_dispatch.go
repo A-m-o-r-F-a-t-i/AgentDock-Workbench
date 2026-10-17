@@ -52,22 +52,25 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 		return nil, err
 	}
 	parent := activity.FromContext(ctx)
-	if parent.CallID == "" {
+	snapshot, resolveErr := r.resolveExecutionScope(ctx)
+	snapshot.CallID, snapshot.ParentCallID, snapshot.RetryOfCallID = callID, parent.CallID, ""
+	if resolveErr == nil && snapshot.ParentCallID == "" {
+		snapshot.ParentCallID = r.mcpResultActivityParent(ctx, spec.Name, original, snapshot)
+	}
+	if snapshot.ParentCallID == "" {
 		requesttrace.BindCall(ctx, callID)
 		requesttrace.Stage(ctx, "runtime_admission")
 	}
-	snapshot, resolveErr := r.resolveExecutionScope(ctx)
-	snapshot.CallID, snapshot.ParentCallID, snapshot.RetryOfCallID = callID, parent.CallID, ""
 	initial := snapshot
 	// Audit the trusted origin before validating optional business overrides.
 	initial.TaskID, initial.ThreadID, initial.StepID, initial.WorkspaceID = "", "", "", ""
 	state := executionObservation{binding: snapshot, entryBinding: snapshot, started: received, originals: map[string]string{}}
 	created := activity.Event{Binding: initial, Kind: "call.created", Status: "created", ToolName: spec.Name, Title: spec.Title}
-	if parent.CallID == "" {
+	if initial.ParentCallID == "" {
 		created.Request = &activity.Payload{State: "pending"}
 		created.Response = &activity.Payload{State: "pending"}
 	}
-	if parent.CallID == "" && resolveErr == nil && !activity.IsDiagnostic(ctx) && !activity.IsLocalManagement(ctx) && initial.ConversationID != "" {
+	if initial.ParentCallID == "" && resolveErr == nil && !activity.IsDiagnostic(ctx) && !activity.IsLocalManagement(ctx) && initial.ConversationID != "" {
 		stamp := received.UTC()
 		created.RequestReceivedAt = &stamp
 	}
