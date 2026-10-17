@@ -13,11 +13,25 @@ import (
 // Retain the business result before any model-facing projection mutates it.
 // Device collection limits remain independent from the response character limit.
 func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result {
-	if result == nil || p.state.binding.ParentCallID != "" {
+	hostPage := modelObject(result["host_page"])
+	if result == nil || p.state.binding.ParentCallID != "" && (p.spec.Name != "mcp_result_continue" || hostPage == nil) {
 		return result
 	}
 	out := maps.Clone(result)
 	if p.structuredResume != nil {
+		return out
+	}
+	if (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") && hostPage != nil {
+		// The MCP owner retained the upstream response before returning this page.
+		// Publishing the page as another source would replace the complete default.
+		if modelObject(out["capture"]) == nil {
+			origin := ""
+			if p.spec.Name == "mcp_result_continue" && stringArg(out, "result_call_id") == stringArg(p.args, "call_id") {
+				origin = stringArg(out, "result_call_id")
+			}
+			out["capture"] = r.mcpResultSourceCapture(p.state.binding, origin, stringArg(out, "raw_result_ref"))
+		}
+		out["operation"] = modelOperation(result, p.state.executed)
 		return out
 	}
 	if p.spec.Name == "agentdock_context" {
@@ -95,6 +109,7 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 			}
 			capture["retained_bytes"] = payload.Bytes
 		} else {
+			capture["state"], capture["complete"] = "not_stored", false
 			capture["storage_error"] = "The source could not be journaled. Verify the original operation before retrying."
 		}
 	}
@@ -146,16 +161,24 @@ func modelObject(value any) map[string]any {
 }
 
 func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result {
-	if result == nil || p.state.binding.ParentCallID != "" {
+	hostPage := modelObject(result["host_page"])
+	if result == nil || p.state.binding.ParentCallID != "" && (p.spec.Name != "mcp_result_continue" || hostPage == nil) {
 		return result
 	}
-	if hostPage := modelObject(result["host_page"]); hostPage != nil && (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") {
+	if hostPage != nil && (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") {
 		complete := hostPage["complete"] != false
 		result["projection"] = map[string]any{"mode": "mcp_result_page", "complete": complete}
 		result["delivery"] = map[string]any{"class": toolcontract.OutputRecoverablePreview, "sequence_complete": true, "continuation_required": false, "continuation_available": stringArg(result, "host_cursor") != ""}
-		result["source_complete"] = true
+		capture := modelObject(result["capture"])
+		if sourceComplete, known := capture["complete"].(bool); known {
+			result["source_complete"] = sourceComplete
+		} else {
+			delete(result, "source_complete")
+		}
 		result["truncated"] = !complete
-		if complete {
+		if capture["complete"] == false {
+			result["truncation_stage"] = "capture"
+		} else if complete {
 			result["truncation_stage"] = "none"
 		} else {
 			result["truncation_stage"] = "projection"
@@ -276,6 +299,17 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 	if call, err := r.activity.Call(ctx, binding.CallID); err == nil && call.OutputSource != nil && call.OutputSource.Ref != "" {
 		return activity.SourceReference(binding.CallID, call.OutputSource), nil
 	}
+	retainingMCPRaw := false
+	if name == "mcp_tool_call" {
+		if raw, ok := r.dynamicMCP.RawResult(binding.CallID); ok {
+			value, retainingMCPRaw = raw, true
+		}
+	}
+	if !retainingMCPRaw && (name == "mcp_tool_call" || name == "mcp_result_continue") && deliveredModelPayload(value)["host_page"] != nil {
+		// A host page, including a native-content envelope, cannot stand in for
+		// an unavailable complete response.
+		return "", nil
+	}
 	payload := r.activity.CapturePayload(ctx, value, "complete", redactor)
 	if payload.Ref == "" {
 		return "", nil
@@ -284,7 +318,11 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 	if err != nil {
 		return "", err
 	}
-	return activity.SourceReference(binding.CallID, payload), nil
+	reference := activity.SourceReference(binding.CallID, payload)
+	if retainingMCPRaw {
+		r.dynamicMCP.SetRawResultReference(binding.CallID, reference)
+	}
+	return reference, nil
 }
 
 func projectContextFacts(result Result) {

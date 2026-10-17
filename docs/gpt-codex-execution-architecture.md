@@ -1,6 +1,6 @@
 # GPT/Codex 执行架构实施说明
 
-　　本文对应《AgentDock-Workbench-GPT-Codex-Agent执行架构改进计划-来源校正版-20261015.md》。实现接续 PR #125 合并后的主线，在独立工作树和功能分支交付到 PR #126。版本号仍为 1.1.9；PR 保持草稿，尚未完成全计划验收。
+　　本文对应《AgentDock-Workbench-GPT-Codex-Agent执行架构改进计划-来源校正版-20261015.md》。实现接续 PR #125 合并后的主线，在独立工作树和功能分支交付到 PR #126。版本号仍为 1.1.9；PR #126 已于 2026-10-17 合并，本轮其他 Core 功能 PR 也已合并。独立质量 PR、最终主线构建与发布仍待完成。
 
 ## 正式 Patch 契约
 
@@ -51,9 +51,11 @@
 
 ## Managed MCP 恢复与统一结果
 
-　　真实 `mcp_tool_call` 只有在业务调用返回受控连接类错误、且实际效果为 `none` 时，才在原 Activity 上建立十分钟恢复资格。资格校验固定认证所有者、Conversation、Workspace、server、执行配置指纹与工具 Schema；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
+　　真实 `mcp_tool_call` 返回受控连接类错误，并满足原调用来源、绑定及配置身份条件时，可在原 Activity 上建立十分钟连接恢复资格。连接恢复资格与业务重试资格分别管理。资格校验固定认证所有者、Conversation、Workspace、server 和执行配置指纹；领取、恢复和一次性重试消费均写回原调用，并复用 Activity 的跨进程日志锁。
 
-　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复资格先原子领取，再关联恢复调用和唯一重试调用；并发领取只有一个成功者。恢复启动失败、异步失败、取消或到期均落下终态，不能留下永远占用的恢复资格。恢复完成后只重试原业务参数一次，目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。未知副作用只允许恢复连接，仍要求独立业务读回。
+　　`mcp_manage recover` 接收原 `origin_call_id`。恢复 Skill 在标准 frontmatter 的 `metadata.mcp-recovery-server` 中声明目标服务；`exec_command` 携带准确 `skill_ref` 与 `origin_call_id`，继续经过现有权限审批。恢复资格先原子领取并关联恢复调用，仅在业务重试获准时关联唯一重试调用；并发领取只有一个成功者。恢复启动失败、异步失败、取消或到期均落下终态，不能留下永远占用的恢复资格。只有原 Activity 记录 `effect_state=none` 且 `retry_safe=true` 时，恢复完成后才可使用原业务参数重试至多一次；目标或 Schema 改变、原参数完整源缺失或被脱敏时停止重放。
+
+　　实际效果为 `unknown`，或原 Activity 的 `RetrySafe` 缺失、为 `false` 时，资格合法的调用仍可完成一次受控连接恢复，但不会重放原业务请求。Core 返回 `retry_performed=false`，并通过 `required_action` 的 `reconcile_unknown_mcp_effects` 原因要求核对未知效果。独立业务读回由模型依据该后续动作执行；连接恢复成功不代表 Core 已自动完成读回或验证原业务效果。
 
 　　Canonical Result 统一记录 `operation_status`、`error_kind`、`effect_state`、`execution_performed`、`retry_safe` 和分类 `required_action`。相同认证作用域、Workspace、参数、原因和目录 revision 的重复协议前置条件失败，返回首个 origin、原恢复动作与递增 `repeat_count`；完整结果先留存，再生成模型短回执。
 
@@ -83,13 +85,20 @@
 
 　　基于 `325777f` 的后续审查补丁已通过 Linux 上 activity、MCP client、MCP 工具、文件和 workspace 包验证，以及完整输出校验、失败续页、原子恢复和 Context 规则续页回归。app 包复验发现 ACP 正式 Schema 漂移，修正后三项原失败及共享契约检查均通过，随后完整 app 包通过（25.821 秒）。文件权限回归在保留实际权限限制的环境运行。格式化与 `git diff --check` 通过；这些局部证据不替代修复提交和最终合并主线的 Actions。
 
-　　Windows/macOS 活动详情适配已进入分支，原生编译由仓库现有 Actions 验证。设备连接与源码推送状态单独记录，不用候选编译成功推断平台构建、生产安装或发布完成。
+　　Windows/macOS 活动详情适配已随功能分支进入主线，原生编译由仓库现有 Actions 验证。设备连接与源码推送状态单独记录，不用候选编译成功推断平台构建、生产安装或发布完成。
+
+### 当前整合与验证（2026-10-17 09:14:05 UTC）
+
+　　PR #126 的最终 head `836fb50` 为 37 success、2 skipped，于 09:01:37 UTC 合并为 `043d7316cf77b1fa09c9bf2025cbc1b88bf1f752`。PR #140 的最终 head `898bc76` 在唯一 macOS 冷查询失败作业按原门槛复验一次后同为 37 success、2 skipped，合并为 `34270eca8286867ec47930ac1023acd1ecf9e4f8`。两者均已核对无未解决 review threads；本批 Core 功能合并完成。质量代码已通过 `0b68ee4` 汇合该 main，tree 与此前审查的 `14a9997` 相同。
+
+　　`7e60922` 的原 Windows 全仓请求在外层 20 分钟工具超时后 exit 1，仅取得八包 PASS，超时原因仍未知。同源 `-count=1 -json -timeout=8m -p 2` 诊断于 09:02:49–09:06:40 UTC 正常跑完，exit 1：63 包 PASS、8 包无测试 skip、3 包失败，app 完整通过（220.748 秒）。四个失败用例均因嵌套 `go build` 的 VCS 状态 128 失败；仅为随后三个实际失败包的复验进程设置 `GOFLAGS=-buildvcs=false`，09:09:39–09:10:27 UTC 全部通过，四个原失败用例逐项 PASS。源码、父级 Git、全局缓存、CI 与断言未改。这是全仓诊断加对应环境复验的分阶段证据，不能写成单次全仓 PASS；最终质量 CI 将按正常 Git checkout 运行，不使用该手工环境覆盖。
+
+　　`516a3ba` 隔离候选另已验证标准 Context、工具域和真实 Ubuntu Plugin Skill 的 cwd/私有数据目录，并独立读取完整 response 后停止；原 20 秒准备失败和另一个 120 秒固定请求成功分别保留，managed WSL 没有实际 selector，不计通过。后续 `243a801` 的准备分类修复通过原生 Windows 回归（6.896 秒），不冒充旧候选的实机结果。具体来源、功能 CI 原失败/复验和门禁边界见 [Core 集成质量验证记录](validation/1.1.9/core-integration-quality.md)。
 
 待完成项：
 
-- 提交本批审查修复，完成 PR #126 的既有 Actions，按实际失败修复剩余契约或平台问题。
-- 统筹 Plugin 生命周期、执行架构、Context、安装器、媒体预算及公开品牌等 Core 变更。合并时逐项核对恢复资格、Plugin generation/lease、完整来源、目录身份和作用域边界，不以文本无冲突代替语义审查。
-- 功能 PR 全部合并后，必须另交一个 Core 集成与代码质量 PR，修复已复现的交互问题、收敛公共实现与代码风格，并运行与实际风险对应的既有回归和 Actions。
+- 从已汇合的准确 main 单独提交 Core 集成与代码质量 PR，仅保留尚未进入功能主线的修复、公共实现收敛及局部风格整理。最终差异继续核对恢复资格、Plugin generation/lease、完整来源、目录身份和作用域边界。
+- 完成独立质量 PR 的既有 Actions、CodeQL、原生平台与安装门禁，再合并质量增量；已完成的功能检查和分阶段本地回归不替代这些结果。
 - 在质量 PR 合并后的准确主线提交构建 1.1.9 预发布候选，完成既有安装/发布门禁与必要实机读取，核对八项资产、摘要、标签提交及发布说明后再发布。
 
-　　PR #126 当前保持草稿。先前设备或其他任务更新的生产 Core 不作为本分支部署证据；本轮合并与发布结果以对应提交、Actions 和 release 记录为准。
+　　本轮功能 PR 合并已完成；生产 Core 未替换，隔离候选已停止，发布前备份已完成。独立质量 PR 尚未创建，最终质量检查、构建和发布仍待实际完成，并以对应提交、Actions 和 release 记录为准。

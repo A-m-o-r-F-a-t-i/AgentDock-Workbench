@@ -10,6 +10,31 @@ func (m *Manager) SetExternalServerPreparation(prepare func(context.Context, Ser
 	m.mu.Unlock()
 }
 
+// SetExternalServerRuntimeLease binds a live connection to its owner's runtime
+// files. The lease is acquired only when a protocol client is initialized and
+// released after that client closes, including asynchronously retired states.
+func (m *Manager) SetExternalServerRuntimeLease(acquire func(context.Context, ServerConfig) (func(), error)) {
+	m.mu.Lock()
+	m.externalRuntimeLease = acquire
+	m.mu.Unlock()
+}
+
+func (m *Manager) acquireExternalServerRuntime(ctx context.Context, cfg ServerConfig) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if cfg.PluginRoot == "" {
+		return nil, nil
+	}
+	m.mu.RLock()
+	acquire := m.externalRuntimeLease
+	m.mu.RUnlock()
+	if acquire == nil {
+		return nil, nil
+	}
+	return acquire(ctx, cfg)
+}
+
 func (m *Manager) prepareExternalServer(ctx context.Context, cfg ServerConfig) error {
 	if err := ctx.Err(); err != nil {
 		return err

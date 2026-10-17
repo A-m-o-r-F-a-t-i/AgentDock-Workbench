@@ -1,12 +1,17 @@
 package plugin
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
@@ -94,6 +99,239 @@ func TestReconcileRetainsUnchangedMCPGeneration(t *testing.T) {
 	if err := store.PrepareMCPData(t.Context(), after); err != nil {
 		t.Fatalf("retained runtime lease was released during reconcile: %v", err)
 	}
+}
+
+func TestRetiredMCPCallRetainsPluginRuntimeDuringReconcile(t *testing.T) {
+	type cancelLeaseInitialization struct{}
+	for _, action := range []string{"update", "remove", "member_disable"} {
+		t.Run(action, func(t *testing.T) {
+			home := t.TempDir()
+			store, err := registry.New(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(store.Close)
+			manager, err := mcpclient.NewManager(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := testPluginService(store, false)
+			service.SetMCPManager(manager)
+			var acquired, released atomic.Int32
+			manager.SetExternalServerRuntimeLease(func(ctx context.Context, cfg mcpclient.ServerConfig) (func(), error) {
+				release, err := store.AcquireMCPRuntime(ctx, cfg)
+				if err != nil {
+					return nil, err
+				}
+				acquired.Add(1)
+				if cancel, ok := ctx.Value(cancelLeaseInitialization{}).(context.CancelFunc); ok {
+					cancel()
+				}
+				return func() {
+					released.Add(1)
+					release()
+				}, nil
+			})
+			t.Cleanup(service.ReleaseMCPLeases)
+			t.Cleanup(func() { _ = manager.Close() })
+			manager.SetExternalServerPreparation(store.PrepareMCPData)
+			const pluginName, serverName = "leased-runtime", "leased-mcp"
+			source := writeToolPluginPackage(t, t.TempDir(), pluginName, nil, []string{serverName})
+			writeJSON := func(path string, value any) {
+				t.Helper()
+				data, err := json.Marshal(value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err = os.WriteFile(path, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			const helperRun = "-test.run=^TestPluginMCPLeaseHelperProcess$"
+			writeJSON(filepath.Join(source, registry.MCPFilename), registry.MCPConfig{Schema: registry.MCPSchema, MCPServers: map[string]registry.MCPServer{
+				serverName: {Type: "stdio", Command: "test-helper", Args: []string{helperRun}, Env: map[string]string{"GO_WANT_PLUGIN_RUNTIME_HELPER": "1"}},
+			}})
+			if err = os.WriteFile(filepath.Join(source, "lease.txt"), []byte("original generation"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeJSON(filepath.Join(home, "plugins", ".config", pluginName+".json"), registry.HostConfig{MCPServers: map[string]registry.MCPHostConfig{serverName: {Command: executable}}})
+			if _, err = service.Manage(t.Context(), ManageRequest{Action: "install", Source: source, ReviewToken: reviewTokenForSource(t, service, source)}); err != nil {
+				t.Fatal(err)
+			}
+			cfg, _, err := manager.Inspect(serverName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = manager.SearchCatalogsFiltered(t.Context(), "read_after_gate", "", 1, nil); err != nil {
+				t.Fatal(err)
+			}
+			if err = service.ReconcileMCP(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if acquired.Load() != 0 || released.Load() != 0 {
+				t.Fatal("read-only catalog discovery or reconciliation acquired a connection lease")
+			}
+			for range 2 {
+				if _, _, err = manager.Refresh(t.Context(), serverName); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if acquired.Load() != 2 || released.Load() != 1 {
+				t.Fatalf("successful refresh did not transfer exactly one lease: acquired=%d released=%d", acquired.Load(), released.Load())
+			}
+			_, active, err := manager.Inspect(serverName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			failedArgs, _ := json.Marshal([]string{helperRun, "--", "fail-initialize"})
+			if _, err = manager.Update(t.Context(), serverName, active.Revision, "runtime", mcpclient.ConfigPatch{"args": failedArgs}, false); err == nil {
+				t.Fatal("failed candidate initialization was accepted")
+			}
+			cancelCtx, cancel := context.WithCancel(t.Context())
+			_, _, err = manager.Refresh(context.WithValue(cancelCtx, cancelLeaseInitialization{}, cancel), serverName)
+			cancel()
+			if err == nil || acquired.Load() != 4 || released.Load() != 3 {
+				t.Fatalf("failed/cancelled initialization leaked a candidate lease or released the active one: acquired=%d released=%d err=%v", acquired.Load(), released.Load(), err)
+			}
+			entered, unblock := make(chan struct{}), make(chan struct{})
+			var enteredOnce, unblockOnce sync.Once
+			gate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				enteredOnce.Do(func() { close(entered) })
+				select {
+				case <-unblock:
+					w.WriteHeader(http.StatusNoContent)
+				case <-r.Context().Done():
+				}
+			}))
+			t.Cleanup(gate.Close)
+			releaseCall := func() { unblockOnce.Do(func() { close(unblock) }) }
+			t.Cleanup(releaseCall)
+			type outcome struct {
+				result map[string]any
+				err    error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				result, err := manager.Call(t.Context(), serverName+":read_after_gate", map[string]any{"gate": gate.URL})
+				done <- outcome{result: result, err: err}
+			}()
+			select {
+			case <-entered:
+			case result := <-done:
+				t.Fatalf("old MCP call did not reach its gate: %#v %v", result.result, result.err)
+			case <-t.Context().Done():
+				t.Fatal(t.Context().Err())
+			}
+			_, summary, err := manager.Inspect(serverName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A connection-changing override retires the blocked client without
+			// waiting for it. Reconciliation must retain its runtime independently
+			// of the current server state and the Plugin directory's own lease.
+			args, _ := json.Marshal([]string{helperRun, "--", "replacement"})
+			if _, err = manager.Update(t.Context(), serverName, summary.Revision, "runtime", mcpclient.ConfigPatch{"args": args, "lazy": json.RawMessage("true")}, false); err != nil {
+				t.Fatal(err)
+			}
+			request := ManageRequest{Action: action, Name: pluginName, MemberType: "mcp_server", Member: serverName}
+			if action == "update" {
+				writeJSON(filepath.Join(source, registry.ManifestDirectory, registry.ManifestFilename), registry.Manifest{Schema: registry.ManifestSchema, Name: pluginName, Version: "2.0.0", Description: "Updated leased runtime."})
+				if err = os.WriteFile(filepath.Join(source, "lease.txt"), []byte("new generation"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				request.Source, request.ReviewToken = source, reviewTokenForSource(t, service, source)
+			}
+			if _, err = service.Manage(t.Context(), request); err != nil {
+				t.Fatal(err)
+			}
+			if staleRelease, err := store.AcquireMCPRuntime(t.Context(), cfg); err == nil {
+				staleRelease()
+				t.Error("a new connection acquired a lease for a removed, disabled, or replaced runtime")
+			}
+			if _, err = os.Stat(filepath.Join(cfg.PluginRoot, "lease.txt")); err != nil {
+				t.Errorf("retired call lost its leased runtime before completion: %v", err)
+			}
+			if acquired.Load() != 4 || released.Load() != 3 {
+				t.Errorf("reconciliation released the active retired client: acquired=%d released=%d", acquired.Load(), released.Load())
+			}
+			releaseCall()
+			result := <-done
+			structured, _ := result.result["structuredContent"].(map[string]any)
+			if result.err != nil || structured["value"] != "original generation" || structured["read_error"] != "" {
+				t.Errorf("old call failed to read its original runtime: %#v %v", result.result, result.err)
+			}
+			if err = manager.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = os.Stat(cfg.PluginRoot); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("retired runtime was not released after client closure: %v", err)
+			}
+			if err = manager.Close(); err != nil || acquired.Load() != 4 || released.Load() != 4 {
+				t.Fatalf("client close did not release each lease exactly once: acquired=%d released=%d err=%v", acquired.Load(), released.Load(), err)
+			}
+		})
+	}
+}
+
+func TestPluginMCPLeaseHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_PLUGIN_RUNTIME_HELPER") != "1" {
+		return
+	}
+	failInitialize := false
+	for _, arg := range os.Args {
+		failInitialize = failInitialize || arg == "fail-initialize"
+	}
+	input, output := bufio.NewScanner(os.Stdin), json.NewEncoder(os.Stdout)
+	for input.Scan() {
+		var request struct {
+			ID     any            `json:"id"`
+			Method string         `json:"method"`
+			Params map[string]any `json:"params"`
+		}
+		if json.Unmarshal(input.Bytes(), &request) != nil {
+			os.Exit(2)
+		}
+		response := map[string]any{"jsonrpc": "2.0", "id": request.ID}
+		switch request.Method {
+		case "notifications/initialized":
+			continue
+		case "initialize":
+			response["result"] = map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "lease-helper", "version": "1.0.0"}}
+			if failInitialize {
+				delete(response, "result")
+				response["error"] = map[string]any{"code": -32603, "message": "fixture initialization failure"}
+			}
+		case "tools/list":
+			response["result"] = map[string]any{"tools": []map[string]any{{"name": "read_after_gate", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"gate": map[string]any{"type": "string"}}, "required": []string{"gate"}}}}}
+		case "tools/call":
+			args, _ := request.Params["arguments"].(map[string]any)
+			gate, _ := args["gate"].(string)
+			wait, err := http.Get(gate)
+			if err != nil {
+				os.Exit(3)
+			}
+			_ = wait.Body.Close()
+			content, readErr := os.ReadFile(filepath.Join(os.Getenv("PLUGIN_ROOT"), "lease.txt"))
+			failure := ""
+			if readErr != nil {
+				failure = readErr.Error()
+			}
+			response["result"] = map[string]any{"content": []any{}, "structuredContent": map[string]any{"value": string(content), "read_error": failure}}
+		default:
+			response["error"] = map[string]any{"code": -32601, "message": "Method not found"}
+		}
+		if output.Encode(response) != nil {
+			os.Exit(4)
+		}
+	}
+	os.Exit(0)
 }
 
 func TestLoadReportsDisabledDirectPluginMembers(t *testing.T) {

@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -9,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/app"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 const maxSessionObserveTextSessions = 16
@@ -73,16 +73,7 @@ func compactToolEnvelopeText(name string, envelope map[string]any) map[string]an
 }
 
 func jsonTextMatches(text string, structured any) bool {
-	var parsed any
-	if json.Unmarshal([]byte(strings.TrimSpace(text)), &parsed) != nil {
-		return false
-	}
-	parsedJSON, err := json.Marshal(parsed)
-	if err != nil {
-		return false
-	}
-	structuredJSON, err := json.Marshal(structured)
-	return err == nil && bytes.Equal(parsedJSON, structuredJSON)
+	return toolcore.JSONTextEquivalent(text, structured)
 }
 
 func toolResultSummary(name string, envelope map[string]any) string {
@@ -148,7 +139,7 @@ func summaryField(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return boundedText(strings.Join(strings.Fields(typed), " "), 160)
-	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, json.Number:
 		return fmt.Sprint(typed)
 	default:
 		return ""

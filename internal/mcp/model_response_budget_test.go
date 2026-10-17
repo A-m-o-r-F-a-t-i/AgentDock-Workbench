@@ -115,8 +115,15 @@ func TestDynamicMCPModelProjectionUsesCanonicalStructuredResult(t *testing.T) {
 	if len(after)*2 >= len(before) {
 		t.Fatalf("canonical projection did not remove the duplicated body: before=%d after=%d", len(before), len(after))
 	}
-	if retained := responseRetentionValue("mcp_tool_call", envelope); !reflect.DeepEqual(retained, business) {
-		t.Fatalf("retained source was not the canonical business result: %#v", retained)
+	retained := asMap(responseRetentionValue("mcp_tool_call", envelope))
+	if !reflect.DeepEqual(retained["structuredContent"], business) || retained["isError"] != false || retained["content"] != nil {
+		t.Fatal("retained source lost upstream state or retained duplicate JSON text")
+	}
+	payload := asMap(envelope["structuredContent"])
+	payload["host_page"] = map[string]any{"complete": false, "page_index": 0}
+	retained = asMap(responseRetentionValue("mcp_tool_call", envelope))
+	if asMap(retained["host_page"])["complete"] != false || !reflect.DeepEqual(asMap(retained["result"])["structuredContent"], business) {
+		t.Fatal("retention lost the host-page marker needed to reject incomplete sources")
 	}
 }
 
@@ -149,5 +156,42 @@ func TestDynamicMCPModelProjectionPreservesNonEquivalentTextAndMetadata(t *testi
 	retained := asMap(responseRetentionValue("mcp_tool_call", envelope))
 	if !reflect.DeepEqual(retained["structuredContent"], business) || len(envelopeBlocks(retained["content"])) != 3 {
 		t.Fatalf("canonical retained result lost unique business text: %#v", retained)
+	}
+	if !reflect.DeepEqual(retained["_meta"], result["_meta"]) || retained["isError"] != false {
+		t.Fatal("retained source lost upstream metadata or error state")
+	}
+	encoded, err := json.Marshal(business)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream := asMap(asMap(envelope["structuredContent"])["result"])
+	upstream["content"] = []any{map[string]any{"type": "text", "text": string(encoded)}}
+	upstream["isError"] = true
+	retained = asMap(responseRetentionValue("mcp_tool_call", envelope))
+	if !reflect.DeepEqual(retained["structuredContent"], business) || !reflect.DeepEqual(retained["_meta"], result["_meta"]) || retained["isError"] != true || retained["content"] != nil {
+		t.Fatal("equivalent-text retention discarded metadata or a failed upstream outcome")
+	}
+}
+
+func TestDynamicMCPProjectionKeepsAdjacentLargeIntegerText(t *testing.T) {
+	const distinct = `{"id":9007199254740993}`
+	metadata := map[string]any{"revision": json.Number("18446744073709551615")}
+	image := map[string]any{"type": "image", "data": "AQID", "mimeType": "image/png", "_meta": metadata}
+	blocks := []any{map[string]any{"type": "text", "text": distinct}, image}
+	envelope := map[string]any{
+		"content": blocks,
+		"structuredContent": map[string]any{
+			"name": "fixture:write",
+			"result": map[string]any{
+				"structuredContent": map[string]any{"id": json.Number("9007199254740992")},
+				"content":           blocks,
+				"_meta":             metadata,
+			},
+		},
+	}
+	projected := compactToolEnvelopeText("mcp_tool_call", normalizeResponseStages("mcp_tool_call", nil, envelope))
+	result := asMap(asMap(projected["structuredContent"])["result"])
+	if !reflect.DeepEqual(result["content"], blocks) || !reflect.DeepEqual(projected["content"], blocks) || !reflect.DeepEqual(result["_meta"], metadata) {
+		t.Fatalf("projection treated adjacent numbers as the same business result: %#v", projected)
 	}
 }

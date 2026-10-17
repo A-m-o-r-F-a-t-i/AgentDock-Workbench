@@ -104,8 +104,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		"activity_warning":            stringProp("Command execution state is valid but the activity journal is incomplete."),
 		"sessions":                    arrayProp("Command session summaries returned by list or bulk session actions."),
 		"count":                       intProp("Command session count when a list or bulk action returns multiple sessions."),
-		"session_id":                  stringProp("Command session id."),
-		"status":                      stringProp("Process status: running, exited, timeout, cancelled, lost or outcome_unknown."),
+		"session_id":                  map[string]any{"type": "string", "minLength": 1, "description": "Command session id."},
+		"status":                      map[string]any{"type": "string", "minLength": 1, "description": "Process status: running, exited, timeout, cancelled, lost or outcome_unknown."},
 		"operation_status":            stringProp("Command result status: running, succeeded, failed or outcome_unknown. Successful observation does not imply successful execution."),
 		"changed":                     boolProp("Whether this observation contains new output or a terminal state."),
 		"waited_ms":                   intProp("Actual bounded wait for this observation."),
@@ -155,5 +155,16 @@ func OutputSchema(name string) (map[string]any, bool) {
 		return nil, false
 	}
 	props["observe_after_ms"] = intProp("Recommended wait_ms for the next session_observe status call. The server returns early when the process exits.")
-	return toolcontract.OutputObject(props), true
+	if name == ToolExecCommand {
+		return toolcontract.OutputObject(props, "session_id", "status"), true
+	}
+	schema := toolcontract.OutputObject(props)
+	// A successful session operation must identify its session or its complete
+	// collection, including an explicitly empty list. Shared receipt metadata
+	// cannot stand in for these command-owned facts.
+	schema["anyOf"] = []any{
+		map[string]any{"required": []string{"session_id", "status"}},
+		map[string]any{"required": []string{"sessions", "count"}},
+	}
+	return schema, true
 }

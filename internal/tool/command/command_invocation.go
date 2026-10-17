@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"runtime"
@@ -12,6 +14,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	"github.com/uvwt/agentdock/internal/tool/command/session"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -49,7 +52,7 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID str
 	}
 	lease, err := svc.resolveSkill(ctx, skillRef)
 	if err != nil {
-		return SkillLease{}, err
+		return SkillLease{}, skillPreparationError(err)
 	}
 	if lease.Release == nil {
 		lease.Release = func() {}
@@ -70,6 +73,41 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID str
 	return lease, nil
 }
 
+// Skill resolution precedes recovery authorization and invocation.start for
+// native and WSL commands. Only this boundary proves the requested command did
+// not execute; a later start or remote backend error must keep its own outcome.
+func skillPreparationError(cause error) *ToolError {
+	code, message, category := "COMMAND_PREPARATION_FAILED", cause.Error(), "runtime"
+	details := map[string]any{}
+	var declared *ToolError
+	if errors.As(cause, &declared) {
+		code, message, category = declared.Code, declared.Message, declared.Category
+		maps.Copy(details, declared.Details)
+	} else if errors.Is(cause, context.DeadlineExceeded) {
+		code = "COMMAND_PREPARATION_TIMEOUT"
+	}
+	details["execution_performed"] = false
+	details["effect_state"] = "none"
+	details["retry_safe"] = false
+	return toolcore.NewErrorCause(code, message, category, details, cause)
+}
+
+// Native and WSL commands select the same managed environment. The caller
+// retains ownership of the content lease and releases it on validation failure.
+func applySkillEnvironment(lease *SkillLease, request ExecRequest) error {
+	if request.SkillEnv == "" {
+		return nil
+	}
+	if request.SkillRef != "" && lease.EnvName == "" {
+		return toolError("SKILL_CONTEXT_CONFLICT", "a shared, workspace or Plugin Skill cannot borrow managed Skill credentials", "validation")
+	}
+	if lease.EnvName != "" && lease.EnvName != request.SkillEnv {
+		return toolError("SKILL_CONTEXT_CONFLICT", "skill and skill_env must agree", "validation")
+	}
+	lease.EnvName = request.SkillEnv
+	return nil
+}
+
 func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRequest) (commandInvocation, error) {
 	lease, err := svc.acquireSkill(ctx, request.SkillRef, request.OriginCallID)
 	if err != nil {
@@ -82,14 +120,8 @@ func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRe
 		}
 	}()
 
-	if request.SkillEnv != "" {
-		if request.SkillRef != "" && lease.EnvName == "" {
-			return commandInvocation{}, toolError("SKILL_CONTEXT_CONFLICT", "a shared, workspace or Plugin Skill cannot borrow managed Skill credentials", "validation")
-		}
-		if lease.EnvName != "" && lease.EnvName != request.SkillEnv {
-			return commandInvocation{}, toolError("SKILL_CONTEXT_CONFLICT", "skill and skill_env must agree", "validation")
-		}
-		lease.EnvName = request.SkillEnv
+	if err := applySkillEnvironment(&lease, request); err != nil {
+		return commandInvocation{}, err
 	}
 	workdir, err := svc.resolveHostCommandWorkdir(request.Workdir, lease.Root)
 	if err != nil {
@@ -231,8 +263,13 @@ func buildWSLProcessEnv(base []string, forwarded map[string]string) []string {
 			if item == "" {
 				continue
 			}
-			wslEnvItems = append(wslEnvItems, item)
 			name := strings.SplitN(item, "/", 2)[0]
+			// Runtime data paths are already converted. Only the runtime may
+			// forward them; inherited flags must not translate or suppress them.
+			if config.IsReservedCommandEnvironmentKey(name) {
+				continue
+			}
+			wslEnvItems = append(wslEnvItems, item)
 			forwardedNames[strings.ToUpper(name)] = true
 		}
 	}

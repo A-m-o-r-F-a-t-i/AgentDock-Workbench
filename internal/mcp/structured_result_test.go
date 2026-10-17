@@ -2,10 +2,12 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -139,5 +141,39 @@ func TestBoundedToolSummaryPreservesUTF8(t *testing.T) {
 	text := boundedToolSummary(strings.Repeat("中文结果", 200))
 	if len(text) > ToolSummaryMaxBytes || !strings.HasSuffix(text, "...") || strings.ContainsRune(text, '\uFFFD') {
 		t.Fatalf("invalid bounded UTF-8 summary: bytes=%d text=%q", len(text), text)
+	}
+}
+
+func TestSDKToolResultKeepsCanonicalNumbersAndMeasuresActualJSON(t *testing.T) {
+	envelope := map[string]any{
+		"structuredContent": map[string]any{"id": json.Number("9007199254740993"), "amount": json.Number("0.10000000000000001")},
+		"_meta":             map[string]any{"revision": json.Number("18446744073709551615")},
+		"content":           []any{map[string]any{"type": "image", "data": "AQID", "mimeType": "image/png"}},
+	}
+	result, err := sdkToolResult(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(result.StructuredContent, envelope["structuredContent"]) || result.Meta["revision"] != json.Number("18446744073709551615") {
+		t.Fatalf("SDK conversion rounded canonical dynamic fields: %#v", result)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("native content changed: %#v", result.Content)
+	}
+	image, ok := result.Content[0].(*sdk.ImageContent)
+	if !ok || string(image.Data) != "\x01\x02\x03" || image.MIMEType != "image/png" {
+		t.Fatalf("native image changed: %#v", result.Content[0])
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, exact := range []string{"9007199254740993", "0.10000000000000001", "18446744073709551615"} {
+		if !strings.Contains(string(encoded), exact) {
+			t.Fatalf("final SDK output omitted exact number %s: %s", exact, encoded)
+		}
+	}
+	if chars, err := modelEnvelopeChars(envelope); err != nil || chars != utf8.RuneCount(encoded) {
+		t.Fatalf("budget counted rounded data: chars=%d actual=%d err=%v", chars, utf8.RuneCount(encoded), err)
 	}
 }

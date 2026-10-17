@@ -2,6 +2,7 @@ package nexusbridge
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -225,5 +226,35 @@ func TestBridgeRunReturnsAfterCanceledDialContext(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("bridge Run did not return for canceled context")
+	}
+}
+
+type numberArgumentNode struct {
+	NodeAPI
+	context   context.Context
+	name      string
+	arguments map[string]any
+}
+
+func (n *numberArgumentNode) Invoke(ctx context.Context, name string, arguments map[string]any) (map[string]any, error) {
+	n.context, n.name, n.arguments = ctx, name, arguments
+	return map[string]any{"ok": true}, nil
+}
+
+func TestBridgeToolCallPreservesRawArgumentNumbers(t *testing.T) {
+	node := &numberArgumentNode{}
+	client := &Client{node: node}
+	ctx := t.Context()
+	_, err := client.handleToolCall(ctx, json.RawMessage(`{"tool":"mcp_tool_call","arguments":{"name":"fixture:write","arguments":{"id":9007199254740993,"values":[18446744073709551615,0.10000000000000001]}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(node.arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"arguments":{"id":9007199254740993,"values":[18446744073709551615,0.10000000000000001]},"name":"fixture:write"}`
+	if node.context != ctx || node.name != "mcp_tool_call" || string(encoded) != want {
+		t.Fatalf("bridge changed call identity or raw argument numbers: name=%s arguments=%s", node.name, encoded)
 	}
 }

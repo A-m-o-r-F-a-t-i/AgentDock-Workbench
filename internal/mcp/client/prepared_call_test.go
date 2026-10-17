@@ -269,3 +269,29 @@ func TestPreparedCallCancellationDoesNotDispatch(t *testing.T) {
 		t.Fatalf("cancelled prepared call dispatched %d times", client.calls.Load())
 	}
 }
+
+func TestPreparedCallRejectsUnrepresentableOutputSchemaWithoutDispatch(t *testing.T) {
+	manager, state, client, cfg := newPreparedCallTestManager(t)
+	tool := preparedCallTool("string", false)
+	tool.OutputSchema = map[string]any{
+		"type": "object", "properties": map[string]any{
+			"value": map[string]any{"type": "number", "minimum": json.Number("1e1000001")},
+		},
+	}
+	compiled, err := compileCatalog(context.Background(), cfg, []Tool{tool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.mu.Lock()
+	state.tools = compiled
+	publishStateLocked(state)
+	state.mu.Unlock()
+	prepared, err := manager.PrepareCall(context.Background(), "fixture:write", map[string]any{"value": "approved"})
+	var failure *Error
+	if prepared != nil || !errors.As(err, &failure) || failure.Code != "MCP_OUTPUT_SCHEMA_INVALID" || failure.Retryable || failure.Details["executed"] != false {
+		t.Fatalf("invalid output schema was not rejected before dispatch: %#v", err)
+	}
+	if client.calls.Load() != 0 {
+		t.Fatalf("invalid output schema dispatched %d calls", client.calls.Load())
+	}
+}

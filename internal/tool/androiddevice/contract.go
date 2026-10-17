@@ -1,10 +1,11 @@
 package androiddevice
 
 import (
-	"github.com/uvwt/agentdock/internal/tool/command"
-	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	"maps"
 	"sort"
+
+	"github.com/uvwt/agentdock/internal/tool/command"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 func InputSchema(tool string) (map[string]any, bool) {
@@ -58,7 +59,6 @@ func OutputSchema(tool string) (map[string]any, bool) {
 		return nil, false
 	}
 	base, _ := command.OutputSchema(command.ToolExecCommand)
-	base = maps.Clone(base)
 	props := maps.Clone(base["properties"].(map[string]any))
 	props["action"] = toolcontract.String("Validated Android operation.")
 	props["backend"] = map[string]any{"type": "string", "const": "android_shizuku"}
@@ -67,6 +67,12 @@ func OutputSchema(tool string) (map[string]any, bool) {
 	props["artifact_type"] = toolcontract.String("Capture media type.")
 	props["artifact_state"] = map[string]any{"type": "string", "enum": []string{"ready", "pending", "unconfirmed"}}
 	props["verification"] = toolcontract.String("What the command checks on successful completion; pending sessions remain unverified.")
-	base["properties"] = props
-	return base, true
+	// Device status is a direct observation. Other device operations return
+	// command session facts, so share their fields without inheriting a session
+	// requirement for the direct status response.
+	schema := toolcontract.OutputObject(props, "action", "backend")
+	schema["if"] = map[string]any{"properties": map[string]any{"action": map[string]any{"const": "status"}}}
+	schema["then"] = map[string]any{"required": []string{"device_status"}}
+	schema["else"] = map[string]any{"required": []string{"session_id", "status"}}
+	return schema, true
 }

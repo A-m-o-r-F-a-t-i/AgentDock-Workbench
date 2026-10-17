@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/uvwt/agentdock/internal/fs/filelock"
-	"github.com/uvwt/agentdock/internal/snapshot"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/fs/filelock"
+	"github.com/uvwt/agentdock/internal/snapshot"
 )
 
 var errDirectoryChanged = errors.New("plugin directory changed during snapshot build")

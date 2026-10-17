@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 const inputSchemaResource = "urn:agentdock:tool-input-schema"
@@ -41,10 +43,11 @@ func CompileInputSchema(raw map[string]any) (*InputValidator, error) {
 		return nil, fmt.Errorf("encode inputSchema: %w", err)
 	}
 	var schemaJSON any
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.UseNumber()
-	if err := decoder.Decode(&schemaJSON); err != nil {
+	if err := toolcore.DecodeJSON(bytes.NewReader(encoded), &schemaJSON); err != nil {
 		return nil, fmt.Errorf("decode inputSchema: %w", err)
+	}
+	if err := validateSchemaNumbers(schemaJSON); err != nil {
+		return nil, fmt.Errorf("inputSchema: %w", err)
 	}
 
 	compiler := jsonschema.NewCompiler()
@@ -75,12 +78,38 @@ func (v *InputValidator) Validate(arguments map[string]any) error {
 		return fmt.Errorf("encode tool arguments: %w", err)
 	}
 	var normalized any
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&normalized); err != nil {
+	if err := toolcore.DecodeJSON(bytes.NewReader(raw), &normalized); err != nil {
 		return fmt.Errorf("decode tool arguments: %w", err)
 	}
+	if err := validateSchemaNumbers(normalized); err != nil {
+		return fmt.Errorf("tool arguments: %w", err)
+	}
 	return v.schema.Validate(normalized)
+}
+
+// jsonschema compares numbers as big.Rat and assumes the conversion succeeds.
+// UseNumber accepts JSON exponents outside that range. Reject them before both
+// constraint compilation and value validation, without rounding valid numbers.
+func validateSchemaNumbers(value any) error {
+	switch typed := value.(type) {
+	case json.Number:
+		if _, ok := new(big.Rat).SetString(string(typed)); !ok {
+			return errors.New("number is outside the schema validator's supported range")
+		}
+	case map[string]any:
+		for _, child := range typed {
+			if err := validateSchemaNumbers(child); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if err := validateSchemaNumbers(child); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func CompactValidationError(err error) string {

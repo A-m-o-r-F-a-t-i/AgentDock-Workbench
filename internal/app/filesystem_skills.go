@@ -62,6 +62,9 @@ func scanCommonFilesystemSkillsContext(ctx context.Context, root string, watch f
 		documentPath := filepath.Join(packageDir, "SKILL.md")
 		if watch != nil {
 			watch(packageDir)
+			// Preserve the lexical document as well as its target directory.
+			// A file symlink can change target without a kqueue notification.
+			watch(documentPath)
 			if realPath, err := filepath.EvalSymlinks(documentPath); err == nil {
 				watch(filepath.Dir(realPath))
 			}

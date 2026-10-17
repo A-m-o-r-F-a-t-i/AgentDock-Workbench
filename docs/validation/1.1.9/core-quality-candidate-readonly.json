@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "source_commit": "516a3ba9c62de3c3f605838d4094882eec41766e",
+  "executable_sha256": "9bf00605a85610032c43c1026a6c52425b2f976b4b9bbab9a624b07a3fe18c24",
+  "started_at": "2026-10-17T07:43:22.7991886Z",
+  "endpoint": "http://127.0.0.1:18765/mcp",
+  "context_probe": {
+    "ok": true,
+    "samples": [
+      {
+        "stage": "initialize",
+        "request_id": "req_1f453d1ef5474aa887ffa5af41a4a03f",
+        "correlation_echoed": true,
+        "http_status": 200,
+        "http_body_bytes": 2439,
+        "elapsed_ms": 31.0
+      },
+      {
+        "stage": "initialized_notification",
+        "request_id": "req_ff57466634b74785917358d1b297c071",
+        "correlation_echoed": true,
+        "http_status": 202,
+        "http_body_bytes": 0,
+        "elapsed_ms": 0.0
+      },
+      {
+        "stage": "tools_list",
+        "request_id": "req_6a022505e08e46ceba90ce232820e650",
+        "correlation_echoed": true,
+        "http_status": 200,
+        "http_body_bytes": 41364,
+        "elapsed_ms": 16.0
+      },
+      {
+        "stage": "context",
+        "request_id": "req_aa20c8412f7b4e5ea5110cfa3d4a0afc",
+        "correlation_echoed": true,
+        "http_status": 200,
+        "http_body_bytes": 10190,
+        "elapsed_ms": 531.0
+      },
+      {
+        "stage": "context",
+        "request_id": "req_1221b30a83994367913975fc6720dff7",
+        "correlation_echoed": true,
+        "http_status": 200,
+        "http_body_bytes": 9724,
+        "elapsed_ms": 125.0
+      },
+      {
+        "stage": "context",
+        "request_id": "req_dd7aaeb68b0a415ab4d9833385be160a",
+        "correlation_echoed": true,
+        "http_status": 200,
+        "http_body_bytes": 12006,
+        "elapsed_ms": 78.0
+      }
+    ],
+    "core_version": "1.1.9",
+    "call_id": "call_eee84aa60625a238c5e7420062659f74",
+    "request_id": "req_aa20c8412f7b4e5ea5110cfa3d4a0afc",
+    "context_complete": true,
+    "context_response": {
+      "compat_text_mode": "summary",
+      "response_bytes": 11935,
+      "response_bytes_scope": "CallToolResult JSON; excludes JSON-RPC and HTTP",
+      "response_truncated": false,
+      "structured_bytes": 11377,
+      "text_content_bytes": 75
+    }
+  },
+  "tool_domains": {
+    "ok": true,
+    "dynamic_servers": [
+      "easyeda-pcb"
+    ]
+  },
+  "first_preparation_failure": {
+    "command_dispatch": "not reached: acquireSkill resolver failed before TryReserve and invocation.start",
+    "call_id": "call_46034c57834d5c3e12b9c46f609209af",
+    "session_id": null,
+    "summary": "Plugin runtime file \"mcp\\\\easyeda-pcb\\\\node_modules\\\\@modelcontextprotocol\\\\sdk\\\\dist\\\\cjs\\\\server\\\\express.d.ts.map\" no longer matches its generation: context deadline exceeded",
+    "timeout_ms": 20000,
+    "observed_classification": {
+      "effect_state": "unknown",
+      "error_kind": "execution_failed",
+      "execution_performed": true,
+      "operation_status": "failed",
+      "required_action": {
+        "arguments": "null",
+        "category": "model_decision",
+        "reason_code": "execution_failed",
+        "required": true
+      },
+      "retry_safe": false
+    },
+    "fix_commit": "243a801f2e1b261ba0ed27e3ac27fd7e8525a5d9",
+    "internal_preparation_writes": "possible isolated runtime copy and Activity writes",
+    "status": "failed"
+  },
+  "plugin_wsl": {
+    "call_id": "call_4a79247c9bda9e686a09f239c10f6e8b",
+    "session_id": "session-9be1450938290379574a4871",
+    "response_ref": "1a4742a9e0003ffff6eea495d378f69063b1a2edb51c2c3a57ae5ee382bec9ea",
+    "request_timeout_ms": 120000,
+    "exit_code": 0,
+    "capture": {
+      "complete": true,
+      "retained_bytes": 1589,
+      "source_ref": "activity://call/call_4a79247c9bda9e686a09f239c10f6e8b/source/b1ef52601b6623fdebbaefcc00adeddd0c49fa9866b8d06235a1ae8731200b83",
+      "state": "complete"
+    },
+    "facts": {
+      "case": "plugin",
+      "cwd": {
+        "path": "/mnt/e/PLAYGROUND/AGENTDOCK/artifacts/source-corrected-20261015/quality-smoke-516a3ba-20261017/home/plugins/.runtime/easyeda/generation-8cc71d6f146ecdd8734c1e1fa945df2b-9cf8008d74fb3d2ce66d9fdf339eedab/skills/easyeda-api",
+        "present": true,
+        "posix": true,
+        "is_dir": true,
+        "readable": true
+      },
+      "SKILL_DATA_DIR": {
+        "path": "",
+        "present": false,
+        "posix": false,
+        "is_dir": false,
+        "readable": false
+      },
+      "PLUGIN_DATA_DIR": {
+        "path": "/mnt/e/PLAYGROUND/AGENTDOCK/artifacts/source-corrected-20261015/quality-smoke-516a3ba-20261017/home/plugins/.data/easyeda",
+        "present": true,
+        "posix": true,
+        "is_dir": true,
+        "readable": true
+      },
+      "cwd_has_skill_document": true,
+      "ok": true
+    },
+    "command_ok": true,
+    "source_complete": true,
+    "prior_preparation_call": "call_46034c57834d5c3e12b9c46f609209af",
+    "status": "exited"
+  },
+  "managed_wsl": {
+    "state": "not_available",
+    "reason": "no_actual_matching_skill_selector"
+  },
+  "driver_sha256": "3c63c08ec349fd790697894d7f0687fb8a5b6a0d93237dfc5eea1704844c14a2",
+  "production_installation_performed": false,
+  "cleanup": {
+    "pid": 27704,
+    "stopped_at": "2026-10-17T08:08:55.0861328Z",
+    "has_exited": true
+  },
+  "retained_device_proof_sha256": "47d056f09dbffe373bc786e2b0aa740136c8d85e87c8adabe845b7e6f70413ce"
+}

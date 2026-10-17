@@ -11,6 +11,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
@@ -112,7 +113,7 @@ func (r *Runtime) readMCPRecoveryRequest(ctx context.Context, origin activity.Ex
 		return nil, unavailable()
 	}
 	var request map[string]any
-	if json.Unmarshal(raw.Bytes(), &request) != nil || stringArg(request, "name") != origin.ToolExecution.QualifiedName {
+	if toolcore.DecodeJSON(bytes.NewReader(raw.Bytes()), &request) != nil || stringArg(request, "name") != origin.ToolExecution.QualifiedName {
 		return nil, unavailable()
 	}
 	if _, ok := request["arguments"].(map[string]any); !ok {

@@ -5,13 +5,14 @@ package snapshot
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/fsnotify/fsnotify"
-	"golang.org/x/sys/windows"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"unicode/utf16"
 	"unsafe"
+
+	"github.com/fsnotify/fsnotify"
+	"golang.org/x/sys/windows"
 )
 
 func startTreeWatch(root string, emit func(fsnotify.Event), failed func()) (func(), bool) {

@@ -232,4 +232,68 @@ func TestToolOutputRedactionAndOriginalTruncationRemainExplicit(t *testing.T) {
 	if strings.Contains(stringArg(result, "stdout"), "do-not-retain") || modelObject(result["capture"])["complete"] != false || modelObject(result["capture"])["state"] != "partial" {
 		t.Fatalf("source/redaction state lost: %v", policy)
 	}
+	t.Run("MCP source storage failure", func(t *testing.T) {
+		fixture := newCatalogFixture(t, 1)
+		fixture.largeResult.Store(true)
+		cfg := config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}
+		if err := cfg.Normalize(); err != nil {
+			t.Fatal(err)
+		}
+		runtime, err := newUnrestrictedTestRuntime(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer runtime.Close()
+		ctx := WithModelProjection(t.Context())
+		if _, err := runtime.Call(ctx, "mcp_manage", map[string]any{"action": "add", "name": "pages", "description": "source retention fixture", "transport": "streamable_http", "url": fixture.server.URL}); err != nil {
+			t.Fatal(err)
+		}
+		payloadDir := filepath.Join(cfg.AgentDockHome, "tasks", "activity", "payloads")
+		preserved := payloadDir + "-preserved"
+		if err := os.Rename(payloadDir, preserved); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(payloadDir, []byte("reject payload writes"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		first, err := runtime.Call(ctx, "mcp_tool_call", map[string]any{"name": "pages:tool_000", "arguments": map[string]any{"text": "ok"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		capture := modelObject(first["capture"])
+		if capture["state"] != "not_stored" || capture["complete"] != false || first["source_complete"] != false || first["truncation_stage"] != "capture" || stringArg(capture, "source_ref") != "" || first["raw_result_ref"] != nil {
+			t.Fatalf("unavailable full source was reported complete: capture=%#v complete=%#v stage=%#v", capture, first["source_complete"], first["truncation_stage"])
+		}
+		callID := stringArg(first, "call_id")
+		call, err := runtime.activity.Call(ctx, callID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if call.Status != "succeeded" || call.OutputSource != nil || fixture.calls.Load() != 1 {
+			t.Fatal("source storage failure changed or repeated the completed business operation")
+		}
+		next, err := runtime.Call(ctx, "mcp_result_continue", map[string]any{"call_id": callID, "cursor": first["host_cursor"]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		capture = modelObject(next["capture"])
+		if capture["state"] != "not_stored" || capture["complete"] != false || next["source_complete"] != false || next["truncation_stage"] != "capture" || stringArg(capture, "source_ref") != "" || next["raw_result_ref"] != nil {
+			t.Fatalf("continuation claimed the failed source was retained: capture=%#v complete=%#v stage=%#v", capture, next["source_complete"], next["truncation_stage"])
+		}
+		if err := os.Remove(payloadDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(preserved, payloadDir); err != nil {
+			t.Fatal(err)
+		}
+		pending := &ToolResponse{auditBinding: call.Binding, auditName: "mcp_tool_call", auditRedactor: runtime.executionRedactor(nil)}
+		source, err := runtime.RetainResponseSource(pending, first)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCatalogFixtureSource(t, runtime, ctx, callID, source)
+		if fixture.calls.Load() != 1 {
+			t.Fatal("adapter source recovery repeated the business operation")
+		}
+	})
 }

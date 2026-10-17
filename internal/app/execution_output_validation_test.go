@@ -64,6 +64,34 @@ func TestOutputContractFailureCannotAuthorizeRetry(t *testing.T) {
 	}
 }
 
+func TestCommandOutputContractRejectsMissingSessionFacts(t *testing.T) {
+	r := executionTestRuntime(t)
+	for _, test := range []struct {
+		name  string
+		valid []Result
+	}{
+		{"exec_command", []Result{{"session_id": "fixture-session", "status": "running"}}},
+		{"session_observe", []Result{{"session_id": "fixture-session", "status": "exited", "command_ok": true}, {"sessions": []any{}, "count": 0}}},
+		{"session_act", []Result{{"session_id": "fixture-session", "status": "cancelled", "command_ok": false}, {"sessions": []any{}, "count": 0}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &preparedExecution{spec: ToolSpec{Name: test.name}, state: executionObservation{executed: true}}
+			// Use the real registered owner contract, before projection or common
+			// execution fields could make an empty handler result look complete.
+			err := r.validateExecutionResult(p, Result{})
+			var failure *ToolError
+			if !errors.As(err, &failure) || failure.Code != "OUTPUT_SCHEMA_MISMATCH" {
+				t.Fatalf("empty command output passed its owner contract: %v", err)
+			}
+			for _, valid := range test.valid {
+				if err := r.validateExecutionResult(p, valid); err != nil {
+					t.Fatalf("valid session/collection facts rejected: %#v %v", valid, err)
+				}
+			}
+		})
+	}
+}
+
 func TestMCPBusinessFailureRetainsOriginalAction(t *testing.T) {
 	r := &Runtime{}
 	action := map[string]any{"category": "model_decision", "reason_code": "fix_input", "required": false}

@@ -39,12 +39,6 @@ func (engine Engine) Run(ctx context.Context, request Request) (Result, error) {
 	}
 	request.InstallRoot = installRoot
 	request.RuntimeRoot = runtimeRoot
-	if request.Action == ActionInstall || request.Action == ActionRepair {
-		request, err = hydrateExistingRuntime(request)
-		if err != nil {
-			return Result{}, err
-		}
-	}
 
 	store, err := NewStore(request.StateRoot())
 	if err != nil {
@@ -198,6 +192,12 @@ func (engine Engine) recoverInterrupted(ctx context.Context, store *Store, reque
 }
 
 func (engine Engine) install(ctx context.Context, store *Store, request Request) (Result, error) {
+	// Run holds the install lock and has restored any interrupted trial. Only
+	// that settled configuration may supply omitted runtime choices.
+	request, err := hydrateExistingRuntime(request)
+	if err != nil {
+		return Result{}, err
+	}
 	platform := currentPlatform()
 	sourceVersion := existingVersion(request)
 	freshPermissionHome := provenFreshPermissionHome(request)

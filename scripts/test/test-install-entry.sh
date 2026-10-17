@@ -94,10 +94,28 @@ assert_arg --install-root "$LINUX_ROOT/engine.log"
 assert_arg "$LINUX_ROOT/install" "$LINUX_ROOT/engine.log"
 assert_arg --runtime-root "$LINUX_ROOT/engine.log"
 assert_arg "$LINUX_ROOT/runtime" "$LINUX_ROOT/engine.log"
-assert_arg --agentdock-home "$LINUX_ROOT/engine.log"
-assert_arg "$LINUX_ROOT/data/.agentdock" "$LINUX_ROOT/engine.log"
-assert_arg --agentdock-default-dir "$LINUX_ROOT/engine.log"
-assert_arg "$LINUX_ROOT/data/AgentDock" "$LINUX_ROOT/engine.log"
+assert_arg --data-dir "$LINUX_ROOT/engine.log"
+assert_arg "$LINUX_ROOT/data" "$LINUX_ROOT/engine.log"
+assert_no_arg --agentdock-home "$LINUX_ROOT/engine.log"
+assert_no_arg --agentdock-default-dir "$LINUX_ROOT/engine.log"
+
+# Only explicit data path overrides may replace a committed service Home. The
+# Engine resolves omitted install/upgrade paths from its own persisted config.
+PATH="$FAKE_BIN:$PATH" \
+  TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 \
+  TEST_ENGINE_LOG="$LINUX_ROOT/explicit-engine.log" \
+  AGENTDOCK_NO_SUDO=true AGENTDOCK_SERVICE_MANAGER=none \
+  AGENTDOCK_SOURCE_DIR="$LINUX_ROOT/install" \
+  AGENTDOCK_ENV_FILE="$LINUX_ROOT/runtime/agentdock.env" \
+  AGENTDOCK_DATA_DIR="$LINUX_ROOT/data" \
+  AGENTDOCK_INSTALLER_BASE_URL="file://$RELEASE_DIR" \
+  AGENTDOCK_NONINTERACTIVE=true AGENTDOCK_TUNNEL_MODE=none \
+  sh "$ENTRY" --agentdock-home "$LINUX_ROOT/custom-state" \
+    --agentdock-default-dir "$LINUX_ROOT/custom-work"
+assert_arg --agentdock-home "$LINUX_ROOT/explicit-engine.log"
+assert_arg "$LINUX_ROOT/custom-state" "$LINUX_ROOT/explicit-engine.log"
+assert_arg --agentdock-default-dir "$LINUX_ROOT/explicit-engine.log"
+assert_arg "$LINUX_ROOT/custom-work" "$LINUX_ROOT/explicit-engine.log"
 
 # A checksum mismatch must fail before the Engine executes.
 cp "$RELEASE_DIR/agentdock_linux_amd64.tar.gz.sha256" "$TMP_ROOT/linux.sha.good"
@@ -156,7 +174,8 @@ if PATH="$FAKE_BIN:$PATH" \
   sh "$ENTRY" --uninstall >/dev/null 2>"$MAC_ROOT/runtime-guard.err"; then
   fail "macOS uninstall accepted the whole user HOME as runtime root"
 fi
-grep -Fq '不能是整个用户主目录' "$MAC_ROOT/runtime-guard.err" || fail "macOS runtime-root guard error missing"
+# Root's HOME is also a protected system directory; either guard may reject it.
+grep -Eq '不能是(整个用户主目录|系统顶层目录)' "$MAC_ROOT/runtime-guard.err" || fail "macOS runtime-root guard error missing"
 grep -Fqx 'keep' "$HOST_STATE/must-survive" || fail "macOS runtime-root guard touched ambient production state"
 
 # An explicitly managed App path must still identify an .app bundle.
@@ -195,7 +214,7 @@ if PATH="$FAKE_BIN:$PATH" \
     --agentdock-home "$HOME" --agentdock-default-dir "$SAFE_WORK" >/dev/null 2>"$MAC_ROOT/home-guard.err"; then
   fail "macOS purge-data accepted the whole user HOME as a cleanup target"
 fi
-grep -Fq '不能是整个用户主目录' "$MAC_ROOT/home-guard.err" || fail "macOS whole-home purge guard error missing"
+grep -Eq '不能是(整个用户主目录|系统顶层目录)' "$MAC_ROOT/home-guard.err" || fail "macOS whole-home purge guard error missing"
 grep -Fqx 'keep' "$HOST_STATE/must-survive" || fail "macOS whole-home guard touched ambient production state"
 
 # Explicit isolated cleanup targets are accepted and ambient production state survives.

@@ -18,15 +18,11 @@ import (
 // Measure the actual SDK CallToolResult wire JSON, including base64 attachment
 // data. Oversized native content is replaced by a retained-source receipt.
 func modelEnvelopeChars(envelope map[string]any) (int, error) {
-	encoded, err := json.Marshal(envelope)
+	result, err := sdkToolResult(envelope)
 	if err != nil {
 		return 0, err
 	}
-	var result mcpsdk.CallToolResult
-	if err := json.Unmarshal(encoded, &result); err != nil {
-		return 0, err
-	}
-	encoded, err = json.Marshal(&result)
+	encoded, err := json.Marshal(result)
 	return utf8.RuneCount(encoded), err
 }
 
@@ -221,15 +217,16 @@ func responseRetentionValue(name string, envelope map[string]any) any {
 	}
 	if name == "mcp_tool_call" {
 		payload := asMap(envelope["structuredContent"])
+		if payload["host_page"] != nil {
+			// Keep the page marker so the retention owner can require the full raw
+			// response instead of publishing a projected page as complete output.
+			return payload
+		}
 		result := asMap(payload["result"])
 		if structured, exists := result["structuredContent"]; exists && structured != nil {
-			content := canonicalDynamicMCPContent(result["content"], structured)
-			if len(content) == 0 {
+			retained := asMap(projectDynamicMCPResult(payload)["result"])
+			if len(retained) == 1 {
 				return structured
-			}
-			retained := map[string]any{"structuredContent": structured, "content": content}
-			if value, exists := result["isError"]; exists {
-				retained["isError"] = value
 			}
 			return retained
 		}

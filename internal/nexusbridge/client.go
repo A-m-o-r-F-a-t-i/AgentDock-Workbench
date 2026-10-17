@@ -1,6 +1,7 @@
 package nexusbridge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/publicartifacts"
 	"github.com/uvwt/agentdock/internal/runtimeapi"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 const (
@@ -275,7 +277,7 @@ func (c *Client) handleToolCall(ctx context.Context, arguments json.RawMessage) 
 		Tool      string         `json:"tool"`
 		Arguments map[string]any `json:"arguments"`
 	}
-	if err := json.Unmarshal(arguments, &request); err != nil {
+	if err := toolcore.DecodeJSON(bytes.NewReader(arguments), &request); err != nil {
 		return nil, fmt.Errorf("解析工具请求: %w", err)
 	}
 	return c.node.Invoke(ctx, request.Tool, request.Arguments)
@@ -317,7 +319,7 @@ func bridgeToolDescriptors(descriptors []map[string]any) ([]protocol.ToolDescrip
 		return nil, fmt.Errorf("编码 Nexus Bridge 工具契约: %w", err)
 	}
 	var tools []protocol.ToolDescriptor
-	if err := json.Unmarshal(encoded, &tools); err != nil {
+	if err := toolcore.DecodeJSON(bytes.NewReader(encoded), &tools); err != nil {
 		return nil, fmt.Errorf("解析 Nexus Bridge 工具契约: %w", err)
 	}
 	return tools, nil

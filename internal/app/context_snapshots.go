@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/capabilityrouting"
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/plugin"
 	"github.com/uvwt/agentdock/internal/snapshot"
-	"path/filepath"
-	"strings"
-	"sync"
-	"time"
 )
 
 var errContextVersionChanged = errors.New("context source changed during build")
@@ -59,7 +60,7 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter)}
 	resources.complete = snapshot.New[Result](32, cfg.ContextBudget(), 15*time.Minute)
 	resources.common = snapshot.New[*capabilityCommonSkillIndex](4, cfg.ContextBudget(), time.Minute)
-	resources.commonFiles = snapshot.NewFiles(nil)
+	resources.commonFiles = snapshot.NewScopedFiles(nil)
 	for _, dir := range []string{skillRoot, filepath.Join(skillRoot, ".state"), filepath.Join(skillRoot, ".system"), filepath.Join(skillRoot, ".versions")} {
 		resources.skillFiles.Add(dir)
 	}

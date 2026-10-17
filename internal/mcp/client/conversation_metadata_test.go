@@ -1,11 +1,11 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -109,8 +109,16 @@ func metadataWireCall(t *testing.T, client *sdkProtocolClient, ctx context.Conte
 	if !ok {
 		t.Fatalf("missing structured payload: %#v", result)
 	}
-	if !reflect.DeepEqual(payload["arguments"], args) {
-		t.Fatalf("arguments changed: %#v != %#v", payload["arguments"], args)
+	actualArguments, err := json.Marshal(payload["arguments"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedArguments, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(actualArguments, expectedArguments) {
+		t.Fatalf("wire arguments changed: %s != %s", actualArguments, expectedArguments)
 	}
 	return payload
 }

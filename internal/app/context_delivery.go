@@ -19,15 +19,32 @@ import (
 // Observe dependency identities without rebuilding Context or expanding MCPs.
 // Authorization is independently revalidated by the normal execution admission.
 func (r *Runtime) contextSourceStamp(ctx context.Context, workdir string, binding activity.Binding) (string, error) {
-	identity, err := r.contextSourceIdentity(ctx, workdir, binding)
+	source, _, err := r.contextStamps(ctx, workdir, binding)
+	return source, err
+}
+
+// Current Context reuse also depends on the existing watchers' revalidation
+// epochs. This eligibility is not the immutable source identity or page guard.
+func (r *Runtime) contextCacheStamp(ctx context.Context, workdir string, binding activity.Binding) (string, error) {
+	_, cache, err := r.contextStamps(ctx, workdir, binding)
+	return cache, err
+}
+
+func (r *Runtime) contextStamps(ctx context.Context, workdir string, binding activity.Binding) (source, cache string, err error) {
+	identity, revalidation, err := r.contextSourceState(ctx, workdir, binding)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	encoded, err := json.Marshal(identity)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return fmt.Sprintf("ctxsrc_%x", sha256.Sum256(encoded)), nil
+	source = fmt.Sprintf("ctxsrc_%x", sha256.Sum256(encoded))
+	encoded, err = json.Marshal(map[string]any{"source": source, "revalidation": revalidation})
+	if err != nil {
+		return "", "", err
+	}
+	return source, fmt.Sprintf("ctxcache_%x", sha256.Sum256(encoded)), nil
 }
 
 // Continuations read an immutable snapshot. Only its selected workspace and
@@ -90,14 +107,19 @@ func (r *Runtime) contextContinuationStamp(ctx context.Context, workdir string, 
 }
 
 func (r *Runtime) contextSourceIdentity(ctx context.Context, workdir string, binding activity.Binding) (map[string]any, error) {
+	identity, _, err := r.contextSourceState(ctx, workdir, binding)
+	return identity, err
+}
+
+func (r *Runtime) contextSourceState(ctx context.Context, workdir string, binding activity.Binding) (map[string]any, []string, error) {
 	ctx = activity.WithBinding(ctx, binding)
 	selected, resolved, err := r.selectContextWorkspace(ctx, workdir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pluginRevision, err := r.pluginStore.SourceRevision(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	global := r.cfg.InstructionsFile
 	if global == "" {
@@ -106,17 +128,19 @@ func (r *Runtime) contextSourceIdentity(ctx context.Context, workdir string, bin
 	paths := snapshot.MetadataPaths(resolved, global)
 	taskRevision, err := r.contextTaskRevision()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	revisions := []string{}
+	revalidation := []string{}
 	if r.contextSnapshots != nil {
 		for _, files := range []contextFiles{r.contextSnapshots.ruleFiles, r.contextSnapshots.skillFiles, r.contextSnapshots.commonFiles} {
 			if err := files.Sync(ctx); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			source, _ := files.Revisions()
+			source, cache := files.Revisions()
 			revisions = append(revisions, source)
+			revalidation = append(revalidation, cache)
 		}
 	}
 	return map[string]any{
@@ -127,7 +151,7 @@ func (r *Runtime) contextSourceIdentity(ctx context.Context, workdir string, bin
 		"task": binding.TaskID, "thread": binding.ThreadID, "step": binding.StepID,
 		"platform": buildinfo.FullCommit(), "mcp": r.capabilityManager.DirectoryRevision(),
 		"builtin_tools": r.builtinToolBundleItems(ctx),
-	}, nil
+	}, revalidation, nil
 }
 
 func sameContextScope(a, b activity.Binding) bool {
@@ -200,12 +224,13 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 			// A compact unchanged reference describes current Context, while a
 			// pending sequence continues only its exact retained construction.
 			expected = candidate.ContextStamp
-			stamp, err = r.contextSourceStamp(ctx, candidate.ContextWorkdir, p.state.binding)
+			stamp, err = r.contextCacheStamp(ctx, candidate.ContextWorkdir, p.state.binding)
 			if err != nil {
 				return nil, nil, nil
 			}
 			if expected == "" || stamp != expected {
-				r.discardStructuredSnapshot(candidate.ID)
+				// Expired reuse eligibility does not invalidate an already retained
+				// immutable source. Its TTL, authorization and rule guard still apply.
 				continue
 			}
 		}
@@ -299,11 +324,11 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 	}
 	binding := activity.FromContext(ctx)
 	for attempt := 0; attempt < 2; attempt++ {
-		stamp, err := r.contextSourceStamp(ctx, stringArg(p.args, "workdir"), binding)
+		stamp, cacheStamp, err := r.contextStamps(ctx, stringArg(p.args, "workdir"), binding)
 		if err != nil {
 			return p.spec.Handler(ctx, r, p.args)
 		}
-		key := binding.SourceOwnerKey + "|" + binding.ConversationID + "|" + stamp
+		key := binding.SourceOwnerKey + "|" + binding.ConversationID + "|" + cacheStamp
 		if p.args["force_refresh"] == true {
 			key += "|" + binding.CallID
 		}

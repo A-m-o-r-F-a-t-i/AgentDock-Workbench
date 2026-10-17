@@ -359,12 +359,8 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 }
 
 func cloneExecutionArguments(input map[string]any) (map[string]any, error) {
-	data, err := json.Marshal(input)
-	if err != nil {
-		return nil, err
-	}
 	var result map[string]any
-	if err = json.Unmarshal(data, &result); err != nil {
+	if err := remarshal(input, &result); err != nil {
 		return nil, err
 	}
 	if result == nil {

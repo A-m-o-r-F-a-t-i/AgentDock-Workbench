@@ -14,7 +14,7 @@ import (
 
 // hydrateExistingRuntime 把调用方省略的运行时选择补成当前已提交配置。
 // install/repair 的空字段表示“保留”，不能要求 shell adapter 先读 env 再把
-// mode/token/server URL 回填给 Engine；否则同一安装状态会有两个决策源。
+// mode/token/server URL 或数据目录回填给 Engine；否则同一安装状态会有两个决策源。
 func hydrateExistingRuntime(request Request) (Request, error) {
 	coreEnv := filepath.Join(request.RuntimeRoot, "agentdock.env")
 	tunnelEnv := filepath.Join(request.RuntimeRoot, "cloudflared.env")
@@ -47,6 +47,22 @@ func hydrateExistingRuntime(request Request) (Request, error) {
 		}
 		if strings.TrimSpace(request.TunnelToken) == "" && strings.TrimSpace(request.TunnelTokenFile) == "" {
 			request.TunnelToken = strings.TrimSpace(tunnel["TUNNEL_TOKEN"])
+		}
+	}
+	if runtimeGOOS() == "linux" {
+		// DataDir defaults apply only to a fresh layout. Service activation and
+		// Skill bootstrap must share the same resolved Home on upgrades.
+		if strings.TrimSpace(request.AgentDockHome) == "" {
+			request.AgentDockHome = strings.TrimSpace(core["AGENTDOCK_HOME"])
+			if request.AgentDockHome == "" && request.DataDir != "" {
+				request.AgentDockHome = filepath.Join(request.DataDir, ".agentdock")
+			}
+		}
+		if strings.TrimSpace(request.AgentDockDefaultDir) == "" {
+			request.AgentDockDefaultDir = strings.TrimSpace(core["AGENTDOCK_DEFAULT_DIR"])
+			if request.AgentDockDefaultDir == "" && request.DataDir != "" {
+				request.AgentDockDefaultDir = filepath.Join(request.DataDir, "AgentDock")
+			}
 		}
 	}
 	return request, nil

@@ -31,7 +31,9 @@ func dynamicMCPToolSpecs() []ToolSpec {
 			if result != nil {
 				callID, _ := result["call_id"].(string)
 				if raw, ok := r.dynamicMCP.RawResult(callID); ok {
-					if reference := r.retainMCPRawResult(ctx, callID, "mcp_tool_call", raw, request.Arguments); reference != "" {
+					capture := r.retainMCPRawResult(ctx, callID, "mcp_tool_call", raw, request.Arguments)
+					result["capture"] = capture
+					if reference := stringArg(capture, "source_ref"); reference != "" {
 						result["raw_result_ref"] = reference
 						r.dynamicMCP.SetRawResultReference(callID, reference)
 					}

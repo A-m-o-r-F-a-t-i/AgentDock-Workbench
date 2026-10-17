@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/fs/atomicfile"
 	"github.com/uvwt/agentdock/internal/fs/securepath"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 const catalogCacheMaxAge = 24 * time.Hour
@@ -33,14 +35,14 @@ func catalogCacheIdentity(cfg ServerConfig) (string, error) {
 	// credentials and the live schema are revalidated before every business call.
 	cfg.TimeoutMS = 0
 	cfg.RuntimeEnv = nil
-	return definitionFingerprint(cfg)
+	return retainedDefinitionFingerprint(cfg)
 }
 func (catalog Catalog) cachedCallable() bool {
 	age := time.Since(catalog.RefreshedAt)
 	return catalog.Complete && catalog.State.State == "cached" && catalog.State.Lazy && age >= 0 && age < catalogCacheMaxAge
 }
 func (m *Manager) newCatalogState(cfg ServerConfig) *serverState {
-	state := &serverState{}
+	state := &serverState{runtimeAcquire: m.acquireExternalServerRuntime}
 	m.bindCatalogNotifications(cfg.Name, state)
 	identity, err := catalogCacheIdentity(cfg)
 	if err != nil {
@@ -95,7 +97,7 @@ func (m *Manager) restoreCatalogCache(ctx context.Context, root, name, identity 
 		return
 	}
 	var cached retainedCatalog
-	if json.Unmarshal(data, &cached) != nil || cached.Version != 1 || cached.Server != cfg.Name || cached.Identity != identity {
+	if toolcore.DecodeJSON(bytes.NewReader(data), &cached) != nil || cached.Version != 1 || cached.Server != cfg.Name || cached.Identity != identity {
 		return
 	}
 	age := time.Since(cached.RefreshedAt)

@@ -6,13 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	plugins "github.com/uvwt/agentdock/internal/plugin"
-	skills "github.com/uvwt/agentdock/internal/skill"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	plugins "github.com/uvwt/agentdock/internal/plugin"
+	skills "github.com/uvwt/agentdock/internal/skill"
 )
 
 const (

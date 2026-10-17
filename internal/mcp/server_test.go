@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/config"
 )
@@ -253,6 +255,37 @@ func TestOfficialSDKServerListsAndCallsAgentDockTools(t *testing.T) {
 	runtimeInfo, runtimeOK := structured["runtime"].(map[string]any)
 	if !ok || !runtimeOK || runtimeInfo["os"] == "" || runtimeInfo["path_model"] != config.PathModel || result.IsError {
 		t.Fatalf("CallTool() result = %#v", result)
+	}
+
+	// Follow the actual SDK wire path into Runtime admission and retained Activity.
+	// The unknown field is deliberately rejected; its accepted request must still
+	// preserve the exact number rather than recording a different attempted call.
+	rejected, err := session.CallTool(t.Context(), &mcpsdk.CallToolParams{
+		Name: "agentdock_context", Arguments: json.RawMessage(`{"unknown_exact_id":9007199254740993}`),
+	})
+	if err != nil || !rejected.IsError {
+		t.Fatalf("unknown arguments were not rejected: result=%#v err=%v", rejected, err)
+	}
+	journal, err := activity.New(filepath.Join(cfg.AgentDockHome, "tasks", "activity"), activity.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls, err := journal.Calls(t.Context(), activity.CallQuery{TopLevel: true, IncludeRequest: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundExactRequest := false
+	for _, call := range calls.Calls {
+		request, err := journal.ReadCallPayload(t.Context(), call.CallID, "request", 0, 32768)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(request.Text, "unknown_exact_id") {
+			foundExactRequest = strings.Contains(request.Text, "9007199254740993") && !strings.Contains(request.Text, "9007199254740992")
+		}
+	}
+	if !foundExactRequest {
+		t.Fatal("MCP wire arguments were rounded before Activity capture")
 	}
 
 	if err := session.Close(); err != nil {

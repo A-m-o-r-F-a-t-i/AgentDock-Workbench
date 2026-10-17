@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +18,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/envstore"
 	processcontrol "github.com/uvwt/agentdock/internal/process"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 // go-sdk 公开 jsonrpc 包未导出 ErrRejected，只能通过稳定的 wire code 识别。
@@ -277,12 +277,8 @@ func jsonMap(value any) (map[string]any, error) {
 }
 
 func jsonObject(value any) (map[string]any, error) {
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
 	var result map[string]any
-	if err := json.Unmarshal(raw, &result); err != nil {
+	if err := toolcore.Remarshal(value, &result); err != nil {
 		return nil, err
 	}
 	return result, nil

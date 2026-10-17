@@ -1,14 +1,17 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 func payloadTestSource() context.Context {
@@ -152,6 +155,76 @@ func TestExecutionFailedToolPreservesStructuredFailure(t *testing.T) {
 	decodeErr := json.Unmarshal([]byte(page.Text), &decoded)
 	if err != nil || decodeErr != nil || !strings.Contains(page.Text, "partial failure detail") || !containsJSONBoolean(decoded, "isError", true) {
 		t.Fatalf("failure result lost %+v %v", page, err)
+	}
+}
+
+func TestMCPRecoveryRequestPreservesExactPagedArguments(t *testing.T) {
+	r := newRuntimeValidationTestRuntime(t)
+	for _, redacted := range []bool{false, true} {
+		name := "complete"
+		if redacted {
+			name = "redacted"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := payloadTestSource()
+			callID, err := activity.NewExecutionID("call_")
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := activity.Binding{CallID: callID, SourceOwnerKey: activity.SourceOwnerKey(ctx)}
+			arguments := map[string]any{
+				"id":     json.Number("9007199254740993"),
+				"values": []any{json.Number("18446744073709551615"), json.Number("0.10000000000000001")},
+				"detail": strings.Repeat("complete original request ", 2048),
+				"marker": "private-recovery-fixture",
+			}
+			request := map[string]any{"name": "fixture:write", "arguments": arguments, "reason": "repeat the exact original call", "task_id": "must-not-be-replayed"}
+			redactor := activity.NewRedactor()
+			if redacted {
+				redactor = activity.NewRedactor("private-recovery-fixture")
+			}
+			payload := r.activity.CaptureRequestPayload(ctx, request, "complete", redactor)
+			if payload.State != "complete" || payload.Bytes <= mcpRecoveryReadPageBytes || !payload.Truncated {
+				t.Fatalf("fixture did not retain a complete multi-page request: %+v", payload)
+			}
+			if _, err := r.activity.Append(ctx, activity.Event{Binding: binding, Kind: "call.created", ToolName: "mcp_tool_call", Request: payload, ToolExecution: &activity.ToolExecutionDetails{Server: "fixture", QualifiedName: "fixture:write"}}); err != nil {
+				t.Fatal(err)
+			}
+			origin, err := r.activity.Call(ctx, callID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			recovered, err := r.readMCPRecoveryRequest(ctx, origin)
+			if redacted {
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) || toolErr.Code != "MCP_RECOVERY_REQUEST_UNAVAILABLE" || recovered != nil {
+					t.Fatalf("redacted original became replayable: %#v %v", recovered, err)
+				}
+				return
+			}
+			if err != nil || recovered["task_id"] != nil {
+				t.Fatalf("exact recovery request unavailable or inherited an untrusted task: %#v %v", recovered, err)
+			}
+			accepted, err := cloneExecutionArguments(recovered)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var retry toolmcp.CallRequest
+			if err := decodeToolInput("mcp_tool_call", accepted, &retry); err != nil {
+				t.Fatal(err)
+			}
+			got, err := json.Marshal(retry.Arguments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := json.Marshal(arguments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if retry.Name != "fixture:write" || retry.Reason != request["reason"] || !bytes.Equal(got, want) {
+				t.Fatal("retained request was rounded or truncated before capability replay")
+			}
+		})
 	}
 }
 
