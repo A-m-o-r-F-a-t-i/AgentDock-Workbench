@@ -9,12 +9,15 @@ import (
 func dynamicMCPToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{Name: "mcp_manage", Contract: mcpToolContract, Title: "Manage dynamic MCP servers", Description: "Manage only dynamic MCP servers registered inside AgentDock. This control plane never manages ChatGPT host tools or AgentDock direct device built-ins.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_manage", func(ctx context.Context, r *Runtime, request toolmcp.ManageRequest) (Result, error) {
+			if request.Action == "recover" {
+				return r.recoverManagedMCP(ctx, request)
+			}
 			return r.dynamicMCP.Manage(ctx, request)
 		})},
 		{Name: "mcp_tool_list", Contract: mcpToolContract, Title: "List a dynamic MCP catalog", Description: "List tools from one known dynamic MCP server returned by agentdock_context. It never lists ChatGPT host tools or AgentDock direct device built-ins. Repeated catalog revisions may return compact references; use force_full after model-context loss.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_list", func(ctx context.Context, r *Runtime, request toolmcp.ListRequest) (Result, error) {
 			return r.dynamicMCP.List(ctx, request)
 		})},
-		{Name: "mcp_tool_search", Contract: mcpToolContract, Title: "Search dynamic MCP tools", Description: "Search only dynamic MCP catalogs registered inside AgentDock, without initializing unrelated services. A bare AgentDock direct device built-in returns a terminal wrong-scope result and never exposes its schema here. For a known dynamic server use mcp_tool_list.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_search", func(ctx context.Context, r *Runtime, request toolmcp.SearchRequest) (Result, error) {
+		{Name: "mcp_tool_search", Contract: mcpToolContract, Title: "Search dynamic MCP tools", Description: "Search AgentDock dynamic MCP catalogs: exact names precede up to 5 fuzzy candidates. A unique result includes its full input schema and next call; follow retained pages for a large schema. Cached or stale zero results do not prove absence. Direct device built-ins return a terminal wrong-scope error.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_search", func(ctx context.Context, r *Runtime, request toolmcp.SearchRequest) (Result, error) {
 			return r.dynamicMCP.Search(ctx, request)
 		})},
 		{Name: "mcp_tool_inspect", Contract: mcpToolContract, Title: "Inspect a dynamic MCP tool", Description: "Inspect only qualified nested MCP selectors such as server:tool or server:*. Bare AgentDock direct device built-ins return a terminal wrong-scope result; mixed batches retain valid dynamic schemas and report each wrong-scope selector. Repeated schemas use compact references unless force_full=true.", Annotations: readOnlyToolAnnotations(true), Handler: typedToolHandler("mcp_tool_inspect", func(ctx context.Context, r *Runtime, request toolmcp.InspectRequest) (Result, error) {

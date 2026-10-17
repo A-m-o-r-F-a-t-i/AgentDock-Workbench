@@ -30,8 +30,15 @@ func stateSnapshotLocked(state *serverState) indexSnapshot {
 		Version: state.serverVersion, LastError: state.lastError, LastErrorCode: state.lastErrorCode, RefreshedAt: state.refreshedAt}
 }
 func publishStateLocked(state *serverState) {
+	previous := state.snapshot.Load()
 	snapshot := stateSnapshotLocked(state)
 	state.snapshot.Store(&snapshot)
+	if state.catalogRetained != nil {
+		state.catalogRetained(snapshot)
+	}
+	if state.catalogPublished != nil && (previous == nil || previous.Revision != snapshot.Revision || previous.Known != snapshot.Known || previous.ClientGeneration != snapshot.ClientGeneration || previous.Generation != snapshot.Generation) {
+		state.catalogPublished()
+	}
 }
 
 // Summary reads do not wait for a long-running MCP tools/call that owns state.mu.
@@ -49,7 +56,7 @@ func summaryForSnapshot(cfg ServerConfig, snapshot indexSnapshot) ServerSummary 
 	}
 	summary := ServerSummary{SourceType: cfg.SourceType, PluginName: cfg.PluginName, DisplayName: cfg.DisplayName, Plugin: cfg.PluginName, Name: cfg.Name, Description: cfg.Description, Transport: cfg.Transport, Enabled: cfg.Enabled, Status: status,
 		ToolCount: snapshot.Count, ToolCountKnown: snapshot.Known, ServerVersion: snapshot.Version, LastError: snapshot.LastError, LastErrorCode: snapshot.LastErrorCode,
-		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), OverrideSource: cfg.overrideSource, LastGoodAvailable: snapshot.Ready && snapshot.LastError != ""}
+		Revision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), OverrideSource: cfg.overrideSource, LastGoodAvailable: snapshot.Known && snapshot.LastError != "", CatalogState: catalogStateForSnapshot(cfg, snapshot)}
 	if !snapshot.RefreshedAt.IsZero() {
 		summary.RefreshedAt = snapshot.RefreshedAt.Format(time.RFC3339Nano)
 	}
@@ -74,7 +81,7 @@ func catalogEqual(left, right map[string]Tool) bool {
 }
 
 func refreshStateLocked(ctx context.Context, cfg ServerConfig, state *serverState) (map[string]Tool, error) {
-	candidate := &serverState{}
+	candidate := &serverState{catalogChanged: state.catalogChanged}
 	tools, err := initializeStateLocked(ctx, cfg, candidate)
 	if err != nil {
 		recordStateError(state, err)
@@ -131,8 +138,37 @@ func (m *Manager) DirectoryRevision() string {
 	items := make([]map[string]any, 0, len(names))
 	for _, name := range names {
 		item := summaryFor(m.servers[name], m.states[name])
-		items = append(items, map[string]any{"name": name, "revision": item.Revision, "enabled": item.Enabled, "status": item.Status})
+		generation, clientGeneration := uint64(0), uint64(0)
+		if state := m.states[name]; state != nil {
+			if view := state.snapshot.Load(); view != nil {
+				generation, clientGeneration = protocolGeneration(view.Client), view.ClientGeneration
+			}
+		}
+		items = append(items, map[string]any{"name": name, "revision": item.Revision, "enabled": item.Enabled, "status": item.Status, "generation": generation, "client_generation": clientGeneration})
 	}
 	encoded, _ := json.Marshal(items)
 	return fmt.Sprintf("mcprev_%x", sha256.Sum256(encoded))
+}
+
+// Freshness and connection availability are independent: retained schemas survive
+// refresh failures, and a cold/lazy directory never proves a tool is absent.
+func catalogStateForSnapshot(cfg ServerConfig, snapshot indexSnapshot) CatalogState {
+	state := CatalogState{State: "stale", CatalogRevision: fmt.Sprintf("%s:%d", cfg.revision, snapshot.Revision), ServerRevision: cfg.revision, Lazy: cfg.Lazy && !snapshot.Ready}
+	if !snapshot.RefreshedAt.IsZero() {
+		state.RefreshedAt = snapshot.RefreshedAt.Format(time.RFC3339Nano)
+	}
+	switch {
+	case snapshot.LastErrorCode != "":
+		state.RefreshErrorCode, state.RefreshAttempted = snapshot.LastErrorCode, true
+		if snapshot.Known {
+			state.State = "refresh_failed"
+		} else {
+			state.State = "unavailable"
+		}
+	case catalogFresh(&snapshot):
+		state.State, state.AbsenceAuthoritative = "fresh", cfg.Enabled
+	case snapshot.Known && !snapshot.Ready && time.Since(snapshot.RefreshedAt) >= 0 && time.Since(snapshot.RefreshedAt) < catalogCacheMaxAge:
+		state.State = "cached"
+	}
+	return state
 }

@@ -84,7 +84,7 @@ func (r *Runtime) PrepareCommandCompletionResponse(ctx context.Context, response
 	if (name == "session_observe" || name == "session_act") && stringArg(args, "session_id") != "" && stringArg(data, "session_id") == stringArg(args, "session_id") {
 		status := stringArg(data, "status")
 		_, hasExit := data["exit_code"]
-		if (status == "exited" || status == "killed" || status == "timeout" || status == "unknown") && (hasExit || data["outcome_unknown"] == true) {
+		if (status == "exited" || status == "killed" || status == "timeout" || status == "unknown" || status == "cancelled" || status == "outcome_unknown" || status == "lost") && (hasExit || data["outcome_unknown"] == true) {
 			original, ok := r.command.SessionBinding(stringArg(data, "session_id"))
 			if ok && original.ConversationID == binding.ConversationID && original.SourceOwnerKey == binding.SourceOwnerKey && original.CallID != "" {
 				state.observed = &commandcompletion.Identity{OriginalCallID: original.CallID, SessionID: stringArg(data, "session_id")}

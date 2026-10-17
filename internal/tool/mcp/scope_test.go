@@ -33,7 +33,7 @@ func TestCatalogResultCarriesDynamicMCPRouteMetadata(t *testing.T) {
 		Tools: map[string]mcpclient.Tool{
 			"echo": {Name: "echo", Description: "Echo", InputSchema: map[string]any{"type": "object"}},
 		},
-	}, true)
+	})
 	if result["scope"] != ScopeAgentDockMCP || result["origin"] != "agentdock_mcp:fixture" || result["invoke_via"] != ToolCall {
 		t.Fatalf("catalog route metadata = %#v", result)
 	}

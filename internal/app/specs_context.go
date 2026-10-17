@@ -30,8 +30,8 @@ func contextToolSpecs() []ToolSpec {
 	}}
 }
 
-// The standalone entrypoint adds optional local fields without changing the
-// shared Nexus Bridge contract. All existing canonical fields remain identical.
+// Standalone context owns its profile-aware ACP summary and local indexes.
+// The shared Nexus Bridge contract remains unchanged.
 func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	contract, ok := canonicalToolContract(name, cfg)
 	if !ok {
@@ -53,9 +53,21 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	output := maps.Clone(contract.ValidationOutputSchema["properties"].(map[string]any))
 	output["instruction_files"] = instructionFilesSchema()
 	output["context_diagnostics"] = contextDiagnosticsSchema()
+	output["git"] = map[string]any{"type": "object", "additionalProperties": false, "required": []string{"available"}, "properties": map[string]any{
+		"available": map[string]any{"type": "boolean"}, "repository_root": map[string]any{"type": "string"}, "branch": map[string]any{"type": "string"}, "head": map[string]any{"type": "string"}, "dirty": map[string]any{"type": "boolean"}, "conflicts": map[string]any{"type": "integer", "minimum": 0}, "changed_paths_total": map[string]any{"type": "integer", "minimum": 0}, "revision": map[string]any{"type": "string"}, "error_code": map[string]any{"type": "string"},
+	}}
+	output["running_sessions"] = map[string]any{"type": "integer", "minimum": 0}
+	output["terminal_completions_pending"] = map[string]any{"type": "integer", "minimum": 0}
 	output["android_executor"] = androidExecutorStatusSchema()
+	output["acp"] = acpContextSchema()
 	output["context_revision"] = map[string]any{"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$"}
 	output["builtin_tool_bundles"] = builtinToolBundleIndexSchema()
+	output["bootstrap_complete"] = toolcontract.Boolean("Routing bootstrap is complete independently of optional detail delivery.")
+	output["host_tools"] = toolcontract.ObjectArray("Exact currently visible host tool routes.")
+	output["dynamic_mcp_summary"] = toolcontract.OpenObject("Non-connecting catalog summary; zero candidates are authoritative only in a complete fresh selected catalog.")
+	output["task_binding"] = toolcontract.OpenObject("Current task, thread and workspace binding.")
+	output["tool_catalog_revision"] = toolcontract.String("Revision of the currently visible host and MCP directory.")
+	output["workdir"] = toolcontract.String("Selected execution workdir.")
 	if originalRuntime, ok := output["runtime"].(map[string]any); ok {
 		runtimeSchema := maps.Clone(originalRuntime)
 		if originalProperties, ok := runtimeSchema["properties"].(map[string]any); ok {
@@ -85,6 +97,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 					properties["revision"] = map[string]any{"type": "string"}
 					properties["server_version"] = map[string]any{"type": "string"}
 					properties["tool_count_known"] = map[string]any{"type": "boolean"}
+					properties["catalog_state"] = toolcontract.OpenObject("Discovered catalog freshness and authority.")
 					if _, exists := properties["source_type"]; !exists {
 						properties["source_type"] = map[string]any{"type": "string"}
 					}
@@ -172,11 +185,36 @@ func contextDeliveryPublicOutputSchema(full map[string]any) map[string]any {
 	}
 }
 
+func acpContextSchema() map[string]any {
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"enabled", "default_profile", "profiles", "description"},
+		"properties": map[string]any{
+			"enabled":         toolcontract.Boolean("Whether ACP is enabled."),
+			"default_profile": toolcontract.String("Default configured ACP profile id."),
+			"description":     toolcontract.String("Short ACP usage orientation."),
+			"profiles": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object", "additionalProperties": false,
+					"required": []string{"id", "kind"},
+					"properties": map[string]any{
+						"id":   toolcontract.String("Enabled ACP profile id."),
+						"kind": toolcontract.String("Configured ACP provider kind."),
+					},
+				},
+			},
+		},
+	}
+}
+
 func instructionFilesSchema() map[string]any {
 	return map[string]any{
 		"type": "object", "additionalProperties": false,
 		"required": []string{"auto_load", "workdir", "workspace_root", "files"},
 		"properties": map[string]any{
+			"complete":       map[string]any{"type": "boolean"},
+			"revision":       map[string]any{"type": "string"},
 			"auto_load":      map[string]any{"type": "boolean"},
 			"workdir":        map[string]any{"type": "string"},
 			"workspace_root": map[string]any{"type": "string"},
@@ -240,6 +278,7 @@ func builtinToolBundleIndexSchema() map[string]any {
 				"description": map[string]any{"type": "string"},
 				"loaded":      map[string]any{"type": "boolean"},
 				"tool_count":  map[string]any{"type": "integer", "minimum": 0},
+				"tools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			},
 		},
 	}

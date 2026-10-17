@@ -28,7 +28,7 @@ func TestExecutionProfileFilesystemBoundaryAndOpaqueCommands(t *testing.T) {
 	settings := permission.DefaultSettings()
 	settings.Profile = permission.Profile{Filesystem: permission.FileWrite, Network: permission.Deny, SandboxBoundary: permission.BoundaryWorkspace}
 	r, ctx := profileRuntime(t, settings, permission.Full)
-	result, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "inside.txt", "content": "inside"})
+	result, err := r.Call(ctx, "apply_patch", patchAddRequest("inside.txt", "inside"))
 	if err != nil || resultReportsFailure(result) {
 		t.Fatalf("contained native write failed %+v %v", result, err)
 	}
@@ -50,7 +50,7 @@ func TestExecutionProfileFilesystemBoundaryAndOpaqueCommands(t *testing.T) {
 	}{
 		{"exec_command", map[string]any{"cmd": "echo harmless-looking"}},
 		{"mcp_tool_call", map[string]any{"name": "remote:read", "arguments": map[string]any{}}},
-		{"file_edit", map[string]any{"action": "add", "path": filepath.Join(r.cfg.AgentDockHome, "owned.txt"), "content": "must not write control state"}},
+		{"apply_patch", patchAddRequest(filepath.Join(r.cfg.AgentDockHome, "owned.txt"), "must not write control state")},
 	} {
 		if _, err = r.Call(WithLocalUserAction(ctx), call.name, call.args); err == nil {
 			t.Fatalf("local action bypassed profile: %s", call.name)
@@ -74,7 +74,7 @@ func TestExecutionProfileReadAndDenyModes(t *testing.T) {
 			if (err != nil) != (fs == permission.Deny) {
 				t.Fatalf("read mode mismatch: %v", err)
 			}
-			if _, err = r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "denied.txt", "content": "no"}); err == nil {
+			if _, err = r.Call(ctx, "apply_patch", patchAddRequest("denied.txt", "no")); err == nil {
 				t.Fatal("write admitted")
 			}
 			if _, err = os.Stat(filepath.Join(r.cfg.AgentDockDefaultDir, "denied.txt")); !os.IsNotExist(err) {
@@ -105,7 +105,7 @@ func TestExecutionProfileNeverDoesNotQueueOrWrite(t *testing.T) {
 	settings := permission.DefaultSettings()
 	settings.Approval.Mode = permission.Never
 	r, ctx := profileRuntime(t, settings, permission.Rules)
-	if _, err := r.Call(WithLocalUserAction(ctx), "file_edit", map[string]any{"action": "add", "path": "never.txt", "content": "no"}); err == nil {
+	if _, err := r.Call(WithLocalUserAction(ctx), "apply_patch", patchAddRequest("never.txt", "no")); err == nil {
 		t.Fatal("never bypassed by local shortcut")
 	}
 	approvals, err := r.permissions.Approvals(ctx)
@@ -149,7 +149,7 @@ func TestExecutionAutoReviewReturnsActualResultAndKeepsCall(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			result, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "auto.txt", "content": "immutable"})
+			result, err := r.Call(ctx, "apply_patch", patchAddRequest("auto.txt", "immutable"))
 			if err != nil {
 				t.Fatalf("auto review failed unexpectedly: %+v %v", result, err)
 			}
@@ -163,7 +163,7 @@ func TestExecutionAutoReviewReturnsActualResultAndKeepsCall(t *testing.T) {
 			}
 			content, readErr := os.ReadFile(filepath.Join(r.cfg.AgentDockDefaultDir, "auto.txt"))
 			if mode == "approve" {
-				if readErr != nil || string(content) != "immutable" || approval.DispatchCount != 1 || approval.Status != "succeeded" {
+				if readErr != nil || normalizePatchText(content) != "immutable\n" || approval.DispatchCount != 1 || approval.Status != "succeeded" {
 					t.Fatalf("approved request did not run once: %+v %v", approval, readErr)
 				}
 			} else {
@@ -256,7 +256,7 @@ func TestExecutionCustomPermissionsDisabledUsesModeAndRetainsHistory(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "mode-controlled.txt", "content": "allowed by full mode"})
+	result, err := r.Call(ctx, "apply_patch", patchAddRequest("mode-controlled.txt", "allowed by full mode"))
 	if err != nil || resultReportsFailure(result) {
 		t.Fatalf("disabled custom profile still blocked full mode: %+v %v", result, err)
 	}
@@ -268,7 +268,7 @@ func TestExecutionCustomPermissionsDisabledUsesModeAndRetainsHistory(t *testing.
 	if _, err = r.permissions.Update(ctx, permission.Change{Scope: "global", ExpectedRevision: policy.Revision, CustomPermissionsEnabled: &enabled}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "profile-denied.txt", "content": "must not write"})
+	denied, err := r.Call(ctx, "apply_patch", patchAddRequest("profile-denied.txt", "must not write"))
 	if err == nil && !resultReportsFailure(denied) {
 		t.Fatalf("enabled custom profile did not block a write: %+v", denied)
 	}

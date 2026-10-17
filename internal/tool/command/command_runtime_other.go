@@ -20,9 +20,9 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 func AddRuntimeProperties(_ map[string]any) {}
 
 func WorkdirDescription() string {
-	return "Host working directory. Relative paths resolve from ~/AgentDock."
+	return "Working directory; omitted paths inherit the bound workspace, otherwise the device default."
 }
 
 func Description() string {
-	return "Run a bounded command. Bind an exact Skill with skill_ref to use its resolved root; managed Skills receive isolated environment plus private SKILL_DATA_DIR. Explicit workdir and non-reserved env values override defaults. Use execution_mode=sync when the next action requires the final exit status; auto or async may return a session for bounded long-poll observation."
+	return "Run a command with the configured shell and one main success boundary. Use search_text for source search. Separate network operations, GitHub queries, source changes and builds when their outcomes require independent decisions. A running response preserves the session for later observation."
 }

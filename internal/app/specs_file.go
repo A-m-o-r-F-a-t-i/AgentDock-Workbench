@@ -9,18 +9,21 @@ import (
 
 func fileToolSpecs() []ToolSpec {
 	return []ToolSpec{
-		{Name: "read_file", Contract: fileToolContract, Title: "Read file", Description: toolfile.ToolDescription("Read a UTF-8 text file slice. Supports normal Host paths, host-issued skill:// resources and activity://call/.../source output references. For Skills, pass the exact file URI returned by agentdock_context or workspace_context; do not construct one from a bare Skill name. For retained output use its exact continue_read arguments, then next_offset (UTF-8 bytes); never repeat the original command to read more output."), Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("read_file", func(ctx context.Context, r *Runtime, request toolfile.ReadRequest) (Result, error) {
+		{Name: "read_file", Contract: fileToolContract, Title: "Read file", Description: "Read a bounded UTF-8 source slice or an exact host-issued skill:// or activity:// reference returned by agentdock_context or workspace_context. do not construct Skill URIs. Continue retained output with its returned byte cursor.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("read_file", func(ctx context.Context, r *Runtime, request toolfile.ReadRequest) (Result, error) {
+			request.Binding = activity.FromContext(ctx)
 			return r.readFileWithOutputSource(ctx, request)
 		})},
-		{Name: "list_dir", Contract: fileToolContract, Title: "List directory", Description: toolfile.ToolDescription("List directory entries with explicit depth, glob filters, and entry-type filtering. Glob patterns are relative to path: * stays within one path segment and ** crosses directories. Relative paths resolve from ~/AgentDock; absolute and ~/ paths use Host rules."), Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("list_dir", func(ctx context.Context, r *Runtime, request toolfile.ListRequest) (Result, error) {
+		{Name: "list_dir", Contract: fileToolContract, Title: "List directory", Description: "List directory entries, by default one level, with relative glob and entry-type filters. Follow continuation for large directories.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("list_dir", func(ctx context.Context, r *Runtime, request toolfile.ListRequest) (Result, error) {
+			request.Binding = activity.FromContext(ctx)
 			return r.files.ListDir(ctx, request)
 		})},
-		{Name: "search_text", Contract: fileToolContract, Title: "Search text", Description: toolfile.ToolDescription("Search UTF-8 files for text or regex matches. Relative paths search ~/AgentDock by default; absolute paths are allowed."), Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("search_text", func(ctx context.Context, r *Runtime, request toolfile.SearchRequest) (Result, error) {
+		{Name: "search_text", Contract: fileToolContract, Title: "Search text", Description: "Search UTF-8 files for literal or regex matches, returning paths, line numbers and short excerpts. No matches is a successful search.", Annotations: readOnlyToolAnnotations(false), Handler: typedToolHandler("search_text", func(ctx context.Context, r *Runtime, request toolfile.SearchRequest) (Result, error) {
+			request.Binding = activity.FromContext(ctx)
 			return r.files.SearchText(ctx, request)
 		})},
-		{Name: "file_edit", Contract: fileToolContract, Title: "Edit file", Description: toolfile.EditDescription("Edit files through one action-based entrypoint: replace, patch, add, delete, or move. Relative paths resolve from ~/AgentDock; absolute and ~/ paths use Host rules."), Annotations: mutatingToolAnnotations(true, false), Handler: typedToolHandler("file_edit", func(ctx context.Context, r *Runtime, request toolfile.EditRequest) (Result, error) {
+		{Name: "apply_patch", Contract: fileToolContract, Title: "Apply patch", Description: "Apply a Codex V4A text patch to add, update, delete or move files. Preflight conflicts write no targets. Application failures report actual effects without rollback or replay; inspect partial or unknown effects before another mutation. Success returns the actual written diff.", Annotations: mutatingToolAnnotations(true, false), Handler: typedToolHandler("apply_patch", func(ctx context.Context, r *Runtime, request toolfile.ApplyPatchRequest) (Result, error) {
 			request.Binding = activity.FromContext(ctx)
-			return r.files.Edit(ctx, request)
+			return r.files.ApplyPatch(ctx, request)
 		})},
 	}
 }

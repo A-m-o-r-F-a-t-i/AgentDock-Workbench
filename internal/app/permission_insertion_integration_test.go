@@ -48,7 +48,7 @@ func TestRestrictedProfileAcknowledgesOnlyReceivedControlSupplement(t *testing.T
 	if _, err = r.Call(host, "exec_command", map[string]any{"cmd": "echo should-not-run"}); err == nil {
 		t.Fatal("acknowledgement expanded permission profile")
 	}
-	if _, err = r.Call(host, "file_edit", map[string]any{"action": "add", "path": "must-not-exist.txt", "content": "x"}); err == nil {
+	if _, err = r.Call(host, "apply_patch", patchAddRequest("must-not-exist.txt", "x")); err == nil {
 		t.Fatal("receipt admitted unrelated filesystem writes")
 	}
 }

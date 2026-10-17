@@ -160,6 +160,12 @@ func (s *store) acquire() (func(), error) {
 }
 
 func validateServerConfig(cfg ServerConfig) error {
+	if cfg.RecoverySkill != "" {
+		ref, err := url.Parse(cfg.RecoverySkill)
+		if err != nil || len(cfg.RecoverySkill) > 512 || ref.Scheme != "skill" || ref.Host == "" || ref.User != nil || ref.RawQuery != "" || ref.Fragment != "" || strings.ContainsAny(cfg.RecoverySkill, "\r\n") {
+			return errors.New("recovery_skill must be a bounded exact skill:// reference")
+		}
+	}
 	if !serverNamePattern.MatchString(cfg.Name) {
 		return fmt.Errorf("name must match %s", serverNamePattern.String())
 	}

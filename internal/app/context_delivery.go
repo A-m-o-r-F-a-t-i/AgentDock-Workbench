@@ -30,6 +30,65 @@ func (r *Runtime) contextSourceStamp(ctx context.Context, workdir string, bindin
 	return fmt.Sprintf("ctxsrc_%x", sha256.Sum256(encoded)), nil
 }
 
+// Continuations read an immutable snapshot. Only its selected workspace and
+// instruction boundary must remain current; catalog refreshes, task progress
+// and Plugin/Skill changes do not invalidate already retained detail pages.
+// This checks a bounded set of rule paths and drains their existing watcher,
+// without enumerating any capability or task directory.
+func (r *Runtime) contextContinuationStamp(ctx context.Context, workdir string, binding activity.Binding) (string, error) {
+	ctx = activity.WithBinding(ctx, binding)
+	selected, resolved, err := r.selectContextWorkspace(ctx, workdir)
+	if err != nil {
+		return "", err
+	}
+	global := r.cfg.InstructionsFile
+	if global == "" {
+		global = filepath.Join(r.cfg.AgentDockHome, "AGENTS.md")
+	}
+	rulesRevision := ""
+	if r.contextSnapshots != nil && r.contextSnapshots.ruleFiles != nil {
+		if err := r.contextSnapshots.ruleFiles.Sync(ctx); err != nil {
+			return "", err
+		}
+		rulesRevision, _ = r.contextSnapshots.ruleFiles.Revisions()
+	}
+	rulePaths := []string{}
+	markers := map[string]string{}
+	for _, path := range snapshot.MetadataPaths(resolved, global) {
+		if path == global || filepath.Base(path) != ".git" {
+			rulePaths = append(rulePaths, path)
+			continue
+		}
+		// MetadataPaths generates fixed .git leaves for selected-workdir
+		// ancestors. Pin each such directory before inspecting that leaf;
+		// a marker symlink must not expose its target's metadata.
+		// The loader uses .git only as an ancestor boundary; Git bookkeeping
+		// changes its size/mtime without changing that boundary.
+		var info os.FileInfo
+		directory, err := os.OpenRoot(filepath.Dir(path))
+		if err == nil {
+			info, err = directory.Lstat(".git")
+			_ = directory.Close()
+		}
+		switch {
+		case err == nil:
+			markers[path] = fmt.Sprintf("exists:%d", info.Mode().Type())
+		case os.IsNotExist(err):
+			markers[path] = "missing"
+		default:
+			markers[path] = "error:" + err.Error()
+		}
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"workspace": selected, "workdir": resolved, "rule_revision": rulesRevision,
+		"rules": snapshot.Stamps(rulePaths...), "workspace_markers": markers,
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("ctxguard_%x", sha256.Sum256(encoded)), nil
+}
+
 func (r *Runtime) contextSourceIdentity(ctx context.Context, workdir string, binding activity.Binding) (map[string]any, error) {
 	ctx = activity.WithBinding(ctx, binding)
 	selected, resolved, err := r.selectContextWorkspace(ctx, workdir)
@@ -97,7 +156,7 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	r.structuredOutputMu.Lock()
 	r.pruneStructuredOutputLocked(time.Now())
 	for _, stored := range r.structuredSnapshots {
-		if stored.Tool != p.spec.Name || !stored.Required {
+		if stored.Tool != p.spec.Name || !stored.Required || stored.OutputFailure != nil {
 			continue
 		}
 		scopeMatches := sameContextScope(stored.Binding, p.state.binding)
@@ -121,16 +180,34 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	r.structuredOutputMu.Unlock()
 	valid := []*structuredOutputSnapshot{}
 	for _, candidate := range candidates {
-		stamp, err := r.contextSourceStamp(ctx, candidate.ContextWorkdir, p.state.binding)
-		if err != nil {
-			return nil, nil, err
-		}
-		if !candidate.SourceComplete || candidate.PermissionRevision != p.decision.Revision || candidate.ContextStamp == "" || stamp != candidate.ContextStamp {
+		if !candidate.SourceComplete || candidate.PermissionRevision != p.decision.Revision || candidate.ContextGuardStamp == "" {
 			r.discardStructuredSnapshot(candidate.ID)
 			continue
 		}
 		if err := r.authorizeStructuredSnapshot(ctx, candidate.Binding, p.state.binding); err != nil {
 			return nil, nil, err
+		}
+		expected := candidate.ContextGuardStamp
+		stamp, err := r.contextContinuationStamp(ctx, candidate.ContextWorkdir, candidate.Binding)
+		if err != nil {
+			return nil, nil, nil
+		}
+		if stamp != expected {
+			r.discardStructuredSnapshot(candidate.ID)
+			continue
+		}
+		if candidate.Delivered {
+			// A compact unchanged reference describes current Context, while a
+			// pending sequence continues only its exact retained construction.
+			expected = candidate.ContextStamp
+			stamp, err = r.contextSourceStamp(ctx, candidate.ContextWorkdir, p.state.binding)
+			if err != nil {
+				return nil, nil, nil
+			}
+			if expected == "" || stamp != expected {
+				r.discardStructuredSnapshot(candidate.ID)
+				continue
+			}
 		}
 		valid = append(valid, candidate)
 	}
@@ -162,6 +239,7 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	}
 	resume := &structuredOutputResume{Snapshot: *selected, ItemIndex: selected.NextPage, Reference: selected.Delivered}
 	if selected.Delivered {
+		original := result
 		diagnostics := modelObject(result["context_diagnostics"])
 		result = Result{
 			"context_revision": result["context_revision"], "unchanged": true,
@@ -170,6 +248,12 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 			"capture":             map[string]any{"state": "complete", "complete": true},
 			"operation":           map[string]any{"state": "completed", "ok": true, "executed": false},
 		}
+		if p.spec.Name == "agentdock_context" {
+			r.refreshContextBootstrapReference(ctx, result, original)
+		}
+	}
+	if selected.Delivered && p.spec.Name == "agentdock_context" {
+		r.refreshContextVolatileFacts(ctx, result, selected.ContextWorkdir, p.state.binding)
 	}
 	return result, resume, nil
 }
@@ -217,7 +301,7 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 	for attempt := 0; attempt < 2; attempt++ {
 		stamp, err := r.contextSourceStamp(ctx, stringArg(p.args, "workdir"), binding)
 		if err != nil {
-			return nil, err
+			return p.spec.Handler(ctx, r, p.args)
 		}
 		key := binding.SourceOwnerKey + "|" + binding.ConversationID + "|" + stamp
 		if p.args["force_refresh"] == true {
@@ -231,7 +315,7 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 			}
 			after, err := r.contextSourceStamp(buildCtx, stringArg(p.args, "workdir"), binding)
 			if err != nil {
-				return raw, err
+				return raw, errIncompleteContextBuild
 			}
 			if after != stamp {
 				return raw, errContextVersionChanged
@@ -253,6 +337,9 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 		}
 		if diagnostics := modelObject(cloned["context_diagnostics"]); diagnostics != nil {
 			diagnostics["context_snapshot"] = info
+		}
+		if info.CacheHit {
+			r.refreshContextVolatileFacts(ctx, cloned, stringArg(p.args, "workdir"), binding)
 		}
 		return cloned, nil
 	}

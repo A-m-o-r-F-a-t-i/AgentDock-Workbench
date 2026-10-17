@@ -10,6 +10,7 @@ type RuntimeOptions struct {
 
 // ReadRequest 是 read_file 进入文件核心后的稳定输入契约。
 type ReadRequest struct {
+	activity.Binding `json:"-"`
 	RuntimeOptions
 	Path           string `json:"path"`
 	StartLine      *int   `json:"start_line,omitempty"`
@@ -23,6 +24,7 @@ type ReadRequest struct {
 
 // ListRequest 是 list_dir 进入文件核心后的稳定输入契约。
 type ListRequest struct {
+	activity.Binding `json:"-"`
 	RuntimeOptions
 	Path             string   `json:"path,omitempty"`
 	Cursor           string   `json:"cursor,omitempty"`
@@ -38,6 +40,7 @@ type ListRequest struct {
 
 // SearchRequest 是 search_text 进入文件核心后的稳定输入契约。
 type SearchRequest struct {
+	activity.Binding `json:"-"`
 	RuntimeOptions
 	Path             string   `json:"path,omitempty"`
 	Query            string   `json:"query"`

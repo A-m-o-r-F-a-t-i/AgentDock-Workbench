@@ -118,16 +118,20 @@ func TestContextTransportProjectionCannotStripBootstrap(t *testing.T) {
 	if err != nil || final["isError"] == true {
 		t.Fatalf("context invocation: %v %v", final, err)
 	}
-	structured := requiredPayload(t, final, map[string]any{}, func(name string, args map[string]any) map[string]any {
-		value, err := h.server.InvokeProjected(WithStructuredContext(t.Context()), name, args, host, countOnlyProjection, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return value
-	})
-	for _, key := range []string{"rules", "instruction_files", "runtime", "skills", "workspace"} {
+	structured := asMap(final["structuredContent"])
+	for _, key := range []string{"workspace", "workdir", "runtime", "host_tools", "builtin_tool_bundles", "dynamic_mcp_summary", "instruction_files", "task_binding", "context_revision"} {
 		if structured[key] == nil {
-			t.Fatalf("projection lost %s", key)
+			t.Fatalf("projection lost Bootstrap field %s: %#v", key, structured)
+		}
+	}
+	if structured["bootstrap_complete"] != true || structured["context_ready"] != true {
+		t.Fatalf("projected Bootstrap is not usable: %#v", structured)
+	}
+	if structured["has_more"] == true {
+		delivery := asMap(structured["delivery"])
+		action := asMap(structured["required_action"])
+		if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || action["category"] != "detail" || action["required"] != false {
+			t.Fatalf("optional detail paging became a global blocker: delivery=%#v action=%#v", delivery, action)
 		}
 	}
 }
@@ -187,7 +191,7 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 	}
 	revision := ""
 	args := map[string]any{"force_refresh": true}
-	complete := false
+	sequenceComplete := false
 	for index := 0; index < 80; index++ {
 		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
 		if err != nil || result.IsError {
@@ -204,20 +208,29 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 		current, _ := value["context_revision"].(string)
 		if index == 0 {
 			revision = current
+			if value["bootstrap_complete"] != true || value["context_ready"] != true {
+				t.Fatalf("first page did not deliver a usable Bootstrap: %#v", value)
+			}
 		} else if current != revision {
 			t.Fatal("Context revision changed during frozen paging")
 		}
-		if value["context_ready"] == true {
-			complete = true
+		delivery := asMap(value["delivery"])
+		if value["has_more"] == true {
+			cursor, _ := value["next_cursor"].(string)
+			if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || cursor == "" {
+				t.Fatalf("optional detail continuation is inconsistent: %+v", value)
+			}
+			args = map[string]any{}
+			continue
+		}
+		if delivery["sequence_complete"] == true {
+			sequenceComplete = true
 			break
 		}
-		if asMap(value["delivery"])["continuation_required"] != true {
-			t.Fatalf("incomplete required context lacked continuation: %+v", value["delivery"])
-		}
-		args = map[string]any{}
+		t.Fatalf("final Context page did not complete its detail sequence: %#v", value)
 	}
-	if !complete {
-		t.Fatal("Context automatic paging did not finish")
+	if !sequenceComplete {
+		t.Fatal("Context automatic detail paging did not finish")
 	}
 	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
 	if err != nil || result.IsError || asMap(result.StructuredContent)["unchanged"] != true {

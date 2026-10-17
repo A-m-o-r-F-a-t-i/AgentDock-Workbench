@@ -62,7 +62,7 @@ func TestExecutionTaskContinuationViewAndClear(t *testing.T) {
 	if got := stringArg(scopeRead(t, r, a), "task_id"); got != taskA {
 		t.Fatal("view changed current task")
 	}
-	if _, err := r.Call(a, "file_edit", map[string]any{"action": "add", "path": "forbidden.txt", "content": "not written", "task_id": taskB}); err == nil {
+	if _, err := r.Call(a, "apply_patch", map[string]any{"patch": patchAddRequest("forbidden.txt", "not written")["patch"], "task_id": taskB}); err == nil {
 		t.Fatal("conflicting override accepted")
 	}
 	if _, err := r.Call(a, "task_manage", map[string]any{"action": "unbind"}); err != nil {
@@ -154,7 +154,7 @@ func TestExecutionApprovalRetainsTaskAfterSwitch(t *testing.T) {
 	r := executionTestRuntime(t)
 	ctx := scopeHost("approval-snapshot")
 	taskA := scopeTask(t, r, ctx, "A")
-	pending, err := r.Call(ctx, "file_edit", map[string]any{"action": "add", "path": "snapshot.txt", "content": "fixed snapshot"})
+	pending, err := r.Call(ctx, "apply_patch", patchAddRequest("snapshot.txt", "fixed snapshot"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestExecutionApprovalRetainsTaskAfterSwitch(t *testing.T) {
 		t.Fatal("approved old call changed new continuation")
 	}
 	content, err := os.ReadFile(filepath.Join(r.cfg.AgentDockDefaultDir, "snapshot.txt"))
-	if err != nil || string(content) != "fixed snapshot" {
+	if err != nil || normalizePatchText(content) != "fixed snapshot\n" {
 		t.Fatalf("fixed write: %q %v", content, err)
 	}
 }

@@ -10,7 +10,7 @@ public static class ExecutionTitleFormatter
         while (tool.Length > 0 && label.StartsWith(tool, StringComparison.Ordinal) &&
                (label.Length == tool.Length || " ·:-：".Contains(label[tool.Length])))
             label = label[tool.Length..].TrimStart(' ', '·', ':', '-', '：');
-        if (tool == "file_edit" && label.StartsWith("EDIT_FILE", StringComparison.Ordinal))
+        if ((tool is "apply_patch" or "file_edit") && label.StartsWith("EDIT_FILE", StringComparison.Ordinal))
             label = label[9..].TrimStart(' ', '·', ':', '-', '：');
         if (!ContainsChinese(label)) label = DefaultAction(tool, action);
         return tool.Length == 0 ? label : tool + " · " + label;
@@ -32,6 +32,7 @@ public static class ExecutionTitleFormatter
         ("task_manage", "list" or "get") => "查看任务",
         ("task_manage", "cancel") => "取消任务",
         ("task_manage", _) => "管理任务",
+        ("apply_patch", _) => "应用文本补丁",
         ("file_edit", "add") => "创建文件",
         ("file_edit", "delete") => "删除文件",
         ("file_edit", "move") => "移动文件",

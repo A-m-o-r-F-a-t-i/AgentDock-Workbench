@@ -352,6 +352,7 @@ final class WorkbenchDetailViewController: NSViewController {
         var sections = [String]()
         if !call.command.isEmpty { sections.append(L10n.format("Command\n%@", String(describing: call.command))) }
         if !call.workdir.isEmpty { sections.append(L10n.format("Working directory\n%@", String(describing: call.workdir))) }
+        if !call.toolExecutionText.isEmpty { sections.append(L10n.text("Details") + "\n" + call.toolExecutionText) }
         sections.append(L10n.format("Timing\n%@", String(describing: call.timingText)))
         sections.append(L10n.format("File editing\n%@", String(describing: call.fileEditText)))
         sections.append(L10n.format("Original record\n%@", String(describing: call.raw.prettyPrinted)))

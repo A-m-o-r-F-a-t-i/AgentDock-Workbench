@@ -7,6 +7,9 @@ import (
 
 // ManageRequest 是 mcp_manage 进入动态 MCP capability 后的稳定输入契约。
 type ManageRequest struct {
+	OriginCallID     string                `json:"origin_call_id,omitempty"`
+	Lazy             bool                  `json:"lazy,omitempty"`
+	RecoverySkill    string                `json:"recovery_skill,omitempty"`
 	Patch            mcpclient.ConfigPatch `json:"patch,omitempty"`
 	Scope            string                `json:"scope,omitempty"`
 	ExpectedRevision string                `json:"expected_revision,omitempty"`
@@ -27,6 +30,7 @@ type ManageRequest struct {
 }
 
 type SearchRequest struct {
+	Refresh          bool   `json:"refresh,omitempty"`
 	Query            string `json:"query"`
 	Server           string `json:"server,omitempty"`
 	Limit            *int   `json:"limit,omitempty"`
@@ -36,6 +40,7 @@ type SearchRequest struct {
 
 type ListRequest struct {
 	Server           string `json:"server"`
+	Refresh          bool   `json:"refresh,omitempty"`
 	ForceFull        bool   `json:"force_full,omitempty"`
 	Cursor           string `json:"cursor,omitempty"`
 	MaxResponseBytes *int   `json:"max_response_bytes,omitempty"`

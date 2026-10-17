@@ -556,6 +556,7 @@ scripts:
     owner: runtime
     public_contract: false
     deletable: false
+    oversize_justification: 单一只读协议探针需要在同一会话内完成端点约束、认证初始化、工具目录解析、Context Bootstrap、语义分页无损重建、请求关联和敏感内容不导出检查；拆分会分离会话及游标状态并削弱“不重放 tools/call”的边界。
     notes: Authenticated bounded MCP context probe; never retries tools/call, redirects credentials, or exports rule text.
 
   - path: scripts/test/test-context-probe.py

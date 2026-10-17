@@ -28,7 +28,7 @@ func contextDiagnosticsSchema() map[string]any {
 			"required":   []string{"plugin_scans", "skill_documents", "lock_wait_ms", "build_elapsed_ms"},
 			"properties": map[string]any{"plugin_scans": count(), "skill_documents": count(), "lock_wait_ms": milliseconds(), "build_elapsed_ms": milliseconds()}},
 	}
-	for _, name := range []string{"rules_ms", "plugins_ms", "skills_ms", "mcp_catalog_ms", "serialization_ms", "context_ms", "common_skills_ms", "task_index_ms"} {
+	for _, name := range []string{"rules_ms", "plugins_ms", "skills_ms", "mcp_catalog_ms", "serialization_ms", "context_ms", "common_skills_ms", "task_index_ms", "git_ms", "sessions_ms"} {
 		properties[name] = milliseconds()
 	}
 	return map[string]any{"type": "object", "additionalProperties": false,

@@ -45,7 +45,8 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 		return Result{"action": action, "server": server}, nil
 	case "add":
 		cfg := mcpclient.ServerConfig{
-			Name:        request.Name,
+			Name: request.Name,
+			Lazy: request.Lazy, RecoverySkill: request.RecoverySkill,
 			Description: request.Description,
 			Transport:   request.Transport,
 			URL:         request.URL,
@@ -117,7 +118,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	if normalizeErr != nil {
 		return nil, dynamicMCPToolError(normalizeErr)
 	}
-	limit := boundedInt(intValue(request.Limit, 10), 10, 1, 100)
+	limit := boundedInt(intValue(request.Limit, 5), 5, 1, 100)
 	if server == "" {
 		if match, available := s.resolveBuiltinRoute(query); available {
 			err := s.rejectBuiltinDiscovery(ctx, []BuiltinToolSummary{match.Tool})
@@ -127,6 +128,10 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 			}
 			return nil, err
 		}
+	}
+	query, server, normalizeErr = s.mcpClients.ResolveSearchSelector(ctx, query, server)
+	if normalizeErr != nil {
+		return nil, dynamicMCPToolError(normalizeErr)
 	}
 	var allow func(string) bool
 	if server == "" {
@@ -156,7 +161,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	} else if err := s.ensureAvailable(server); err != nil {
 		return nil, err
 	}
-	found, err := s.mcpClients.SearchCatalogsFiltered(ctx, query, server, limit, allow)
+	found, err := s.mcpClients.SearchCatalogs(ctx, request.Query, server, limit, request.Refresh, allow)
 	if err != nil {
 		return nil, dynamicMCPToolError(err)
 	}
@@ -179,8 +184,33 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		"builtin_match_count": 0, "dynamic_match_count": len(found.Tools), "match_kind": found.MatchKind,
 	}
 	annotateDynamicMCPRoute(result, found.Server)
-	if !found.Complete {
-		result["next_action"] = "Select a server from catalogs and use mcp_tool_list; an undiscovered or stale catalog is not evidence that a capability is absent."
+	result["match_count"], result["exact_count"] = found.MatchCount, found.ExactCount
+	result["absence_authoritative"] = found.AbsenceAuthoritative
+	result["execution_performed"] = false
+	result["resolution_status"] = "ambiguous"
+	if found.Selected != nil {
+		annotateDynamicMCPTool(found.Selected, stringValue(found.Selected["server"]), stringValue(found.Selected["qualified_name"]))
+		result["resolution_status"], result["selected"] = "resolved", found.Selected
+		schema, _ := found.Selected["input_schema"].(map[string]any)
+		required := schema["required"]
+		complete := found.ArgumentsComplete
+		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
+		result["catalog_state"] = found.Selected["catalog_state"]
+		result["managed_target"] = managedTarget(ctx, stringValue(found.Selected["server"]), stringValue(found.Selected["catalog_revision"]), "registered_selection")
+	} else if len(found.Tools) == 0 {
+		result["resolution_status"] = "not_found"
+		if !found.AbsenceAuthoritative {
+			result["resolution_status"] = "incomplete"
+			next := map[string]any{"query": found.Query}
+			category := "model_decision"
+			if found.Server != "" {
+				next["server"], next["refresh"], category = found.Server, true, "protocol"
+			}
+			result["required_action"] = map[string]any{"category": category, "tool": "mcp_tool_search", "arguments": next, "required": true, "execution_performed": false, "reason_code": "mcp_catalog_incomplete"}
+			if found.Server == "" {
+				result["required_action"] = map[string]any{"category": "model_decision", "required": true, "execution_performed": false, "reason_code": "mcp_server_selection_required", "message": "Select the intended server from catalogs, then repeat this query with that server. Do not repeat the unscoped query unchanged."}
+			}
+		}
 	}
 	return result, nil
 }
@@ -209,9 +239,13 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	}
 	catalog = maps.Clone(catalog)
 	delete(catalog, "tools")
-	catalog["delivery"], catalog["tools_omitted"], catalog["refresh_tool"] = "summary", true, ToolList
+	catalog["delivery"], catalog["catalog_delivery"] = "summary", "summary"
+	catalog["tools_omitted"], catalog["refresh_tool"] = true, ToolList
 	annotateDynamicMCPRoute(catalog, validated.serverName)
-	response := Result{"name": validated.qualifiedName, "qualified_name": validated.qualifiedName, "mcp_catalog": catalog}
+	response := Result{
+		"name": validated.qualifiedName, "mcp_catalog": catalog,
+		"managed_target": managedTarget(ctx, validated.serverName, stringValue(catalog["catalog_revision"]), "qualified_business_call"),
+	}
 	annotateDynamicMCPTool(response, validated.serverName, validated.qualifiedName)
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if class, mode := prepared.OutputPolicy(); class != "" {
@@ -293,3 +327,12 @@ func cloneStringMap(values map[string]string) map[string]string {
 	}
 	return out
 }
+
+func managedTarget(ctx context.Context, server, revision, source string) map[string]any {
+	result := map[string]any{"server": server, "catalog_revision": revision, "selection_source": source}
+	if workspace := activity.FromContext(ctx).WorkspaceID; workspace != "" {
+		result["workspace_id"] = workspace
+	}
+	return result
+}
+func stringValue(value any) string { text, _ := value.(string); return text }

@@ -67,7 +67,7 @@ func TestAndroidPublicSchemaCollapsesBranchesWhileRuntimeStaysStrict(t *testing.
 
 	spec, _ := toolSpecByName("android_device_act")
 	contract, _ := spec.Contract("android_device_act", config.Config{})
-	validator, err := compileBuiltInInputValidator(contract.ValidationInputSchema)
+	validator, err := compileBuiltInValidator(contract.ValidationInputSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

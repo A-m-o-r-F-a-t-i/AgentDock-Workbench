@@ -26,7 +26,7 @@ func TestRuntimeCallRejectsUnknownArgumentsForFormerlyPermissiveTools(t *testing
 	}{
 		{tool: "search_text", args: map[string]any{"query": "never", "future_field": true}},
 		{tool: "read_file", args: map[string]any{"path": "missing.txt", "future_field": true}},
-		{tool: "file_edit", args: map[string]any{"action": "replace", "future_field": true}},
+		{tool: "apply_patch", args: map[string]any{"patch": "ignored", "future_field": true}},
 		{tool: "task_manage", args: map[string]any{"action": "list", "future_field": true}},
 		{tool: "skill_package", args: map[string]any{"action": "env_list", "future_field": true}},
 		{tool: "view_image", args: map[string]any{"path": "missing.png", "future_field": true}},
@@ -107,7 +107,7 @@ func TestRuntimeCallRejectsWrongDeclaredArgumentTypes(t *testing.T) {
 		{name: "command integer as string", tool: "exec_command", args: map[string]any{"cmd": "true", "timeout_ms": "12"}},
 		{name: "command env non string value", tool: "exec_command", args: map[string]any{"cmd": "true", "env": map[string]any{"COUNT": 1}}},
 		{name: "file integer as string", tool: "read_file", args: map[string]any{"path": "missing.txt", "max_bytes": "128"}},
-		{name: "file bool as string", tool: "file_edit", args: map[string]any{"action": "replace", "path": "missing.txt", "replace_all": "true"}},
+		{name: "patch as boolean", tool: "apply_patch", args: map[string]any{"patch": true}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

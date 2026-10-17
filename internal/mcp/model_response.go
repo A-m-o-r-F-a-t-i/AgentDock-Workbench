@@ -119,7 +119,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	full := asMap(original["structuredContent"])
 	class := modelOutputClass(name, args, full)
 	payload := map[string]any{}
-	for _, key := range []string{"operation", "capture", "agentdock_guidance", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms"} {
+	for _, key := range []string{"operation", "capture", "agentdock_guidance", "required_action", "effect_state", "operation_status", "execution_performed", "retry_safe", "origin_call_id", "output_class", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms"} {
 		if value, exists := full[key]; exists {
 			if text, ok := value.(string); ok {
 				value = toolcontract.JSONTextPrefix(text, 512)
@@ -166,6 +166,24 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 		payload["context_ready"] = false
 		payload["context_revision"] = full["context_revision"]
 		payload["context_diagnostics"] = map[string]any{"complete": false, "components_complete": asMap(full["context_diagnostics"])["components_complete"], "binding_status": asMap(full["context_diagnostics"])["binding_status"]}
+	}
+	if name == "agentdock_context" && full["bootstrap_complete"] == true {
+		// Emergency projection keeps the exact routing header. Only detail payloads
+		// move to the retained source; large diagnostics must not hide known tools.
+		for _, key := range []string{"runtime", "workspace", "workdir", "workspace_id", "host_tools", "builtin_tool_bundles", "dynamic_mcp_summary", "task_binding", "tool_catalog_revision"} {
+			if value, exists := full[key]; exists {
+				payload[key] = value
+			}
+		}
+		if instructions := asMap(full["instruction_files"]); instructions["revision"] != nil {
+			payload["instruction_files"] = map[string]any{"complete": instructions["complete"], "revision": instructions["revision"]}
+		}
+		payload["bootstrap_complete"], payload["context_ready"] = true, true
+		payload["context_diagnostics"] = map[string]any{"complete": true, "components_complete": asMap(full["context_diagnostics"])["components_complete"], "binding_status": asMap(full["context_diagnostics"])["binding_status"]}
+		payload["delivery"] = map[string]any{"class": class, "sequence_complete": false, "continuation_required": false, "continuation_available": source != ""}
+		if source != "" {
+			payload["required_action"] = map[string]any{"category": "detail", "required": false, "execution_performed": false, "reason_code": "context_details_paged", "tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}}
+		}
 	}
 	// Preserve the error tail for commands even when decorations force a smaller
 	// emergency projection. File cursors are never advanced by this fallback.

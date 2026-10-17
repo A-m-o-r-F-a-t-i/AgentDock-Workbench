@@ -39,6 +39,8 @@ type storedMCPResult struct {
 	Raw            map[string]any
 	RawBytes       []byte
 	RawReference   string
+	Failure        map[string]any
+	FailureBytes   int
 	Normalized     map[string]any
 	ContentKinds   []string
 	ParsedJSONText bool
@@ -65,7 +67,9 @@ type resultStore struct {
 }
 
 func (s *resultStore) store(binding activity.Binding, name string, raw, normalized map[string]any, contentKinds []string, parsedJSONText bool) (Result, error) {
-	pages, err := buildResultPages(normalized)
+	failure := retainResultFailure(raw)
+	failureBytes := resultFailureProjectionBytes(failure)
+	pages, err := buildResultPages(normalized, resultPayloadBudget(failureBytes))
 	if err != nil {
 		return nil, toolErrorCause("MCP_RESULT_ENCODING_FAILED", "encode normalized MCP result", "runtime", nil, err)
 	}
@@ -81,6 +85,7 @@ func (s *resultStore) store(binding activity.Binding, name string, raw, normaliz
 	entry := &storedMCPResult{
 		CallID: callID, Name: name, Binding: binding, ScopeKey: resultScopeKey(binding, callID),
 		Raw: cloneResultMap(raw), RawBytes: rawBytes, Normalized: cloneResultMap(normalized),
+		Failure: failure, FailureBytes: failureBytes,
 		ContentKinds: append([]string{}, contentKinds...), ParsedJSONText: parsedJSONText,
 		Pages: pages, NextPage: 1, LastPage: -1, CreatedAt: now, TouchedAt: now,
 	}
@@ -104,7 +109,7 @@ func (s *resultStore) store(binding activity.Binding, name string, raw, normaliz
 	if len(pages) > 1 {
 		entry.NextCursor = s.newCursorLocked(callID, 1)
 	}
-	if !s.consumeProjectionBudgetLocked(entry, pages[0].Bytes, true) {
+	if !s.consumeProjectionBudgetLocked(entry, pages[0].Bytes+failureBytes, true) {
 		return resultBudgetProjection(entry, "root_task"), nil
 	}
 	return resultPageProjection(entry, 0, entry.NextCursor, false), nil
@@ -131,10 +136,10 @@ func (s *resultStore) continueResult(ctxBinding activity.Binding, callID, cursor
 		return nil, toolErrorDetails("MCP_RESULT_CURSOR_EXPIRED", "MCP host result cursor is unknown, expired or belongs to another call", "validation", map[string]any{"call_id": callID, "cursor": cursor, "resume": entry.NextCursor})
 	}
 	if cursor == entry.LastCursor && state.PageIndex == entry.LastPage {
-		return Result{
+		return withResultFailure(Result{
 			"call_id": callID, "result_call_id": callID, "cursor": cursor, "replayed": true, "content_returned": false,
 			"complete": entry.NextPage >= len(entry.Pages), "resume_cursor": entry.NextCursor,
-		}, nil
+		}, entry), nil
 	}
 	if state.PageIndex < entry.NextPage {
 		return nil, toolErrorDetails("RESULT_CURSOR_REGRESSION", "MCP host result cursor moved behind the consumed high-water mark", "validation", map[string]any{
@@ -150,7 +155,7 @@ func (s *resultStore) continueResult(ctxBinding activity.Binding, callID, cursor
 	}
 	pageIndex := entry.NextPage
 	page := entry.Pages[pageIndex]
-	if !s.consumeProjectionBudgetLocked(entry, page.Bytes, false) {
+	if !s.consumeProjectionBudgetLocked(entry, page.Bytes+entry.FailureBytes, false) {
 		return nil, resultBudgetError(entry)
 	}
 	entry.LastCursor, entry.LastPage = cursor, pageIndex
@@ -206,7 +211,7 @@ func (s *resultStore) rawResult(ctxBinding activity.Binding, request ResultRawRe
 	// A raw fragment is still sent inside JSON; account for escaping before advancing.
 	for end > offset {
 		encoded, _ := json.Marshal(string(entry.RawBytes[offset:end]))
-		if len(encoded)+resultMetadataReserve <= resultPageBudget {
+		if len(encoded) <= resultPayloadBudget(entry.FailureBytes) {
 			break
 		}
 		end = offset + (end-offset)/2
@@ -223,7 +228,7 @@ func (s *resultStore) rawResult(ctxBinding activity.Binding, request ResultRawRe
 	if entry.RawReference != "" {
 		result["raw_result_ref"] = entry.RawReference
 	}
-	return result, nil
+	return withResultFailure(result, entry), nil
 }
 
 func (s *resultStore) rawCopy(callID string) (map[string]any, bool) {
@@ -361,26 +366,26 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 	if entry.RawReference != "" {
 		result["raw_result_ref"] = entry.RawReference
 	}
-	return result
+	return withResultFailure(result, entry)
 }
 
 func resultBudgetProjection(entry *storedMCPResult, scope string) Result {
-	return Result{
+	return withResultFailure(Result{
 		"call_id": entry.CallID, "result_call_id": entry.CallID, "name": entry.Name, "result_retained": true,
 		"isError":                entry.Raw["isError"] == true,
 		"continuation_available": false, "continuation_required": false,
 		"projection_budget_exhausted": true, "budget_scope": scope,
 		"message":   "The result is retained, but the automatic MCP projection budget is exhausted. Narrow the original MCP request by fields, objects, region or page size.",
 		"host_page": map[string]any{"page_index": 0, "page_count": len(entry.Pages), "returned_bytes": 0, "remaining_pages": len(entry.Pages), "complete": false},
-	}
+	}, entry)
 }
 
 func resultBudgetError(entry *storedMCPResult) error {
-	return toolErrorDetails("MCP_RESULT_BUDGET_EXHAUSTED", "The result is retained, but the automatic MCP projection budget is exhausted. Narrow the original MCP request by fields, objects, region or page size.", "validation", map[string]any{
+	return toolErrorDetails("MCP_RESULT_BUDGET_EXHAUSTED", "The result is retained, but the automatic MCP projection budget is exhausted. Narrow the original MCP request by fields, objects, region or page size.", "validation", withResultFailure(Result{
 		"call_id": entry.CallID, "result_call_id": entry.CallID, "projected_bytes": entry.ProjectedBytes,
 		"per_call_budget_bytes": resultCallProjectionBudget, "root_task_budget_bytes": resultRootProjectionBudget,
 		"result_retained": true, "continuation_required": false,
-	})
+	}, entry))
 }
 
 func resultScopeKey(binding activity.Binding, fallback string) string {

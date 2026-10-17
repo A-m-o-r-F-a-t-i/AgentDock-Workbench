@@ -72,7 +72,7 @@ func TestRuntimeOutputContractDefaultToolSuccessPaths(t *testing.T) {
 		{name: "read_file", args: map[string]any{"path": "contract.txt"}},
 		{name: "list_dir", args: map[string]any{"path": "."}},
 		{name: "search_text", args: map[string]any{"path": ".", "query": "contract-marker"}},
-		{name: "file_edit", args: map[string]any{"action": "replace", "path": "contract.txt", "old": "contract-marker", "new": "updated-marker", "dry_run": true}},
+		{name: "apply_patch", args: map[string]any{"patch": "*** Begin Patch\n*** Update File: contract.txt\n@@\n-contract-marker\n+updated-marker\n*** End Patch\n"}},
 		{name: "exec_command", args: map[string]any{"cmd": "printf contract-marker", "execution_mode": "sync"}},
 		{name: "session_observe", args: map[string]any{"action": "list"}},
 		{name: "session_act", args: map[string]any{"action": "kill_all"}},

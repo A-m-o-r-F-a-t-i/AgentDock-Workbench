@@ -82,7 +82,7 @@ func TestRuntimeExposesSingleToolSet(t *testing.T) {
 	for _, name := range rt.ToolNames() {
 		seen[name] = true
 	}
-	for _, name := range []string{"agentdock_context", "workspace_context", "session_observe", "session_act", "recall_read", "recall_write", "skill_package", "mcp_manage", "mcp_tool_search", "mcp_tool_inspect", "mcp_tool_call"} {
+	for _, name := range []string{"agentdock_context", "workspace_context", "apply_patch", "session_observe", "session_act", "recall_read", "recall_write", "skill_package", "mcp_manage", "mcp_tool_search", "mcp_tool_inspect", "mcp_tool_call"} {
 		if !seen[name] {
 			t.Fatalf("single tool set missing %s: %#v", name, seen)
 		}
@@ -99,8 +99,10 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	if !ok {
 		t.Fatal("agentdock_context definition missing")
 	}
-	if !strings.Contains(def.Description, "structured AgentDock bootstrap context") {
-		t.Fatalf("agentdock_context description should explain structured bootstrap use: %q", def.Description)
+	for _, phrase := range []string{"first page keeps workspace and tool routes", "unrelated work may continue"} {
+		if !strings.Contains(def.Description, phrase) {
+			t.Fatalf("agentdock_context description missing %q: %q", phrase, def.Description)
+		}
 	}
 
 	inputProps := schemaProperties(t, "agentdock_context")
@@ -307,13 +309,14 @@ func TestTaskManageSchemaExposesLifecycleActions(t *testing.T) {
 	}
 }
 
-func TestFileEditUnifiedSchema(t *testing.T) {
-	fileProps := schemaProperties(t, "file_edit")
-	assertSameStrings(t, enumStrings(t, fileProps["action"]), []string{"replace", "patch", "add", "delete", "move"})
-	for _, name := range []string{"path", "old", "new", "patch", "dry_run", "expected_matches", "replace_all", "content", "new_path", "overwrite", "recursive"} {
-		if _, ok := fileProps[name]; !ok {
-			t.Fatalf("file_edit input schema missing %q", name)
-		}
+func TestApplyPatchPublicSchemaIsPatchOnly(t *testing.T) {
+	props := schemaProperties(t, "apply_patch")
+	if len(props) != 1 || props["patch"] == nil {
+		t.Fatalf("apply_patch public schema must contain only patch: %#v", props)
+	}
+	required, _ := inputSchema("apply_patch")["required"].([]string)
+	if !reflect.DeepEqual(required, []string{"patch"}) {
+		t.Fatalf("apply_patch required fields = %#v", required)
 	}
 }
 
@@ -324,7 +327,7 @@ func TestExecCommandSchemaOmitsUnsupportedRedaction(t *testing.T) {
 }
 
 func TestLegacyModelEntrypointsAreRemoved(t *testing.T) {
-	for _, name := range []string{"apply_patch", "edit_file", "workspace_repos", "git_read", "git_write", "git_status", "git_diff", "git_log", "git_inspect", "git_remote", "git_clone", "git_commit", "check_github_repo_access", "browser_profile", "private_notes_search", "private_notes_read", "private_notes_write", "private_notes_status", "private_notes_maintain"} {
+	for _, name := range []string{"file_edit", "edit_file", "workspace_repos", "git_read", "git_write", "git_status", "git_diff", "git_log", "git_inspect", "git_remote", "git_clone", "git_commit", "check_github_repo_access", "browser_profile", "private_notes_search", "private_notes_read", "private_notes_write", "private_notes_status", "private_notes_maintain"} {
 		if _, ok := toolDefinition(name); ok {
 			t.Fatalf("legacy tool should not be model-facing: %s", name)
 		}

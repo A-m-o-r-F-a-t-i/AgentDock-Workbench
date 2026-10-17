@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,7 +41,9 @@ func CompileInputSchema(raw map[string]any) (*InputValidator, error) {
 		return nil, fmt.Errorf("encode inputSchema: %w", err)
 	}
 	var schemaJSON any
-	if err := json.Unmarshal(encoded, &schemaJSON); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&schemaJSON); err != nil {
 		return nil, fmt.Errorf("decode inputSchema: %w", err)
 	}
 
@@ -72,7 +75,9 @@ func (v *InputValidator) Validate(arguments map[string]any) error {
 		return fmt.Errorf("encode tool arguments: %w", err)
 	}
 	var normalized any
-	if err := json.Unmarshal(raw, &normalized); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&normalized); err != nil {
 		return fmt.Errorf("decode tool arguments: %w", err)
 	}
 	return v.schema.Validate(normalized)

@@ -11,6 +11,8 @@ func dispatchWithOps(req *Request, ops transactionOps) (*Response, error) {
 		return nil, fail("INVALID_ARGUMENT", "WSL file helper request is required", nil)
 	}
 	switch req.Action {
+	case "apply_patch":
+		return applyV4APatch(req)
 	case "read":
 		return readText(req.Path, req.RejectSymlink, req.AllowMissing)
 	case "list_dir":

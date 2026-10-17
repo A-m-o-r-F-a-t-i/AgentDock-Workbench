@@ -27,6 +27,7 @@ type PreparedMCPCall struct {
 	argumentsDigest string
 	state           *serverState
 	tool            Tool
+	outputValidator *toolInputValidator
 }
 
 // PreparedCallSummary is the bounded immutable identity persisted with approval
@@ -133,18 +134,25 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 	callCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutMS)*time.Millisecond)
 	defer cancel()
 	var runtimeCfg ServerConfig
-	if state.client == nil || !state.discovered {
+	needsStart := state.client == nil || !state.discovered
+	if needsStart {
 		runtimeCfg, err = m.prepareRuntimeConfig(callCtx, cfg)
-		if err != nil {
-			recordStateError(state, err)
-			return nil, err
-		}
-		if _, err = refreshStateLocked(callCtx, runtimeCfg, state); err != nil {
-			return nil, err
-		}
 	} else {
 		runtimeCfg, err = m.runtimeConfig(cfg)
-		if err != nil {
+	}
+	if err != nil {
+		recordStateError(state, err)
+		return nil, err
+	}
+	fingerprint, err := definitionFingerprint(runtimeCfg)
+	if err != nil {
+		return nil, err
+	}
+	if err = checkExpectedMCPIdentity(ctx, qualifiedName, fingerprint, "", ""); err != nil {
+		return nil, err
+	}
+	if needsStart {
+		if _, err = refreshStateLocked(callCtx, runtimeCfg, state); err != nil {
 			return nil, err
 		}
 	}
@@ -161,9 +169,12 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 	if err = validateToolArguments(tool, fixedArguments); err != nil {
 		return nil, err
 	}
-	fingerprint, err := definitionFingerprint(runtimeCfg)
-	if err != nil {
-		return nil, err
+	var outputValidator *toolInputValidator
+	if len(tool.OutputSchema) > 0 {
+		outputValidator, err = compileToolInputSchema(tool.OutputSchema)
+		if err != nil {
+			return nil, newError("MCP_OUTPUT_SCHEMA_INVALID", "The MCP tool declared an invalid output schema; the call was not dispatched", false, map[string]any{"tool": qualifiedName, "executed": false}, err)
+		}
 	}
 	schemaDigest, err := toolSchemaDigest(tool)
 	if err != nil {
@@ -171,6 +182,9 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 	}
 	annotationsDigest, err := toolAnnotationsDigest(tool)
 	if err != nil {
+		return nil, err
+	}
+	if err = checkExpectedMCPIdentity(ctx, qualifiedName, fingerprint, schemaDigest, annotationsDigest); err != nil {
 		return nil, err
 	}
 	argumentsDigest, err := digestJSON(fixedArguments)
@@ -194,6 +208,7 @@ func (m *Manager) PrepareCall(ctx context.Context, qualifiedName string, argumen
 		argumentsDigest:       argumentsDigest,
 		state:                 state,
 		tool:                  cloneTool(tool),
+		outputValidator:       outputValidator,
 	}, nil
 }
 
@@ -356,7 +371,11 @@ func (m *Manager) CallPrepared(ctx context.Context, prepared *PreparedMCPCall) (
 	}
 	observer := m.callObserver.Load()
 	dispatch := func(dispatchCtx context.Context) (map[string]any, error) {
-		return state.client.callTool(dispatchCtx, prepared.toolName, cloneJSONMap(prepared.arguments))
+		result, err := state.client.callTool(dispatchCtx, prepared.toolName, cloneJSONMap(prepared.arguments))
+		if err == nil {
+			err = validatePreparedOutput(prepared, result)
+		}
+		return result, err
 	}
 	if observer != nil {
 		return observer.call(callCtx, prepared.QualifiedName, dispatch)

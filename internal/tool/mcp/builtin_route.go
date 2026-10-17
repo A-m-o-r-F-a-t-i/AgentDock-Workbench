@@ -13,11 +13,11 @@ const (
 
 var builtinToolAliases = map[string]string{
 	"call a dynamic mcp tool": "mcp_tool_call",
-	"edit_file":               "file_edit",
+	"edit_file":               "apply_patch",
 	"run_command":             "exec_command",
 	"shell_command":           "exec_command",
 	"task_update":             "task_manage",
-	"write_file":              "file_edit",
+	"write_file":              "apply_patch",
 }
 
 var builtinRouteModifiers = map[string]struct{}{

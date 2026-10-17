@@ -262,6 +262,7 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
     var progressText: String
     var timingText: String
     var fileEditText: String
+    var toolExecutionText: String
     var isInsertion: Bool
     var canStop: Bool
     var needsApproval: Bool
@@ -291,7 +292,7 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
             json["projection"]["complete"].boolValue == false ? L10n.text("Partial model preview") : nil,
             json["delivery"]["continuation_required"].boolValue == true ? L10n.text("Required context has more pages") : nil
         ]
-        summary = ([json.firstText("summary", "message")] + outputStates.compactMap { $0 }).filter { !$0.isEmpty }.joined(separator: " · ")
+        summary = ([json.firstText("summary", "message"), Self.executionSummary(json["tool_execution"])] + outputStates.compactMap { $0 }).filter { !$0.isEmpty }.joined(separator: " · ")
         isInsertion = !insertionID.isEmpty || kind.hasPrefix("insertion.") || toolName == "conversation.insertion"
         let originalTitle = json.firstText("display_title", "activity_label", "title")
         if isInsertion {
@@ -312,10 +313,57 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
         if responseText.isEmpty { responseText = progressText }
         timingText = Self.timing(json)
         fileEditText = Self.fileEdit(json["file_edit"])
+        toolExecutionText = Self.executionDetails(json)
         canStop = !isInsertion && ["created", "running", "pending_approval"].contains(status)
         needsApproval = !isInsertion && status == "pending_approval" && !approvalID.isEmpty
         canRetry = !isInsertion && ["failed", "cancelled"].contains(status)
         raw = json
+    }
+
+    private static func executionSummary(_ detail: WorkbenchJSON) -> String {
+        guard !detail.isNull else { return "" }
+        var fields = [String]()
+        let catalog = detail.text("catalog_state")
+        if !catalog.isEmpty && catalog != "fresh" { fields.append("catalog_state: \(catalog)") }
+        let route = detail.text("route_status")
+        if ["blocked", "incomplete", "ambiguous"].contains(route) { fields.append("route_status: \(route)") }
+        let next = detail["required_action"].text("tool")
+        if !next.isEmpty { fields.append("required_action: \(next)") }
+        let recovery = detail["recovery"].text("state")
+        if !recovery.isEmpty { fields.append("recovery: \(recovery)") }
+        if detail.flag("host_refresh_required") { fields.append("host_refresh_required: true") }
+        return fields.joined(separator: " · ")
+    }
+
+    // Technical identifiers stay verbatim; absence in a historical record is
+    // not converted into a successful result or a zero-valued measurement.
+    private static func executionDetails(_ call: WorkbenchJSON) -> String {
+        let detail = call["tool_execution"]
+        var fields = [String]()
+        for key in ["server", "qualified_name", "catalog_revision", "catalog_state", "match_kind", "route_status", "operation_status", "effect_state", "error_kind", "origin_call_id"] {
+            let text = detail.text(key)
+            if !text.isEmpty { fields.append("\(key): \(text)") }
+        }
+        for key in ["execution_performed", "retry_safe", "host_refresh_required"] {
+            if let flag = detail[key].boolValue { fields.append("\(key): \(flag)") }
+        }
+        if detail["origin_call_id"].isNull && !call.text("retry_of_call_id").isEmpty {
+            fields.append("origin_call_id: \(call.text("retry_of_call_id"))")
+        }
+        if let count = detail["repeat_count"].int64Value, count > 1 { fields.append("repeat_count: \(count)") }
+        let action = detail["required_action"]
+        for key in ["category", "tool", "reason_code", "arguments"] {
+            let text = action.text(key)
+            if !text.isEmpty && text != "null" { fields.append("required_action.\(key): \(text)") }
+        }
+        if action.flag("arguments_truncated") { fields.append("required_action.arguments_truncated: true") }
+        let recovery = detail["recovery"]
+        for key in ["state", "call_id", "retry_call_id", "skill_ref", "expires_at", "claimed_at", "consumed_at"] {
+            let text = recovery.text(key)
+            if !text.isEmpty { fields.append("recovery.\(key): \(text)") }
+        }
+        if call.flag("routine_observation") { fields.append("routine_observation: true") }
+        return fields.joined(separator: "\n")
     }
 
     private static func payloadText(_ value: WorkbenchJSON) -> String {
@@ -355,11 +403,16 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
         if let changed = value.optionalFlag("changed") { lines.append(L10n.format("Actually changed: %@", String(describing: changed ? L10n.text("Yes") : L10n.text("No")))) }
         if value.optionalText("stats_state") != nil { lines.append(L10n.format("Statistics: %@", String(describing: value.text("stats_state")))) }
         if !value["insertions"].isNull || !value["deletions"].isNull {
-            lines.append(L10n.format("Added/deleted: %@ / %@", String(describing: value.integer("insertions")), String(describing: value.integer("deletions"))))
+            lines.append(L10n.format("Added/deleted: %@ / %@", value["insertions"].int64Value.map(String.init) ?? "—", value["deletions"].int64Value.map(String.init) ?? "—"))
         }
         for file in value.values("affected_files") {
-            lines.append("• \(file.text("path"))  +\(file.integer("insertions")) −\(file.integer("deletions"))")
+            lines.append("• \(file.text("path"))  +\(file["insertions"].int64Value.map(String.init) ?? "—") −\(file["deletions"].int64Value.map(String.init) ?? "—")")
         }
+        for key in ["operation_status", "effect_state", "phase", "error_kind"] {
+            let text = value.text(key)
+            if !text.isEmpty { lines.append("\(key): \(text)") }
+        }
+        if let safe = value["retry_safe"].boolValue { lines.append("retry_safe: \(safe)") }
         let diff = value.text("diff_preview")
         if !diff.isEmpty { lines.append("\n" + diff) }
         return lines.isEmpty ? value.prettyPrinted : lines.joined(separator: "\n")

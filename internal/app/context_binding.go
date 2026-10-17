@@ -69,7 +69,7 @@ func (r *Runtime) finalizeContextBinding(ctx context.Context, p *preparedExecuti
 	if err != nil || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return fail("CONTEXT_INCONSISTENT", "Instruction workdir does not belong to the selected workspace.", "runtime", err)
 	}
-	if diagnostics["components_complete"] != true || !instructionSnapshotComplete(instructions) {
+	if !instructionSnapshotComplete(instructions) || diagnostics["components_complete"] != true {
 		diagnostics["binding_status"] = "context_incomplete"
 		return nil
 	}
