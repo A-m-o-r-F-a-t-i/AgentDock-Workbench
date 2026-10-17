@@ -14,6 +14,7 @@ type ManageRequest struct {
 	CatalogItem           string `json:"catalog_item,omitempty"`
 	Enabled               *bool  `json:"enabled,omitempty"`
 	Confirmed             bool   `json:"confirmed,omitempty"`
+	ReviewToken           string `json:"review_token,omitempty"`
 	ConfirmedSourceChange bool   `json:"confirmed_source_change,omitempty"`
 
 	activity.Binding

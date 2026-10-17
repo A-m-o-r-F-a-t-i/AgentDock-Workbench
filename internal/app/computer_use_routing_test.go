@@ -32,7 +32,7 @@ func TestComputerUsePluginIsExplicitAndLaunchAppRequiresIntent(t *testing.T) {
 	t.Cleanup(func() { _ = rt.Close() })
 
 	source := writeComputerUsePluginPackage(t, root, upstream.URL)
-	if _, err := rt.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source}); err != nil {
+	if _, err := rt.Call(context.Background(), "plugin_manage", map[string]any{"action": "install", "source": source, "review_token": reviewAppPluginForTest(t, rt, source).ReviewToken}); err != nil {
 		t.Fatal(err)
 	}
 

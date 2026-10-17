@@ -1,6 +1,8 @@
 package media
 
 import (
+	"net/http"
+
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
@@ -8,11 +10,17 @@ import (
 type CommandEnv func(extra map[string]string) ([]string, error)
 
 type Service struct {
-	cfg        config.Config
-	ws         *workspace.Workspace
-	commandEnv CommandEnv
+	cfg                     config.Config
+	ws                      *workspace.Workspace
+	commandEnv              CommandEnv
+	connectorDownloadClient func() *http.Client
 }
 
 func New(cfg config.Config, ws *workspace.Workspace, commandEnv CommandEnv) *Service {
-	return &Service{cfg: cfg, ws: ws, commandEnv: commandEnv}
+	return &Service{
+		cfg:                     cfg,
+		ws:                      ws,
+		commandEnv:              commandEnv,
+		connectorDownloadClient: newConnectorDownloadClient,
+	}
 }

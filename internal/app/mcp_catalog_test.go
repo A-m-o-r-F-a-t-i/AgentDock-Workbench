@@ -356,11 +356,40 @@ func TestMCPResultContinuationUsesItsOwnCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next["result_call_id"] != original || next["call_id"] == original || next["host_page"] == nil || next["result"] == nil {
+	if next["result_call_id"] != original || next["parent_call_id"] != original || next["call_id"] == original || next["host_page"] == nil || next["result"] == nil {
 		t.Fatalf("result cursor routed incorrectly: %#v", next)
 	}
 	if next["continue_read"] != nil || next["source_receipt"] != nil {
 		t.Fatalf("MCP result fell back to file paging: %#v", next)
+	}
+	continued, err := r.activity.Call(ctx, stringArg(next, "call_id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if continued.ParentCallID != original || continued.ToolName != "mcp_result_continue" {
+		t.Fatalf("host result page was not folded under its source call: %#v", continued)
+	}
+	children, err := r.activity.Calls(ctx, activity.CallQuery{ParentCallID: original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundChild := false
+	for _, child := range children.Calls {
+		if child.CallID == continued.CallID {
+			foundChild = true
+		}
+	}
+	if !foundChild {
+		t.Fatalf("source call did not expose its host result child: %#v", children)
+	}
+	top, err := r.activity.Calls(ctx, activity.CallQuery{TopLevel: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range top.Calls {
+		if call.CallID == continued.CallID {
+			t.Fatal("host result page remained an unrelated top-level activity")
+		}
 	}
 	replay, err := r.Call(ctx, "mcp_result_continue", args)
 	if err != nil {

@@ -67,7 +67,7 @@
 
 　　本批源码已完成格式化、差异审查和 `git diff --check`。按 CI 使用的 `go test -p 2 ./... -count=1 -timeout=8m` 设置完成全量 Go 复验，Runtime、MCP、HTTP、安装器、命令会话、脚本治理和发布工具均通过；真实 HTTP Context 探针已完成固定 Bootstrap、语义分页重建和关联字段检查。
 
-　　使用独立缓存 Go 1.26.5 工具链重新编译 `cmd/agentdock` 成功。最终候选位于 `artifacts/source-corrected-20261015/candidate-final-core.exe`，SHA-256 为 `afcd0497da7aaaf8b4479e13267af10ba9099b6558ac4c5862651e62f564fa3a`；生产 Core 未替换，未安装候选版本。
+　　合入最新 `main` 后再次按相同设置完成全量 Go 复验，并重新编译 `cmd/agentdock`。当前候选位于 `artifacts/source-corrected-20261015/candidate-post-main-core.exe`，SHA-256 为 `1fde9ac8440e7d9068c86b5e411b68f4169145dd89ee85642032a571154f9081`；生产 Core 未替换，未安装候选版本。
 
 　　Windows 界面源码中的 catalog、route、required action 和 recovery 展示已复核，并修复标题提示字符串。设备仅安装 .NET Runtime、未安装 .NET SDK，因此本机 Windows 项目未进入编译；不为本次修改额外安装 SDK。Windows 与 macOS 的原生编译继续由仓库现有 GitHub Actions 完成。
 
