@@ -70,6 +70,22 @@ func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID str
 	return lease, nil
 }
 
+// Native and WSL commands select the same managed environment. The caller
+// retains ownership of the content lease and releases it on validation failure.
+func applySkillEnvironment(lease *SkillLease, request ExecRequest) error {
+	if request.SkillEnv == "" {
+		return nil
+	}
+	if request.SkillRef != "" && lease.EnvName == "" {
+		return toolError("SKILL_CONTEXT_CONFLICT", "a shared, workspace or Plugin Skill cannot borrow managed Skill credentials", "validation")
+	}
+	if lease.EnvName != "" && lease.EnvName != request.SkillEnv {
+		return toolError("SKILL_CONTEXT_CONFLICT", "skill and skill_env must agree", "validation")
+	}
+	lease.EnvName = request.SkillEnv
+	return nil
+}
+
 func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRequest) (commandInvocation, error) {
 	lease, err := svc.acquireSkill(ctx, request.SkillRef, request.OriginCallID)
 	if err != nil {
@@ -82,14 +98,8 @@ func (svc *Service) newHostCommandInvocation(ctx context.Context, request ExecRe
 		}
 	}()
 
-	if request.SkillEnv != "" {
-		if request.SkillRef != "" && lease.EnvName == "" {
-			return commandInvocation{}, toolError("SKILL_CONTEXT_CONFLICT", "a shared, workspace or Plugin Skill cannot borrow managed Skill credentials", "validation")
-		}
-		if lease.EnvName != "" && lease.EnvName != request.SkillEnv {
-			return commandInvocation{}, toolError("SKILL_CONTEXT_CONFLICT", "skill and skill_env must agree", "validation")
-		}
-		lease.EnvName = request.SkillEnv
+	if err := applySkillEnvironment(&lease, request); err != nil {
+		return commandInvocation{}, err
 	}
 	workdir, err := svc.resolveHostCommandWorkdir(request.Workdir, lease.Root)
 	if err != nil {
@@ -231,8 +241,13 @@ func buildWSLProcessEnv(base []string, forwarded map[string]string) []string {
 			if item == "" {
 				continue
 			}
-			wslEnvItems = append(wslEnvItems, item)
 			name := strings.SplitN(item, "/", 2)[0]
+			// Runtime data paths are already converted. Only the runtime may
+			// forward them; inherited flags must not translate or suppress them.
+			if config.IsReservedCommandEnvironmentKey(name) {
+				continue
+			}
+			wslEnvItems = append(wslEnvItems, item)
 			forwardedNames[strings.ToUpper(name)] = true
 		}
 	}

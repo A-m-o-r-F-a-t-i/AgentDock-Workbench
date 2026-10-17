@@ -15,8 +15,8 @@ func (s *Service) prepareAndroidInvocation(ctx context.Context, request ExecRequ
 	if err := ctx.Err(); err != nil {
 		return commandInvocation{}, err
 	}
-	if request.Runtime != "" || request.WSLDistribution != "" || request.Skill != "" || request.SkillRef != "" || request.SkillEnv != "" {
-		return commandInvocation{}, toolError("ANDROID_CONTEXT_CONFLICT", "Android backends require their own absolute workdir and explicit environment; host runtime/Skill paths are not forwarded", "validation")
+	if request.Runtime != "" || request.WSLDistribution != "" || request.Skill != "" || request.SkillRef != "" || request.SkillEnv != "" || request.OriginCallID != "" {
+		return commandInvocation{}, toolError("ANDROID_CONTEXT_CONFLICT", "Android backends require their own absolute workdir and explicit environment; host runtime, Skill and MCP recovery context are not forwarded", "validation")
 	}
 	spec := androidbridge.Spec{Backend: request.Backend, Command: request.Cmd, Workdir: request.Workdir, Env: request.Env, TimeoutMS: timeout.Milliseconds(), TTY: request.TTY}
 	if err := androidbridge.ValidateSpec(spec); err != nil {

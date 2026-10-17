@@ -69,6 +69,24 @@ func TestBuildWSLProcessEnvForwardsConvertedSkillDataDir(t *testing.T) {
 	}
 }
 
+func TestBuildWSLProcessEnvProtectsRuntimeDataPathForwarding(t *testing.T) {
+	for _, key := range []string{config.PluginDataDirEnvKey, config.SkillDataDirEnvKey} {
+		t.Run(key, func(t *testing.T) {
+			for _, explicit := range []bool{false, true} {
+				forwarded := map[string]string{key: "/mnt/c/private/data"}
+				base := []string{"WSLENV=CUSTOM/p:" + key + "/pw"}
+				if explicit {
+					forwarded["WSLENV"] = "CUSTOM/p:" + key + "/pw"
+				}
+				values := commandEnvValues(buildWSLProcessEnv(base, forwarded))
+				if values[key] != "/mnt/c/private/data" || values["WSLENV"] != "CUSTOM/p:"+key {
+					t.Fatalf("runtime path forwarding changed (explicit=%v): %#v", explicit, values)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildWSLProcessEnvDoesNotForwardBaseOnlyVariables(t *testing.T) {
 	env := buildWSLProcessEnv(
 		[]string{"HOST_ONLY=host-value"},

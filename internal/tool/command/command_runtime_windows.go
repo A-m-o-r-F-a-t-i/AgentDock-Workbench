@@ -42,6 +42,9 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 			}
 		}()
 
+		if err := applySkillEnvironment(&lease, request); err != nil {
+			return commandInvocation{}, err
+		}
 		wslPath, err := exec.LookPath("wsl.exe")
 		if err != nil {
 			return commandInvocation{}, toolErrorDetails("WSL_NOT_AVAILABLE", "wsl.exe was not found on this Windows host", "runtime", map[string]any{"reason": err.Error()})
@@ -64,6 +67,7 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 					})
 				}
 				runtimeValue = converted
+				key = config.PluginDataDirEnvKey
 			}
 			linuxEnv[key] = runtimeValue
 		}
@@ -83,12 +87,31 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 			}
 			linuxEnv[config.SkillDataDirEnvKey] = wslDataDir
 		}
+		pluginDataDir := ""
+		if lease.PluginName != "" {
+			pluginDataDir, err = config.PluginDataDir(svc.config(), lease.PluginName)
+			if err != nil {
+				return commandInvocation{}, err
+			}
+			wslDataDir, ok := windowsPathToWSL(pluginDataDir)
+			if !ok {
+				return commandInvocation{}, toolErrorDetails("PLUGIN_DATA_DIR_INVALID", "Plugin data directory could not be mapped into WSL", "validation", map[string]any{
+					"plugin": lease.PluginName, "path": pluginDataDir,
+				})
+			}
+			linuxEnv[config.PluginDataDirEnvKey] = wslDataDir
+		}
 		hostEnv, err := svc.commandEnv("", nil)
 		if err != nil {
 			return commandInvocation{}, err
 		}
 		if expectedDataDir != "" {
 			if _, err := svc.ensureManagedSkillDataDir(lease.EnvName); err != nil {
+				return commandInvocation{}, err
+			}
+		}
+		if pluginDataDir != "" {
+			if err := svc.ensurePluginDataDir(lease.PluginName); err != nil {
 				return commandInvocation{}, err
 			}
 		}

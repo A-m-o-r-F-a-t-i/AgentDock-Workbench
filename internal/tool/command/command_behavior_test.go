@@ -2,11 +2,14 @@ package command
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/uvwt/agentdock/internal/androidbridge"
 )
 
 func TestExecCommandDoesNotFilterCommandContent(t *testing.T) {
@@ -123,5 +126,33 @@ func TestExecCommandReportsClosedStdin(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "write command stdin") {
 		t.Fatalf("execCommand() error = %v, want stdin write failure", err)
+	}
+}
+
+func TestAndroidExecRejectsRecoveryOriginBeforeDispatch(t *testing.T) {
+	for _, backend := range []string{"termux_host", "android_shizuku"} {
+		t.Run(backend, func(t *testing.T) {
+			svc, _ := newCommandTestService(t)
+			broker := androidbridge.New("test-node")
+			t.Cleanup(broker.Close)
+			svc.SetAndroidBroker(broker)
+			caps := map[string]androidbridge.Capability{backend: {Ready: true, State: "verified"}}
+			lease, err := broker.Register(androidbridge.RegisterRequest{Protocol: 1, WorkerID: strings.Repeat("d", 32), Backends: caps})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := svc.Exec(t.Context(), ExecRequest{
+				Backend: backend, Cmd: "must-not-run", Workdir: "/", ExecutionMode: "async",
+				OriginCallID: "call_" + strings.Repeat("a", 32),
+			})
+			var toolErr *ToolError
+			if !errors.As(err, &toolErr) || toolErr.Code != "ANDROID_CONTEXT_CONFLICT" || result != nil {
+				t.Fatalf("unsupported recovery context admitted: result=%#v err=%v", result, err)
+			}
+			batch, err := broker.Exchange(lease.LeaseToken, androidbridge.ExchangeRequest{Protocol: 1, Backends: caps})
+			if err != nil || len(batch.Commands) != 0 || broker.Status()["inflight"] != 0 {
+				t.Fatalf("rejected recovery dispatched a command: batch=%#v err=%v", batch, err)
+			}
+		})
 	}
 }

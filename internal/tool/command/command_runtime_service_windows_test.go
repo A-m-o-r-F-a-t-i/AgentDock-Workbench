@@ -2,7 +2,18 @@
 
 package command
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/envstore"
+)
 
 func TestResolveWSLWorkdirAcceptsWindowsAndLinuxPaths(t *testing.T) {
 	service, _ := newCommandTestService(t)
@@ -56,5 +67,116 @@ func TestPrepareCommandInvocationUsesConfiguredWindowsShell(t *testing.T) {
 	}
 	if invocation.shell != "git-bash" {
 		t.Fatalf("invocation shell = %q, want git-bash", invocation.shell)
+	}
+}
+
+func TestPrepareWSLSkillInvocationUsesPrivateDataDirectory(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "wsl.exe"), []byte("not executed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("WSLENV", "")
+	for _, name := range []string{"plugin", "managed", "environment_only"} {
+		t.Run(name, func(t *testing.T) {
+			plugin, environmentOnly := name == "plugin", name == "environment_only"
+			svc, cfg := newCommandTestService(t)
+			const skillName = "demo-skill"
+			if err := svc.envs.Set(envstore.Scope{Kind: envstore.ScopeSkill, Name: skillName}, "MANAGED_SECRET", "managed-only"); err != nil {
+				t.Fatal(err)
+			}
+			key, otherKey := config.SkillDataDirEnvKey, config.PluginDataDirEnvKey
+			dataDir, err := config.SkillDataDir(*cfg, skillName)
+			lease := SkillLease{Name: skillName, Root: t.TempDir(), EnvName: skillName, RuntimeEnv: map[string]string{"runtime_value": "preserved"}}
+			if plugin {
+				key, otherKey = otherKey, key
+				lease.PluginName, lease.EnvName = "demo.plugin", ""
+				dataDir, err = config.PluginDataDir(*cfg, lease.PluginName)
+				lease.RuntimeEnv["plugin_data_dir"] = cfg.AgentDockDefaultDir
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			acquired, released := 0, 0
+			lease.Release = func() { released++ }
+			svc.resolveSkill = func(context.Context, string) (SkillLease, error) {
+				acquired++
+				return lease, nil
+			}
+			request := ExecRequest{
+				Cmd: "pwd", SkillRef: skillName, RuntimeOptions: RuntimeOptions{Runtime: "wsl", WSLDistribution: "Ubuntu"},
+				Env: map[string]string{"WSLENV": config.SkillDataDirEnvKey + "/pw:" + config.PluginDataDirEnvKey + "/pw"},
+			}
+			if !plugin {
+				request.SkillEnv = skillName
+			}
+			if environmentOnly {
+				request.SkillRef = ""
+			}
+			invocation, err := svc.prepareCommandInvocation(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if invocation.skillRelease != nil {
+				defer invocation.skillRelease()
+			}
+			if released != 0 {
+				t.Fatal("Skill lease released before command ownership was transferred")
+			}
+			if environmentOnly && (acquired != 0 || invocation.skillRelease != nil) {
+				t.Fatal("skill_env acquired an unrelated Skill content lease")
+			}
+			process := invocation.build(t.Context())
+			values := commandEnvValues(process.Env)
+			wslDataDir, ok := windowsPathToWSL(dataDir)
+			if !ok || values[key] != wslDataDir || values[otherKey] != "" {
+				t.Fatalf("private directory environment = %#v, want %s=%s", values, key, wslDataDir)
+			}
+			if !environmentOnly && values["runtime_value"] != "preserved" {
+				t.Fatal("ordinary runtime environment changed")
+			}
+			if plugin && values["MANAGED_SECRET"] != "" || !plugin && values["MANAGED_SECRET"] != "managed-only" {
+				t.Fatal("Plugin and managed Skill environments were mixed")
+			}
+			if !strings.Contains(":"+values["WSLENV"]+":", ":"+key+":") || strings.Contains(values["WSLENV"], key+"/") || strings.Contains(values["WSLENV"], otherKey) {
+				t.Fatalf("private directory was not forwarded into WSL: %q", values["WSLENV"])
+			}
+			wslRoot, ok := windowsPathToWSL(lease.Root)
+			if environmentOnly {
+				wslRoot, ok = "~", true
+			}
+			wantArgs := []string{"--distribution", "Ubuntu", "--cd", wslRoot, "--exec", "bash", "-lc", "pwd"}
+			if !ok || !reflect.DeepEqual(process.Args[1:], wantArgs) {
+				t.Fatalf("command arguments = %#v, want %#v", process.Args[1:], wantArgs)
+			}
+			if info, err := os.Stat(dataDir); err != nil || !info.IsDir() {
+				t.Fatalf("private Host data directory was not created: %v", err)
+			}
+			for _, reserved := range []string{key, strings.ToLower(key)} {
+				request.Env = map[string]string{reserved: "/tmp/override"}
+				_, err := svc.prepareCommandInvocation(t.Context(), request)
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) || toolErr.Code != "INVALID_ENV_NAME" {
+					t.Fatalf("reserved environment %q accepted: %v", reserved, err)
+				}
+			}
+			wantReleased := 0
+			if !environmentOnly {
+				wantReleased = 3
+				request.Env = nil
+				request.SkillEnv = skillName
+				if !plugin {
+					request.SkillEnv = "another-skill"
+				}
+				invocation, err := svc.prepareCommandInvocation(t.Context(), request)
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) || toolErr.Code != "SKILL_CONTEXT_CONFLICT" || invocation.build != nil {
+					t.Fatalf("conflicting Skill environment was admitted: invocation=%#v err=%v", invocation, err)
+				}
+			}
+			if released != wantReleased {
+				t.Fatalf("rejected preparations released %d leases, want %d", released, wantReleased)
+			}
+		})
 	}
 }
