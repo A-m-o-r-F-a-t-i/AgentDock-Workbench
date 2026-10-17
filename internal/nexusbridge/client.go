@@ -55,6 +55,41 @@ func NewClient(identity Identity, node NodeAPI, runtime runtimeapi.Runtime, arti
 	return &Client{identity: identity, node: node, runtime: runtime, artifacts: artifacts, state: state, cancels: make(map[string]context.CancelFunc)}
 }
 
+type bridgeOperationHandler struct {
+	operation  string
+	capability string
+	handle     func(context.Context, json.RawMessage) (map[string]any, error)
+}
+
+func (c *Client) operationHandlers() []bridgeOperationHandler {
+	return []bridgeOperationHandler{
+		{operation: protocol.OperationContextLocal, capability: protocol.ContextLocalCapability, handle: c.handleContextLocal},
+		{operation: protocol.OperationRuntimeRequest, capability: protocol.RuntimeRequestCapability, handle: c.handleRuntimeRequest},
+		{operation: protocol.OperationToolCall, handle: c.handleToolCall},
+		{operation: protocol.OperationResourceRead, capability: protocol.ResourceReadCapability, handle: c.handleResourceRead},
+		{operation: protocol.OperationArtifactRead, capability: protocol.ArtifactReadCapability, handle: c.handleArtifactRead},
+	}
+}
+
+func bridgeCapabilities(handlers []bridgeOperationHandler) []string {
+	capabilities := []string{protocol.CapabilitiesNegotiationCapability}
+	for _, handler := range handlers {
+		if handler.capability != "" {
+			capabilities = append(capabilities, handler.capability)
+		}
+	}
+	return capabilities
+}
+
+func bridgeOperationHandlerFor(handlers []bridgeOperationHandler, operation string) func(context.Context, json.RawMessage) (map[string]any, error) {
+	for _, handler := range handlers {
+		if handler.operation == operation {
+			return handler.handle
+		}
+	}
+	return nil
+}
+
 func (c *Client) Run(ctx context.Context) {
 	defer c.drainInvocations()
 	backoff := time.Second
@@ -101,7 +136,7 @@ func (c *Client) connect(ctx context.Context) error {
 	} else {
 		endpoint.Scheme = "ws"
 	}
-	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/v1/nodes/connect"
+	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + protocol.ConnectPath
 	header := http.Header{"Authorization": []string{"Bearer " + c.identity.DeviceToken}}
 	socket, response, err := websocket.DefaultDialer.DialContext(ctx, endpoint.String(), header)
 	if err != nil {
@@ -122,9 +157,10 @@ func (c *Client) connect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	handlers := c.operationHandlers()
 	if err := c.write(socket, protocol.Message{
 		Type: protocol.MessageNodeHello, ProtocolVersion: protocol.ConnectionProtocolVersion,
-		Hello: bridgeHello(c.identity, tools, descriptors, c.node.UIResources(), c.node.ToolContractHash()),
+		Hello: bridgeHello(c.identity, tools, descriptors, c.node.UIResources(), c.node.ToolContractHash(), bridgeCapabilities(handlers)),
 	}); err != nil {
 		return err
 	}
@@ -155,7 +191,7 @@ func (c *Client) connect(ctx context.Context) error {
 			c.invokeWG.Add(1)
 			go func() {
 				defer c.invokeWG.Done()
-				c.invoke(connectionCtx, socket, incoming)
+				c.invoke(connectionCtx, socket, incoming, handlers)
 			}()
 		case protocol.MessageToolCancel:
 			c.cancel(incoming.RequestID)
@@ -164,7 +200,7 @@ func (c *Client) connect(ctx context.Context) error {
 	}
 }
 
-func bridgeHello(identity Identity, tools []string, descriptors []protocol.ToolDescriptor, uiResources []protocol.UIResourceCapability, toolContractHash string) *protocol.Hello {
+func bridgeHello(identity Identity, tools []string, descriptors []protocol.ToolDescriptor, uiResources []protocol.UIResourceCapability, toolContractHash string, bridgeCapabilities []string) *protocol.Hello {
 	return &protocol.Hello{
 		DeviceID:           identity.DeviceID,
 		Version:            buildinfo.Version,
@@ -172,14 +208,14 @@ func bridgeHello(identity Identity, tools []string, descriptors []protocol.ToolD
 		OS:                 runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		Capabilities:       append([]string(nil), tools...),
-		BridgeCapabilities: []string{protocol.ArtifactReadCapability},
+		BridgeCapabilities: append([]string(nil), bridgeCapabilities...),
 		ToolContractHash:   toolContractHash,
 		Tools:              descriptors,
 		UIResources:        uiResources,
 	}
 }
 
-func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming protocol.Message) {
+func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming protocol.Message, handlers []bridgeOperationHandler) {
 	ctx, cancel := context.WithCancel(parent)
 	c.cancelMu.Lock()
 	c.cancels[incoming.RequestID] = cancel
@@ -202,50 +238,13 @@ func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming
 		}
 	}()
 
+	handler := bridgeOperationHandlerFor(handlers, incoming.Operation)
 	var result map[string]any
 	var err error
-	switch incoming.Operation {
-	case protocol.OperationRuntimeRequest:
-		var request runtimeapi.Request
-		if decodeErr := json.Unmarshal(incoming.Arguments, &request); decodeErr != nil {
-			err = fmt.Errorf("解析 Runtime 请求: %w", decodeErr)
-		} else {
-			result, err = c.dispatchRuntimeRequest(ctx, request)
-		}
-	case protocol.OperationContextLocal:
-		result, err = c.node.AgentDockLocalContext(ctx)
-	case protocol.OperationToolCall:
-		var request struct {
-			Tool      string         `json:"tool"`
-			Arguments map[string]any `json:"arguments"`
-		}
-		if decodeErr := json.Unmarshal(incoming.Arguments, &request); decodeErr != nil {
-			err = fmt.Errorf("解析工具请求: %w", decodeErr)
-		} else {
-			result, err = c.node.Invoke(ctx, request.Tool, request.Arguments)
-		}
-	case protocol.OperationResourceRead:
-		var request struct {
-			URI string `json:"uri"`
-		}
-		if decodeErr := json.Unmarshal(incoming.Arguments, &request); decodeErr != nil {
-			err = fmt.Errorf("解析 MCP App resource 请求: %w", decodeErr)
-		} else {
-			result, err = c.node.ReadAppResource(request.URI)
-		}
-	case protocol.OperationArtifactRead:
-		var request struct {
-			ArtifactID string `json:"artifact_id"`
-			Offset     int64  `json:"offset"`
-			MaxBytes   int    `json:"max_bytes"`
-		}
-		if decodeErr := json.Unmarshal(incoming.Arguments, &request); decodeErr != nil {
-			err = fmt.Errorf("解析 Artifact 读取请求: %w", decodeErr)
-		} else {
-			result, err = c.readArtifactChunk(request.ArtifactID, request.Offset, request.MaxBytes)
-		}
-	default:
-		err = fmt.Errorf("不支持的 NexusDock 节点操作: %s", incoming.Operation)
+	if handler == nil {
+		err = &app.ToolError{Code: "UNSUPPORTED_OPERATION", Message: fmt.Sprintf("不支持的 NexusDock 节点操作: %s", incoming.Operation), Category: "validation"}
+	} else {
+		result, err = handler(ctx, incoming.Arguments)
 	}
 	if err != nil {
 		_ = c.write(socket, protocol.Message{Type: protocol.MessageToolError, RequestID: incoming.RequestID, Error: bridgeError(err)})
@@ -257,6 +256,51 @@ func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming
 		return
 	}
 	_ = c.write(socket, protocol.Message{Type: protocol.MessageToolResult, RequestID: incoming.RequestID, Result: encoded})
+}
+
+func (c *Client) handleContextLocal(ctx context.Context, _ json.RawMessage) (map[string]any, error) {
+	return c.node.AgentDockLocalContext(ctx)
+}
+
+func (c *Client) handleRuntimeRequest(ctx context.Context, arguments json.RawMessage) (map[string]any, error) {
+	var request runtimeapi.Request
+	if err := json.Unmarshal(arguments, &request); err != nil {
+		return nil, fmt.Errorf("解析 Runtime 请求: %w", err)
+	}
+	return c.dispatchRuntimeRequest(ctx, request)
+}
+
+func (c *Client) handleToolCall(ctx context.Context, arguments json.RawMessage) (map[string]any, error) {
+	var request struct {
+		Tool      string         `json:"tool"`
+		Arguments map[string]any `json:"arguments"`
+	}
+	if err := json.Unmarshal(arguments, &request); err != nil {
+		return nil, fmt.Errorf("解析工具请求: %w", err)
+	}
+	return c.node.Invoke(ctx, request.Tool, request.Arguments)
+}
+
+func (c *Client) handleResourceRead(_ context.Context, arguments json.RawMessage) (map[string]any, error) {
+	var request struct {
+		URI string `json:"uri"`
+	}
+	if err := json.Unmarshal(arguments, &request); err != nil {
+		return nil, fmt.Errorf("解析 MCP App resource 请求: %w", err)
+	}
+	return c.node.ReadAppResource(request.URI)
+}
+
+func (c *Client) handleArtifactRead(_ context.Context, arguments json.RawMessage) (map[string]any, error) {
+	var request struct {
+		ArtifactID string `json:"artifact_id"`
+		Offset     int64  `json:"offset"`
+		MaxBytes   int    `json:"max_bytes"`
+	}
+	if err := json.Unmarshal(arguments, &request); err != nil {
+		return nil, fmt.Errorf("解析 Artifact 读取请求: %w", err)
+	}
+	return c.readArtifactChunk(request.ArtifactID, request.Offset, request.MaxBytes)
 }
 
 func (c *Client) dispatchRuntimeRequest(ctx context.Context, request runtimeapi.Request) (map[string]any, error) {
