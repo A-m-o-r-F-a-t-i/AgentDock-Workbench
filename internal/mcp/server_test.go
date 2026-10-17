@@ -79,8 +79,8 @@ func TestOpenAIFileMetadataMatchesDeclaredSchemas(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s file input path %q missing from input schema", def.Name, path)
 			}
-			if property["type"] != "string" || property["format"] != "binary" {
-				t.Fatalf("%s file input %q must be string/binary: %#v", def.Name, path, property)
+			if !declaresBinaryFileInput(property) {
+				t.Fatalf("%s file input %q must include a string/binary branch: %#v", def.Name, path, property)
 			}
 		}
 		if len(def.FileArgRewritePaths) > 0 {
@@ -103,6 +103,30 @@ func TestOpenAIFileMetadataMatchesDeclaredSchemas(t *testing.T) {
 			}
 		}
 	}
+}
+
+func declaresBinaryFileInput(property map[string]any) bool {
+	if property["type"] == "string" && property["format"] == "binary" {
+		return true
+	}
+	for _, keyword := range []string{"anyOf", "oneOf"} {
+		switch branches := property[keyword].(type) {
+		case []map[string]any:
+			for _, branch := range branches {
+				if branch["type"] == "string" && branch["format"] == "binary" {
+					return true
+				}
+			}
+		case []any:
+			for _, raw := range branches {
+				branch, _ := raw.(map[string]any)
+				if branch["type"] == "string" && branch["format"] == "binary" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func TestToolDescriptorsUseConfigAwareTaskManageSchema(t *testing.T) {
