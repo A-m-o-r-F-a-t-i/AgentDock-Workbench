@@ -1,6 +1,6 @@
-# Core 集成质量审查与验证（1.1.9，预提交快照）
+# Core 集成质量审查与验证（1.1.9，功能合并后快照）
 
-> **状态截止：2026-10-17 约 08:31 UTC。** 本文保存该时点的源码、历史验证及运行中门禁。根流程将在本轮功能 PR 全部合并后，依据实际 main、独立质量 PR 和对应检查更新末尾交付入口；本快照中的“运行中”不预示最终结果。
+> **状态截止：2026-10-17 09:14:05 UTC。** 本轮 Core 功能 PR 已全部合并，质量分支已接入准确 main。本文分别记录历史验证、功能分支检查、Windows 全仓诊断及三个失败包的环境复验；独立质量 PR 尚未创建，其最终检查、构建与发布仍待实际完成。
 
 ## 目的与基线
 
@@ -8,16 +8,17 @@
 
 | 项目 | 本文记录的实际状态 |
 | --- | --- |
-| 本地及设备汇合审查源码 | `7e60922f8ea73a553de688dea261ff3a41cf55ad`；包含 `bdbf461` 的验证文档、`243a801` 的 Skill 准备分类修复及承接 `32e697f` 的 `836fb50` 安装器修复。实机 smoke 的可执行文件仍对应 `516a3ba` |
-| 功能分支当前 head | #126 `836fb50846cfa7143bb219fd82318c71877d2aee` 已推送；#140 `898bc766c490d448306fbbe623a8ee5661e903c6` 已同步相同安装器三文件并推送；#142 已通过 `2fe6b93` 并入本轮主线来源 |
+| 功能合并 main / 质量代码汇合 | main 为 `34270eca8286867ec47930ac1023acd1ecf9e4f8`；本文更新前质量汇合提交为 `0b68ee4d05edbf9323eec74a7778b04021a4be8f`，tree 与原 `14a9997` 完全相同 |
+| 验证源码 | Windows 全仓诊断与环境复验均绑定 `7e60922f8ea73a553de688dea261ff3a41cf55ad`；包含 `243a801` 分类修复和 `836fb50` 安装器修复。实机 smoke 二进制仍对应 `516a3ba` |
+| 功能 PR 合并结果 | #126 head `836fb50846cfa7143bb219fd82318c71877d2aee` 于 09:01:37 UTC 合并为 `043d7316cf77b1fa09c9bf2025cbc1b88bf1f752`；#140 head `898bc766c490d448306fbbe623a8ee5661e903c6` 合并为 `34270eca`；#142 已通过 `2fe6b93` 并入本轮主线来源 |
+| 功能 PR 检查 | #126 与 #140 各自最终为 37 success、2 skipped，均无未解决 review threads；#140 单次原门槛复验及原失败详见下文 |
 | 历史 Linux 全仓 Go | `a7f2bba` 已执行；只有 installer 的服务账号夹具失败，整体命令仍为失败，详见验证状态 |
-| 当前 Windows 全仓 Go | `7e60922` 正在执行；会话 `session-5432d9402b55160d33ad2ba1`，日志 `core-quality-7e60922-windows-full-go.log`。截止本快照尚无完成结果 |
-| 功能 PR 当前检查 | #126 `836fb50` 与 #140 `898bc76` 的新 head CI 运行中，截止本快照暂无失败报告，尚未获得最终结论；#140 旧 head `c517f1b` 的 37 success、2 skipped 仅为历史证据 |
-| 独立质量 PR | 尚未创建；必须在本轮功能 PR 全部合并后的 main 上单独创建 |
-| 最终 main / quality head / PR 编号 | **待最终合并后填写** |
-| 最终 CI、构建、安装与发布 | **待按最终提交分别填写**；本文不宣布完成 |
+| Windows 全仓诊断与环境复验 | 原 20 分钟外层超时保留；同源 JSON 全仓正常结束但 exit 1：63 包 PASS、8 包无测试 skip、3 包失败。仅对三个实际失败包设置本次进程的 `GOFLAGS=-buildvcs=false` 复验后全部通过；不记为单次全仓 PASS |
+| 独立质量 PR | 尚未创建；功能合并前置条件已经满足，接下来从上述准确 main 单独提交质量增量 |
+| 最终质量 head / PR 编号 / 合并 main | **待独立质量 PR 实际创建、检查与合并后填写** |
+| 最终 CI、构建、安装与发布 | **待按最终提交分别填写**；生产 Core 未替换，隔离候选已停止，发布前备份已完成 |
 
-本文同时记录已回送功能分支的交互修复和仍在独立质量分支中的修改。正式 PR 以最终 `base main..quality head` 的实际差异为准，不重复提交功能分支已经吸收的实现。例如 direct guidance 已进入 #126，验证目标仍须在最终汇合集保留。
+本文同时记录已回送功能分支的交互修复和仍在独立质量分支中的修改。本文更新前 `34270eca..0b68ee4` 的差异为 66 个文件、2614 行新增、197 行删除，与原审查树相同；本次文档更新另行提交。正式 PR 以其实际 `base main..quality head` 为准，不重复提交功能分支已经吸收的实现。例如 direct guidance 和 Windows 升级停止修复已进入 main，其目标继续在质量汇合集保留。
 
 ## 功能目标与审查范围
 
@@ -30,7 +31,7 @@
 | #141 Linux/browser | 服务、Core、Skill 使用同一运行目录；请求超时覆盖浏览器启动 | 已提交 Home 的恢复顺序及浏览器调试连接等待 |
 | #142 工具域 | 设备内置工具直接调用，动态 MCP 通过 qualified selector；错误指引不重新混淆域 | Context、目录/Schema 引用和 `next_required` 保留相同域与调用方式 |
 
-#133 的公共名称兼容与旧安装识别夹具作为既有基线保留。本次没有用重复实现替换已被主线覆盖的旧 PR；公开发行说明仍描述相对 v1.1.8 的完整用户变化。
+#133 的公共名称兼容与旧安装识别夹具作为既有基线保留。本次没有用重复实现替换已被主线覆盖的旧 PR；公开发行说明仍描述相对 v1.1.8 的完整用户变化。当前仍开放的 #131 属于 1.2.0 图标工作，#129 是旧品牌的零差异重复项，均在本批 Core 合并范围之外。
 
 ## 已复现问题、修复责任与保留行为
 
@@ -71,7 +72,7 @@
 | 旧连接 runtime lease | `TestRetiredMCPCallRetainsPluginRuntimeDuringReconcile`；`plugin-retired-lease-before.log` / `plugin-retired-lease-after.log` | 真实阻塞 stdio 的 update/remove/member_disable 修前 3 项 ENOENT，修后 tool/plugin 0.428s 通过；连接关闭前保留原文件，关闭后清理 |
 | lease 并发 | 同一实现的 `plugin-retired-lease-race.log`、`plugin-retired-lease-dispatch-race.log` | tool/plugin 1.853s、client 1.271s 与 client dispatch 1.238s 的 race 定向通过；不把局部 race 等同全仓 race |
 | Linux Home | `TestEngineLinuxUpgradeKeepsServiceDataDirectories` 的自定义 Home、新装、中断 trial 三场景；既有 install shell 回归 | 修前 3 场景失败，修后 installer 0.393s 及 shell 测试通过；使用临时目录中的实际 Engine 事务，不是用户设备安装证据 |
-| Windows 升级父子进程与 PowerShell 兼容 | `TestSetupRuntimeStopWaitsForLauncherChildren`：`tray_after_empty_generation_scan`、`tray_during_launcher_stop`、`core_during_launcher_stop`，并保留既有结构回归 | 同一 Windows 真实父子测试使用旧 `ddf5ff7` 时 3.418s 失败并遗留 Tray；`32e697f` 验证发现 PowerShell 5.1 可选 `[ref]=$null` 绑定问题；修至 `836fb50` 后完整 3 case 加 3 个既有 structural tests **PASS，18.727s**。无观察引用的 Cloudflared 诊断也通过；历史版本升级 CI 的最终结果仍待核对 |
+| Windows 升级父子进程与 PowerShell 兼容 | `TestSetupRuntimeStopWaitsForLauncherChildren`：`tray_after_empty_generation_scan`、`tray_during_launcher_stop`、`core_during_launcher_stop`，并保留既有结构回归 | 同一 Windows 真实父子测试使用旧 `ddf5ff7` 时 3.418s 失败并遗留 Tray；`32e697f` 验证发现 PowerShell 5.1 可选 `[ref]=$null` 绑定问题；修至 `836fb50` 后完整 3 case 加 3 个既有 structural tests **PASS，18.727s**。无观察引用的 Cloudflared 诊断也通过；随后 #126 `836fb50` 的历史版本升级检查随全部 Actions 通过 |
 | Browser timeout | `TestLocalExecAllocatorOptionsUseRequestTimeout` | 定向 0.210s 通过；假浏览器 allocator 不代表真实 Chrome 全流程启动 |
 | #142 direct 域 | `TestAgentDockContextSeparatesDirectBuiltinsFromNestedMCP`、`TestMCPSchemaReferencesRepeatWithinTrustedConversation`、`TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls`、`TestBuiltinErrorGuidanceRejectsForgedProvenance` | 修前日志 `core126-main142-route-before.log` 留有 reference 丢路由证据；Context 测试已先完成必要续页再断言 reference，不修改运行时来迎合旧预期；direct guidance 本地定向 app 0.603s，见 `core126-direct-guidance-tests.log` |
 
@@ -81,22 +82,29 @@
 | --- | --- | --- |
 | `62fc9b6`，Windows 独立质量工作树 | WSL invocation、Plugin Lazy identity、Android/command 输出、MCP 续页/来源失败定向通过：command 6.233s、client 3.842s、app 7.629s | 不是 Windows 全量、真实 WSL 进程或后来新增 lease 修复的验证 |
 | `a7f2bba`，本地 Linux 全仓 Go | app 32.117s、mcp 6.721s、client 0.672s、activity 2.053s、plugin 1.269s、command 3.642s 等其余包通过；只有 installer 失败，整体命令为失败 | 不能写成全仓全部通过，不能代替原生 CI/安装门禁 |
-| #126 历史 `ddf5ff7`，Windows | 五个定向测试通过，app 7.323s；该 head 的历史 1.1.9 升级及 aggregate 失败已触发本轮安装器修复 | 此为旧 head 结果；新 head `836fb50` 已推送并重新检查，不能沿用旧失败或此前定向通过作为新 head 的最终结论 |
-| #140 历史 `c517f1b`，Windows / Actions | 完整受影响包通过：app 194.908s、tool/plugin 3.279s、plugin 33.529s、tool/skill 1.131s、mcp/client 2.173s；该 head CI 37 success、2 skipped，已完成 | 当前 head 已推进到 `898bc76`；旧 head 的绿色结果不代表当前 head 或质量增量已全部通过 |
+| #126 历史 `ddf5ff7`，Windows | 五个定向测试通过，app 7.323s；该 head 的历史 1.1.9 升级及 aggregate 失败已触发本轮安装器修复 | 旧 head 的失败原样保留；`836fb50` 的最终检查与实际合并另行记录，不用定向结果替代门禁 |
+| #140 历史 `c517f1b`，Windows / Actions | 完整受影响包通过：app 194.908s、tool/plugin 3.279s、plugin 33.529s、tool/skill 1.131s、mcp/client 2.173s；该 head CI 37 success、2 skipped，已完成 | `898bc76` 的检查与合并另行记录；该旧 head 的绿色结果不代表独立质量增量已全部通过 |
 | `516a3ba`，Windows 独立质量工作树 | 新 lease、Context 数量、来源、direct、WSL invocation 和精确 JSON 定向全部通过：tool/plugin 5.268s、app 7.729s、mcp/client 2.390s、command 0.225s、tool/core 0.644s；候选编译及 version 校验通过，并已实际启动隔离候选，完成 Context、工具域及 Plugin Ubuntu WSL 只读 smoke 后停止 | 不是 Windows 全量；managed WSL 未覆盖。该实机二进制尚不含 `243a801` 分类修复；未安装到生产，最终 CI 和主线构建仍待补 |
 | `243a801`，Windows 独立质量工作树 | Skill 准备失败分类修复已同步设备；原生 Windows app 定向 6.896s 通过，涵盖 native/WSL 准备失败的返回、Activity 和启动后 exit 7 保留 | 新分类通过原生回归；没有将旧 `516a3ba` smoke 记作此提交的实机执行，也不是最终 main 产物或发布验收 |
-| 安装器累计修复至 `836fb50`，Windows | 真实父子进程 3 case 与 3 项既有结构回归 PASS，18.727s；无观察引用的 Cloudflared 诊断通过。修复已进入 #126 `836fb50` 和 #140 `898bc76` | 这些定向结果尚不等同原历史 1.1.9 升级 CI 已通过；AccessDenied 的唯一根因仍未由原 artifact 证明 |
-| #126 `836fb50` / #140 `898bc76`，当前 Actions | 两个新 head 均已推送；截止约 08:31 UTC，CI 运行中暂无失败报告 | 检查未完成，不填全绿；合并仍须按各自最终 head 的实际结果决定 |
-| `7e60922`，Windows 独立质量工作树全仓 Go | 本地与设备源码一致；完整测试正在会话 `session-5432d9402b55160d33ad2ba1` 执行，日志 `core-quality-7e60922-windows-full-go.log` | 截止本快照尚无完成结果，不能据已通过的局部包填写全仓 PASS |
-| 最终 main / 独立质量 PR | 待功能 PR 全部合并后确定 | 编号、精确 head、Actions、CodeQL、构建、安装、发布均待补 |
+| 安装器累计修复至 `836fb50`，Windows | 真实父子进程 3 case 与 3 项既有结构回归 PASS，18.727s；无观察引用的 Cloudflared 诊断通过。随后 #126 历史版本升级检查及两个功能 head 的全部 Actions 通过，修复已并入 main | 定向回归与原升级门禁分别记录；AccessDenied 的唯一根因仍未由原 artifact 证明 |
+| #126 `836fb50`，最终 Actions | 37 success、2 skipped；Ready、clean 状态和无未解决 review threads 已核对，09:01:37 UTC 合并为 `043d7316` | 功能检查通过不替代独立质量增量及最终 main 发布门禁 |
+| #140 `898bc76`，最终 Actions | 原冷查询失败作业按相同门槛仅复验一次后通过；最终 37 success、2 skipped，无未解决 review threads，合并为 `34270eca` | 原失败及复验独立保留，不把旧 head 或一次复验表述为所有质量增量已经验证 |
+| `7e60922`，Windows 原全仓请求 | 08:47:46 UTC 外层 20 分钟工具超时，exit 1，仅确认 8 包 PASS；原日志与会话保留 | 超时原因仍未知，不能从后续 VCS 失败反推原超时原因，也不能记为全仓通过 |
+| `7e60922`，Windows JSON 全仓诊断 | 09:02:49–09:06:40 UTC 正常跑完，exit 1：63 包 PASS、8 包无测试 skip、3 包失败；app PASS 220.748s，真实搜索/目录分页回归 PASS（80/120，14.57s） | 四个失败用例均为嵌套 `go build` 的 VCS 状态 128；这是完整诊断结果，仍为失败命令 |
+| `7e60922`，三个失败包的环境复验 | 09:09:39–09:10:27 UTC，仅为本次进程设置 `GOFLAGS=-buildvcs=false`，exit 0：installer 20.302s、desktopruntime 23.390s、scripts 24.748s 全部 PASS，四个原失败用例均实际通过 | 源码、父级 Git、全局缓存、CI 和断言未改；应表述为“全仓诊断加三个失败包的环境复验通过”，不是单次全仓 PASS |
+| 功能合并 main / 独立质量 PR | main `34270eca` 已接入质量代码汇合提交 `0b68ee4`；独立质量 PR 尚未创建 | 最终质量 head、编号、Actions、CodeQL、构建、安装、发布均待实际完成 |
 
 本地全仓日志：`core-quality-tool-domain-full-go.log`。唯一失败为 `TestEngineInstallsLinuxLayoutWithoutStartingServices`，`engine_test.go:64` 在既有测试准备阶段直接 `activateLinux` 时执行 `user.Lookup("agentdock")`，当前 root 沙箱缺少该服务账号，返回 `unknown user agentdock`。失败发生在本轮 Home hydrate 路径之前；没有跳过或放宽该用例，仍需最终 Linux 原生 CI 确认正式门禁。
 
+#140 的失败记录为 run `39017442152` attempt 1、job `117352358095`：`macos-15-intel` 冷查询 `2.103916905s > 2s`。Activity、六个实际依赖、`go.mod`、`go.sum` 和 workflow 在 `c517`、`836`、`898` 对象中完全相同。仅对该作业做一次原门槛复验：attempt 2、job `117358829248`，09:03:41–09:05:09 UTC 通过，Activity 包 PASS，三次 `cold_ms` 为 1237.453、1203.533、1295.379。原失败日志保留；相同源码与复验结果不证明某个唯一环境根因，也没有放宽 2 秒门槛。
+
+Windows 原超时请求为 `session-5432d9402b55160d33ad2ba1`，日志 `core-quality-7e60922-windows-full-go.log`；后续确认原 PID 及其父进程均已不存在。JSON 诊断请求为 `session-a4e915842ff4139d4e2a66c0`，PID `34372`，使用 `-count=1 -json -timeout=8m -p 2`；三个失败包的环境复验请求为 `session-b147357713e11da9d01ba424`。日志前缀分别为 `core-quality-7e60922-windows-count1-json` 与 `core-quality-7e60922-windows-vcs-env`，各保留 `.jsonl`、`.stderr.log` 和 `.result.json`。四个原失败用例涉及 desktopruntime 的两个 Tailscale 场景、installer 的 generation Core 和 scripts 的 Home 迁移 CLI，均在嵌套 `go build` 读取 VCS 状态时返回 128；环境复验逐项确认通过，没有失败用例。最终质量 CI 将在正常 Git checkout 上运行既有全仓流程，不携带本次手工 `GOFLAGS`。
+
 本地日志根为 `/tmp/agentdock-core-toolchain`。Windows 62fc9b6 定向日志为 `E:\PLAYGROUND\AGENTDOCK\artifacts\source-corrected-20261015\core-quality-62fc9b6-windows-contracts.log`。上述路径只定位既有证据，不表示它们已作为本 PR 的 CI 附件发布。
 
-历史 Windows 升级 artifact 支持“目标 generation Tray 文件访问被拒绝（AccessDenied）”这一事实，但没有导致占用的 PID 证据，因此不能将父子进程停止竞态断言为该历史失败的唯一原因。定向回归证明了真实可重现的停止缺口及修复；原历史升级路径仍需新 head 的 CI 确认。原故障后的最终 rollback 状态实际为 `healthy/rolled_back`，本轮没有改写该状态机或将成功回滚误记为失败。停止 helper 固定精确路径对应的进程句柄，先等待 stable launcher 再读取新的 generation 进程集合；rollback 不传观察引用，保持原来的 Core/Tray 运行快照。共享 15 秒预算限制等待和重试，不能据此宣称 `Get-CimInstance`/WMI 本身有硬截止。
+历史 Windows 升级 artifact 支持“目标 generation Tray 文件访问被拒绝（AccessDenied）”这一事实，但没有导致占用的 PID 证据，因此不能将父子进程停止竞态断言为该历史失败的唯一原因。定向回归证明了真实可重现的停止缺口及修复，随后 `836fb50` 的历史升级门禁通过；门禁通过仍不提供原占用 PID 或唯一根因证据。原故障后的最终 rollback 状态实际为 `healthy/rolled_back`，本轮没有改写该状态机或将成功回滚误记为失败。停止 helper 固定精确路径对应的进程句柄，先等待 stable launcher 再读取新的 generation 进程集合；rollback 不传观察引用，保持原来的 Core/Tray 运行快照。共享 15 秒预算限制等待和重试，不能据此宣称 `Get-CimInstance`/WMI 本身有硬截止。
 
-Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.94s、member_disable 1.55s，三个场景合计 3.62s；它们验证阻塞 stdio 调用仍能读取原 generation。该源码编译得到 `candidate-quality-516a3ba-core.exe`，大小为 `35807232` bytes，SHA256 为 `9bf00605a85610032c43c1026a6c52425b2f976b4b9bbab9a624b07a3fe18c24`，已执行 version 校验并运行以下隔离 smoke，未安装到生产。该文件是质量分支候选，不能作为尚未确定的最终 main 发布产物。
+Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.94s、member_disable 1.55s，三个场景合计 3.62s；它们验证阻塞 stdio 调用仍能读取原 generation。该源码编译得到 `candidate-quality-516a3ba-core.exe`，大小为 `35807232` bytes，SHA256 为 `9bf00605a85610032c43c1026a6c52425b2f976b4b9bbab9a624b07a3fe18c24`，已执行 version 校验并运行以下隔离 smoke，未安装到生产。该文件是质量分支历史候选，不能作为尚未完成质量 PR 合并的最终 main 发布产物。
 
 ### 隔离候选实机证据与清理
 
@@ -131,7 +139,7 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 3. 当前 Linux 沙箱缺服务账号的全仓失败仍保留。环境归因不替代最终原生 CI 结果，不据此豁免安装门禁。
 4. 仓库既有 EasyEDA 实机记录对应旧候选，仅说明原功能曾执行读取、最小编辑、独立读回和清理；不能代替最终质量 head 的验收。本材料未重新操作 PCB 或生产 Core。
 5. 功能 PR 检查、独立质量 PR 检查、候选构建、安装测试和发布是不同状态。完整候选须绑定最终精确 main SHA；状态缺失时保持待填。
-6. 本快照的 #126/#140 新 head CI 及 `7e60922` Windows 全仓 Go 仍在运行。历史提交通过、当前暂无失败和最终全部通过分别记录；根流程须用完成后的原始结果更新，不能推定未来门禁已成功。
+6. #126/#140 的最终检查与合并已完成。`7e60922` 的原超时、JSON 全仓失败以及三个实际失败包的环境复验分别保留，不能拼接成单次全仓 PASS。独立质量 PR 的正常 checkout 检查仍待运行；本次进程环境复验不修改或豁免其门禁。
 
 ## 可复核交付入口与后续替换
 
@@ -139,9 +147,9 @@ Windows `516a3ba` 的真实旧连接回归分别通过 update 1.12s、remove 0.9
 
 | 交付字段 | 当前可复核入口 | 最终替换条件 |
 | --- | --- | --- |
-| 本轮功能 PR 与合并提交 | #126 `836fb50846cfa7143bb219fd82318c71877d2aee`；#140 `898bc766c490d448306fbbe623a8ee5661e903c6`；两者当前 CI 运行中 | 核对各最终 head 的 Checks 和实际 merge commit，再填写全部功能合并结果 |
-| 独立质量 PR 的 base main / head / 编号 | 本地及设备预提交质量 head `7e60922f8ea73a553de688dea261ff3a41cf55ad`；PR 尚未创建 | 全部功能合并后，从准确 main 创建独立质量 PR，并填写真实 base/head/编号 |
-| 最终差异与原修复目标 | 本文问题—修复—行为表及上述精确源码 | 按最终 `base main..quality head` 逐项复核；已进入 main 的实现不重复提交 |
-| 当前 Windows 全仓与最终质量门禁 | 会话 `session-5432d9402b55160d33ad2ba1`；`core-quality-7e60922-windows-full-go.log`；历史 Linux 失败范围见本文 | 先记录该命令真实终态，再分别链接最终质量 Actions、CodeQL、Windows/Linux 原生和安装检查的对应提交与结果 |
-| 候选源码、构建与实机验证 | [516a3ba 机器证据](core-quality-candidate-readonly.json)；`243a801` 原生分类回归；`836fb50` 安装器定向回归 | 按最终 main 填写候选构建 run、可执行文件摘要、必要实机读取及安装门禁；历史候选不改标为最终产物 |
-| 发布与资产核对 | 当前未进行本轮最终 main 发布 | 实际完成后填写标签指向的提交、发布记录、资产及摘要；测试或候选编译成功不表示已发布 |
+| 本轮功能 PR 与合并提交 | #126 `043d7316cf77b1fa09c9bf2025cbc1b88bf1f752`；#140 `34270eca8286867ec47930ac1023acd1ecf9e4f8`；各自最终 37 success、2 skipped | 本批 Core 功能合并已完成；保留对应 head、原失败与复验记录 |
+| 独立质量 PR 的 base main / head / 编号 | base main `34270eca8286867ec47930ac1023acd1ecf9e4f8`；本文更新前代码汇合提交 `0b68ee4d05edbf9323eec74a7778b04021a4be8f`；PR 尚未创建 | 从该准确 main 提交独立质量增量，填写包含本次文档提交的真实 head 和 PR 编号 |
+| 最终差异与原修复目标 | 本文问题—修复—行为表及上述精确源码 | 按 PR 实际 `base main..quality head` 逐项复核；已进入 main 的实现不重复提交 |
+| Windows 诊断与最终质量门禁 | `7e60922` 原超时日志、JSON 全仓诊断及三个失败包环境复验均已有真实终态；历史 Linux 失败范围见本文 | 分别链接最终质量 Actions、CodeQL、Windows/Linux 原生和安装检查的对应提交与结果；CI 不使用本次手工 `GOFLAGS` |
+| 候选源码、构建与实机验证 | [516a3ba 机器证据](core-quality-candidate-readonly.json)；`243a801` 原生分类回归；`836fb50` 安装器定向回归；隔离候选已停止 | 按质量 PR 合并后的最终 main 填写候选构建 run、可执行文件摘要、必要实机读取及安装门禁；历史候选不改标为最终产物 |
+| 发布与资产核对 | 发布前备份已完成，生产 Core 未替换；尚未进行本轮最终 main 发布 | 实际完成后填写标签指向的提交、发布记录、资产及摘要；测试或候选编译成功不表示已发布 |
