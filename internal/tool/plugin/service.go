@@ -127,11 +127,14 @@ func (s *Service) Manage(ctx context.Context, request ManageRequest) (Result, er
 				return nil, toolErrorDetails("PLUGIN_UPDATE_NAME_MISMATCH", "selected package does not match the plugin being updated", "validation", map[string]any{"expected": strings.TrimSpace(request.Name), "actual": candidate.Definition.Name})
 			}
 		}
+		if err := s.store.VerifyPreparedReview(candidate, request.ReviewToken); err != nil {
+			return nil, pluginToolError(err)
+		}
 		if err := s.validateInstallOwnership(ctx, candidate.Definition); err != nil {
 			return nil, err
 		}
 		candidate.Enabled = request.Enabled
-		definition, err := s.store.InstallPrepared(ctx, candidate, action == "update", request.ConfirmedSourceChange)
+		definition, err := s.store.InstallPrepared(ctx, candidate, request.ReviewToken, action == "update", request.ConfirmedSourceChange)
 		if err != nil {
 			return nil, pluginToolError(err)
 		}
