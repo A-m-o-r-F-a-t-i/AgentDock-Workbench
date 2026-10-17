@@ -41,6 +41,7 @@ type Manager struct {
 	envs                    *envstore.Store
 	external                ExternalServerProvider
 	externalPrepare         func(context.Context, ServerConfig) error
+	externalRuntimeLease    func(context.Context, ServerConfig) (func(), error)
 	servers                 map[string]ServerConfig
 	states                  map[string]*serverState
 }
@@ -51,6 +52,8 @@ type Manager struct {
 type ExternalServerProvider func(context.Context) (map[string]ServerConfig, error)
 
 type serverState struct {
+	runtimeAcquire       func(context.Context, ServerConfig) (func(), error)
+	runtimeRelease       func()
 	catalogRetained      func(indexSnapshot)
 	catalogChanged       func(protocolClient)
 	catalogPublished     func()
@@ -737,11 +740,25 @@ func (m *Manager) ensureTools(ctx context.Context, name string) (map[string]Tool
 }
 
 func initializeStateLocked(ctx context.Context, cfg ServerConfig, state *serverState) (map[string]Tool, error) {
-	if state.client != nil {
-		_ = state.client.close()
-	}
-	state.client = nil
+	_ = closeStateClientLocked(state)
 	state.tools = nil
+	var releaseRuntime func()
+	if state.runtimeAcquire != nil {
+		var err error
+		releaseRuntime, err = state.runtimeAcquire(ctx, cfg)
+		if err != nil {
+			if releaseRuntime != nil {
+				releaseRuntime()
+			}
+			recordStateError(state, err)
+			return nil, err
+		}
+	}
+	defer func() {
+		if releaseRuntime != nil {
+			releaseRuntime()
+		}
+	}()
 	client, err := newProtocolClient(cfg)
 	if err != nil {
 		recordStateError(state, err)
@@ -773,6 +790,7 @@ func initializeStateLocked(ctx context.Context, cfg ServerConfig, state *serverS
 	}
 	state.catalogGeneration = generation
 	state.client = client
+	state.runtimeRelease, releaseRuntime = releaseRuntime, nil
 	state.tools = tools
 	state.lastError = ""
 	state.lastErrorCode = ""
@@ -802,17 +820,26 @@ func closeState(state *serverState) error {
 	}
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	var err error
-	if state.client != nil {
-		err = state.client.close()
-	}
-	state.client = nil
+	err := closeStateClientLocked(state)
 	state.tools = nil
 	state.lastError = ""
 	state.lastErrorCode = ""
 	state.refreshedAt = time.Time{}
 	state.discovered = false
 	publishStateLocked(state)
+	return err
+}
+
+func closeStateClientLocked(state *serverState) error {
+	var err error
+	if state.client != nil {
+		err = state.client.close()
+		state.client = nil
+	}
+	if release := state.runtimeRelease; release != nil {
+		state.runtimeRelease = nil
+		release()
+	}
 	return err
 }
 

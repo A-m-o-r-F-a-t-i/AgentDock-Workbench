@@ -328,6 +328,27 @@ func (s *Store) RuntimeMCPPackage(ctx context.Context, name string) (RuntimePack
 	return s.prepareRuntimeMCPPackage(pkg, release)
 }
 
+// AcquireMCPRuntime pins the exact generation selected for a new connection.
+// RuntimeMCPPackage verifies the immutable digest and reuses its existing copy;
+// a concurrent update must not silently substitute the new generation's lease.
+func (s *Store) AcquireMCPRuntime(ctx context.Context, cfg mcpclient.ServerConfig) (func(), error) {
+	pkg, release, err := s.RuntimeMCPPackage(ctx, cfg.PluginName)
+	if err != nil {
+		return nil, err
+	}
+	member, found := pkg.MCPServers[cfg.Name]
+	if !found || !member.Enabled || pkg.Version != cfg.PluginVersion ||
+		!sameFilesystemPath(member.PluginRoot, cfg.PluginRoot) || !sameFilesystemPath(member.PluginData, cfg.PluginData) {
+		release()
+		return nil, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP runtime no longer matches the selected connection", map[string]any{"plugin": cfg.PluginName, "server": cfg.Name}, nil)
+	}
+	if err := ctx.Err(); err != nil {
+		release()
+		return nil, err
+	}
+	return release, nil
+}
+
 func (s *Store) ActivationMCPPackage(ctx context.Context, name, owner string) (RuntimePackage, func(), error) {
 	pkg, release, err := s.AcquireActivationRuntime(ctx, name, owner)
 	if err != nil {

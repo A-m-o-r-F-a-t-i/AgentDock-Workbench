@@ -68,6 +68,9 @@ func New(store *registry.Store, skillLookup SkillLookup, mcpLookup MCPLookup) *S
 
 func (s *Service) SetMCPManager(manager *mcpclient.Manager) {
 	s.mcpClients = manager
+	if manager != nil {
+		manager.SetExternalServerRuntimeLease(s.store.AcquireMCPRuntime)
+	}
 }
 
 func (s *Service) ReconcileMCP(ctx context.Context) error {

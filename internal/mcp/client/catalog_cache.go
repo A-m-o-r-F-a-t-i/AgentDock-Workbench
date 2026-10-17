@@ -42,7 +42,7 @@ func (catalog Catalog) cachedCallable() bool {
 	return catalog.Complete && catalog.State.State == "cached" && catalog.State.Lazy && age >= 0 && age < catalogCacheMaxAge
 }
 func (m *Manager) newCatalogState(cfg ServerConfig) *serverState {
-	state := &serverState{}
+	state := &serverState{runtimeAcquire: m.acquireExternalServerRuntime}
 	m.bindCatalogNotifications(cfg.Name, state)
 	identity, err := catalogCacheIdentity(cfg)
 	if err != nil {

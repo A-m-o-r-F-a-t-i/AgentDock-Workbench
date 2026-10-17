@@ -81,13 +81,14 @@ func catalogEqual(left, right map[string]Tool) bool {
 }
 
 func refreshStateLocked(ctx context.Context, cfg ServerConfig, state *serverState) (map[string]Tool, error) {
-	candidate := &serverState{catalogChanged: state.catalogChanged}
+	candidate := &serverState{catalogChanged: state.catalogChanged, runtimeAcquire: state.runtimeAcquire}
 	tools, err := initializeStateLocked(ctx, cfg, candidate)
 	if err != nil {
 		recordStateError(state, err)
 		return nil, err
 	}
 	previous := state.client
+	previousRelease := state.runtimeRelease
 	nextClientGeneration := state.clientGeneration + 1
 	if nextClientGeneration == 0 {
 		nextClientGeneration = 1
@@ -97,6 +98,7 @@ func refreshStateLocked(ctx context.Context, cfg ServerConfig, state *serverStat
 		revision++
 	}
 	state.client, state.tools = candidate.client, candidate.tools
+	state.runtimeRelease, candidate.runtimeRelease = candidate.runtimeRelease, nil
 	state.clientGeneration = nextClientGeneration
 	state.discovered, state.serverVersion, state.indexRevision = true, candidate.serverVersion, revision
 	state.lastError, state.lastErrorCode = "", ""
@@ -107,6 +109,9 @@ func refreshStateLocked(ctx context.Context, cfg ServerConfig, state *serverStat
 	// takes the lock. A failed candidate never destroys the previous connection.
 	if previous != nil {
 		_ = previous.close()
+	}
+	if previousRelease != nil {
+		previousRelease()
 	}
 	return tools, nil
 }
