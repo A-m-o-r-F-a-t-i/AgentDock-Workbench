@@ -293,7 +293,11 @@ func (s *Store) CreateSkillRuntime(ctx context.Context, member SkillMember) (str
 	if !found || record.manifest.Name != member.Plugin || !sameFilesystemPath(skillPath, member.Path) {
 		return "", nil, newError("PLUGIN_MEMBER_NOT_FOUND", "Plugin Skill does not belong to the selected generation", map[string]any{"plugin": member.Plugin, "member": member.Name}, nil)
 	}
-	relative, err := filepath.Rel(generationRoot, skillPath)
+	resolvedGeneration, err := resolvedPath(generationRoot, false)
+	if err != nil {
+		return "", nil, err
+	}
+	relative, err := filepath.Rel(resolvedGeneration, skillPath)
 	if err != nil || !filepath.IsLocal(relative) {
 		return "", nil, errors.New("Plugin Skill path escapes its generation")
 	}
