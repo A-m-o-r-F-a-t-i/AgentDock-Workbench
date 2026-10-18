@@ -46,6 +46,8 @@ type Runtime struct {
 	sidebarHistory           sidebarHistoryCache
 	pluginStore              *pluginregistry.Store
 	contextSnapshots         *contextSnapshots
+	contextWorkdirFailures   contextWorkdirFailureGuard
+	emptySessionLists        emptySessionListGuard
 	display                  *config.DisplayPreferences
 	connections              clientConnections
 	executionMaintenanceDone chan struct{}

@@ -34,6 +34,9 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	if (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") && result["host_page"] != nil || p.spec.Name == "mcp_result_raw" {
 		return result
 	}
+	if p.structuredResume != nil && p.structuredResume.Reference {
+		return result
+	}
 	if result != nil && p.state.binding.ParentCallID == "" && p.spec.Name != "read_file" && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) == toolcontract.OutputRequiredFull {
 		return r.applyRequiredOutputPolicy(p, result)
 	}
@@ -77,6 +80,8 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 			CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL),
 			SourceComplete: complete, SourceReason: reason,
 		}
+		snapshot.SelectorArguments, _ = cloneExecutionArguments(structuredSelectorArguments(p.args))
+		snapshot.ResumeArguments, _ = cloneExecutionArguments(structuredResumeArguments(p.args))
 		snapshot.ArgumentsHash, _ = structuredArgumentsHash(p.args)
 		snapshot.SourceState = "complete"
 		if !complete {
@@ -114,6 +119,9 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 		"source_state":          snapshot.SourceState,
 		"returned_items":        returned,
 		"cursor_expires_at":     snapshot.ExpiresAt.UTC().Format(time.RFC3339),
+	}
+	if p.structuredResume != nil && p.structuredResume.Cursor != "" {
+		meta["request_cursor"] = p.structuredResume.Cursor
 	}
 	if snapshot.SourceURI != "" {
 		meta["source"] = snapshot.SourceURI

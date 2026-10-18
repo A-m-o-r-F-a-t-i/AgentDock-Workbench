@@ -1,12 +1,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"reflect"
 	"sort"
 	"time"
 
@@ -26,6 +29,8 @@ type structuredOutputSnapshot struct {
 	ID                    string
 	Tool                  string
 	ArgumentsHash         string
+	SelectorArguments     map[string]any
+	ResumeArguments       map[string]any
 	Binding               activity.Binding
 	Encoded               []byte
 	CreatedAt             time.Time
@@ -63,6 +68,8 @@ type structuredOutputCursor struct {
 	ItemIndex  int
 	CreatedAt  time.Time
 	ExpiresAt  time.Time
+	Consumed   bool
+	NextCursor string
 }
 
 type structuredOutputResume struct {
@@ -70,6 +77,7 @@ type structuredOutputResume struct {
 	PathIndex int
 	ItemIndex int
 	Reference bool
+	Cursor    string
 }
 
 func structuredArgumentsHash(args map[string]any) (string, error) {
@@ -93,6 +101,41 @@ func structuredSelectorArguments(args map[string]any) map[string]any {
 		}
 	}
 	return filtered
+}
+
+func structuredResumeArguments(args map[string]any) map[string]any {
+	resume := structuredSelectorArguments(args)
+	if value, exists := args["max_response_bytes"]; exists {
+		resume["max_response_bytes"] = value
+	}
+	return resume
+}
+
+func structuredSelectorSubsetMatches(expected, provided map[string]any) bool {
+	for key, value := range provided {
+		original, exists := expected[key]
+		if !exists || !structuredArgumentEqual(original, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func structuredArgumentEqual(left, right any) bool {
+	if reflect.DeepEqual(left, right) {
+		return true
+	}
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftJSON, rightJSON)
+}
+
+func restoreStructuredResumeArguments(args, stored map[string]any) {
+	for key, value := range stored {
+		if _, exists := args[key]; !exists {
+			args[key] = value
+		}
+	}
 }
 
 func randomStructuredID(prefix string) (string, error) {
@@ -127,9 +170,35 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 	if !found || !snapshotFound || snapshot == nil || now.After(position.ExpiresAt) || now.After(snapshot.ExpiresAt) {
 		return nil, nil, toolError("STRUCTURED_CURSOR_EXPIRED", "The structured result cursor expired or is unavailable. Re-run the original read-only operation to create a fresh snapshot.", "runtime")
 	}
-	if snapshot.Tool != p.spec.Name || snapshot.ArgumentsHash != argumentsHash {
-		return nil, nil, toolError("STRUCTURED_CURSOR_MISMATCH", "The cursor does not match this tool and its original selector arguments.", "validation")
+	providedSelectors := structuredSelectorArguments(p.args)
+	selectorsMatch := snapshot.ArgumentsHash == argumentsHash
+	if snapshot.SelectorArguments != nil {
+		selectorsMatch = structuredSelectorSubsetMatches(snapshot.SelectorArguments, providedSelectors)
 	}
+	if snapshot.Tool != p.spec.Name || !selectorsMatch {
+		p.state.executed = false
+		retry := maps.Clone(snapshot.ResumeArguments)
+		if retry == nil {
+			retry = map[string]any{}
+		}
+		retry["cursor"] = cursor
+		return nil, nil, toolErrorDetails(
+			"STRUCTURED_CURSOR_MISMATCH",
+			"The cursor does not match this tool or an explicitly supplied selector changed. Reuse the retained continuation arguments without changing selectors.",
+			"validation",
+			map[string]any{
+				"retryable": true, "retry_safe": true,
+				"executed": false, "execution_performed": false,
+				"operation_status": "failed", "effect_state": "none",
+				"required_action": map[string]any{
+					"action": "continue_structured_output", "tool": snapshot.Tool,
+					"arguments": retry,
+					"text":      "Retry once with these retained selector arguments and cursor.",
+				},
+			},
+		)
+	}
+	restoreStructuredResumeArguments(p.args, snapshot.ResumeArguments)
 	if err := r.authorizeStructuredSnapshot(ctx, snapshot.Binding, p.state.binding); err != nil {
 		return nil, nil, err
 	}
@@ -148,15 +217,72 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 			return nil, nil, toolError("CONTEXT_REVISION_CHANGED", "Context rules or workspace changed during paging. Call agentdock_context once to receive the current snapshot.", "conflict")
 		}
 	}
+	if position.Consumed && snapshot.OutputFailure == nil {
+		p.state.executed = false
+		receipt := r.structuredCursorReplayReceipt(snapshot, position)
+		return receipt, &structuredOutputResume{
+			Snapshot: *snapshot, ItemIndex: position.ItemIndex, Reference: true, Cursor: cursor,
+		}, nil
+	}
 	result, err := decodeStructuredResult(snapshot.Encoded)
 	if err != nil {
 		return nil, nil, toolErrorDetails("STRUCTURED_CURSOR_INVALID", "The retained structured result can no longer be decoded.", "runtime", map[string]any{"reason": err.Error()})
 	}
-	resume := &structuredOutputResume{Snapshot: *snapshot, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex}
+	resume := &structuredOutputResume{Snapshot: *snapshot, PathIndex: position.PathIndex, ItemIndex: position.ItemIndex, Cursor: cursor}
 	if snapshot.OutputFailure != nil {
 		return result, resume, cloneOutputFailure(snapshot.OutputFailure)
 	}
 	return result, resume, nil
+}
+
+func (r *Runtime) structuredCursorReplayReceipt(snapshot *structuredOutputSnapshot, position structuredOutputCursor) Result {
+	nextCursor := position.NextCursor
+	sequenceComplete := nextCursor == ""
+	receipt := Result{
+		"already_delivered": true,
+		"replayed":          true,
+		"snapshot_id":       snapshot.ID,
+		"has_more":          nextCursor != "",
+		"source_complete":   snapshot.SourceComplete,
+		"operation": map[string]any{
+			"state": "completed", "ok": true, "executed": false,
+		},
+		"capture": map[string]any{
+			"state": "complete", "complete": snapshot.SourceComplete,
+		},
+		"delivery": map[string]any{
+			"class": "compact_receipt", "sequence_complete": sequenceComplete,
+			"continuation_required": false, "continuation_available": nextCursor != "",
+		},
+		"output_class": "compact_receipt",
+	}
+	if snapshot.Required {
+		receipt["page_index"] = position.ItemIndex + 1
+		receipt["page_count"] = snapshot.PageCount
+	}
+	if snapshot.ContextRevision != "" {
+		receipt["context_revision"] = snapshot.ContextRevision
+	}
+	if nextCursor == "" {
+		receipt["required_action"] = map[string]any{
+			"action": "stop", "required": false,
+			"text": "This retained result page was already delivered and the sequence has no unread page.",
+		}
+		return receipt
+	}
+	arguments := maps.Clone(snapshot.ResumeArguments)
+	if arguments == nil {
+		arguments = map[string]any{}
+	}
+	arguments["cursor"] = nextCursor
+	receipt["next_cursor"] = nextCursor
+	receipt["next_arguments"] = arguments
+	receipt["required_action"] = map[string]any{
+		"action": "continue_structured_output", "tool": snapshot.Tool,
+		"arguments": arguments, "required": snapshot.Required,
+		"text": "The requested page was already delivered. Continue from this next unread cursor without replaying the old cursor.",
+	}
+	return receipt
 }
 
 func cloneStructuredSnapshot(snapshot *structuredOutputSnapshot) *structuredOutputSnapshot {
@@ -165,6 +291,8 @@ func cloneStructuredSnapshot(snapshot *structuredOutputSnapshot) *structuredOutp
 	}
 	copy := *snapshot
 	copy.Encoded = append([]byte(nil), snapshot.Encoded...)
+	copy.SelectorArguments = maps.Clone(snapshot.SelectorArguments)
+	copy.ResumeArguments = maps.Clone(snapshot.ResumeArguments)
 	copy.OutputFailure = cloneOutputFailure(snapshot.OutputFailure)
 	return &copy
 }

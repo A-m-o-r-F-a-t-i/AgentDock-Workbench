@@ -270,3 +270,43 @@ func TestContextDirectoryComparisonRejectsDifferentTargets(t *testing.T) {
 		t.Fatal("context directory identity comparison rejected the same directory")
 	}
 }
+
+func TestContextInvalidWorkdirRepeatIsBlockedUntilPathBecomesValid(t *testing.T) {
+	r := executionTestRuntime(t)
+	ctx := scopeHost("invalid-context-workdir")
+	root := filepath.Join(t.TempDir(), "missing")
+
+	_, err := r.Call(ctx, "agentdock_context", map[string]any{"workdir": root})
+	var first *ToolError
+	if !errors.As(err, &first) || first.Code != "INVALID_ARGUMENT" || first.Retryable {
+		t.Fatalf("first invalid workdir error = %#v, err=%v", first, err)
+	}
+	firstCall := stringArg(first.Details, "call_id")
+	if firstCall == "" || first.Details["required_action"] == nil {
+		t.Fatalf("first invalid workdir lacked recovery facts: %#v", first.Details)
+	}
+
+	_, err = r.Call(ctx, "agentdock_context", map[string]any{"workdir": root})
+	var repeated *ToolError
+	if !errors.As(err, &repeated) || repeated.Code != "REPEATED_CALL_BLOCKED" || repeated.Retryable {
+		t.Fatalf("repeated invalid workdir error = %#v, err=%v", repeated, err)
+	}
+	if stringArg(repeated.Details, "previous_call_id") != firstCall || repeated.Details["required_action"] == nil {
+		t.Fatalf("repeat guard lost original call or recovery action: %#v", repeated.Details)
+	}
+
+	if err := os.MkdirAll(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = r.Call(ctx, "agentdock_context", map[string]any{"workdir": root}); err != nil {
+		t.Fatalf("valid workdir did not clear the repeat guard: %v", err)
+	}
+	if err := os.RemoveAll(root); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Call(ctx, "agentdock_context", map[string]any{"workdir": root})
+	var afterClear *ToolError
+	if !errors.As(err, &afterClear) || afterClear.Code != "INVALID_ARGUMENT" {
+		t.Fatalf("cleared workdir guard did not start a new failure sequence: %#v, err=%v", afterClear, err)
+	}
+}

@@ -225,7 +225,16 @@ func workspaceFailure(err error, binding activity.Binding, record *workspace.Rec
 	if errors.Is(err, workspace.ErrWorkspaceNotFound) {
 		code = "WORKSPACE_NOT_FOUND"
 	}
-	return toolErrorDetails(code, err.Error(), "validation", details)
+	category := "validation"
+	if errors.Is(err, workspace.ErrWorkspaceLimit) {
+		code, category = "WORKSPACE_LIMIT", "resource_limit"
+		details["retryable"] = false
+		details["next_required"] = map[string]any{
+			"tool": "workspace_manage", "action": "list",
+			"text": "Reuse or update an existing workspace. Registration already prunes unavailable implicit Context workspaces before enforcing the hard limit.",
+		}
+	}
+	return toolErrorDetails(code, err.Error(), category, details)
 }
 
 func bindingArguments(binding activity.Binding) map[string]string {

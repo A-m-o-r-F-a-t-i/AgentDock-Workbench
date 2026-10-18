@@ -22,7 +22,8 @@ import (
 )
 
 const maxRegistryBytes = 1 << 20
-const maxWorkspaces = 128
+const workspacePruneThreshold = 128
+const maxWorkspaces = 1024
 
 var workspaceIDPattern = regexp.MustCompile(`^wsp_[a-f0-9]{16}$`)
 
@@ -31,6 +32,7 @@ var (
 	ErrWorkspaceNotFound = errors.New("workspace_not_found")
 	ErrWorkspaceConflict = errors.New("workspace_revision_conflict")
 	ErrWorkspaceBoundary = errors.New("workspace_path_outside_root")
+	ErrWorkspaceLimit    = errors.New("workspace_registry_limit")
 )
 
 type Record struct {
@@ -77,6 +79,7 @@ type registryState struct {
 	SchemaVersion int      `json:"schema_version"`
 	DefaultID     string   `json:"default_workspace_id"`
 	Records       []Record `json:"workspaces"`
+	ImplicitIDs   []string `json:"implicit_workspace_ids,omitempty"`
 }
 
 type Registry struct {
@@ -156,6 +159,7 @@ func NewRegistryWithRoots(home, defaultRoot string, roots DefaultRoots) (*Regist
 	}
 	record, found := findRoot(state, root, HostRuntime(), "")
 	if !found {
+		registry.pruneUnavailableImplicitRecords(&state)
 		record, err = registry.makeRecord(RegisterInput{Root: root}, nil)
 		if err != nil {
 			return nil, err
@@ -291,8 +295,9 @@ func (r *Registry) read() (registryState, error) {
 }
 
 func (r *Registry) write(state registryState) error {
+	normalizeImplicitWorkspaceIDs(&state)
 	if len(state.Records) > maxWorkspaces {
-		return errors.New("workspace registry limit reached")
+		return fmt.Errorf("%w: %d records exceed the %d-record limit", ErrWorkspaceLimit, len(state.Records), maxWorkspaces)
 	}
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
@@ -302,6 +307,110 @@ func (r *Registry) write(state registryState) error {
 		return errors.New("workspace registry exceeds size limit")
 	}
 	return atomicfile.Write(filepath.Join(r.home, "workspaces.json"), append(data, '\n'), 0600)
+}
+
+func normalizeImplicitWorkspaceIDs(state *registryState) {
+	if state == nil || len(state.ImplicitIDs) == 0 {
+		return
+	}
+	records := make(map[string]bool, len(state.Records))
+	for _, record := range state.Records {
+		records[record.ID] = true
+	}
+	seen := map[string]bool{}
+	kept := make([]string, 0, len(state.ImplicitIDs))
+	for _, id := range state.ImplicitIDs {
+		if records[id] && !seen[id] {
+			seen[id] = true
+			kept = append(kept, id)
+		}
+	}
+	state.ImplicitIDs = kept
+}
+
+func markImplicitWorkspace(state *registryState, id string) {
+	if state == nil || id == "" {
+		return
+	}
+	for _, existing := range state.ImplicitIDs {
+		if existing == id {
+			return
+		}
+	}
+	state.ImplicitIDs = append(state.ImplicitIDs, id)
+}
+
+func clearImplicitWorkspace(state *registryState, id string) bool {
+	if state == nil || id == "" || len(state.ImplicitIDs) == 0 {
+		return false
+	}
+	kept := state.ImplicitIDs[:0]
+	removed := false
+	for _, existing := range state.ImplicitIDs {
+		if existing == id {
+			removed = true
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	state.ImplicitIDs = kept
+	return removed
+}
+
+// Implicit records are created by Context for one explicit native workdir. Once
+// their directory is gone and its parent is still available, retaining them can
+// exhaust the registry even though no live workspace depends on the record.
+func (r *Registry) pruneUnavailableImplicitRecords(state *registryState) int {
+	if state == nil || len(state.Records) < workspacePruneThreshold {
+		return 0
+	}
+	implicit := make(map[string]bool, len(state.ImplicitIDs))
+	for _, id := range state.ImplicitIDs {
+		implicit[id] = true
+	}
+	kept := make([]Record, 0, len(state.Records))
+	removed := 0
+	for _, record := range state.Records {
+		if record.ID == state.DefaultID || !implicit[record.ID] || !r.implicitNativeRecord(record) || !unavailableNativeRoot(record.Root) {
+			kept = append(kept, record)
+			continue
+		}
+		removed++
+	}
+	if removed > 0 {
+		state.Records = kept
+		normalizeImplicitWorkspaceIDs(state)
+	}
+	return removed
+}
+
+func (r *Registry) implicitNativeRecord(record Record) bool {
+	if record.Runtime != HostRuntime() || record.Distribution != "" || strings.TrimSpace(record.Project) != "" {
+		return false
+	}
+	name := filepath.Base(record.Root)
+	if HostRuntime() == "windows" {
+		if !strings.EqualFold(record.Name, name) {
+			return false
+		}
+	} else if record.Name != name {
+		return false
+	}
+	return sameNativePath(record.ArtifactRoot, filepath.Join(r.artifactRoot, record.ID)) &&
+		sameNativePath(record.ScratchRoot, filepath.Join(r.scratchRoot, record.ID)) &&
+		sameNativePath(record.CacheRoot, r.cacheRoot)
+}
+
+func unavailableNativeRoot(root string) bool {
+	info, err := os.Stat(root)
+	if err == nil {
+		return !info.IsDir()
+	}
+	if !os.IsNotExist(err) {
+		return false
+	}
+	parent, parentErr := os.Stat(filepath.Dir(filepath.Clean(root)))
+	return parentErr == nil && parent.IsDir()
 }
 
 func (r *Registry) List(ctx context.Context) ([]Record, string, error) {
@@ -380,11 +489,13 @@ func (r *Registry) EnsureRoot(ctx context.Context, root string) (Record, error) 
 	if record, found := findRoot(state, normalized, HostRuntime(), ""); found {
 		return record, nil
 	}
+	r.pruneUnavailableImplicitRecords(&state)
 	record, err := r.makeRecord(RegisterInput{Root: normalized}, nil)
 	if err != nil {
 		return Record{}, err
 	}
 	state.Records = append(state.Records, record)
+	markImplicitWorkspace(&state, record.ID)
 	if err = r.write(state); err != nil {
 		return Record{}, err
 	}
@@ -427,13 +538,20 @@ func (r *Registry) Register(ctx context.Context, input RegisterInput) (Record, e
 	}
 	if existing, found := findRoot(state, record.Root, record.Runtime, record.Distribution); found && existing.ID != record.ID {
 		if previous == nil {
+			if clearImplicitWorkspace(&state, existing.ID) {
+				if err = r.write(state); err != nil {
+					return Record{}, err
+				}
+			}
 			return existing, nil
 		}
 		return Record{}, errors.New("another workspace already owns this runtime/root")
 	}
 	if previous != nil {
 		state.Records[index] = record
+		clearImplicitWorkspace(&state, record.ID)
 	} else {
+		r.pruneUnavailableImplicitRecords(&state)
 		state.Records = append(state.Records, record)
 	}
 	if err = r.write(state); err != nil {
