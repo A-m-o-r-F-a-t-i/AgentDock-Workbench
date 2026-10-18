@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/fs/filelock"
 )
 
 const (
@@ -31,12 +33,20 @@ func generationLeaseKey(name, generation string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func (s *Store) AcquireGenerationRead(ctx context.Context, name, generation string) (func(), error) {
-	release, err := s.acquireContext(ctx)
+func (s *Store) generationLeaseGuard(ctx context.Context, name, generation string) (func(), error) {
+	key, err := generationLeaseKey(name, generation)
 	if err != nil {
 		return nil, err
 	}
-	defer release()
+	return filelock.Acquire(ctx, filepath.Join(s.root, ".locks", "generations", key, "lease.lock"))
+}
+
+func (s *Store) AcquireGenerationRead(ctx context.Context, name, generation string) (func(), error) {
+	guard, err := s.generationLeaseGuard(ctx, name, generation)
+	if err != nil {
+		return nil, err
+	}
+	defer guard()
 	return s.acquireGenerationReadUnlocked(ctx, name, generation)
 }
 
@@ -181,6 +191,13 @@ func (s *Store) cleanupObsoleteGenerationUnlocked(name, generation string) error
 }
 
 func (s *Store) removeUnleasedGenerationUnlocked(name, generation string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	guard, err := s.generationLeaseGuard(ctx, name, generation)
+	if err != nil {
+		return err
+	}
+	defer guard()
 	empty, err := s.generationReadersEmpty(name, generation)
 	if err != nil || !empty {
 		return err

@@ -9,11 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -121,8 +119,8 @@ func applyPlatformUpdate(ctx context.Context, request applyRequest) (applyResult
 		return applyResult{}, fmt.Errorf("写入 Windows 更新计划失败: %w", err)
 	}
 
-	command := exec.Command(helperPath, "__update-finalize", planPath)
-	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP}
+	command := hiddenWindowsCommand(helperPath, "__update-finalize", planPath)
+	command.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP
 	if outputFile, ok := request.Output.(*os.File); ok {
 		command.Stdout = outputFile
 		command.Stderr = outputFile
@@ -346,7 +344,7 @@ func launcherManagesTarget(ctx context.Context, launcherPath, targetPath string)
 	if err != nil || !strings.Contains(strings.ToLower(string(data)), strings.ToLower(filepath.Clean(targetPath))) {
 		return false
 	}
-	output, err := exec.CommandContext(
+	output, err := hiddenWindowsCommandContext(
 		ctx,
 		"reg.exe",
 		"query",
@@ -368,7 +366,7 @@ func nativeStartupManagesTarget(ctx context.Context, manifest desktopruntime.Man
 	if valueName == "" {
 		valueName = "AgentDock"
 	}
-	output, err := exec.CommandContext(
+	output, err := hiddenWindowsCommandContext(
 		ctx,
 		"reg.exe",
 		"query",
@@ -391,7 +389,7 @@ func scheduledTaskManagesTarget(ctx context.Context, taskName, launcherPath stri
 	if strings.TrimSpace(taskName) == "" || strings.TrimSpace(launcherPath) == "" {
 		return false
 	}
-	output, err := exec.CommandContext(ctx, "schtasks.exe", "/Query", "/TN", `\`+taskName, "/XML").CombinedOutput()
+	output, err := hiddenWindowsCommandContext(ctx, "schtasks.exe", "/Query", "/TN", `\`+taskName, "/XML").CombinedOutput()
 	if err != nil {
 		return false
 	}
@@ -401,7 +399,7 @@ func scheduledTaskManagesTarget(ctx context.Context, taskName, launcherPath stri
 }
 
 func serviceManagesTarget(ctx context.Context, targetPath string) bool {
-	output, err := exec.CommandContext(ctx, "sc.exe", "qc", windowsServiceName).CombinedOutput()
+	output, err := hiddenWindowsCommandContext(ctx, "sc.exe", "qc", windowsServiceName).CombinedOutput()
 	if err != nil {
 		return false
 	}
@@ -437,8 +435,8 @@ func restartWindowsMode(ctx context.Context, plan windowsUpdatePlan) error {
 		if _, err := os.Stat(plan.LauncherPath); err != nil {
 			return fmt.Errorf("Windows 启动脚本不可用: %w", err)
 		}
-		command := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", plan.LauncherPath)
-		command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS}
+		command := hiddenWindowsCommand("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", plan.LauncherPath)
+		command.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS
 		if err := command.Start(); err != nil {
 			return fmt.Errorf("启动 Windows AgentDock launcher 失败: %w", err)
 		}
@@ -469,7 +467,7 @@ func waitForWindowsProcessExit(pid int, timeout time.Duration) error {
 func waitWindowsServiceState(ctx context.Context, serviceName, wanted string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		output, err := exec.CommandContext(ctx, "sc.exe", "query", serviceName).CombinedOutput()
+		output, err := hiddenWindowsCommandContext(ctx, "sc.exe", "query", serviceName).CombinedOutput()
 		if err == nil && strings.Contains(strings.ToUpper(string(output)), "STATE") && strings.Contains(strings.ToUpper(string(output)), wanted) {
 			return nil
 		}
@@ -479,7 +477,7 @@ func waitWindowsServiceState(ctx context.Context, serviceName, wanted string, ti
 }
 
 func runWindowsCommand(ctx context.Context, name string, args ...string) error {
-	output, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	output, err := hiddenWindowsCommandContext(ctx, name, args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s %s 失败: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
@@ -575,7 +573,7 @@ func moveFileReplace(sourcePath, targetPath string) error {
 }
 
 func scheduleWindowsCleanup(directory string) {
-	command := exec.Command(
+	command := hiddenWindowsCommand(
 		"powershell.exe",
 		"-NoLogo",
 		"-NoProfile",
@@ -584,6 +582,6 @@ func scheduleWindowsCleanup(directory string) {
 		"-Command", "Start-Sleep -Seconds 2; Remove-Item -LiteralPath $env:AGENTDOCK_UPDATE_CLEANUP_DIR -Recurse -Force -ErrorAction SilentlyContinue",
 	)
 	command.Env = append(os.Environ(), "AGENTDOCK_UPDATE_CLEANUP_DIR="+directory)
-	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS}
+	command.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS
 	_ = command.Start()
 }

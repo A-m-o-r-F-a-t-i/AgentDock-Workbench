@@ -313,6 +313,33 @@ func (r *Runtime) discardContextSequences(replacement structuredOutputSnapshot) 
 
 var errIncompleteContextBuild = errors.New("context build is incomplete")
 
+func bareContextRequest(args map[string]any) bool {
+	return args["force_refresh"] != true && stringArg(args, "cursor") == "" && stringArg(args, "known_context_revision") == ""
+}
+
+func (r *Runtime) compactSharedContext(ctx context.Context, original Result, workdir string, binding activity.Binding, info snapshot.Info) Result {
+	diagnostics := modelObject(original["context_diagnostics"])
+	result := Result{
+		"context_revision": original["context_revision"], "unchanged": true,
+		"context_delivery": "shared_reference", "shared_snapshot": true,
+		"context_ready": diagnostics["complete"] == true,
+		"context_diagnostics": map[string]any{
+			"complete": diagnostics["complete"], "components_complete": diagnostics["components_complete"],
+			"binding_status": "shared", "context_snapshot": info,
+		},
+		"capture":   map[string]any{"state": "complete", "complete": true},
+		"operation": map[string]any{"state": "completed", "ok": true, "executed": false},
+	}
+	for _, key := range contextBootstrapHeaderKeys {
+		if value, exists := original[key]; exists {
+			result[key] = value
+		}
+	}
+	r.refreshContextBootstrapReference(ctx, result, original)
+	r.refreshContextVolatileFacts(ctx, result, workdir, binding)
+	return result
+}
+
 // Share raw, immutable construction only. Per-request binding, permission,
 // insertions and delivery progress are resolved after each waiter's clone.
 func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecution) (Result, error) {
@@ -363,8 +390,14 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 		if diagnostics := modelObject(cloned["context_diagnostics"]); diagnostics != nil {
 			diagnostics["context_snapshot"] = info
 		}
+		workdir := stringArg(p.args, "workdir")
+		if buildErr == nil && bareContextRequest(p.args) && !r.contextSnapshots.claimCompleteDelivery(info.BuildID, time.Now()) {
+			p.contextShared = true
+			p.contextSharedInfo = info
+			p.contextSharedWorkdir = workdir
+		}
 		if info.CacheHit {
-			r.refreshContextVolatileFacts(ctx, cloned, stringArg(p.args, "workdir"), binding)
+			r.refreshContextVolatileFacts(ctx, cloned, workdir, binding)
 		}
 		return cloned, nil
 	}

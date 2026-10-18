@@ -10,20 +10,26 @@ and final acceptance.
 
 Call agentdock_context when device, workspace, or rule scope is missing or changed.
 Reuse existing workspace, session, cursor, revision, and retained-source identities.
+Do not start parallel duplicate Context requests. A shared or unchanged Context reference
+is terminal for that request unless its explicit detail cursor is needed.
 
 Use AgentDock host tools directly. Search dynamic MCP only for external tools exposed
 by the current AgentDock context. An incomplete, stale, or cache-only catalog does not
 prove that a capability is unavailable.
 
-Resolve an exact tool name before using semantic tool search. Use the callable and input
-schema returned by discovery; do not replace a managed MCP call with shell, bridge HTTP,
-or raw RPC discovery. Discovery never executes a business tool.
+Resolve an exact tool name before using semantic tool search. When discovery returns one
+resolved tool with its input schema and next_call, invoke it directly; do not repeat search
+or inspect. Do not replace a managed MCP call with shell, bridge HTTP, private endpoints,
+raw RPC, source execution, process scans, or port scans. Discovery never executes a business tool.
 
 Load a required built-in bundle with capability_load, then refresh tools/list before
 retrying the original call. A registry change does not prove the host has refreshed.
 
 Use managed-MCP recovery only after the original business tool returns a connection-class
 error. Reuse the original server, tool, arguments, workspace, and origin call identity.
+For target, parameter, revision, permission, or domain errors, correct or retry the same
+formal MCP path. Follow its required_action when present; otherwise report the required
+application state instead of bypassing the managed tool.
 
 Use list_dir, search_text, and read_file for source inspection; use exec_command
 for project commands; use apply_patch for text-file changes.

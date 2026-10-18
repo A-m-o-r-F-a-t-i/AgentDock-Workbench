@@ -38,6 +38,8 @@ type contextSnapshots struct {
 	commonFiles contextFiles
 	ruleFiles   contextFiles
 	skillFiles  contextFiles
+	deliveryMu  sync.Mutex
+	deliveries  map[uint64]time.Time
 	once        sync.Once
 }
 
@@ -57,7 +59,7 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 		first := strings.Split(filepath.ToSlash(relative), "/")[0]
 		return first != ".locks" && first != ".tmp" && first != ".cache"
 	}
-	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter)}
+	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter), deliveries: map[uint64]time.Time{}}
 	resources.complete = snapshot.New[Result](32, cfg.ContextBudget(), 15*time.Minute)
 	resources.common = snapshot.New[*capabilityCommonSkillIndex](4, cfg.ContextBudget(), time.Minute)
 	resources.commonFiles = snapshot.NewScopedFiles(nil)
@@ -78,6 +80,29 @@ func (s *contextSnapshots) Close() {
 		s.skillFiles.Close()
 		s.commonFiles.Close()
 	})
+}
+
+const contextDeliveryClaimTTL = 30 * time.Second
+
+// claimCompleteDelivery allows one caller to expand a shared immutable Context
+// build. Concurrent duplicates and immediate cache hits receive a compact
+// reference instead of creating parallel retained page sequences.
+func (s *contextSnapshots) claimCompleteDelivery(buildID uint64, now time.Time) bool {
+	if s == nil || buildID == 0 {
+		return true
+	}
+	s.deliveryMu.Lock()
+	defer s.deliveryMu.Unlock()
+	for id, claimedAt := range s.deliveries {
+		if now.Sub(claimedAt) > contextDeliveryClaimTTL {
+			delete(s.deliveries, id)
+		}
+	}
+	if _, exists := s.deliveries[buildID]; exists {
+		return false
+	}
+	s.deliveries[buildID] = now
+	return true
 }
 func (r *Runtime) cachedInstructions(ctx context.Context, options agentinstructions.Options) (agentinstructions.Snapshot, error) {
 	if r.contextSnapshots == nil {

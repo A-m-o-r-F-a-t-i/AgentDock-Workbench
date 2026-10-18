@@ -189,26 +189,31 @@ func (s *Store) AcquireRuntimePackage(ctx context.Context, name string) (Runtime
 	if err := ctx.Err(); err != nil {
 		return RuntimePackage{}, nil, err
 	}
-	releaseStore, err := s.acquireContext(ctx)
-	if err != nil {
-		return RuntimePackage{}, nil, err
+	name = strings.TrimSpace(name)
+	for attempt := 0; attempt < 2; attempt++ {
+		state, err := s.readNamedState(name)
+		if err != nil {
+			return RuntimePackage{}, nil, err
+		}
+		releaseGeneration, err := s.AcquireGenerationRead(ctx, name, state.Generation)
+		if err != nil {
+			var pluginErr *Error
+			if attempt == 0 && errors.As(err, &pluginErr) && pluginErr.Code == "PLUGIN_GENERATION_MISSING" {
+				continue
+			}
+			return RuntimePackage{}, nil, err
+		}
+		pkg, err := s.runtimePackageForState(name, state)
+		if err != nil {
+			releaseGeneration()
+			if attempt == 0 && (errors.Is(err, os.ErrNotExist)) {
+				continue
+			}
+			return RuntimePackage{}, nil, err
+		}
+		return pkg, releaseGeneration, nil
 	}
-	state, err := s.readNamedState(strings.TrimSpace(name))
-	if err != nil {
-		releaseStore()
-		return RuntimePackage{}, nil, err
-	}
-	releaseGeneration, err := s.acquireGenerationReadUnlocked(ctx, name, state.Generation)
-	releaseStore()
-	if err != nil {
-		return RuntimePackage{}, nil, err
-	}
-	pkg, err := s.runtimePackageForState(name, state)
-	if err != nil {
-		releaseGeneration()
-		return RuntimePackage{}, nil, err
-	}
-	return pkg, releaseGeneration, nil
+	return RuntimePackage{}, nil, newError("PLUGIN_GENERATION_MISSING", "Plugin generation changed while acquiring a read lease", map[string]any{"plugin": name}, nil)
 }
 
 func (s *Store) AcquireActivationRuntime(ctx context.Context, name, owner string) (RuntimePackage, func(), error) {
