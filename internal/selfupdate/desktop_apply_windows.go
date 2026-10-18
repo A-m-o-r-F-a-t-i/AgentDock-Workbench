@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -300,8 +298,8 @@ func (update *windowsDesktopUpdate) RestartTray(ctx context.Context) error {
 	if update == nil || !update.trayWasRunning {
 		return nil
 	}
-	command := exec.Command(update.trayPath, "--background")
-	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS}
+	command := hiddenWindowsCommand(update.trayPath, "--background")
+	command.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("重新启动 Windows 控制面板失败: %w", err)
 	}

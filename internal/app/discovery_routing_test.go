@@ -171,5 +171,16 @@ func TestAuditKnownCatalogSurvivesUnrelatedMissingCredential(t *testing.T) {
 		if result["count"] != want {
 			t.Fatalf("cached matches = %#v, want %d", result, want)
 		}
+		if query == "route" {
+			if result["resolution_status"] != "resolved" || result["selected"] == nil || result["next_call"] == nil {
+				t.Fatalf("resolved tool lost its callable contract: %#v", result)
+			}
+			if _, exists := result["tools"]; exists {
+				t.Fatalf("resolved tool repeated the candidate list: %#v", result)
+			}
+			if _, exists := result["catalogs"]; exists {
+				t.Fatalf("resolved tool repeated catalog diagnostics: %#v", result)
+			}
+		}
 	}
 }

@@ -197,6 +197,12 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
 		result["catalog_state"] = found.Selected["catalog_state"]
 		result["managed_target"] = managedTarget(ctx, stringValue(found.Selected["server"]), stringValue(found.Selected["catalog_revision"]), "registered_selection")
+		// A resolved unique tool is a terminal routing result. Keep its full
+		// callable Schema and next_call, but omit the duplicate candidates and
+		// catalog diagnostics that otherwise force pagination and a second inspect.
+		delete(result, "tools")
+		delete(result, "catalogs")
+		result["tools_omitted"], result["catalogs_omitted"] = true, true
 	} else if len(found.Tools) == 0 {
 		result["resolution_status"] = "not_found"
 		if !found.AbsenceAuthoritative {

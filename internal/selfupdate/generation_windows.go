@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -115,7 +114,7 @@ func applyWindowsGenerationUpdate(ctx context.Context, request applyRequest) (ap
 	// 因此调用者会一直等待 terminal result，父进程退出不再冒充更新成功。
 	sourceArbiter := layout.GenerationArbiter(sourceVersion)
 	reportUpdateStage(request.Progress, UpdateStageRestarting, request.CurrentVersion, request.TargetVersion, "arbiter")
-	command := exec.CommandContext(ctx, sourceArbiter, "--root", root, "--transaction-id", transaction.TransactionID)
+	command := hiddenWindowsCommandContext(ctx, sourceArbiter, "--root", root, "--transaction-id", transaction.TransactionID)
 	command.Dir = root
 	output, runErr := command.CombinedOutput()
 	if len(bytes.TrimSpace(output)) > 0 {
