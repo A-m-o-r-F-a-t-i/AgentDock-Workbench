@@ -306,7 +306,7 @@ func (s *Store) CreateSkillRuntime(ctx context.Context, member SkillMember) (str
 	if err != nil || !filepath.IsLocal(relative) {
 		return "", nil, errors.New("Plugin Skill path escapes its generation")
 	}
-	runtimeRoot, releaseRuntime, err := s.CreateRuntimeGeneration(member.Plugin, member.Generation, generationRoot)
+	runtimeRoot, releaseRuntime, err := s.createRuntimeGeneration(ctx, member.Plugin, member.Generation, generationRoot)
 	if err != nil {
 		return "", nil, err
 	}
@@ -330,7 +330,7 @@ func (s *Store) RuntimeMCPPackage(ctx context.Context, name string) (RuntimePack
 	if err != nil {
 		return RuntimePackage{}, nil, err
 	}
-	return s.prepareRuntimeMCPPackage(pkg, release)
+	return s.prepareRuntimeMCPPackage(ctx, pkg, release)
 }
 
 // AcquireMCPRuntime pins the exact generation selected for a new connection.
@@ -359,16 +359,16 @@ func (s *Store) ActivationMCPPackage(ctx context.Context, name, owner string) (R
 	if err != nil {
 		return RuntimePackage{}, nil, err
 	}
-	return s.prepareRuntimeMCPPackage(pkg, release)
+	return s.prepareRuntimeMCPPackage(ctx, pkg, release)
 }
 
-func (s *Store) prepareRuntimeMCPPackage(pkg RuntimePackage, releaseGeneration func()) (RuntimePackage, func(), error) {
+func (s *Store) prepareRuntimeMCPPackage(ctx context.Context, pkg RuntimePackage, releaseGeneration func()) (RuntimePackage, func(), error) {
 	runtimeRoot := pkg.Root
 	cleanupRuntime := func() {}
 	for _, cfg := range pkg.MCPServers {
 		if cfg.Enabled && cfg.Transport == mcpclient.TransportStdio {
 			var err error
-			runtimeRoot, cleanupRuntime, err = s.CreateRuntimeGeneration(pkg.Name, pkg.Generation, pkg.Root)
+			runtimeRoot, cleanupRuntime, err = s.createRuntimeGeneration(ctx, pkg.Name, pkg.Generation, pkg.Root)
 			if err != nil {
 				releaseGeneration()
 				return RuntimePackage{}, nil, err

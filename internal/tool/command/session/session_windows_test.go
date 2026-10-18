@@ -41,7 +41,7 @@ func TestWindowsShellSelectionBuildsExpectedCommands(t *testing.T) {
 		shell string
 		want  []string
 	}{
-		{name: "PowerShell", shell: config.WindowsCommandShellPwsh, want: []string{`C:\Tools\pwsh.exe`, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", powershellUTF8Prefix + "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\ntry {\n& {\necho hello\n}\n} catch {\n[Console]::Error.WriteLine($_.ToString())\nif ($_.Exception.PSObject.Properties['ExitCode']) { exit $_.Exception.ExitCode }\nexit 1\n}\n"}},
+		{name: "PowerShell", shell: config.WindowsCommandShellPwsh, want: []string{`C:\Tools\pwsh.exe`, "-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", powershellUTF8Prefix + "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $true\ntry {\n& {\necho hello\n}\n} catch {\n[Console]::Error.WriteLine($_.ToString())\nif ($_.Exception.PSObject.Properties['ExitCode']) { exit $_.Exception.ExitCode }\nexit 1\n}\n"}},
 		{name: "Command Prompt", shell: config.WindowsCommandShellCmd, want: []string{`C:\Windows\System32\cmd.exe`, "/D", "/S", "/C", "echo hello"}},
 		{name: "Git Bash", shell: config.WindowsCommandShellGitBash, want: []string{`C:\Program Files\Git\bin\bash.exe`, "--noprofile", "--norc", "-c", "echo hello"}},
 	} {

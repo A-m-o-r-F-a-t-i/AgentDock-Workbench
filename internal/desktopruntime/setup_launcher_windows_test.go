@@ -123,6 +123,39 @@ func TestSetupNoWaitChildSurvivesAndDoesNotLockRequestFiles(t *testing.T) {
 	}
 }
 
+func TestSetupNoWaitBrokerStartsDirectly(t *testing.T) {
+	path, request := setupWorkerTestRequest(t, "hang")
+	request.WaitForExit = false
+	request.TaskName = ""
+	if err := writeSetupJSON(path, request); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if err := RunSetupLauncher(path, false); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("detached Setup launch waited for a broker round trip: %v", elapsed)
+	}
+	result := readSetupTestResult(t, path)
+	if result.PID <= 0 || result.TaskName != "" {
+		t.Fatalf("detached launch unexpectedly used Task Scheduler: %+v", result)
+	}
+	defer func() {
+		if process, err := os.FindProcess(result.PID); err == nil {
+			_ = process.Kill()
+			_, _ = process.Wait()
+		}
+	}()
+	if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+		t.Fatalf("detached child kept request files open: %v", err)
+	}
+	time.Sleep(250 * time.Millisecond)
+	if !setupTestProcessAlive(result.PID) {
+		t.Fatal("detached child died when the Setup launcher returned")
+	}
+}
+
 func setupTestProcessAlive(pid int) bool {
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 	if err != nil {

@@ -60,6 +60,16 @@ func RunSetupLauncher(requestPath string, worker bool) error {
 	if worker {
 		return runSetupLaunchWorker(requestPath, request)
 	}
+	// Per-user Setup already runs in the interactive user session. A detached
+	// no-wait launch therefore does not need a Task Scheduler round trip; the
+	// child inherits neither the request files nor a console window.
+	if !request.WaitForExit {
+		if err := securepath.EnsurePrivate(filepath.Dir(requestPath)); err != nil {
+			return err
+		}
+		_, err = runSetupProcess(requestPath, request)
+		return err
+	}
 	return runSetupLaunchBroker(requestPath, request)
 }
 
