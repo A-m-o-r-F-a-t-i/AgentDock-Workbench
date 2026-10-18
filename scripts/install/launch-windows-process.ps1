@@ -6,7 +6,7 @@ param(
     [switch] $WaitForExit,
     [switch] $PassThruOutput,
     [ValidateRange(1, 600)]
-    [int] $TimeoutSeconds = 150
+    [int] $TimeoutSeconds = 240
 )
 
 Set-StrictMode -Version Latest
