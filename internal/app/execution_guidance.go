@@ -81,12 +81,15 @@ func structuredOutputFollowups(name string, args map[string]any, result Result) 
 		}
 	}
 	if cursor := stringArg(result, "next_cursor"); cursor != "" {
-		arguments := structuredSelectorArguments(args)
-		if budget, exists := args["max_response_bytes"]; exists {
-			arguments["max_response_bytes"] = budget
+		arguments := map[string]any{}
+		if !isContextTool(name) {
+			arguments = structuredSelectorArguments(args)
+			if budget, exists := args["max_response_bytes"]; exists {
+				arguments["max_response_bytes"] = budget
+			}
 		}
 		arguments["cursor"] = cursor
-		if minimum := measuredInt(structured, "minimum_response_bytes"); minimum != nil && *minimum > 0 {
+		if minimum := measuredInt(structured, "minimum_response_bytes"); !isContextTool(name) && minimum != nil && *minimum > 0 {
 			arguments["max_response_bytes"] = *minimum
 		}
 		steps = append(steps, map[string]any{

@@ -2,13 +2,13 @@ package mcp
 
 import (
 	"encoding/json"
-	"maps"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 // Existing transport assertions inspect the complete contract after consuming
@@ -17,15 +17,14 @@ func requiredPayload(t *testing.T, first map[string]any, arguments map[string]an
 	t.Helper()
 	assembled := map[string]any{}
 	page := first
-	original := maps.Clone(arguments)
 	var source strings.Builder
 	readingSource := false
 	snapshot := ""
 	for count := 0; count < 512; count++ {
 		page = normalizedEnvelope(t, page)
 		encoded, err := json.Marshal(page)
-		if err != nil || utf8.RuneCount(encoded) > 12000 {
-			t.Fatalf("required page exceeds final budget: chars=%d err=%v", utf8.RuneCount(encoded), err)
+		if err != nil || utf8.RuneCount(encoded) > toolcontract.ModelVisibleTotalChars {
+			t.Fatalf("required page exceeds wire budget: chars=%d budget=%d err=%v", utf8.RuneCount(encoded), toolcontract.ModelVisibleTotalChars, err)
 		}
 		if page["isError"] == true {
 			t.Fatalf("required continuation failed: %.700s", encoded)
@@ -67,10 +66,7 @@ func requiredPayload(t *testing.T, first map[string]any, arguments map[string]an
 				return assembled
 			}
 			if cursor, _ := body["next_cursor"].(string); cursor != "" {
-				next := maps.Clone(original)
-				delete(next, "force_refresh")
-				next["cursor"] = cursor
-				page = call("agentdock_context", next)
+				page = call("agentdock_context", map[string]any{"cursor": cursor})
 				continue
 			}
 		}

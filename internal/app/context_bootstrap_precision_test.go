@@ -111,7 +111,7 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 	ctx := WithModelProjection(activity.WithSource(t.Context(), activity.Source{
 		Principal: "bootstrap-count-test", Namespace: "mcp", HostConversationID: "bootstrap-counts",
 	}))
-	args := map[string]any{"workdir": workdir, "max_response_bytes": 32000}
+	args := map[string]any{"workdir": workdir}
 	full, err := rt.Call(ctx, "agentdock_context", args)
 	if err != nil {
 		t.Fatal(err)

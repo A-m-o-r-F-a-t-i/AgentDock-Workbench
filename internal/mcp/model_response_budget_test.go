@@ -12,7 +12,7 @@ import (
 )
 
 func TestModelResponseCountsAndCompactsNativeAttachment(t *testing.T) {
-	data := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x5a}, 10000))
+	data := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x5a}, 16000))
 	envelope := normalizeResponseStages("mcp_tool_call", map[string]any{}, map[string]any{
 		"isError":           false,
 		"structuredContent": map[string]any{"name": "fixture::image"},
@@ -42,7 +42,7 @@ func TestModelResponseCountsAndCompactsNativeAttachment(t *testing.T) {
 	}
 	payload := asMap(compacted["structuredContent"])
 	items, ok := payload["content_blocks_omitted"].([]map[string]any)
-	if !ok || len(items) != 1 || items[0]["decoded_bytes"] != 10000 {
+	if !ok || len(items) != 1 || items[0]["decoded_bytes"] != 16000 {
 		t.Fatalf("native omission receipt = %#v", payload["content_blocks_omitted"])
 	}
 	if payload["source_ref"] == "" || asMap(payload["delivery"])["continuation_available"] != true {

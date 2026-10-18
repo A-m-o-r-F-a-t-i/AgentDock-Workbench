@@ -259,7 +259,7 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 			action := map[string]any{"category": "detail", "required": !bootstrapReady, "execution_performed": false, "reason_code": "context_details_paged"}
 			if cursor := stringArg(result, "next_cursor"); cursor != "" {
 				action["action"], action["tool"] = "continue_structured_output", p.spec.Name
-				action["arguments"] = map[string]any{"cursor": cursor, "known_context_revision": result["context_revision"]}
+				action["arguments"] = map[string]any{"cursor": cursor}
 			} else if continuation := modelObject(structured["continue_read"]); continuation != nil {
 				action["action"], action["tool"], action["arguments"] = "read_context_details", continuation["tool"], continuation["arguments"]
 			}

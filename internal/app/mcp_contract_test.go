@@ -44,7 +44,6 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			// summary. Other fields retain the shared protocol contract.
 			actualInput = withoutLocalContextProperty(t, actualInput, "workdir")
 			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
-			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
 			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
 			actualInput = withoutLocalContextProperty(t, actualInput, "force_refresh")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "instruction_files")
@@ -112,7 +111,6 @@ func TestCanonicalToolDefinitionsMatchSharedContract(t *testing.T) {
 			actualInput = withoutLocalContextProperty(t, actualInput, "known_context_revision")
 			actualInput = withoutLocalContextProperty(t, actualInput, "force_refresh")
 			actualInput = withoutLocalContextProperty(t, actualInput, "cursor")
-			actualInput = withoutLocalContextProperty(t, actualInput, "max_response_bytes")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_revision")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "context_diagnostics")
 			actualOutput = withoutLocalContextProperty(t, actualOutput, "next_cursor")

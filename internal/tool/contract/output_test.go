@@ -23,3 +23,15 @@ func TestModelV2EscapedCharacterBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func TestModelVisibleBudgetKeepsBodyIndependentFromControl(t *testing.T) {
+	if ModelVisibleBodyChars != 12000 {
+		t.Fatalf("body budget = %d, want 12000", ModelVisibleBodyChars)
+	}
+	if ModelVisibleTotalChars != ModelVisibleBodyChars+ModelVisibleControlChars {
+		t.Fatalf("total budget = %d, body=%d control=%d", ModelVisibleTotalChars, ModelVisibleBodyChars, ModelVisibleControlChars)
+	}
+	if ModelVisibleTotalChars <= ModelVisibleBodyChars {
+		t.Fatal("control fields must not consume the 12,000-character body budget")
+	}
+}

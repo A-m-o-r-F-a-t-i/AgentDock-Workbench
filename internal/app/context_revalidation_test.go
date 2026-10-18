@@ -212,7 +212,7 @@ func TestContextRevalidationRefreshesDeliveredContext(t *testing.T) {
 					source.HostConversationID = "context-revalidation-reference"
 				}
 				ctx := WithModelProjection(activity.WithSource(t.Context(), source))
-				args := map[string]any{"workdir": cfg.AgentDockDefaultDir, "max_response_bytes": 32000}
+				args := map[string]any{"workdir": cfg.AgentDockDefaultDir}
 				readComplete := func() (Result, Result) {
 					t.Helper()
 					first, err := rt.Call(ctx, "agentdock_context", args)

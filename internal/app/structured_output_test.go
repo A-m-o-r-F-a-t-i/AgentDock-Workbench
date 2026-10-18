@@ -261,8 +261,12 @@ func TestStructuredOutputPagesLargeContextCollections(t *testing.T) {
 		if !ok || meta["source_complete"] != true {
 			t.Fatalf("context page metadata = %#v", page["structured_output"])
 		}
+		bodyChars := integerArgument(meta["body_chars"])
+		if bodyChars <= 0 || bodyChars > toolcontract.ModelVisibleBodyChars {
+			t.Fatalf("context body = %d characters, budget=%d", bodyChars, toolcontract.ModelVisibleBodyChars)
+		}
 		if chars, _ := toolcontract.JSONChars(page); chars > toolcontract.ModelVisibleTotalChars {
-			t.Fatalf("context page = %d characters", chars)
+			t.Fatalf("context page = %d characters, wire budget=%d", chars, toolcontract.ModelVisibleTotalChars)
 		}
 		_ = encoded
 		for _, part := range page["sections"].([]semanticOutputPart) {
@@ -471,8 +475,12 @@ func collectStructuredToolPages(t *testing.T, r *Runtime, ctx context.Context, t
 			t.Fatal(err)
 		}
 		_ = encoded
+		meta := modelObject(result["structured_output"])
+		if bodyChars := integerArgument(meta["body_chars"]); bodyChars > toolcontract.ModelVisibleBodyChars {
+			t.Fatalf("%s body = %d characters, budget=%d", tool, bodyChars, toolcontract.ModelVisibleBodyChars)
+		}
 		if chars, _ := toolcontract.JSONChars(result); chars > toolcontract.ModelVisibleTotalChars {
-			t.Fatalf("%s final page = %d characters", tool, chars)
+			t.Fatalf("%s final page = %d characters, wire budget=%d", tool, chars, toolcontract.ModelVisibleTotalChars)
 		}
 		items = append(items, structuredPathItems(result, path)...)
 		cursor, _ := result["next_cursor"].(string)
@@ -506,9 +514,9 @@ func TestModelV2SemanticPagesRetainContracts(t *testing.T) {
 	full := Result{"rules": text, "context_revision": "stable", "context_diagnostics": map[string]any{"complete": true, "components_complete": true, "diagnostic_detail": strings.Repeat("diagnostic", 1500)}, "host_tools": []any{map[string]any{"name": "exec_command", "invoke_via": "host"}}}
 	recovered, diagnostics := "", ""
 	for start := 0; start < 100; start++ {
-		page, next, count, _ := buildRequiredOutputPage(full, start, 7900)
+		page, next, count, _ := buildRequiredOutputPage(full, start, toolcontract.ModelVisibleBodyChars)
 		chars, err := toolcontract.JSONChars(page)
-		if err != nil || chars > 7900 {
+		if err != nil || chars > toolcontract.ModelVisibleBodyChars {
 			t.Fatalf("page %d chars=%d err=%v", start, chars, err)
 		}
 		for _, part := range page["sections"].([]semanticOutputPart) {

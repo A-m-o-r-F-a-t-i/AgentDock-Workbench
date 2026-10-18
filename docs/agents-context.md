@@ -90,6 +90,8 @@ go build -o ./bin/agentdock-context.exe ./cmd/agentdock
 
 两个本地上下文工具均支持 `known_context_revision`：仅在调用方仍持有完整上下文时传入其 `context_revision`。服务端重新核验完整内容后，在分页前比较修订号，匹配时返回 `delivery=reference`、`unchanged=true` 和紧凑诊断。修订不匹配或省略该参数时返回实际内容，不把“曾经发送过”当作调用方仍持有正文。
 
-`next_cursor` 表示当前完整快照还有未交付部分，应携带响应给出的选择参数和 `cursor` 继续读取。宿主缓存的旧 Schema 缺少 `cursor` 时，使用 `structured_output.continue_read` 中的 `read_file` 参数，并跟随 `next_offset` 读取同一个保留来源。两条路径均不会重新执行初始 Context 请求。权限、来源所有者和工作区检查继续生效，游标过期后才重新获取需要的只读快照。
+Context 使用固定的 12000 个转义后 JSON 字符正文预算。投影、续读、Bootstrap 与 MCP 包装字段使用独立控制预算，不从正文额度中扣减。调用方不再设置 `max_response_bytes`；各页按完整语义单元组织，因此实际长度可以不同。
+
+`next_cursor` 表示当前完整快照还有未交付部分，续读只需传回响应提供的准确 `cursor`。原始工作区选择、分页预算和版本保护由不可变快照恢复。宿主缓存的旧 Schema 缺少 `cursor` 时，使用 `structured_output.continue_read` 中的 `read_file` 参数，并跟随 `next_offset` 读取同一个保留来源。两条路径均不会重新执行初始 Context 请求。权限、来源所有者和工作区检查继续生效，游标过期后才重新获取需要的只读快照。
 
 Context 刚完成工作区切换时，Activity 根记录仍保留进入请求时的绑定。备用来源读取仅在未过期、完整的 Context 快照记录了同一来源所有者、同一对话和当前目标工作区时，按该快照的目标授权。普通命令输出与其他来源继续使用原工作区检查，重启或快照过期后不沿用此临时引用。

@@ -121,7 +121,7 @@ func TestToolOutputFixedBudgetAndRequiredFilePaging(t *testing.T) {
 			for _, length := range []int{limit - 1, limit, limit + 1} {
 				result := outputCall(t, r, ctx, "session_observe", map[string]any{"action": "list"}, Result{"status": "exited", "stdout": strings.Repeat("😀", length)})
 				text := stringArg(result, "stdout")
-				budget := toolcontract.ModelVisiblePayloadChars
+				budget := toolcontract.ModelVisibleBodyChars
 				if enabled {
 					budget = min(budget, limit)
 				}

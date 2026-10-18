@@ -116,8 +116,8 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	for _, key := range []string{"conversation_id", "task_id", "thread_id", "step_id", "workspace_id", "activity_label", "retry_of_call_id"} {
 		delete(businessProps, key)
 	}
-	if len(businessProps) != 5 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil || inputProps["force_refresh"] == nil {
-		t.Fatalf("agentdock_context should expose workdir, known_context_revision, and structured result paging controls: %#v", inputProps)
+	if len(businessProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["force_refresh"] == nil || inputProps["max_response_bytes"] != nil {
+		t.Fatalf("agentdock_context should expose workdir, revision, refresh and cursor controls without a caller-owned response budget: %#v", inputProps)
 	}
 	if required, _ := inputSchema("agentdock_context")["required"].([]string); len(required) != 0 {
 		t.Fatalf("agentdock_context must still accept empty arguments: %#v", required)
@@ -155,8 +155,8 @@ func TestWorkspaceContextSchemaIsRequestLocalWorkspaceEntrypoint(t *testing.T) {
 		t.Fatalf("workspace_context description should explain workspace rules: %q", def.Description)
 	}
 	inputProps := schemaProperties(t, "workspace_context")
-	if len(inputProps) != 5 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["max_response_bytes"] == nil || inputProps["force_refresh"] == nil {
-		t.Fatalf("workspace_context should expose optional workdir, revision and paging controls: %#v", inputProps)
+	if len(inputProps) != 4 || inputProps["workdir"] == nil || inputProps["known_context_revision"] == nil || inputProps["cursor"] == nil || inputProps["force_refresh"] == nil || inputProps["max_response_bytes"] != nil {
+		t.Fatalf("workspace_context should expose optional workdir, revision, refresh and cursor controls without a caller-owned response budget: %#v", inputProps)
 	}
 	if required, _ := inputSchema("workspace_context")["required"].([]string); len(required) != 0 {
 		t.Fatalf("workspace_context must accept empty arguments: %#v", required)

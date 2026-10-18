@@ -270,9 +270,12 @@ func (r *Runtime) structuredCursorReplayReceipt(snapshot *structuredOutputSnapsh
 		}
 		return receipt
 	}
-	arguments := maps.Clone(snapshot.ResumeArguments)
-	if arguments == nil {
-		arguments = map[string]any{}
+	arguments := map[string]any{}
+	if !isContextTool(snapshot.Tool) {
+		arguments = maps.Clone(snapshot.ResumeArguments)
+		if arguments == nil {
+			arguments = map[string]any{}
+		}
 	}
 	arguments["cursor"] = nextCursor
 	receipt["next_cursor"] = nextCursor

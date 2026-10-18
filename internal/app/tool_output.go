@@ -103,7 +103,7 @@ func (r *Runtime) applyToolOutputPolicy(p *preparedExecution, result Result) Res
 		slot.set("")
 	}
 	control, _ := toolcontract.JSONChars(result)
-	budget := min(toolcontract.ModelVisiblePayloadChars, max(0, toolcontract.ModelVisibleTotalChars-control-1800))
+	budget := min(toolcontract.ModelVisibleBodyChars, max(0, toolcontract.ModelVisibleTotalChars-control))
 	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
 		budget = min(budget, p.outputPolicy.MaxChars)
 	}
