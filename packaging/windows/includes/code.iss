@@ -129,7 +129,7 @@ begin
   LegacyTaskDetectionComplete := True;
   LegacyTaskDetected := False;
 
-  SchTasksPath := ExpandConstant('{win}\System32\schtasks.exe');
+  SchTasksPath := ExpandConstant('{sys}\schtasks.exe');
   if not FileExists(SchTasksPath) then
   begin
     Log('Windows schtasks.exe is unavailable; skipping legacy AgentDock task detection.');
@@ -137,12 +137,16 @@ begin
     Exit;
   end;
 
+  { This read-only probe runs in the current Setup session. SW_HIDE prevents a
+    console window and avoids the Task Scheduler launch broker used by commands
+    that must outlive or cross the Setup process boundary. }
   LegacyTaskDetected :=
-    NativeSetupCommand(
+    Exec(
       SchTasksPath,
       '/Query /TN "\AgentDock"',
-      5,
-      True,
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
       ExitCode) and
     (ExitCode = 0);
   Result := LegacyTaskDetected;
@@ -193,9 +197,9 @@ begin
     Exit;
 
   LegacyTask := False;
-  if (not TryRuntimePrivilegeMode(PrivilegeMode)) or
-    (CompareText(PrivilegeMode, 'standard') = 0) then
-    LegacyTask := LegacyAgentDockScheduledTaskExists();
+  if not TryRuntimePrivilegeMode(PrivilegeMode) then
+    PrivilegeMode := '';
+  LegacyTask := LegacyAgentDockScheduledTaskExists();
   RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
   StartupPage.Values[0] :=
     RegValueExists(HKCU, RunKey, 'AgentDock') or

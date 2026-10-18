@@ -27,8 +27,8 @@ func TestWindowsSetupUsesFastModernInstallPaths(t *testing.T) {
 	loadBlock := inno[loadStart : loadStart+loadEnd]
 	for _, required := range []string{
 		"TryRuntimePrivilegeMode", "LegacyTask := False",
-		"if (not TryRuntimePrivilegeMode(PrivilegeMode)) or",
-		"(CompareText(PrivilegeMode, 'standard') = 0) then",
+		"if not TryRuntimePrivilegeMode(PrivilegeMode) then",
+		"PrivilegeMode := ''",
 		"LegacyTask := LegacyAgentDockScheduledTaskExists()",
 	} {
 		if !strings.Contains(loadBlock, required) {
@@ -40,11 +40,23 @@ func TestWindowsSetupUsesFastModernInstallPaths(t *testing.T) {
 	}
 	for _, required := range []string{
 		"LegacyTaskDetectionComplete", "LegacyTaskDetected",
-		"      5,\n      True,\n      ExitCode",
+		"Exec(", "SW_HIDE", "ewWaitUntilTerminated",
 	} {
 		if !strings.Contains(inno, required) {
 			t.Fatalf("legacy task probe is missing %q", required)
 		}
+	}
+
+	legacyStart := strings.Index(inno, "function LegacyAgentDockScheduledTaskExists()")
+	if legacyStart < 0 {
+		t.Fatal("legacy scheduled-task probe is missing")
+	}
+	legacyEnd := strings.Index(inno[legacyStart:], "function TryRuntimePrivilegeMode")
+	if legacyEnd < 0 {
+		t.Fatal("legacy scheduled-task probe end is missing")
+	}
+	if strings.Contains(inno[legacyStart:legacyStart+legacyEnd], "NativeSetupCommand(") {
+		t.Fatal("legacy scheduled-task detection still uses the Setup launch broker")
 	}
 
 	launcher := read("internal", "desktopruntime", "setup_launcher_windows.go")
