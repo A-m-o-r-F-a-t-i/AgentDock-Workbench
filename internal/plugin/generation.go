@@ -194,7 +194,7 @@ func (s *Store) ensureInstalledGenerations() error {
 				_ = os.RemoveAll(stage)
 				return err
 			}
-			if err := os.Rename(candidate, generationPath); err != nil {
+			if err := promoteGeneration(candidate, generationPath, packageDigest, name, generation); err != nil {
 				_ = os.RemoveAll(stage)
 				return err
 			}

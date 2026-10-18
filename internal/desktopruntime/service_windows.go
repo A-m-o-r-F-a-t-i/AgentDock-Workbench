@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const windowsCoreStartTimeout = 2 * time.Minute
+const windowsCoreStartTimeout = 180 * time.Second
 
 func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStatus, error) {
 	manifest, _, err := loadDesktopManifest(runtimeRoot)
