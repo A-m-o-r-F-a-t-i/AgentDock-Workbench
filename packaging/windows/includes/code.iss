@@ -9,6 +9,8 @@ var
   ExistingInstallDetected: Boolean;
   ExistingInstallVersion: String;
   ExistingInstallSource: String;
+  LegacyTaskDetectionComplete: Boolean;
+  LegacyTaskDetected: Boolean;
   ResolvedInstallRoot: String;
   RequestedTunnelMode: String;
   RequestedServerURL: String;
@@ -119,7 +121,15 @@ var
   ExitCode: Integer;
   SchTasksPath: String;
 begin
-  SchTasksPath := ExpandConstant('{win}\System32\schtasks.exe');
+  if LegacyTaskDetectionComplete then
+  begin
+    Result := LegacyTaskDetected;
+    Exit;
+  end;
+  LegacyTaskDetectionComplete := True;
+  LegacyTaskDetected := False;
+
+  SchTasksPath := ExpandConstant('{sys}\schtasks.exe');
   if not FileExists(SchTasksPath) then
   begin
     Log('Windows schtasks.exe is unavailable; skipping legacy AgentDock task detection.');
@@ -127,24 +137,30 @@ begin
     Exit;
   end;
 
-  Result :=
-    NativeSetupCommand(
+  { This read-only probe runs in the current Setup session. SW_HIDE prevents a
+    console window and avoids the Task Scheduler launch broker used by commands
+    that must outlive or cross the Setup process boundary. }
+  LegacyTaskDetected :=
+    Exec(
       SchTasksPath,
       '/Query /TN "\AgentDock"',
-      30,
-      True,
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
       ExitCode) and
     (ExitCode = 0);
+  Result := LegacyTaskDetected;
   if Result then
     Log('AgentDock legacy scheduled task detected.');
 end;
 
-function RuntimeUsesElevatedCore(): Boolean;
+function TryRuntimePrivilegeMode(var PrivilegeMode: String): Boolean;
 var
   Content: AnsiString;
   Normalized: String;
   ManifestPath: String;
 begin
+  PrivilegeMode := '';
   Result := False;
   ManifestPath := AddBackslash(ExistingInstallRoot()) + 'runtime.json';
   if not FileExists(ManifestPath) then
@@ -155,22 +171,43 @@ begin
   StringChangeEx(Normalized, ' ', '', True);
   StringChangeEx(Normalized, #13, '', True);
   StringChangeEx(Normalized, #10, '', True);
-  Result := Pos('"privilege_mode":"elevated"', Normalized) > 0;
+  if Pos('"privilege_mode":"elevated"', Normalized) > 0 then
+    PrivilegeMode := 'elevated'
+  else if Pos('"privilege_mode":"standard"', Normalized) > 0 then
+    PrivilegeMode := 'standard';
+  Result := PrivilegeMode <> '';
+end;
+
+function RuntimeUsesElevatedCore(): Boolean;
+var
+  PrivilegeMode: String;
+begin
+  Result := False;
+  if TryRuntimePrivilegeMode(PrivilegeMode) then
+    Result := CompareText(PrivilegeMode, 'elevated') = 0;
 end;
 
 procedure LoadExistingSettings();
 var
   RunKey: String;
+  PrivilegeMode: String;
+  LegacyTask: Boolean;
 begin
   if not ExistingInstallDetected then
     Exit;
 
+  LegacyTask := False;
+  if not TryRuntimePrivilegeMode(PrivilegeMode) then
+    PrivilegeMode := '';
+  LegacyTask := LegacyAgentDockScheduledTaskExists();
   RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
   StartupPage.Values[0] :=
     RegValueExists(HKCU, RunKey, 'AgentDock') or
     RegValueExists(HKCU, RunKey, 'AgentDockTray') or
-    LegacyAgentDockScheduledTaskExists();
-  StartupPage.Values[1] := RuntimeUsesElevatedCore() or LegacyAgentDockScheduledTaskExists();
+    (CompareText(PrivilegeMode, 'elevated') = 0) or
+    LegacyTask;
+  StartupPage.Values[1] :=
+    (CompareText(PrivilegeMode, 'elevated') = 0) or LegacyTask;
 end;
 
 procedure ApplyExistingInstallPresentation();

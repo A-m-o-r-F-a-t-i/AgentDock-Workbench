@@ -105,6 +105,7 @@ func (s *Store) Close() {
 	if s == nil {
 		return
 	}
+	s.closeRuntimeGenerations()
 	if s.snapshots != nil {
 		s.snapshots.Close()
 	}

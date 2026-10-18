@@ -243,6 +243,15 @@ func TestPluginRecoverySkillRequiresOriginBeforeCommandStarts(t *testing.T) {
 	if resolved.RecoveryMCPServer != "recovery-test" || resolved.PluginGeneration == "" || resolved.PluginPackageDigest == "" {
 		t.Fatalf("Plugin lease lost its recovery declaration or generation identity: %+v", resolved)
 	}
+	runtimeRoot := filepath.Join(rt.cfg.AgentDockHome, "plugins", ".runtime", "demo.plugin")
+	beforeEntries, err := os.ReadDir(runtimeRoot)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	wantRuntimeName := "generation-" + resolved.PluginGeneration
+	if len(beforeEntries) > 1 || len(beforeEntries) == 1 && beforeEntries[0].Name() != wantRuntimeName {
+		t.Fatalf("Plugin Skill runtime cache was not generation-stable: %v", beforeEntries)
+	}
 	command := "printf started > recovery-started.txt"
 	if goruntime.GOOS == "windows" {
 		command = "Set-Content -LiteralPath 'recovery-started.txt' -Value 'started' -NoNewline"
@@ -257,12 +266,12 @@ func TestPluginRecoverySkillRequiresOriginBeforeCommandStarts(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "recovery-started.txt")); !os.IsNotExist(err) {
 		t.Fatalf("recovery command ran without its origin: %v", err)
 	}
-	entries, err := os.ReadDir(filepath.Join(rt.cfg.AgentDockHome, "plugins", ".runtime", "demo.plugin"))
+	afterEntries, err := os.ReadDir(runtimeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 0 {
-		t.Fatalf("rejected recovery retained its command runtime lease: %v", entries)
+	if len(afterEntries) != 1 || afterEntries[0].Name() != wantRuntimeName {
+		t.Fatalf("rejected recovery left a non-stable or extra command runtime directory: before=%v after=%v", beforeEntries, afterEntries)
 	}
 }
 

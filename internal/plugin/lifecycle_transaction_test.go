@@ -388,8 +388,25 @@ func TestStdioRuntimeGenerationCannotMutateInstalledDigest(t *testing.T) {
 		t.Fatalf("runtime generation disappeared while retained: %v", err)
 	}
 	releaseRetained()
-	if _, err := os.Stat(runtimeRoot); !os.IsNotExist(err) {
-		t.Fatalf("runtime generation remains after release: %v", err)
+	if _, err := os.Stat(runtimeRoot); err != nil {
+		t.Fatalf("active runtime cache disappeared after final reader release: %v", err)
+	}
+	store.Close()
+	reopened, err := New(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	reused, releaseReused, err := reopened.RuntimeMCPPackage(t.Context(), "runtime-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseReused()
+	if reused.Root != runtimeRoot {
+		t.Fatalf("active runtime cache was copied again: %q != %q", reused.Root, runtimeRoot)
+	}
+	if content, err := os.ReadFile(filepath.Join(reused.Root, "runtime-write.txt")); err != nil || string(content) != "runtime mutation" {
+		t.Fatalf("runtime-generated cache was not reused: content=%q error=%v", content, err)
 	}
 }
 

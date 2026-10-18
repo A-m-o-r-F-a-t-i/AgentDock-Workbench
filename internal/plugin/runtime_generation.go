@@ -8,10 +8,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/uvwt/agentdock/internal/fs/processlock"
 	"github.com/uvwt/agentdock/internal/fs/securepath"
 )
+
+const runtimeGenerationPreparationTimeout = 2 * time.Minute
 
 type runtimeGenerationKey struct {
 	name       string
@@ -19,11 +24,33 @@ type runtimeGenerationKey struct {
 }
 
 type runtimeGeneration struct {
-	root    string
-	readers int
+	root     string
+	readers  int
+	lock     *processlock.Lock
+	lockOnce sync.Once
+}
+
+func (current *runtimeGeneration) releaseLock() {
+	if current == nil {
+		return
+	}
+	current.lockOnce.Do(func() {
+		if current.lock != nil {
+			_ = current.lock.Release()
+		}
+	})
 }
 
 func (s *Store) CreateRuntimeGeneration(name, generation, source string) (string, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeGenerationPreparationTimeout)
+	defer cancel()
+	return s.createRuntimeGeneration(ctx, name, generation, source)
+}
+
+func (s *Store) createRuntimeGeneration(ctx context.Context, name, generation, source string) (string, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return "", nil, err
+	}
 	if err := validateIdentifier("plugin", name); err != nil {
 		return "", nil, err
 	}
@@ -48,25 +75,127 @@ func (s *Store) CreateRuntimeGeneration(name, generation, source string) (string
 		current.readers++
 		return current.root, s.runtimeGenerationRelease(key, current), nil
 	}
-	owner, err := newLifecycleOwner()
+	target, lockPath, err := s.runtimeGenerationPaths(name, generation)
 	if err != nil {
 		return "", nil, err
 	}
-	root := filepath.Join(s.root, ".runtime", name)
-	if err := os.MkdirAll(root, 0o700); err != nil {
+	runtimeLock, err := processlock.Acquire(ctx, lockPath)
+	if err != nil {
 		return "", nil, err
 	}
-	target := filepath.Join(root, "generation-"+generation+"-"+owner)
-	if err := copyPackageTree(source, target); err != nil {
-		_ = os.RemoveAll(target)
-		return "", nil, fmt.Errorf("copy Plugin runtime generation: %w", err)
+	retained := false
+	defer func() {
+		if !retained {
+			_ = runtimeLock.Release()
+		}
+	}()
+	if err := s.ensureRuntimeGeneration(ctx, name, generation, source, target); err != nil {
+		return "", nil, err
 	}
-	current := &runtimeGeneration{root: target, readers: 1}
+	current := &runtimeGeneration{root: target, readers: 1, lock: runtimeLock}
 	if s.runtimeCopies == nil {
 		s.runtimeCopies = make(map[runtimeGenerationKey]*runtimeGeneration)
 	}
 	s.runtimeCopies[key] = current
+	retained = true
 	return target, s.runtimeGenerationRelease(key, current), nil
+}
+
+func (s *Store) runtimeGenerationPaths(name, generation string) (string, string, error) {
+	key, err := generationLeaseKey(name, generation)
+	if err != nil {
+		return "", "", err
+	}
+	root, err := containedPath(s.root, filepath.Join(s.root, ".runtime", name), true)
+	if err != nil {
+		return "", "", err
+	}
+	target, err := containedPath(s.root, filepath.Join(root, "generation-"+generation), true)
+	if err != nil {
+		return "", "", err
+	}
+	lockPath, err := containedPath(s.root, filepath.Join(s.root, ".locks", "generations", key, "runtime.lock"), true)
+	if err != nil {
+		return "", "", err
+	}
+	return target, lockPath, nil
+}
+
+func (s *Store) ensureRuntimeGeneration(ctx context.Context, name, generation, source, target string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if info, err := os.Lstat(target); err == nil {
+		if info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+			if err := validateRuntimePackageFiles(ctx, source, target); err == nil {
+				return nil
+			}
+		}
+		if err := os.RemoveAll(target); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	migrated, err := s.migrateLegacyRuntimeGeneration(ctx, name, generation, source, target)
+	if err != nil || migrated {
+		return err
+	}
+	root := filepath.Dir(target)
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return err
+	}
+	staged, err := os.MkdirTemp(root, ".stage-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(staged)
+	if err := copyPackageTree(source, staged); err != nil {
+		return fmt.Errorf("copy Plugin runtime generation: %w", err)
+	}
+	if err := validateRuntimePackageFiles(ctx, source, staged); err != nil {
+		return err
+	}
+	if err := os.Rename(staged, target); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) migrateLegacyRuntimeGeneration(ctx context.Context, name, generation, source, target string) (bool, error) {
+	guard, err := s.generationLeaseGuard(ctx, name, generation)
+	if err != nil {
+		return false, err
+	}
+	defer guard()
+	readers, err := s.generationReaderCountUnlocked(name, generation)
+	if err != nil || readers != 1 {
+		return false, err
+	}
+	root := filepath.Dir(target)
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	prefix := "generation-" + generation + "-"
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		candidate := filepath.Join(root, entry.Name())
+		if err := validateRuntimePackageFiles(ctx, source, candidate); err != nil {
+			continue
+		}
+		if err := os.Rename(candidate, target); err != nil {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *Store) runtimeGenerationRelease(key runtimeGenerationKey, current *runtimeGeneration) func() {
@@ -74,13 +203,58 @@ func (s *Store) runtimeGenerationRelease(key runtimeGenerationKey, current *runt
 	return func() {
 		once.Do(func() {
 			s.runtimeMu.Lock()
-			defer s.runtimeMu.Unlock()
-			current.readers--
-			if current.readers == 0 {
-				delete(s.runtimeCopies, key)
-				_ = os.RemoveAll(current.root)
+			if current.readers > 0 {
+				current.readers--
 			}
+			if current.readers > 0 || s.runtimeGenerationRetained(key) {
+				s.runtimeMu.Unlock()
+				return
+			}
+			delete(s.runtimeCopies, key)
+			_ = os.RemoveAll(current.root)
+			current.releaseLock()
+			s.runtimeMu.Unlock()
 		})
+	}
+}
+
+func (s *Store) runtimeGenerationRetained(key runtimeGenerationKey) bool {
+	state, err := s.readNamedState(key.name)
+	if err != nil || !state.Enabled || state.Generation != key.generation {
+		return false
+	}
+	// Current host state is normalized with one entry per member. Empty maps are
+	// retained for legacy state whose member inventory predates these switches;
+	// a later acquisition will validate or rebuild the cache before use.
+	if len(state.Skills) == 0 && len(state.MCPServers) == 0 {
+		return true
+	}
+	for _, enabled := range state.Skills {
+		if enabled {
+			return true
+		}
+	}
+	for _, enabled := range state.MCPServers {
+		if enabled {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) closeRuntimeGenerations() {
+	if s == nil {
+		return
+	}
+	s.runtimeMu.Lock()
+	copies := s.runtimeCopies
+	s.runtimeCopies = nil
+	s.runtimeMu.Unlock()
+	for key, current := range copies {
+		if !s.runtimeGenerationRetained(key) {
+			_ = os.RemoveAll(current.root)
+		}
+		current.releaseLock()
 	}
 }
 

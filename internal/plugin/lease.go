@@ -137,26 +137,32 @@ func cleanupStaleGenerationReaders(readers string) {
 	}
 }
 
-func (s *Store) generationReadersEmpty(name, generation string) (bool, error) {
+func (s *Store) generationReaderCountUnlocked(name, generation string) (int, error) {
 	key, err := generationLeaseKey(name, generation)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	readers := filepath.Join(s.root, ".locks", "generations", key, "readers")
 	if err := os.MkdirAll(readers, 0o700); err != nil {
-		return false, err
+		return 0, err
 	}
 	cleanupStaleGenerationReaders(readers)
 	entries, err := os.ReadDir(readers)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
+	count := 0
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasPrefix(entry.Name(), pluginReaderPrefix) {
-			return false, nil
+			count++
 		}
 	}
-	return true, nil
+	return count, nil
+}
+
+func (s *Store) generationReadersEmpty(name, generation string) (bool, error) {
+	count, err := s.generationReaderCountUnlocked(name, generation)
+	return count == 0, err
 }
 
 func (s *Store) cleanupObsoleteGeneration(name, generation string) error {
