@@ -56,8 +56,8 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	if err != nil {
 		return result
 	}
-	budget := min(toolcontract.ModelVisibleTotalChars, structuredOutputBudget(p.spec.Name, p.args))
-	businessBudget := max(1<<10, budget-toolcontract.ModelVisibleControlChars)
+	budget := min(toolcontract.ModelVisibleBodyChars, structuredOutputBudget(p.spec.Name, p.args))
+	businessBudget := max(1<<10, budget)
 	if chars, countErr := toolcontract.JSONChars(full); p.structuredResume == nil && countErr == nil && chars <= businessBudget {
 		return result
 	}
@@ -103,6 +103,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	page, next, returned, minimumBytes, oversized := buildStructuredPage(full, paths, position, businessBudget, hardBusinessBudget)
 	hasMore := structuredPageHasMore(full, paths, next)
 	deliveryIncomplete := hasMore || oversized != nil
+	bodyChars, _ := toolcontract.JSONChars(page)
 	if oversized != nil {
 		snapshot.OversizedItems = true
 		r.markStructuredSnapshotOversized(snapshot.ID)
@@ -112,6 +113,7 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 		"budget_chars":          budget,
 		"snapshot_id":           snapshot.ID,
 		"business_budget_chars": businessBudget,
+		"body_chars":            bodyChars,
 		"source_bytes":          len(encoded),
 		"retained_bytes":        len(snapshot.Encoded),
 		"dropped_before_bytes":  0,

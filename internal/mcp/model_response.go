@@ -26,6 +26,48 @@ func modelEnvelopeChars(envelope map[string]any) (int, error) {
 	return utf8.RuneCount(encoded), err
 }
 
+// modelBodyChars measures the model-facing structured body without the
+// self-describing projection measurement. MCP envelope and projection control
+// fields are bounded separately from the 12,000-character business body.
+func modelBodyChars(envelope map[string]any) (int, error) {
+	payload := maps.Clone(asMap(envelope["structuredContent"]))
+	if payload == nil {
+		return 0, nil
+	}
+	if structured := asMap(payload["structured_output"]); structured != nil {
+		if chars, ok := modelCharacterCount(structured["body_chars"]); ok {
+			return chars, nil
+		}
+	}
+	delete(payload, "model_projection")
+	return toolcontract.JSONChars(payload)
+}
+
+func modelCharacterCount(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, typed >= 0
+	case int64:
+		return int(typed), typed >= 0
+	case float64:
+		return int(typed), typed >= 0
+	case json.Number:
+		parsed, err := typed.Int64()
+		return int(parsed), err == nil && parsed >= 0
+	default:
+		return 0, false
+	}
+}
+
+func modelResponseChars(ctx context.Context, name string, envelope map[string]any) (int, int, error) {
+	bodyChars, err := modelBodyChars(envelope)
+	if err != nil {
+		return 0, 0, err
+	}
+	wireChars, err := modelWireChars(ctx, name, envelope)
+	return bodyChars, wireChars, err
+}
+
 func singleBodyEnvelope(name string, envelope map[string]any) map[string]any {
 	out := maps.Clone(envelope)
 	content := []any{map[string]any{"type": "text", "text": toolResultSummary(name, envelope)}}
@@ -56,16 +98,34 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		out["_meta"] = meta
 		out["resultType"] = "complete"
 	}
-	chars, err := modelWireChars(ctx, name, out)
+	bodyChars, wireChars, err := modelResponseChars(ctx, name, out)
 	if err != nil {
 		return nil, err
 	}
-	if chars > toolcontract.ModelVisibleTotalChars {
+	compact := func(current map[string]any) (map[string]any, error) {
 		source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(name, envelope))
 		if storeErr != nil {
 			return nil, fmt.Errorf("retain completed tool output before projection: %w", storeErr)
 		}
-		out = compactModelResponse(name, arguments, out, source)
+		projected := compactModelResponse(name, arguments, current, source)
+		body, wire, measureErr := modelResponseChars(ctx, name, projected)
+		if measureErr != nil {
+			return nil, measureErr
+		}
+		if body > toolcontract.ModelVisibleBodyChars || wire > toolcontract.ModelVisibleTotalChars {
+			return nil, fmt.Errorf("MODEL_RESPONSE_BUDGET_EXCEEDED: body=%d/%d wire=%d/%d retained source=%s; inspect the completed operation before any retry", body, toolcontract.ModelVisibleBodyChars, wire, toolcontract.ModelVisibleTotalChars, source)
+		}
+		return projected, nil
+	}
+	if bodyChars > toolcontract.ModelVisibleBodyChars || wireChars > toolcontract.ModelVisibleTotalChars {
+		out, err = compact(out)
+		if err != nil {
+			return nil, err
+		}
+		bodyChars, wireChars, err = modelResponseChars(ctx, name, out)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for range 8 {
 		payload := maps.Clone(asMap(out["structuredContent"]))
@@ -77,7 +137,8 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			projection = map[string]any{"mode": "full", "complete": true}
 		}
 		payload["model_projection"] = map[string]any{
-			"chars": chars, "budget_chars": toolcontract.ModelVisibleTotalChars,
+			"chars": bodyChars, "budget_chars": toolcontract.ModelVisibleBodyChars,
+			"wire_chars": wireChars, "wire_budget_chars": toolcontract.ModelVisibleTotalChars,
 			"class":                   modelOutputClass(name, arguments, payload),
 			"native_attachment_bytes": nativeBytes,
 			"mode":                    projection["mode"], "complete": projection["complete"],
@@ -87,26 +148,25 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		if err != nil {
 			return nil, err
 		}
-		next, countErr := modelWireChars(ctx, name, out)
+		nextBody, nextWire, countErr := modelResponseChars(ctx, name, out)
 		if countErr != nil {
 			return nil, countErr
 		}
-		if next > toolcontract.ModelVisibleTotalChars {
-			source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(name, envelope))
-			if storeErr != nil {
-				return nil, storeErr
+		if nextBody > toolcontract.ModelVisibleBodyChars || nextWire > toolcontract.ModelVisibleTotalChars {
+			out, err = compact(out)
+			if err != nil {
+				return nil, err
 			}
-			out = compactModelResponse(name, arguments, out, source)
-			if remaining, _ := modelWireChars(ctx, name, out); remaining > toolcontract.ModelVisibleTotalChars {
-				return nil, fmt.Errorf("MODEL_RESPONSE_BUDGET_EXCEEDED: retained source=%s; inspect the completed operation before any retry", source)
+			bodyChars, wireChars, err = modelResponseChars(ctx, name, out)
+			if err != nil {
+				return nil, err
 			}
-			chars = next
 			continue
 		}
-		if next == chars {
+		if nextBody == bodyChars && nextWire == wireChars {
 			return modelWireEnvelope(ctx, name, out)
 		}
-		chars = next
+		bodyChars, wireChars = nextBody, nextWire
 	}
 	return nil, fmt.Errorf("model response character count did not converge")
 }

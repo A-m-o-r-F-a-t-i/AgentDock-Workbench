@@ -23,7 +23,7 @@ func (r *Runtime) readProjectedFile(ctx context.Context, request toolfile.ReadRe
 	if !ok {
 		policy = r.MCPPresentationSettings().ToolOutput
 	}
-	bodyBudget := toolcontract.ModelVisiblePayloadChars - 2000
+	bodyBudget := toolcontract.ModelVisibleBodyChars - 2000
 	if policy.Enabled && policy.MaxChars > 0 {
 		bodyBudget = min(bodyBudget, policy.MaxChars)
 	}

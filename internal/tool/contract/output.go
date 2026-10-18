@@ -8,9 +8,14 @@ import (
 )
 
 const (
-	ModelVisibleTotalChars   = 12000
-	ModelVisibleControlChars = 1500
-	ModelVisiblePayloadChars = ModelVisibleTotalChars - ModelVisibleControlChars
+	// ModelVisibleBodyChars is the escaped JSON character budget for the
+	// model-facing business body. Projection and MCP envelope fields do not
+	// consume this budget.
+	ModelVisibleBodyChars = 12000
+	// ModelVisibleControlChars bounds projection, continuation, Context
+	// bootstrap and final CallToolResult envelope fields outside the body.
+	ModelVisibleControlChars = 4100
+	ModelVisibleTotalChars   = ModelVisibleBodyChars + ModelVisibleControlChars
 	CompatSummaryMaxChars    = 512
 )
 

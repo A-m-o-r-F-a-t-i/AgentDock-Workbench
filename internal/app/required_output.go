@@ -9,23 +9,13 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-const (
-	requiredOutputWrapperReserveChars = 1800
-	contextBootstrapReserveChars      = 800
-)
-
 func requiredOutputPageBudget(name string, args map[string]any) int {
-	budget := min(toolcontract.ModelVisiblePayloadChars, structuredOutputBudget(name, args))
 	if isContextTool(name) {
-		// Context uses one server-owned model budget. A caller byte limit cannot
-		// enlarge or shrink the immutable semantic page sequence.
-		budget = toolcontract.ModelVisiblePayloadChars
+		// Context owns a fixed 12,000-character body budget. Control and MCP
+		// envelope fields are bounded separately and never deducted here.
+		return toolcontract.ModelVisibleBodyChars
 	}
-	budget -= requiredOutputWrapperReserveChars
-	if isContextTool(name) {
-		budget -= contextBootstrapReserveChars
-	}
-	return max(1024, budget)
+	return max(1024, min(toolcontract.ModelVisibleBodyChars, structuredOutputBudget(name, args)))
 }
 
 func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result) Result {
@@ -123,12 +113,15 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	}
 	r.structuredOutputMu.Unlock()
 	hasMore := next < count
+	body := maps.Clone(page)
+	delete(body, "received_sections")
+	bodyChars, _ := toolcontract.JSONChars(body)
 	meta := map[string]any{
 		"snapshot_id": retained.ID, "page_index": next, "page_count": count,
 		"class": toolcontract.OutputRequiredFull, "truncated": count > 1,
 		"required_delivery_complete": !hasMore, "source_complete": retained.SourceComplete,
 		"source_bytes": len(encoded), "retained_bytes": len(retained.Encoded),
-		"budget_chars": toolcontract.ModelVisibleTotalChars, "payload_budget_chars": budget,
+		"budget_chars": toolcontract.ModelVisibleBodyChars, "body_budget_chars": budget, "body_chars": bodyChars,
 		"semantic_parts": parts, "source": retained.SourceURI,
 		"cursor_expires_at": retained.ExpiresAt.UTC().Format(time.RFC3339),
 	}

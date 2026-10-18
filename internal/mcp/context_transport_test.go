@@ -15,6 +15,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/insertion"
 	"github.com/uvwt/agentdock/internal/requesttrace"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 func assertContextMeasurements(t *testing.T, result *sdk.CallToolResult) {
@@ -40,6 +41,20 @@ func assertContextMeasurements(t *testing.T, result *sdk.CallToolResult) {
 	if diagnostics["response_truncated"] != false {
 		t.Fatal("complete structure marked truncated")
 	}
+	projection := asMap(asMap(result.StructuredContent)["model_projection"])
+	if len(projection) == 0 {
+		return
+	}
+	bodyChars, _ := projection["chars"].(float64)
+	bodyBudget, _ := projection["budget_chars"].(float64)
+	wireChars, _ := projection["wire_chars"].(float64)
+	wireBudget, _ := projection["wire_budget_chars"].(float64)
+	if int(bodyBudget) != toolcontract.ModelVisibleBodyChars || bodyChars > bodyBudget {
+		t.Fatalf("body projection chars=%v budget=%v", projection["chars"], projection["budget_chars"])
+	}
+	if int(wireBudget) != toolcontract.ModelVisibleTotalChars || wireChars > wireBudget {
+		t.Fatalf("wire projection chars=%v budget=%v", projection["wire_chars"], projection["wire_budget_chars"])
+	}
 }
 
 func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testing.T) {
@@ -57,7 +72,7 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 		}
 		assertContextMeasurements(t, result)
 		wire, _ := json.Marshal(result)
-		if utf8.RuneCount(wire) > 12000 {
+		if utf8.RuneCount(wire) > toolcontract.ModelVisibleTotalChars {
 			t.Fatal("negotiated response exceeded the fixed final budget")
 		}
 		full := requiredSDKPayload(t, h.session, result, args, meta)
@@ -198,7 +213,7 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 			t.Fatalf("page %d err=%v result=%+v", index, err, result)
 		}
 		encoded, err := json.Marshal(result)
-		if err != nil || utf8.RuneCount(encoded) > 12000 {
+		if err != nil || utf8.RuneCount(encoded) > toolcontract.ModelVisibleTotalChars {
 			t.Fatalf("final escaped budget exceeded: chars=%d err=%v", utf8.RuneCount(encoded), err)
 		}
 		if text, ok := result.Content[0].(*sdk.TextContent); !ok || utf8.RuneCountInString(text.Text) > 512 {
@@ -257,7 +272,7 @@ func TestModelV2ExplicitTextOnlyBudgetAndContinuation(t *testing.T) {
 			t.Fatalf("text-only read failed: %v %+v", err, result)
 		}
 		raw, err := json.Marshal(result)
-		if err != nil || utf8.RuneCount(raw) > 12000 {
+		if err != nil || utf8.RuneCount(raw) > toolcontract.ModelVisibleTotalChars {
 			t.Fatalf("text-only escaped final size=%d: %v", utf8.RuneCount(raw), err)
 		}
 		if result.StructuredContent != nil {

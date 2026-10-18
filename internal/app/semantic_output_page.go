@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	requiredPageMetadataReserveChars = 700
 	requiredPartEnvelopeReserveChars = 128
 	requiredTextPartReserveChars     = 160
 )
@@ -156,8 +155,8 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 		}
 	}
 	headerChars, _ := toolcontract.JSONChars(requiredPageHeader(full, false))
-	// Reserve section-name accounting and array punctuation before filling a page.
-	budget -= requiredPageMetadataReserveChars
+	// The page header and semantic sections share the 12,000-character body
+	// budget. Pagination metadata is added later from the separate control budget.
 	parts := requiredOutputParts(body, max(256, budget-headerChars-requiredPartEnvelopeReserveChars))
 	groups := [][]semanticOutputPart{}
 	for index := 0; index < len(parts); {

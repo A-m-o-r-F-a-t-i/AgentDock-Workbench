@@ -348,7 +348,7 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 	ctx := WithModelProjection(activity.WithSource(t.Context(), activity.Source{
 		Principal: "context-cursor-test", Namespace: "mcp", HostConversationID: "context-cursor-boundary",
 	}))
-	args := map[string]any{"workdir": root, "max_response_bytes": 12000}
+	args := map[string]any{"workdir": root}
 	first, err := rt.Call(ctx, "agentdock_context", args)
 	if err != nil {
 		t.Fatal(err)
@@ -380,8 +380,7 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 	if err := os.Chtimes(git, changedTime, changedTime); err != nil {
 		t.Fatal(err)
 	}
-	args["cursor"] = cursor
-	next, err := rt.Call(ctx, "agentdock_context", args)
+	next, err := rt.Call(ctx, "agentdock_context", map[string]any{"cursor": cursor})
 	if err != nil {
 		t.Fatalf("catalog/Git bookkeeping invalidated immutable Context pages: %v", err)
 	}
@@ -395,8 +394,7 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 	if err := os.WriteFile(rulesPath, []byte(rules+"The workspace rules have changed.\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	args["cursor"] = cursor
-	_, err = rt.Call(ctx, "agentdock_context", args)
+	_, err = rt.Call(ctx, "agentdock_context", map[string]any{"cursor": cursor})
 	var failure *ToolError
 	if !errors.As(err, &failure) || failure.Code != "CONTEXT_REVISION_CHANGED" {
 		t.Fatalf("changed rules did not reject the retained cursor: %v", err)
@@ -404,7 +402,7 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 	checkMarker := func(t *testing.T, change func() error, wantConflict bool) {
 		t.Helper()
 		first, err := rt.Call(ctx, "agentdock_context", map[string]any{
-			"workdir": root, "max_response_bytes": 12000, "force_refresh": true,
+			"workdir": root, "force_refresh": true,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -416,9 +414,7 @@ func TestContextCursorSurvivesCatalogAndGitWritesButRejectsChangedRules(t *testi
 		if err := change(); err != nil {
 			t.Fatal(err)
 		}
-		next, err := rt.Call(ctx, "agentdock_context", map[string]any{
-			"workdir": root, "max_response_bytes": 12000, "cursor": cursor,
-		})
+		next, err := rt.Call(ctx, "agentdock_context", map[string]any{"cursor": cursor})
 		if wantConflict {
 			var failure *ToolError
 			if !errors.As(err, &failure) || failure.Code != "CONTEXT_REVISION_CHANGED" {

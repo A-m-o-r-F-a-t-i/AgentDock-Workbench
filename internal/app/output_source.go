@@ -57,7 +57,7 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	if !ok {
 		policy = r.MCPPresentationSettings().ToolOutput
 	}
-	limit := toolcontract.ModelVisiblePayloadChars
+	limit := toolcontract.ModelVisibleBodyChars
 	if policy.Enabled && policy.MaxChars > 0 {
 		limit = min(limit, policy.MaxChars)
 	}
@@ -72,7 +72,7 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	if err != nil {
 		return nil, err
 	}
-	visible := toolcontract.JSONTextPrefix(page.Text, toolcontract.ModelVisiblePayloadChars-2000)
+	visible := toolcontract.JSONTextPrefix(page.Text, toolcontract.ModelVisibleBodyChars-2000)
 	page.HasMore = page.HasMore || len(visible) < len(page.Text)
 	page.NextOffset = page.Offset + int64(len(visible))
 	page.Text, page.ReturnedChars = visible, utf8.RuneCountInString(visible)

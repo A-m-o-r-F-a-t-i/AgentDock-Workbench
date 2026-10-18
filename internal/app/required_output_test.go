@@ -28,7 +28,7 @@ func TestRequiredSourceReadOnlyWhenRecoveryIsNeeded(t *testing.T) {
 }
 
 func TestContextRequiredOutputUsesServerOwnedBudget(t *testing.T) {
-	want := toolcontract.ModelVisiblePayloadChars - requiredOutputWrapperReserveChars - contextBootstrapReserveChars
+	want := toolcontract.ModelVisibleBodyChars
 	for _, name := range []string{"agentdock_context", "workspace_context"} {
 		for _, requested := range []int{4096, 65536} {
 			if got := requiredOutputPageBudget(name, map[string]any{"max_response_bytes": requested}); got != want {
