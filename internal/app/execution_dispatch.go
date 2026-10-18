@@ -14,6 +14,7 @@ import (
 	"github.com/uvwt/agentdock/internal/config"
 	"github.com/uvwt/agentdock/internal/permission"
 	"github.com/uvwt/agentdock/internal/requesttrace"
+	"github.com/uvwt/agentdock/internal/snapshot"
 	toolcapability "github.com/uvwt/agentdock/internal/tool/capability"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
@@ -27,23 +28,26 @@ type liveExecution struct {
 	source    activity.Source
 }
 type preparedExecution struct {
-	patchPreview        Result
-	modelOutput         bool
-	spec                ToolSpec
-	args                map[string]any
-	state               executionObservation
-	source              activity.Source
-	decision            permission.Decision
-	approvalInline      bool
-	approvalID          string
-	approvalRequestedAt time.Time
-	executionStartedAt  time.Time
-	sessionIDs          []string
-	mcpCall             *toolmcp.PreparedCall
-	outputPolicy        config.ToolOutputSettings
-	completion          *activity.AppendReservation
-	structuredResume    *structuredOutputResume
-	outputFailure       *ToolError
+	patchPreview         Result
+	modelOutput          bool
+	spec                 ToolSpec
+	args                 map[string]any
+	state                executionObservation
+	source               activity.Source
+	decision             permission.Decision
+	approvalInline       bool
+	approvalID           string
+	approvalRequestedAt  time.Time
+	executionStartedAt   time.Time
+	sessionIDs           []string
+	mcpCall              *toolmcp.PreparedCall
+	outputPolicy         config.ToolOutputSettings
+	completion           *activity.AppendReservation
+	structuredResume     *structuredOutputResume
+	outputFailure        *ToolError
+	contextShared        bool
+	contextSharedInfo    snapshot.Info
+	contextSharedWorkdir string
 }
 
 func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[string]any) (result Result, returnErr error) {
@@ -779,6 +783,12 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	if err == nil && !businessOutcomeFailure(p.spec.Name, result) && p.structuredResume == nil {
 		outputErr = r.validateExecutionResult(p, result)
 		p.outputFailure = outputFailureFromError(outputErr)
+	}
+	if err == nil && outputErr == nil && p.spec.Name == "agentdock_context" && p.contextShared {
+		// Compact only after the complete canonical Context has passed binding
+		// coordination and output validation. The reference is a projection of
+		// that validated immutable result, not a second canonical build.
+		result = r.compactSharedContext(ctx, result, p.contextSharedWorkdir, p.state.binding, p.contextSharedInfo)
 	}
 	if isCommandExecutionTool(p.spec.Name) && err == nil && stringArg(result, "session_id") != "" {
 		sessionID := stringArg(result, "session_id")

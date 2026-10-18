@@ -392,7 +392,9 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 		}
 		workdir := stringArg(p.args, "workdir")
 		if buildErr == nil && bareContextRequest(p.args) && !r.contextSnapshots.claimCompleteDelivery(info.BuildID, time.Now()) {
-			return r.compactSharedContext(ctx, cloned, workdir, binding, info), nil
+			p.contextShared = true
+			p.contextSharedInfo = info
+			p.contextSharedWorkdir = workdir
 		}
 		if info.CacheHit {
 			r.refreshContextVolatileFacts(ctx, cloned, workdir, binding)
