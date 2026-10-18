@@ -63,6 +63,8 @@ func (s *Service) Manage(ctx context.Context, request Request) (Result, error) {
 
 func registryError(err error) error {
 	code := "WORKSPACE_ERROR"
+	category := "validation"
+	details := map[string]any{}
 	switch {
 	case errors.Is(err, hostworkspace.ErrWorkspaceRequired):
 		code = "WORKSPACE_REQUIRED"
@@ -72,6 +74,16 @@ func registryError(err error) error {
 		code = "WORKSPACE_REVISION_CONFLICT"
 	case errors.Is(err, hostworkspace.ErrWorkspaceBoundary):
 		code = "WORKSPACE_PATH_OUTSIDE_ROOT"
+	case errors.Is(err, hostworkspace.ErrWorkspaceLimit):
+		code, category = "WORKSPACE_LIMIT", "resource_limit"
+		details = map[string]any{
+			"retryable":   false,
+			"next_action": "list_or_update_workspace",
+			"required_action": map[string]any{
+				"action": "list_or_update_workspace",
+				"text":   "Reuse or update an existing workspace. Registration already prunes unavailable implicit Context workspaces before enforcing the hard limit.",
+			},
+		}
 	}
-	return &core.ToolError{Code: code, Message: err.Error(), Category: "validation"}
+	return &core.ToolError{Code: code, Message: err.Error(), Category: category, Details: details}
 }

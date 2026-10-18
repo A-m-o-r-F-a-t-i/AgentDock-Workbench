@@ -230,6 +230,9 @@ func (r *Runtime) callObserved(ctx context.Context, spec ToolSpec, original map[
 	if err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "call.bound", ToolName: spec.Name, Title: description, ParameterSummary: r.executionParameters(args), DisplayCommand: r.executionRedactor(args).Text(stringArg(args, "cmd"), 4096), Summary: description}); err != nil {
 		return fail(err)
 	}
+	if err = r.emptySessionLists.reject(state.binding, spec.Name, args); err != nil {
+		return fail(err)
+	}
 	if spec.Name == "apply_patch" {
 		if err = r.appendExecution(activity.Event{Binding: state.binding, Kind: "file.requested", ToolName: spec.Name, FileEdit: r.fileEditDetails(args, nil, state, nil)}); err != nil {
 			return fail(err)
@@ -434,10 +437,39 @@ func (r *Runtime) executionRedactor(args map[string]any) activity.Redactor {
 	}
 	return activity.NewRedactor(values...)
 }
+
+func compactExecutionIdentifier(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= 18 {
+		return value
+	}
+	return value[:18] + "…"
+}
+
+func contextExecutionTitle(name string, args map[string]any) string {
+	base, detail, refresh, revision := "加载上下文", "读取上下文详情", "刷新上下文", "检查上下文版本"
+	if name == "workspace_context" {
+		base, detail, refresh, revision = "读取工作区规则", "读取工作区规则详情", "刷新工作区规则", "检查工作区规则版本"
+	}
+	if cursor := stringArg(args, "cursor"); cursor != "" {
+		return detail + " · " + compactExecutionIdentifier(cursor)
+	}
+	if args["force_refresh"] == true {
+		return refresh
+	}
+	if known := stringArg(args, "known_context_revision"); known != "" {
+		return revision + " · " + compactExecutionIdentifier(known)
+	}
+	return base
+}
+
 func (r *Runtime) describeExecution(name string, args map[string]any, state executionObservation) string {
 	action := stringArg(args, "action")
 	if name == "mcp_tool_call" {
 		return r.executionRedactor(args).Text(stringArg(args, "name"), 512)
+	}
+	if name == "agentdock_context" || name == "workspace_context" {
+		return r.executionRedactor(args).Text(contextExecutionTitle(name, args), 512)
 	}
 	descriptions := map[string]string{"agentdock_context": "加载上下文", "workspace_context": "读取工作区规则", "read_file": "读取文件", "list_dir": "列出目录", "search_text": "搜索文本", "exec_command": "运行命令", "apply_patch": "apply_patch", "task_manage": "任务管理", "workspace_manage": "工作区管理", "mcp_tool_search": "发现动态工具", "mcp_tool_list": "读取工具目录", "mcp_tool_inspect": "加载工具 Schema", "mcp_tool_call": "调用动态工具", "plugin_load": "展开插件", "session_observe": "查看命令会话", "session_act": "控制命令会话"}
 	title := descriptions[name]
@@ -467,7 +499,7 @@ func (r *Runtime) describeExecution(name string, args map[string]any, state exec
 // arbitrary third-party nested data. The fixed request stays in memory.
 func (r *Runtime) executionParameters(args map[string]any) string {
 	selected := map[string]any{}
-	for _, key := range []string{"action", "name", "origin_call_id", "path", "new_path", "workdir", "query", "cmd", "session_id", "runtime", "backend", "target_kind", "dry_run", "timeout_ms", "package", "component", "namespace", "key", "operation", "mode", "permission", "capture_dir", "x", "y", "x2", "y2", "keycode"} {
+	for _, key := range []string{"action", "name", "origin_call_id", "path", "new_path", "workdir", "query", "cmd", "session_id", "cursor", "known_context_revision", "force_refresh", "max_response_bytes", "runtime", "backend", "target_kind", "dry_run", "timeout_ms", "package", "component", "namespace", "key", "operation", "mode", "permission", "capture_dir", "x", "y", "x2", "y2", "keycode"} {
 		if value, found := args[key]; found {
 			selected[key] = value
 		}
@@ -737,7 +769,11 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 		}
 	}
 	if p.spec.Name == "session_observe" && (stringArg(p.args, "action") == "list" || stringArg(p.args, "action") == "") {
+		_, isSessionListResult := result["sessions"]
 		result = r.filterSessionList(ctx, result, p.state.binding)
+		if isSessionListResult {
+			r.emptySessionLists.record(p.state.binding, result)
+		}
 	}
 	var outputErr error
 	if err == nil && !businessOutcomeFailure(p.spec.Name, result) && p.structuredResume == nil {
@@ -746,6 +782,9 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	}
 	if isCommandExecutionTool(p.spec.Name) && err == nil && stringArg(result, "session_id") != "" {
 		sessionID := stringArg(result, "session_id")
+		if stringArg(result, "status") == "running" {
+			r.emptySessionLists.clear(state.binding)
+		}
 		phase := activity.Event{Binding: state.binding, Kind: "call.phases", ToolName: p.spec.Name}
 		phase.ExecutionElapsedMS, phase.WaitElapsedMS = &executionMS, &waitMS
 		if auditErr := r.appendExecution(phase); auditErr != nil {

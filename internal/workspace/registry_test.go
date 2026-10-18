@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func registryFixture(t *testing.T) (*Registry, Record) {
@@ -297,5 +300,116 @@ func TestWorkspaceRegistryCorruptionIsNotSilentlyReplaced(t *testing.T) {
 	after, _ := os.ReadFile(path)
 	if string(after) != "corrupt" {
 		t.Fatal("registry corruption was overwritten")
+	}
+}
+
+func syntheticWorkspaceRecord(registry *Registry, id, root, project string, timestamp time.Time) Record {
+	return Record{
+		ID: id, Name: filepath.Base(root), Kind: "repository", Project: project,
+		Runtime: HostRuntime(), Root: root, DefaultWorkdir: ".",
+		ArtifactRoot:  filepath.Join(registry.artifactRoot, id),
+		ScratchRoot:   filepath.Join(registry.scratchRoot, id),
+		CacheRoot:     registry.cacheRoot,
+		RulesRevision: 1, CreatedAt: timestamp, UpdatedAt: timestamp,
+	}
+}
+
+func TestWorkspaceRegistryPrunesUnavailableImplicitContextRecords(t *testing.T) {
+	registry, defaultRecord := registryFixture(t)
+	state, err := registry.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := t.TempDir()
+	now := time.Now().UTC()
+	explicitID := "wsp_0000000000000abc"
+	explicit := syntheticWorkspaceRecord(registry, explicitID, filepath.Join(parent, "missing-explicit"), "", now)
+	state.Records = append(state.Records, explicit)
+	for index := 0; len(state.Records) < workspacePruneThreshold; index++ {
+		id := fmt.Sprintf("wsp_%016x", 0x1000+index)
+		root := filepath.Join(parent, fmt.Sprintf("missing-context-%03d", index))
+		state.Records = append(state.Records, syntheticWorkspaceRecord(registry, id, root, "", now.Add(time.Duration(index)*time.Second)))
+		markImplicitWorkspace(&state, id)
+	}
+	if err := registry.write(state); err != nil {
+		t.Fatal(err)
+	}
+
+	newRoot := t.TempDir()
+	registered, err := registry.EnsureRoot(context.Background(), newRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, defaultID, err := registry.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundDefault, foundExplicit, foundRegistered := false, false, false
+	for _, record := range records {
+		foundDefault = foundDefault || record.ID == defaultRecord.ID
+		foundExplicit = foundExplicit || record.ID == explicitID
+		foundRegistered = foundRegistered || record.ID == registered.ID
+		if record.Project == "" && strings.HasPrefix(record.Name, "missing-context-") {
+			t.Fatalf("unavailable implicit Context workspace was retained: %+v", record)
+		}
+	}
+	if !foundDefault || !foundExplicit || !foundRegistered || defaultID != defaultRecord.ID {
+		t.Fatalf("pruning removed a protected workspace: default=%v explicit=%v registered=%v records=%+v", foundDefault, foundExplicit, foundRegistered, records)
+	}
+}
+
+func TestWorkspaceExplicitRegistrationPromotesImplicitRoot(t *testing.T) {
+	registry, _ := registryFixture(t)
+	root := t.TempDir()
+	implicit, err := registry.EnsureRoot(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := registry.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := false
+	for _, id := range state.ImplicitIDs {
+		marked = marked || id == implicit.ID
+	}
+	if !marked {
+		t.Fatalf("EnsureRoot did not mark the implicit workspace: %+v", state)
+	}
+
+	explicit, err := registry.Register(context.Background(), RegisterInput{Root: root, Name: "explicit-no-project"})
+	if err != nil || explicit.ID != implicit.ID {
+		t.Fatalf("explicit registration did not reuse the implicit root: %+v %v", explicit, err)
+	}
+	state, err = registry.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range state.ImplicitIDs {
+		if id == implicit.ID {
+			t.Fatalf("explicit registration retained the implicit cleanup marker: %+v", state)
+		}
+	}
+}
+
+func TestWorkspaceRegistryExceedsLegacyCapacityWithoutDroppingExplicitRecords(t *testing.T) {
+	registry, _ := registryFixture(t)
+	state, err := registry.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := t.TempDir()
+	now := time.Now().UTC()
+	for index := 0; len(state.Records) <= workspacePruneThreshold; index++ {
+		id := fmt.Sprintf("wsp_%016x", 0x2000+index)
+		root := filepath.Join(parent, fmt.Sprintf("explicit-%03d", index))
+		state.Records = append(state.Records, syntheticWorkspaceRecord(registry, id, root, fmt.Sprintf("project-%03d", index), now))
+	}
+	if err := registry.write(state); err != nil {
+		t.Fatalf("registry rejected %d explicit records at the legacy limit: %v", len(state.Records), err)
+	}
+	records, _, err := registry.List(context.Background())
+	if err != nil || len(records) != len(state.Records) {
+		t.Fatalf("registry did not preserve explicit records above the legacy limit: got=%d want=%d err=%v", len(records), len(state.Records), err)
 	}
 }

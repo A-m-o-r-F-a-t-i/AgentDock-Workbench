@@ -41,6 +41,8 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 			Required: true, PageBudget: budget, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(structuredSnapshotTTL),
 			SourceComplete: complete, SourceReason: reason, SourceState: "complete",
 		}
+		retained.SelectorArguments, _ = cloneExecutionArguments(structuredSelectorArguments(p.args))
+		retained.ResumeArguments, _ = cloneExecutionArguments(structuredResumeArguments(p.args))
 		if !complete {
 			retained.SourceState = "partial"
 		}
@@ -115,6 +117,9 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 		"semantic_parts": parts, "source": retained.SourceURI,
 		"cursor_expires_at": retained.ExpiresAt.UTC().Format(time.RFC3339),
 	}
+	if p.structuredResume != nil && p.structuredResume.Cursor != "" {
+		meta["request_cursor"] = p.structuredResume.Cursor
+	}
 	if retained.SourceURI != "" && requiredSourceReadNeeded(hasMore, retained.SourceComplete, page) {
 		meta["continue_read"] = map[string]any{"tool": "read_file", "arguments": map[string]any{"path": retained.SourceURI, "offset": 0, "limit_chars": 8000}}
 	}
@@ -161,6 +166,19 @@ func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Resu
 	r.commitRequiredFile(binding, result)
 	meta := modelObject(result["structured_output"])
 	id := stringArg(meta, "snapshot_id")
+	requestCursor := stringArg(meta, "request_cursor")
+	if id != "" && requestCursor != "" {
+		r.structuredOutputMu.Lock()
+		position, cursorFound := r.structuredCursors[requestCursor]
+		stored := r.structuredSnapshots[id]
+		if cursorFound && position.SnapshotID == id && stored != nil && stored.OutputFailure == nil &&
+			stored.Binding.SourceOwnerKey == binding.SourceOwnerKey && stored.Binding.ConversationID == binding.ConversationID {
+			position.Consumed = true
+			position.NextCursor = stringArg(result, "next_cursor")
+			r.structuredCursors[requestCursor] = position
+		}
+		r.structuredOutputMu.Unlock()
+	}
 	index, count := integerArgument(meta["page_index"]), integerArgument(meta["page_count"])
 	if id == "" || index < 1 || count < index {
 		return

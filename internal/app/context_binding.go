@@ -17,13 +17,17 @@ func (r *Runtime) selectContextWorkspace(ctx context.Context, workdir string) (w
 	if strings.TrimSpace(workdir) != "" {
 		resolved, err := r.ws.ResolveExisting(workdir)
 		if err != nil {
-			return workspace.Record{}, "", toolError("INVALID_ARGUMENT", "instruction workdir must resolve to an existing host directory", "validation")
+			return workspace.Record{}, "", r.contextWorkdirFailures.reject(ctx, workdir, "instruction workdir must resolve to an existing host directory")
 		}
 		info, err := os.Stat(resolved.Abs)
 		if err != nil || !info.IsDir() {
-			return workspace.Record{}, "", toolError("INVALID_ARGUMENT", "instruction workdir must be a directory", "validation")
+			return workspace.Record{}, "", r.contextWorkdirFailures.reject(ctx, workdir, "instruction workdir must be a directory")
 		}
+		r.contextWorkdirFailures.clear(ctx, workdir)
 		record, err := r.workspaceRegistry.EnsureRoot(ctx, resolved.Abs)
+		if err != nil {
+			return workspace.Record{}, "", workspaceFailure(err, activity.FromContext(ctx), nil)
+		}
 		return record, resolved.Abs, err
 	}
 	bound := activity.FromContext(ctx).WorkspaceID
