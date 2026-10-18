@@ -9,6 +9,25 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
+const (
+	requiredOutputWrapperReserveChars = 1800
+	contextBootstrapReserveChars      = 800
+)
+
+func requiredOutputPageBudget(name string, args map[string]any) int {
+	budget := min(toolcontract.ModelVisiblePayloadChars, structuredOutputBudget(name, args))
+	if isContextTool(name) {
+		// Context uses one server-owned model budget. A caller byte limit cannot
+		// enlarge or shrink the immutable semantic page sequence.
+		budget = toolcontract.ModelVisiblePayloadChars
+	}
+	budget -= requiredOutputWrapperReserveChars
+	if isContextTool(name) {
+		budget -= contextBootstrapReserveChars
+	}
+	return max(1024, budget)
+}
+
 func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result) Result {
 	if p.structuredResume != nil && p.structuredResume.Reference {
 		return result
@@ -17,12 +36,8 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	if err != nil {
 		return result
 	}
-	isContext := p.spec.Name == "agentdock_context" || p.spec.Name == "workspace_context"
-	budget := min(toolcontract.ModelVisiblePayloadChars, structuredOutputBudget(p.spec.Name, p.args)) - 1800
-	if isContext {
-		budget -= 800
-	}
-	budget = max(1024, budget)
+	isContext := isContextTool(p.spec.Name)
+	budget := requiredOutputPageBudget(p.spec.Name, p.args)
 	var retained structuredOutputSnapshot
 	start := 0
 	if p.structuredResume != nil {

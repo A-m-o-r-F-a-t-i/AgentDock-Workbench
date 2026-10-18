@@ -10,6 +10,12 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
+const (
+	requiredPageMetadataReserveChars = 700
+	requiredPartEnvelopeReserveChars = 128
+	requiredTextPartReserveChars     = 160
+)
+
 // Parts contain JSON values, never slices of serialized JSON. A string larger
 // than a page uses explicit UTF-8 byte ranges so reconstruction is lossless.
 type semanticOutputPart struct {
@@ -83,7 +89,7 @@ func requiredOutputParts(full Result, budget int) []semanticOutputPart {
 		case string:
 			for offset := 0; offset < len(item); {
 				// The part's path and offsets are included in the same JSON budget.
-				room := budget - 160
+				room := budget - requiredTextPartReserveChars
 				pathChars, _ := toolcontract.JSONChars(path)
 				room -= pathChars
 				text := toolcontract.JSONTextPrefix(item[offset:], max(1, room))
@@ -151,8 +157,8 @@ func buildRequiredOutputPage(full Result, start, budget int) (Result, int, int, 
 	}
 	headerChars, _ := toolcontract.JSONChars(requiredPageHeader(full, false))
 	// Reserve section-name accounting and array punctuation before filling a page.
-	budget -= 700
-	parts := requiredOutputParts(body, max(256, budget-headerChars-128))
+	budget -= requiredPageMetadataReserveChars
+	parts := requiredOutputParts(body, max(256, budget-headerChars-requiredPartEnvelopeReserveChars))
 	groups := [][]semanticOutputPart{}
 	for index := 0; index < len(parts); {
 		group := []semanticOutputPart{}

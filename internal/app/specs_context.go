@@ -14,8 +14,15 @@ type contextRequest struct {
 	Workdir              string `json:"workdir,omitempty"`
 	KnownContextRevision string `json:"known_context_revision,omitempty"`
 	Cursor               string `json:"cursor,omitempty"`
-	MaxResponseBytes     *int   `json:"max_response_bytes,omitempty"`
 	ForceRefresh         bool   `json:"force_refresh,omitempty"`
+}
+
+func isContextTool(name string) bool {
+	return name == "agentdock_context" || name == "workspace_context"
+}
+
+func contextCursorInput(properties map[string]any) {
+	properties["cursor"] = map[string]any{"type": "string", "maxLength": 2048}
 }
 
 func contextToolSpecs() []ToolSpec {
@@ -43,7 +50,7 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 		"type": "string", "maxLength": 4096,
 		"description": "Existing workspace; empty inherits the conversation or device default.",
 	}
-	toolcontract.StructuredPagingInput(input)
+	contextCursorInput(input)
 	input["force_refresh"] = map[string]any{"type": "boolean"}
 	input["known_context_revision"] = map[string]any{
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
@@ -128,7 +135,7 @@ func workspaceContextToolContract(name string, cfg config.Config) (ToolContract,
 	properties["known_context_revision"] = map[string]any{
 		"type": "string", "pattern": "^ctxrev_[0-9a-f]{64}$",
 	}
-	toolcontract.StructuredPagingInput(properties)
+	contextCursorInput(properties)
 	properties["force_refresh"] = map[string]any{"type": "boolean"}
 	output := cloneJSONSchemaMap(contract.ValidationOutputSchema)
 	outputProperties := output["properties"].(map[string]any)

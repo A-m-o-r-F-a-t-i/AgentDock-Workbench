@@ -33,19 +33,18 @@ func TestContextExecutionTitlesIdentifyRequestKind(t *testing.T) {
 	}
 }
 
-func TestContextExecutionParametersKeepContinuationSelectors(t *testing.T) {
+func TestContextExecutionParametersKeepSupportedSelectors(t *testing.T) {
 	runtime := &Runtime{}
 	args := map[string]any{
 		"cursor":                 "scur_1234567890abcdef1234567890abcdef",
 		"known_context_revision": "ctxrev_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 		"force_refresh":          true,
-		"max_response_bytes":     65536,
 	}
 	var summary map[string]any
 	if err := json.Unmarshal([]byte(runtime.executionParameters(args)), &summary); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"cursor", "known_context_revision", "force_refresh", "max_response_bytes"} {
+	for _, key := range []string{"cursor", "known_context_revision", "force_refresh"} {
 		if summary[key] == nil {
 			t.Fatalf("parameter summary omitted %s: %#v", key, summary)
 		}

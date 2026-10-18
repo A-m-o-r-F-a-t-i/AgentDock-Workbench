@@ -50,7 +50,7 @@ func TestContextTransportNegotiationPreservesRulesAndMeasuresSDKResult(t *testin
 	}
 	for _, mode := range []string{"full", "summary"} {
 		meta := sdk.Meta{"openai/session": "context-negotiation-" + mode, ContextResponseCapability: map[string]any{"structured": true, "text": mode}}
-		args := map[string]any{"max_response_bytes": 65536}
+		args := map[string]any{}
 		result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: args, Meta: meta})
 		if err != nil || result.IsError {
 			t.Fatalf("%s: result=%+v error=%v", mode, result, err)
@@ -220,7 +220,11 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 			if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || cursor == "" {
 				t.Fatalf("optional detail continuation is inconsistent: %+v", value)
 			}
-			args = map[string]any{}
+			actionArgs := asMap(asMap(value["required_action"])["arguments"])
+			if len(actionArgs) != 1 || actionArgs["cursor"] != cursor {
+				t.Fatalf("Context continuation should contain only the immutable cursor: %#v", actionArgs)
+			}
+			args = map[string]any{"cursor": cursor}
 			continue
 		}
 		if delivery["sequence_complete"] == true {
