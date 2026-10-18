@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -37,7 +38,7 @@ func TestLazyPluginCatalogSurvivesRuntimeRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(store.Close)
+	t.Cleanup(func() { store.Close() })
 	if _, err = store.Install(source, false); err != nil {
 		t.Fatal(err)
 	}
@@ -91,21 +92,44 @@ func TestLazyPluginCatalogSurvivesRuntimeRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	closeFirst()
-	if _, err := os.Stat(previous.Root); !os.IsNotExist(err) {
-		t.Fatalf("first runtime directory still exists: %v", err)
+	if info, err := os.Stat(previous.Root); err != nil || !info.IsDir() {
+		t.Fatalf("stable runtime cache was not retained: info=%v err=%v", info, err)
+	}
+	store.Close()
+	manifestPath := filepath.Join(previous.Root, registry.ManifestFilename)
+	originalManifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	markerPath := filepath.Join(previous.Root, "runtime-rebuild-marker")
+	if err = os.WriteFile(markerPath, []byte("remove on rebuild"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(manifestPath, append(append([]byte(nil), originalManifest...), '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err = registry.New(home)
+	if err != nil {
+		t.Fatal(err)
 	}
 	preparations.Store(0)
 	second, current, closeSecond := openRuntime()
-	if current.Root == previous.Root || current.Generation != previous.Generation || current.PackageDigest != previous.PackageDigest {
-		t.Fatal("test did not rebuild a new runtime for the same immutable Plugin")
+	if current.Root != previous.Root || current.Generation != previous.Generation || current.PackageDigest != previous.PackageDigest {
+		t.Fatal("same immutable Plugin did not reuse its stable runtime identity")
+	}
+	if _, err = os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatalf("invalid runtime cache was not rebuilt cleanly: %v", err)
+	}
+	if repairedManifest, err := os.ReadFile(manifestPath); err != nil || !bytes.Equal(repairedManifest, originalManifest) {
+		t.Fatalf("runtime rebuild did not restore immutable package files: err=%v", err)
 	}
 	catalog, err := second.Catalog(t.Context(), serverName)
 	if err != nil || !catalog.Complete || catalog.State.State != "cached" || !catalog.State.Lazy || catalog.Tools["echo"].Name != "echo" || preparations.Load() != 0 {
 		t.Fatalf("retained discovery started a service or lost its catalog: state=%+v preparations=%d err=%v", catalog.State, preparations.Load(), err)
 	}
 	currentFingerprint, err := second.ExecutionFingerprint(t.Context(), serverName)
-	if err != nil || currentFingerprint == previousFingerprint || preparations.Load() != 0 {
-		t.Fatalf("execution identity was weakened by retained discovery: err=%v", err)
+	if err != nil || currentFingerprint != previousFingerprint || preparations.Load() != 0 {
+		t.Fatalf("stable runtime rebuild changed immutable execution identity or started the service: err=%v", err)
 	}
 	result, err := second.Call(t.Context(), serverName+":echo", map[string]any{"text": "first business call", "readEnv": "PLUGIN_ROOT"})
 	if err != nil {
