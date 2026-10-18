@@ -193,7 +193,8 @@ begin
     Exit;
 
   LegacyTask := False;
-  if not TryRuntimePrivilegeMode(PrivilegeMode) then
+  if (not TryRuntimePrivilegeMode(PrivilegeMode)) or
+    (CompareText(PrivilegeMode, 'standard') = 0) then
     LegacyTask := LegacyAgentDockScheduledTaskExists();
   RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
   StartupPage.Values[0] :=

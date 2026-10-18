@@ -27,7 +27,8 @@ func TestWindowsSetupUsesFastModernInstallPaths(t *testing.T) {
 	loadBlock := inno[loadStart : loadStart+loadEnd]
 	for _, required := range []string{
 		"TryRuntimePrivilegeMode", "LegacyTask := False",
-		"if not TryRuntimePrivilegeMode(PrivilegeMode) then",
+		"if (not TryRuntimePrivilegeMode(PrivilegeMode)) or",
+		"(CompareText(PrivilegeMode, 'standard') = 0) then",
 		"LegacyTask := LegacyAgentDockScheduledTaskExists()",
 	} {
 		if !strings.Contains(loadBlock, required) {
