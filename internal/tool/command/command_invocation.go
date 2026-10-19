@@ -29,14 +29,18 @@ type commandInvocation struct {
 	skillRelease func()
 }
 
-func (invocation commandInvocation) start(ctx context.Context, timeout time.Duration, tty bool, prepare session.PrepareFunc) (*session.Session, session.PreparationStatus, error) {
+func (invocation commandInvocation) start(ctx context.Context, timeout time.Duration, prepare session.PrepareFunc) (*session.Session, session.PreparationStatus, error) {
 	if invocation.external != nil {
 		return session.StartExternal(ctx, timeout, invocation.external)
 	}
+	// exec_command's public tty flag means "keep stdin open". It must not
+	// silently switch the Windows process backend to ConPTY: that path creates
+	// the shell itself and bypasses the pipe-backed CREATE_NO_WINDOW contract.
+	// Explicit terminal emulation remains an internal Session capability.
 	if invocation.build != nil {
-		return session.StartCommandWithTTY(ctx, invocation.build, timeout, tty, prepare)
+		return session.StartCommandWithTTY(ctx, invocation.build, timeout, false, prepare)
 	}
-	return session.StartWithShellTTY(ctx, invocation.shell, invocation.command, invocation.workdir, invocation.env, timeout, tty, prepare)
+	return session.StartWithShellTTY(ctx, invocation.shell, invocation.command, invocation.workdir, invocation.env, timeout, false, prepare)
 }
 
 func (svc *Service) acquireSkill(ctx context.Context, skillRef, originCallID string) (SkillLease, error) {

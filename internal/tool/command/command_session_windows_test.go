@@ -5,13 +5,18 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const windowsNativeChildReadyEnv = "AGENTDOCK_TEST_WINDOWS_NATIVE_CHILD_READY"
@@ -19,6 +24,107 @@ const windowsNativeChildReadyEnv = "AGENTDOCK_TEST_WINDOWS_NATIVE_CHILD_READY"
 type windowsNativeChildReady struct {
 	PID  int `json:"pid"`
 	Port int `json:"port"`
+}
+
+func TestWindowsTTYKeepsPipeStdinWithoutVisibleConsole(t *testing.T) {
+	service, _ := newCommandTestService(t)
+	defer service.Close()
+	started, err := service.execArgs(context.Background(), map[string]any{
+		"cmd":            "Start-Sleep -Seconds 2",
+		"tty":            true,
+		"execution_mode": "async",
+		"timeout_ms":     10000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if terminal, _ := started["terminal"].(string); terminal != "pipes" {
+		t.Fatalf("terminal = %q, want pipes", terminal)
+	}
+	sessionID, _ := started["session_id"].(string)
+	stored, ok := service.sessions.Get(sessionID)
+	if !ok || stored.Command == nil || stored.Command.Process == nil {
+		t.Fatalf("running session is unavailable: %#v", started)
+	}
+	defer func() { _, _ = service.actArgs(map[string]any{"action": "kill", "session_id": sessionID}) }()
+
+	rootPID := uint32(stored.Command.Process.Pid)
+	deadline := time.Now().Add(750 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		family, err := windowsProcessFamily(rootPID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		visible, err := visibleWindowsForProcesses(family)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(visible) != 0 {
+			t.Fatalf("pipe-backed command created visible windows: %v", visible)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func windowsProcessFamily(root uint32) (map[uint32]struct{}, error) {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer windows.CloseHandle(snapshot)
+	children := make(map[uint32][]uint32)
+	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
+	if err := windows.Process32First(snapshot, &entry); err != nil {
+		return nil, err
+	}
+	for {
+		children[entry.ParentProcessID] = append(children[entry.ParentProcessID], entry.ProcessID)
+		entry.Size = uint32(unsafe.Sizeof(windows.ProcessEntry32{}))
+		if err := windows.Process32Next(snapshot, &entry); err != nil {
+			if errors.Is(err, windows.ERROR_NO_MORE_FILES) {
+				break
+			}
+			return nil, err
+		}
+	}
+	family := map[uint32]struct{}{root: {}}
+	queue := []uint32{root}
+	for len(queue) != 0 {
+		parent := queue[0]
+		queue = queue[1:]
+		for _, child := range children[parent] {
+			if _, seen := family[child]; seen {
+				continue
+			}
+			family[child] = struct{}{}
+			queue = append(queue, child)
+		}
+	}
+	return family, nil
+}
+
+func visibleWindowsForProcesses(processes map[uint32]struct{}) ([]uintptr, error) {
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	enumWindows := user32.NewProc("EnumWindows")
+	isWindowVisible := user32.NewProc("IsWindowVisible")
+	getWindowThreadProcessID := user32.NewProc("GetWindowThreadProcessId")
+	var handles []uintptr
+	callback := syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
+		var pid uint32
+		_, _, _ = getWindowThreadProcessID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+		if _, selected := processes[pid]; selected {
+			visible, _, _ := isWindowVisible.Call(hwnd)
+			if visible != 0 {
+				handles = append(handles, hwnd)
+			}
+		}
+		return 1
+	})
+	ok, _, callErr := enumWindows.Call(callback, 0)
+	if ok == 0 && callErr != windows.ERROR_SUCCESS {
+		return nil, callErr
+	}
+	return handles, nil
 }
 
 func TestWindowsSessionActKillTerminatesNativeChildTree(t *testing.T) {
