@@ -177,6 +177,141 @@ func (s *Store) runtimePackageForState(name string, state State) (RuntimePackage
 	return pkg, nil
 }
 
+// catalogMCPRecordForState reads only the immutable manifest and MCP metadata
+// required to publish a catalog. It deliberately avoids hashing the complete
+// generation or loading Skill documents; the selected service performs the
+// full persisted-digest and runtime-copy verification before it can execute.
+func (s *Store) catalogMCPRecordForState(name string, state State) (packageRecord, error) {
+	if err := validateIdentifier("plugin", name); err != nil {
+		return packageRecord{}, err
+	}
+	if err := validateGeneration(state.Generation); err != nil {
+		return packageRecord{}, err
+	}
+	root, err := s.generationPath(name, state.Generation)
+	if err != nil {
+		return packageRecord{}, err
+	}
+	manifest, diagnostics, err := readManifest(root)
+	if err != nil {
+		return packageRecord{}, err
+	}
+	if manifest.Name != name {
+		return packageRecord{}, newError("PLUGIN_GENERATION_DRIFT", "Plugin generation identity changed", map[string]any{"plugin": name, "generation": state.Generation}, nil)
+	}
+	configs, mcpDiagnostics := readMCP(root, manifest.Name)
+	diagnostics = append(diagnostics, mcpDiagnostics...)
+	dataRoot := filepath.Join(s.root, ".data", name)
+	for serverName, cfg := range configs {
+		cfg = rebaseServerConfig(cfg, cfg.PluginRoot, root, cfg.PluginData, dataRoot)
+		cfg.PluginVersion = manifest.Version
+		if state.Source != nil {
+			cfg = applySourceEnvironmentBindings(cfg)
+		}
+		configs[serverName] = cfg
+	}
+	if err := s.applyRuntimeHostConfig(name, configs); err != nil {
+		return packageRecord{}, err
+	}
+	heavy := manifestHeavy(manifest)
+	if state.Heavy != nil {
+		heavy = *state.Heavy
+	}
+	record := packageRecord{root: root, manifest: manifest, state: state, mcpConfigs: configs}
+	record.definition = Definition{
+		Source: state.Source, Compatibility: state.Compatibility,
+		Name: manifest.Name, Description: manifest.Description, Version: manifest.Version,
+		Path: filepath.Join(s.root, name), Generation: state.Generation, PackageDigest: state.PackageDigest,
+		Enabled: state.Enabled, Heavy: heavy, MCPServers: sortedKeys(configs), Diagnostics: diagnostics,
+	}
+	return record, nil
+}
+
+// CatalogMCPPackage returns Plugin-owned MCP definitions without materializing
+// or verifying their private stdio runtime copies. Discovery and Core startup
+// only need the immutable definition; the selected service is prepared on its
+// first real connection through PrepareMCPData and AcquireMCPRuntime.
+func (s *Store) CatalogMCPPackage(ctx context.Context, name string) (RuntimePackage, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return RuntimePackage{}, nil, err
+	}
+	name = strings.TrimSpace(name)
+	if err := validateIdentifier("plugin", name); err != nil {
+		return RuntimePackage{}, nil, err
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		state, err := s.readNamedState(name)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return RuntimePackage{}, nil, newError("PLUGIN_NOT_FOUND", "plugin is not installed", map[string]any{"name": name}, nil)
+			}
+			return RuntimePackage{}, nil, err
+		}
+		releaseGeneration, err := s.acquireGenerationCatalogRead(ctx, name, state.Generation)
+		if err != nil {
+			var pluginErr *Error
+			if attempt == 0 && errors.As(err, &pluginErr) && pluginErr.Code == "PLUGIN_GENERATION_MISSING" {
+				continue
+			}
+			return RuntimePackage{}, nil, err
+		}
+		current, err := s.readNamedState(name)
+		if err != nil || current.Generation != state.Generation || current.PackageDigest != state.PackageDigest {
+			releaseGeneration()
+			if attempt == 0 {
+				continue
+			}
+			return RuntimePackage{}, nil, newError("PLUGIN_STATE_CHANGED", "Plugin state changed while building its MCP catalog", map[string]any{"plugin": name}, err)
+		}
+		record, err := s.catalogMCPRecordForState(name, current)
+		if err != nil {
+			releaseGeneration()
+			return RuntimePackage{}, nil, err
+		}
+		pkg, err := s.catalogMCPPackageForRecord(name, record, current)
+		if err != nil {
+			releaseGeneration()
+			return RuntimePackage{}, nil, err
+		}
+		return pkg, releaseGeneration, nil
+	}
+	return RuntimePackage{}, nil, newError("PLUGIN_GENERATION_MISSING", "Plugin generation changed while building its MCP catalog", map[string]any{"plugin": name}, nil)
+}
+
+func (s *Store) catalogMCPPackageForRecord(name string, record packageRecord, state State) (RuntimePackage, error) {
+	generationRoot, err := s.generationPath(name, state.Generation)
+	if err != nil {
+		return RuntimePackage{}, err
+	}
+	dataRoot := filepath.Join(s.root, ".data", name)
+	definition := cloneDefinition(record.definition)
+	definition.Path = filepath.Join(s.root, name)
+	definition.Generation = state.Generation
+	definition.PackageDigest = state.PackageDigest
+	definition.Enabled = state.Enabled
+	pkg := RuntimePackage{
+		Definition: definition, Name: name, Version: record.manifest.Version,
+		Generation: state.Generation, PackageDigest: state.PackageDigest, Root: generationRoot,
+		Skills: make(map[string]SkillMember), MCPServers: make(map[string]mcpclient.ServerConfig, len(record.mcpConfigs)),
+	}
+	for serverName, sourceConfig := range record.mcpConfigs {
+		original := mcpclient.NormalizeServerConfig(sourceConfig)
+		original = rebaseServerConfig(original, original.PluginRoot, generationRoot, original.PluginData, dataRoot)
+		original.PluginVersion = record.manifest.Version
+		original.Enabled = original.Enabled && state.Enabled && memberEnabled(state.MCPServers, serverName)
+		mapped := mcpclient.NormalizeServerConfig(original)
+		if mapped.Enabled && mapped.Transport == mcpclient.TransportStdio {
+			runtimeRoot, _, pathErr := s.runtimeGenerationPaths(name, state.Generation)
+			if pathErr != nil {
+				return RuntimePackage{}, pathErr
+			}
+			mapped = rebaseServerConfig(mapped, generationRoot, runtimeRoot, dataRoot, dataRoot)
+		}
+		pkg.MCPServers[serverName] = mcpclient.WithPluginCatalogSource(mapped, original, state.Generation, state.PackageDigest)
+	}
+	return pkg, nil
+}
+
 func (s *Store) definitionForState(name string, state State) (Definition, error) {
 	pkg, err := s.runtimePackageForState(name, state)
 	if err != nil {
@@ -333,10 +468,90 @@ func (s *Store) RuntimeMCPPackage(ctx context.Context, name string) (RuntimePack
 	return s.prepareRuntimeMCPPackage(ctx, pkg, release)
 }
 
+func (s *Store) acquireCatalogMCPRuntime(ctx context.Context, cfg mcpclient.ServerConfig) (State, func(), bool, error) {
+	source, mapped := mcpclient.PluginRuntimeSourceFor(cfg)
+	if !mapped {
+		return State{}, nil, false, nil
+	}
+	state, err := s.runtimeStateForCatalogSource(source)
+	if err != nil {
+		return State{}, nil, true, err
+	}
+	if !state.Enabled || !memberEnabled(state.MCPServers, cfg.Name) {
+		return State{}, nil, true, newError("PLUGIN_MEMBER_DISABLED", "plugin MCP member is disabled", map[string]any{"plugin": cfg.PluginName, "member": cfg.Name}, nil)
+	}
+	expectedSource, err := s.generationPath(source.PluginName, source.Generation)
+	if err != nil || !sameFilesystemPath(expectedSource, source.SourceRoot) {
+		return State{}, nil, true, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP source generation changed", map[string]any{"plugin": cfg.PluginName, "generation": source.Generation}, err)
+	}
+	releaseGeneration, err := s.acquireGenerationCatalogRead(ctx, source.PluginName, source.Generation)
+	if err != nil {
+		return State{}, nil, true, err
+	}
+	releaseRuntime := func() {}
+	if cfg.Transport == mcpclient.TransportStdio && !sameFilesystemPath(source.SourceRoot, source.RuntimeRoot) {
+		expectedRuntime, _, pathErr := s.runtimeGenerationPaths(source.PluginName, source.Generation)
+		if pathErr != nil || !sameFilesystemPath(expectedRuntime, source.RuntimeRoot) || !sameFilesystemPath(cfg.PluginRoot, source.RuntimeRoot) {
+			releaseGeneration()
+			return State{}, nil, true, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP runtime mapping changed", map[string]any{"plugin": cfg.PluginName, "server": cfg.Name}, pathErr)
+		}
+		runtimeRoot, release, prepareErr := s.createVerifiedRuntimeGeneration(ctx, source.PluginName, source.Generation, source.SourceRoot, source.PackageDigest)
+		if prepareErr != nil {
+			releaseGeneration()
+			return State{}, nil, true, prepareErr
+		}
+		if !sameFilesystemPath(runtimeRoot, source.RuntimeRoot) {
+			release()
+			releaseGeneration()
+			return State{}, nil, true, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP runtime path changed during preparation", map[string]any{"plugin": cfg.PluginName, "server": cfg.Name}, nil)
+		}
+		releaseRuntime = release
+	} else {
+		if !sameFilesystemPath(cfg.PluginRoot, source.SourceRoot) {
+			releaseGeneration()
+			return State{}, nil, true, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP source mapping changed", map[string]any{"plugin": cfg.PluginName, "server": cfg.Name}, nil)
+		}
+		if err := verifyRuntimeSourceDigest(source.SourceRoot, source.PackageDigest, source.PluginName, source.Generation); err != nil {
+			releaseGeneration()
+			return State{}, nil, true, err
+		}
+	}
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			releaseRuntime()
+			releaseGeneration()
+		})
+	}
+	return state, release, true, nil
+}
+
+func (s *Store) runtimeStateForCatalogSource(source mcpclient.PluginRuntimeSource) (State, error) {
+	state, stateErr := s.readNamedState(source.PluginName)
+	if stateErr == nil && state.Generation == source.Generation && state.PackageDigest == source.PackageDigest {
+		return state, nil
+	}
+	transaction, transactionErr := s.loadLifecycleTransaction(source.PluginName)
+	if transactionErr == nil && transaction.Candidate != nil && transaction.Candidate.Generation == source.Generation && transaction.Candidate.PackageDigest == source.PackageDigest {
+		return *transaction.Candidate, nil
+	}
+	if stateErr != nil && !errors.Is(stateErr, os.ErrNotExist) {
+		return State{}, stateErr
+	}
+	if transactionErr != nil && !errors.Is(transactionErr, os.ErrNotExist) {
+		return State{}, transactionErr
+	}
+	return State{}, newError("PLUGIN_GENERATION_DRIFT", "Plugin MCP catalog no longer matches formal state", map[string]any{"plugin": source.PluginName, "generation": source.Generation}, nil)
+}
+
 // AcquireMCPRuntime pins the exact generation selected for a new connection.
 // RuntimeMCPPackage verifies the immutable digest and reuses its existing copy;
 // a concurrent update must not silently substitute the new generation's lease.
 func (s *Store) AcquireMCPRuntime(ctx context.Context, cfg mcpclient.ServerConfig) (func(), error) {
+	_, release, mapped, err := s.acquireCatalogMCPRuntime(ctx, cfg)
+	if mapped {
+		return release, err
+	}
 	pkg, release, err := s.RuntimeMCPPackage(ctx, cfg.PluginName)
 	if err != nil {
 		return nil, err

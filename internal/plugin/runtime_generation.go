@@ -24,10 +24,11 @@ type runtimeGenerationKey struct {
 }
 
 type runtimeGeneration struct {
-	root     string
-	readers  int
-	lock     *processlock.Lock
-	lockOnce sync.Once
+	root          string
+	packageDigest string
+	readers       int
+	lock          *processlock.Lock
+	lockOnce      sync.Once
 }
 
 func (current *runtimeGeneration) releaseLock() {
@@ -48,6 +49,10 @@ func (s *Store) CreateRuntimeGeneration(name, generation, source string) (string
 }
 
 func (s *Store) createRuntimeGeneration(ctx context.Context, name, generation, source string) (string, func(), error) {
+	return s.createVerifiedRuntimeGeneration(ctx, name, generation, source, "")
+}
+
+func (s *Store) createVerifiedRuntimeGeneration(ctx context.Context, name, generation, source, expectedDigest string) (string, func(), error) {
 	if err := ctx.Err(); err != nil {
 		return "", nil, err
 	}
@@ -72,6 +77,15 @@ func (s *Store) createRuntimeGeneration(ctx context.Context, name, generation, s
 	defer s.runtimeMu.Unlock()
 	key := runtimeGenerationKey{name: name, generation: generation}
 	if current := s.runtimeCopies[key]; current != nil {
+		if expectedDigest != "" && current.packageDigest != expectedDigest {
+			if current.packageDigest != "" {
+				return "", nil, newError("PLUGIN_GENERATION_DRIFT", "Plugin runtime cache belongs to different package content", map[string]any{"plugin": name, "generation": generation}, nil)
+			}
+			if err := verifyRuntimeSourceDigest(source, expectedDigest, name, generation); err != nil {
+				return "", nil, err
+			}
+			current.packageDigest = expectedDigest
+		}
 		current.readers++
 		return current.root, s.runtimeGenerationRelease(key, current), nil
 	}
@@ -89,16 +103,33 @@ func (s *Store) createRuntimeGeneration(ctx context.Context, name, generation, s
 			_ = runtimeLock.Release()
 		}
 	}()
+	if err := verifyRuntimeSourceDigest(source, expectedDigest, name, generation); err != nil {
+		return "", nil, err
+	}
 	if err := s.ensureRuntimeGeneration(ctx, name, generation, source, target); err != nil {
 		return "", nil, err
 	}
-	current := &runtimeGeneration{root: target, readers: 1, lock: runtimeLock}
+	current := &runtimeGeneration{root: target, packageDigest: expectedDigest, readers: 1, lock: runtimeLock}
 	if s.runtimeCopies == nil {
 		s.runtimeCopies = make(map[runtimeGenerationKey]*runtimeGeneration)
 	}
 	s.runtimeCopies[key] = current
 	retained = true
 	return target, s.runtimeGenerationRelease(key, current), nil
+}
+
+func verifyRuntimeSourceDigest(source, expectedDigest, name, generation string) error {
+	if expectedDigest == "" {
+		return nil
+	}
+	digest, exists, err := packageDigestAt(source)
+	if err != nil {
+		return err
+	}
+	if !exists || digest != expectedDigest {
+		return newError("PLUGIN_GENERATION_DRIFT", "Plugin generation no longer matches its persisted package digest", map[string]any{"plugin": name, "generation": generation}, nil)
+	}
+	return nil
 }
 
 func (s *Store) runtimeGenerationPaths(name, generation string) (string, string, error) {

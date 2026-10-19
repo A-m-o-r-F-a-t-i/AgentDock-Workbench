@@ -145,7 +145,7 @@ func (s *Service) buildMCPSet(ctx context.Context, excludedPlugin, activationPlu
 		if definition.Name == excludedPlugin || definition.Name == activationPlugin || len(definition.MCPServers) == 0 {
 			continue
 		}
-		pkg, release, acquireErr := s.store.RuntimeMCPPackage(ctx, definition.Name)
+		pkg, release, acquireErr := s.store.CatalogMCPPackage(ctx, definition.Name)
 		if acquireErr != nil {
 			releasePluginMCPLeases(leases)
 			return nil, nil, acquireErr

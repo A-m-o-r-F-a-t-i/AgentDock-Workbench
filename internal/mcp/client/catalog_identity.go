@@ -18,6 +18,17 @@ type pluginCatalogDefinition struct {
 	packageEnv, packageHeaders map[string]string
 }
 
+// PluginRuntimeSource describes the immutable package generation and its
+// private runtime mapping. Only Plugin loader code can create this provenance;
+// callers cannot synthesize it through the public MCP registry JSON.
+type PluginRuntimeSource struct {
+	PluginName    string
+	Generation    string
+	PackageDigest string
+	SourceRoot    string
+	RuntimeRoot   string
+}
+
 func pluginCatalogDefinitionFor(cfg ServerConfig) pluginCatalogDefinition {
 	return pluginCatalogDefinition{
 		root: cfg.PluginRoot, command: cfg.Command, cwd: cfg.Cwd,
@@ -42,6 +53,21 @@ func WithPluginCatalogSource(cfg, original ServerConfig, generation, packageDige
 		original: pluginCatalogDefinitionFor(original), mapped: pluginCatalogDefinitionFor(cfg),
 	}
 	return cfg
+}
+
+// PluginRuntimeSourceFor returns trusted loader provenance for a Plugin-owned
+// server. It rejects configs whose runtime mapping was changed by an override.
+func PluginRuntimeSourceFor(cfg ServerConfig) (PluginRuntimeSource, bool) {
+	source := cfg.catalogSource
+	if source == nil || cfg.SourceType != "plugin" || cfg.Name != source.server || cfg.PluginName != source.plugin ||
+		cfg.PluginRoot == "" || cfg.PluginRoot != source.mapped.root || source.original.root == "" ||
+		source.generation == "" || source.packageDigest == "" {
+		return PluginRuntimeSource{}, false
+	}
+	return PluginRuntimeSource{
+		PluginName: source.plugin, Generation: source.generation, PackageDigest: source.packageDigest,
+		SourceRoot: source.original.root, RuntimeRoot: source.mapped.root,
+	}, true
 }
 
 func retainedDefinitionFingerprint(cfg ServerConfig) (string, error) {

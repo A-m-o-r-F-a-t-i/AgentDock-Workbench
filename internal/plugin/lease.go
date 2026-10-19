@@ -42,15 +42,30 @@ func (s *Store) generationLeaseGuard(ctx context.Context, name, generation strin
 }
 
 func (s *Store) AcquireGenerationRead(ctx context.Context, name, generation string) (func(), error) {
+	return s.acquireGenerationRead(ctx, name, generation, true)
+}
+
+// acquireGenerationCatalogRead pins a formal generation for metadata-only MCP
+// catalog construction. Full package digest verification is intentionally
+// deferred until that service is selected for a real connection.
+func (s *Store) acquireGenerationCatalogRead(ctx context.Context, name, generation string) (func(), error) {
+	return s.acquireGenerationRead(ctx, name, generation, false)
+}
+
+func (s *Store) acquireGenerationRead(ctx context.Context, name, generation string, verifyDigest bool) (func(), error) {
 	guard, err := s.generationLeaseGuard(ctx, name, generation)
 	if err != nil {
 		return nil, err
 	}
 	defer guard()
-	return s.acquireGenerationReadUnlocked(ctx, name, generation)
+	return s.acquireGenerationReadUnlockedMode(ctx, name, generation, verifyDigest)
 }
 
 func (s *Store) acquireGenerationReadUnlocked(ctx context.Context, name, generation string) (func(), error) {
+	return s.acquireGenerationReadUnlockedMode(ctx, name, generation, true)
+}
+
+func (s *Store) acquireGenerationReadUnlockedMode(ctx context.Context, name, generation string, verifyDigest bool) (func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -62,10 +77,23 @@ func (s *Store) acquireGenerationReadUnlocked(ctx context.Context, name, generat
 	if err != nil {
 		return nil, err
 	}
-	if _, exists, err := packageDigestAt(generationPath); err != nil {
-		return nil, err
-	} else if !exists {
-		return nil, newError("PLUGIN_GENERATION_MISSING", "Plugin generation is unavailable", map[string]any{"plugin": name, "generation": generation}, nil)
+	if verifyDigest {
+		if _, exists, err := packageDigestAt(generationPath); err != nil {
+			return nil, err
+		} else if !exists {
+			return nil, newError("PLUGIN_GENERATION_MISSING", "Plugin generation is unavailable", map[string]any{"plugin": name, "generation": generation}, nil)
+		}
+	} else {
+		info, err := os.Lstat(generationPath)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, newError("PLUGIN_GENERATION_MISSING", "Plugin generation is unavailable", map[string]any{"plugin": name, "generation": generation}, nil)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, newError("PLUGIN_GENERATION_DRIFT", "Plugin generation is not a regular directory", map[string]any{"plugin": name, "generation": generation}, nil)
+		}
 	}
 
 	readers := filepath.Join(s.root, ".locks", "generations", key, "readers")
