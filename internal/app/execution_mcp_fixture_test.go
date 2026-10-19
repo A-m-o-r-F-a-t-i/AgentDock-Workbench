@@ -15,6 +15,11 @@ type executionMCPFixture struct {
 
 func newExecutionMCPFixture(t *testing.T, toolName string, inputSchema map[string]any, annotations map[string]any) *executionMCPFixture {
 	t.Helper()
+	return newExecutionMCPResultFixture(t, toolName, inputSchema, annotations, nil)
+}
+
+func newExecutionMCPResultFixture(t *testing.T, toolName string, inputSchema map[string]any, annotations, toolResult map[string]any) *executionMCPFixture {
+	t.Helper()
 	fixture := &executionMCPFixture{}
 	fixture.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method == http.MethodDelete {
@@ -59,6 +64,10 @@ func newExecutionMCPFixture(t *testing.T, toolName string, inputSchema map[strin
 			writeDynamicMCPRPCResult(t, w, rpc.ID, map[string]any{"tools": []map[string]any{tool}})
 		case "tools/call":
 			fixture.calls.Add(1)
+			if toolResult != nil {
+				writeDynamicMCPRPCResult(t, w, rpc.ID, toolResult)
+				return
+			}
 			writeDynamicMCPRPCResult(t, w, rpc.ID, map[string]any{
 				"content":           []map[string]any{{"type": "text", "text": "executed"}},
 				"structuredContent": map[string]any{"executed": true, "arguments": rpc.Params["arguments"]},

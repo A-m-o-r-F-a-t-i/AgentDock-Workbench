@@ -26,6 +26,17 @@ type resultCursorState struct {
 	PageIndex int
 }
 
+// The marker serializes as a boolean, but a JSON response from a remote server
+// cannot manufacture the in-process type used to identify a completed host read.
+type successfulResultRead bool
+
+// ResultReadSucceeded recognizes a completed host continuation, never an
+// identically shaped metadata object supplied by an upstream JSON response.
+func ResultReadSucceeded(result map[string]any) bool {
+	marker, ok := resultMap(result["host_page"])["read_succeeded"].(successfulResultRead)
+	return ok && bool(marker)
+}
+
 type resultRootBudget struct {
 	Used      int
 	TouchedAt time.Time
@@ -347,9 +358,12 @@ func (s *resultStore) consumeProjectionBudgetLocked(entry *storedMCPResult, byte
 func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor string, replayed bool) Result {
 	page := entry.Pages[pageIndex]
 	remaining := max(0, len(entry.Pages)-pageIndex-1)
+	// Only the originating invocation inherits the upstream failure status.
+	// Later pages are successful reads; the original failure remains in the
+	// normalized payload and upstream_failure instead of failing the read again.
 	result := Result{
 		"call_id": entry.CallID, "result_call_id": entry.CallID, "name": entry.Name, "result": cloneResultMap(page.Data),
-		"isError":                entry.Raw["isError"] == true,
+		"isError":                pageIndex == 0 && entry.Raw["isError"] == true,
 		"content_kinds":          append([]string{}, entry.ContentKinds...),
 		"json_text_parsed":       entry.ParsedJSONText,
 		"continuation_available": nextCursor != "", "continuation_required": false,
@@ -362,6 +376,9 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 	if nextCursor != "" {
 		result["host_cursor"] = nextCursor
 		result["continue_result"] = map[string]any{"tool": ToolResultContinue, "arguments": map[string]any{"call_id": entry.CallID, "cursor": nextCursor}}
+	}
+	if pageIndex > 0 {
+		resultMap(result["host_page"])["read_succeeded"] = successfulResultRead(true)
 	}
 	if entry.RawReference != "" {
 		result["raw_result_ref"] = entry.RawReference
