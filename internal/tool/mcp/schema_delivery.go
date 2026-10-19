@@ -16,7 +16,7 @@ const (
 )
 
 type schemaDeliveryKey struct {
-	owner, conversation, serverFingerprint, revision, tool, schemaDigest, annotationsDigest string
+	owner, conversation, serverFingerprint, schemaDigest string
 }
 
 type schemaDeliveryState struct {
@@ -25,8 +25,10 @@ type schemaDeliveryState struct {
 	now     func() time.Time
 }
 
-// prepare delivers each complete schema once per trusted conversation and
-// catalog revision. A caller can explicitly request a complete copy after
+// prepare delivers a schema once per trusted conversation and immutable server
+// fingerprint + schema digest. Unrelated catalog or annotation changes do not
+// resend the definition. Current annotations accompany every reference.
+// A caller can explicitly request a complete copy after
 // losing context without refreshing or reconnecting the upstream service.
 func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(schema)
@@ -40,7 +42,6 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	revision, _ := schema["catalog_revision"].(string)
 	tool, _ := schema["tool_name"].(string)
 	schemaDigest, _ := schema["schema_digest"].(string)
-	annotationsDigest, _ := schema["annotations_digest"].(string)
 	if binding.ConversationID == "" || server == "" || serverFingerprint == "" || revision == "" || tool == "" || schemaDigest == "" || schema["input_schema"] == nil {
 		return full
 	}
@@ -51,7 +52,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	}
 	key := schemaDeliveryKey{
 		owner: binding.SourceOwnerKey, conversation: binding.ConversationID,
-		serverFingerprint: serverFingerprint, revision: revision, tool: tool, schemaDigest: schemaDigest, annotationsDigest: annotationsDigest,
+		serverFingerprint: serverFingerprint, schemaDigest: schemaDigest,
 	}
 
 	s.mu.Lock()
@@ -67,12 +68,18 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 	}
 	if _, delivered := s.entries[key]; delivered && !forceFull {
 		s.entries[key] = now
-		return map[string]any{
+		reference := map[string]any{
 			"name": schema["name"], "server": server, "tool_name": tool,
 			"server_fingerprint": serverFingerprint, "catalog_revision": revision, "server_version": schema["server_version"],
 			"schema_digest": schemaDigest, "annotations_digest": schema["annotations_digest"],
 			"delivery": "reference", "schema_delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
 		}
+		for _, key := range []string{"title", "description", "annotations", "metadata"} {
+			if value, exists := schema[key]; exists {
+				reference[key] = value
+			}
+		}
+		return reference
 	}
 	if len(s.entries) >= schemaDeliveryCapacity {
 		var oldestKey schemaDeliveryKey

@@ -226,6 +226,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	if err != nil {
 		return nil, err
 	}
+	previousCatalog, previousCatalogErr := s.mcpClients.CachedSummaryMetadata(validated.serverName)
 	var result map[string]any
 	if prepared := preparedCallFromContext(ctx); prepared != nil {
 		if !preparedCallMatches(prepared, validated) {
@@ -236,7 +237,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	} else {
 		result, err = s.mcpClients.Call(ctx, validated.qualifiedName, validated.arguments)
 	}
-	catalog, catalogErr := s.mcpClients.CachedSummary(validated.serverName)
+	catalog, catalogErr := s.mcpClients.CachedSummaryMetadata(validated.serverName)
 	if catalogErr == nil {
 		s.decorateCatalogSummary(validated.pluginName, validated.serverName, catalog)
 	}
@@ -251,6 +252,10 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	response := Result{
 		"name": validated.qualifiedName, "mcp_catalog": catalog,
 		"managed_target": managedTarget(ctx, validated.serverName, stringValue(catalog["catalog_revision"]), "qualified_business_call"),
+	}
+	if previousCatalogErr == nil && catalogErr == nil &&
+		(previousCatalog["catalog_revision"] != catalog["catalog_revision"] || previousCatalog["server_fingerprint"] != catalog["server_fingerprint"]) {
+		response["catalog_changed"] = true
 	}
 	annotateDynamicMCPTool(response, validated.serverName, validated.qualifiedName)
 	if prepared := preparedCallFromContext(ctx); prepared != nil {

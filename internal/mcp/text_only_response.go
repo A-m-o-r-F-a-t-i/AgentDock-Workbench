@@ -7,6 +7,7 @@ import (
 )
 
 func modelWireEnvelope(ctx context.Context, name string, logical map[string]any) (map[string]any, error) {
+	logical = projectMCPModelEnvelope(name, logical)
 	if responseTextMode(ctx, name) != responseTextOnly {
 		return logical, nil
 	}

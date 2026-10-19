@@ -63,9 +63,10 @@ func bindResponseAudit(ctx context.Context, binding activity.Binding, name strin
 }
 
 // RecordToolResponse is called only at the adapter boundary, after catalog and
-// authenticated insertions are attached. It updates the same root call instead
-// of emitting duplicate child output or inventing another external call.
-func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any) {
+// authenticated insertions are attached. The optional logical envelope keeps
+// host diagnostics in Activity while delivery acknowledgement uses the actual
+// model envelope. It updates the same root call without another output event.
+func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any, logical ...any) {
 	if response == nil {
 		return
 	}
@@ -81,7 +82,11 @@ func (r *Runtime) RecordToolResponse(response *ToolResponse, envelope any) {
 	}
 	received, status := response.auditReceived, response.auditStatus
 	response.mu.Unlock()
-	r.recordExecutionPayload(binding, name, "response", envelope, redactor)
+	audit := envelope
+	if len(logical) > 0 && logical[0] != nil {
+		audit = logical[0]
+	}
+	r.recordExecutionPayload(binding, name, "response", audit, redactor)
 	if payload := deliveredModelPayload(envelope); payload != nil {
 		r.commitStructuredDelivery(binding, Result(payload))
 	}

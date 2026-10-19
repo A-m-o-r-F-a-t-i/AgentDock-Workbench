@@ -60,7 +60,7 @@ func modelCharacterCount(value any) (int, bool) {
 }
 
 func modelResponseChars(ctx context.Context, name string, envelope map[string]any) (int, int, error) {
-	bodyChars, err := modelBodyChars(envelope)
+	bodyChars, err := modelBodyChars(projectMCPModelEnvelope(name, envelope))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -164,7 +164,9 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			continue
 		}
 		if nextBody == bodyChars && nextWire == wireChars {
-			return modelWireEnvelope(ctx, name, out)
+			// Keep the complete logical result for the activity journal. The final
+			// wire conversion removes host diagnostics only after measurement.
+			return out, nil
 		}
 		bodyChars, wireChars = nextBody, nextWire
 	}
@@ -175,7 +177,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	full := asMap(original["structuredContent"])
 	class := modelOutputClass(name, args, full)
 	payload := map[string]any{}
-	for _, key := range []string{"operation", "capture", "agentdock_guidance", "required_action", "effect_state", "operation_status", "execution_performed", "retry_safe", "origin_call_id", "output_class", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms"} {
+	for _, key := range []string{"operation", "capture", "agentdock_guidance", "required_action", "effect_state", "operation_status", "execution_performed", "retry_safe", "origin_call_id", "output_class", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms", "upstream_failure"} {
 		if value, exists := full[key]; exists {
 			if text, ok := value.(string); ok {
 				value = toolcontract.JSONTextPrefix(text, 512)

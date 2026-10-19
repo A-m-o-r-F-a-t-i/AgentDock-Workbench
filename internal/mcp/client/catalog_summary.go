@@ -43,3 +43,18 @@ func (m *Manager) CachedSummary(server string) (map[string]any, error) {
 	}
 	return map[string]any{"server": server, "catalog_revision": catalog.Revision, "complete": catalog.Complete, "stale": !fresh, "total": len(tools), "tools": tools}, nil
 }
+
+// CachedSummaryMetadata identifies the retained generation without enumerating
+// tool descriptions or copying schemas. Business calls need only these facts;
+// list/inspect remain the owners of the full directory and schema payloads.
+func (m *Manager) CachedSummaryMetadata(server string) (map[string]any, error) {
+	catalog, fresh, err := m.catalogSnapshot(strings.TrimSpace(server))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"server": catalog.Server, "server_fingerprint": catalog.ServerFingerprint,
+		"catalog_revision": catalog.Revision, "catalog_state": catalog.State,
+		"complete": catalog.Complete, "stale": !fresh, "total": len(catalog.Tools),
+	}, nil
+}

@@ -100,7 +100,11 @@ func OutputSchema(name string) (map[string]any, bool) {
 	intProp := toolcontract.Integer
 	boolProp := toolcontract.Boolean
 	arrayProp := toolcontract.ObjectArray
-	objectProp := toolcontract.OpenObject
+	// Output objects are open by default. Omit the redundant keyword without
+	// changing the accepted values of the internal validation schema.
+	objectProp := func(description string) map[string]any {
+		return map[string]any{"type": "object", "description": description}
+	}
 	props := map[string]any{}
 
 	switch name {
@@ -259,6 +263,11 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["result_call_id"] = stringProp("Original MCP result identity; call_id identifies this current host invocation.")
 		props["continue_result"] = objectProp("Exact host continuation tool and arguments for this retained result.")
 		props["upstream_failure"] = objectProp("Bounded failure facts from the original upstream invocation, preserved independently of result fragments. Omitted fields remain available from the complete raw result.")
+	}
+	if name == ToolCall || name == ToolResultContinue {
+		props["continuation"] = objectProp("Exact next host read tool/arguments; empty for a small complete result. Domain cursors stay in result.")
+		props["error"] = map[string]any{"type": []string{"string", "object", "null"}, "description": "Null on success; otherwise the existing failure."}
+		props["catalog_changed"] = boolProp("True only when this call observed a different retained catalog generation.")
 	}
 	if name == ToolSearch || name == ToolList || name == ToolInspect {
 		toolcontract.StructuredPagingOutput(props)
