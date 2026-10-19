@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -103,8 +104,11 @@ func TestResultFailureFactsSurviveFragmentPagingAndReplay(t *testing.T) {
 				if resultMap(page["host_page"])["mode"] != "json_fragment" {
 					t.Fatalf("fixture did not exercise fragmented results: %#v", page["host_page"])
 				}
-				if page["isError"] != (raw["isError"] == true) {
-					t.Fatal("paging changed the upstream isError field")
+				if page["isError"] != (pages == 0 && raw["isError"] == true) {
+					t.Fatalf("page %d confused the upstream failure with the host read outcome: %#v", pages, page)
+				}
+				if ResultReadSucceeded(map[string]any(page)) != (pages > 0) {
+					t.Fatalf("page %d has incorrect host read provenance", pages)
 				}
 				fragment, _ := resultMap(page["result"])["json_fragment"].(string)
 				if fragment == "" {
@@ -123,7 +127,7 @@ func TestResultFailureFactsSurviveFragmentPagingAndReplay(t *testing.T) {
 					t.Fatal(err)
 				}
 				replay, err := store.continueResult(binding, binding.CallID, cursor)
-				if err != nil || replay["replayed"] != true || replay["content_returned"] != false || replay["result"] != nil {
+				if err != nil || replay["isError"] == true || replay["replayed"] != true || replay["content_returned"] != false || replay["result"] != nil {
 					t.Fatalf("replayed cursor changed its consumption semantics: %#v %v", replay, err)
 				}
 				assertFacts(replay)
@@ -142,6 +146,80 @@ func TestResultFailureFactsSurviveFragmentPagingAndReplay(t *testing.T) {
 			}
 			assertFacts(rawPage)
 		})
+	}
+}
+
+func TestResultFailureSemanticContinuationSeparatesReadOutcome(t *testing.T) {
+	facts := map[string]any{
+		"code": "UPSTREAM_EDIT_PARTIAL", "effect_state": "partial", "retry_safe": false,
+		"required_action": map[string]any{"tool": "board:read", "arguments": map[string]any{"target": "original-target"}},
+	}
+	items := make([]any, 24)
+	for index := range items {
+		items[index] = map[string]any{"index": index, "detail": strings.Repeat("diagnostic ", 40)}
+	}
+	raw := map[string]any{"isError": true, "structuredContent": map[string]any{"error": cloneResultMap(facts), "items": items}}
+	normalized, kinds, parsed := normalizeDynamicMCPResult(raw)
+	binding := activity.Binding{SourceOwnerKey: "owner", ConversationID: "conversation", CallID: "call_semantic_failure"}
+	store := resultStore{}
+	page, err := store.store(binding, "board:edit", raw, normalized, kinds, parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursor, _ := page["host_cursor"].(string)
+	if cursor == "" {
+		t.Fatal("fixture did not produce multiple pages")
+	}
+	otherBinding := binding
+	otherBinding.ConversationID = "other-conversation"
+	for _, invalid := range []struct {
+		binding activity.Binding
+		cursor  string
+		code    string
+	}{
+		{binding, "hostcursor_invalid", "MCP_RESULT_CURSOR_EXPIRED"},
+		{otherBinding, cursor, "MCP_RESULT_SCOPE_MISMATCH"},
+	} {
+		result, err := store.continueResult(invalid.binding, binding.CallID, invalid.cursor)
+		var toolErr *ToolError
+		if result != nil || !errors.As(err, &toolErr) || toolErr.Code != invalid.code {
+			t.Fatalf("a failed continuation was hidden: result=%#v err=%v", result, err)
+		}
+	}
+	collected := []any{}
+	for pageIndex := 0; ; pageIndex++ {
+		if page["isError"] != (pageIndex == 0) || !resultValuesEqual(page["upstream_failure"], facts) {
+			t.Fatalf("page %d lost the distinction between read status and original failure: %#v", pageIndex, page)
+		}
+		if ResultReadSucceeded(map[string]any(page)) != (pageIndex > 0) {
+			t.Fatalf("page %d has incorrect host read provenance", pageIndex)
+		}
+		if resultMap(page["host_page"])["mode"] != "semantic_records" || resultMap(page["result"])["isError"] != true {
+			t.Fatalf("semantic paging rewrote the original failure: %#v", page)
+		}
+		body := resultMap(resultMap(page["result"])["structuredContent"])
+		if !resultValuesEqual(body["error"], facts) {
+			t.Fatal("semantic paging changed the upstream error details")
+		}
+		collected = append(collected, body["items"].([]any)...)
+		cursor, _ = page["host_cursor"].(string)
+		if cursor == "" {
+			break
+		}
+		page, err = store.continueResult(binding, binding.CallID, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page["result_call_id"] != binding.CallID {
+			t.Fatal("continuation changed the originating result identity")
+		}
+	}
+	if !resultValuesEqual(collected, items) {
+		t.Fatal("continuation skipped or repeated semantic records")
+	}
+	original, ok := store.rawCopy(binding.CallID)
+	if !ok || !resultValuesEqual(original, raw) {
+		t.Fatal("continuation modified the retained original response")
 	}
 }
 

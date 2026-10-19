@@ -13,6 +13,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/activity"
 	toolcore "github.com/uvwt/agentdock/internal/tool/core"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -258,6 +259,12 @@ func resultReportsFailure(result Result) bool {
 		if flag, ok := result[key].(bool); ok && !flag {
 			return true
 		}
+	}
+	// A completed host continuation returns the original business result as data.
+	// Only the MCP store can produce this marker; remote JSON cannot override
+	// failure detection by claiming that its own operation or page succeeded.
+	if toolmcp.ResultReadSucceeded(map[string]any(result)) {
+		return false
 	}
 	if inner, ok := result["result"].(map[string]any); ok {
 		return resultReportsFailure(Result(inner))
