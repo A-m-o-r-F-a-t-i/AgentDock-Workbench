@@ -251,7 +251,7 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 	if !sequenceComplete {
 		t.Fatal("Context automatic detail paging did not finish")
 	}
-	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"known_context_revision": revision}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
 	if err != nil || result.IsError || asMap(result.StructuredContent)["unchanged"] != true {
 		t.Fatalf("same revision not reused: %+v err=%v", result, err)
 	}
