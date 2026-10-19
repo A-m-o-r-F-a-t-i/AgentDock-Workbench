@@ -21,6 +21,13 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 	if !validPluginName(cfg.PluginName) {
 		return errors.New("invalid plugin data owner")
 	}
+	mappedState, releaseMapped, mapped, err := s.acquireCatalogMCPRuntime(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if mapped {
+		defer releaseMapped()
+	}
 	directory, _, err := s.Snapshot(ctx)
 	if err != nil {
 		return err
@@ -34,10 +41,13 @@ func (s *Store) PrepareMCPData(ctx context.Context, cfg mcpclient.ServerConfig) 
 	if err != nil {
 		return err
 	}
-	state, err := s.readNamedState(cfg.PluginName)
-	if err != nil {
-		release()
-		return err
+	state := mappedState
+	if !mapped {
+		state, err = s.readNamedState(cfg.PluginName)
+		if err != nil {
+			release()
+			return err
+		}
 	}
 	root, err := containedPath(s.root, cfg.PluginRoot, false)
 	if err != nil {

@@ -428,6 +428,8 @@
 "Timing\n%@" = "耗时\n%@";
 "File editing\n%@" = "文件编辑\n%@";
 "Original record\n%@" = "原始记录\n%@";
+"Record summary\n%@" = "记录摘要\n%@";
+"Use Copy or Export to read the complete original JSON record." = "使用“复制”或“导出”读取完整原始 JSON 记录。";
 "OK" = "确定";
 "Confirm" = "确认";
 "Enable custom permission settings" = "启用自定义权限设置";

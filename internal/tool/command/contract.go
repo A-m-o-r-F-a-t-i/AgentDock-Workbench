@@ -33,7 +33,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["yield_time_ms"] = boundedIntProp("Foreground wait threshold for execution_mode=auto. Defaults to 10000 and is capped at 30000 milliseconds.", 0, 30000)
 		props["max_output_bytes"] = boundedIntProp("Maximum output bytes. Defaults to 65536 and is capped at 4194304.", 1, MaxOutputBytes)
 		props["stdin"] = stringProp("Initial stdin.")
-		props["tty"] = boolProp("Keep stdin open.")
+		props["tty"] = boolProp("Keep stdin open after initial input. Execution remains pipe-backed and does not request a terminal window.")
 		required = []string{"cmd"}
 	case ToolSessionObserve:
 		props["action"] = map[string]any{

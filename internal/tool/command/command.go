@@ -132,7 +132,7 @@ func (svc *Service) Exec(ctx context.Context, request ExecRequest) (Result, erro
 		svc.sessions.FinishStart()
 		return nil, err
 	}
-	s, sandboxStatus, err := invocation.start(commandCtx, timeout, tty, func(command *exec.Cmd) (func(), session.PreparationStatus) {
+	s, sandboxStatus, err := invocation.start(commandCtx, timeout, func(command *exec.Cmd) (func(), session.PreparationStatus) {
 		// AgentDock 不额外过滤命令，实际权限边界由所选运行环境决定。
 		privilegeWarning := "exec_command runs with the AgentDock process OS user privileges"
 		if invocation.execution.Runtime == "wsl" {

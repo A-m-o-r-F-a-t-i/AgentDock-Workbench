@@ -100,8 +100,10 @@ func contextCatalogSummary(servers []any, warnings any, revision string) map[str
 	}
 }
 
-// Refresh catalog freshness from published memory, without rebuilding Context or
-// rediscovering providers. The reference keeps only metadata for delivered rules.
+// Build a compact reference from the already validated immutable Bootstrap.
+// Context reuse was admitted with the current cache stamp, including the MCP
+// directory revision, so recomputing its server counts through another manager
+// can only lose provider-owned facts or mix revisions.
 func (r *Runtime) refreshContextBootstrapReference(ctx context.Context, reference, original Result) {
 	for _, key := range []string{"bootstrap_complete", "task_binding", "workdir", "workspace_id"} {
 		if value, exists := original[key]; exists {
@@ -112,23 +114,14 @@ func (r *Runtime) refreshContextBootstrapReference(ctx context.Context, referenc
 	if instructions := modelObject(original["instruction_files"]); instructions != nil {
 		reference["instruction_files"] = map[string]any{"complete": instructions["complete"], "revision": instructions["revision"]}
 	}
-	names := []string{}
-	servers, _ := original["dynamic_mcp"].([]any)
-	for _, server := range servers {
-		if name := stringArg(modelObject(server), "name"); name != "" {
-			names = append(names, name)
-		}
+	if summary := maps.Clone(modelObject(original["dynamic_mcp_summary"])); summary != nil {
+		reference["dynamic_mcp_summary"] = summary
+		return
 	}
+	servers, _ := original["dynamic_mcp"].([]any)
 	revision := ""
 	if r.capabilityManager != nil {
 		revision = r.capabilityManager.DirectoryRevision()
-		servers = []any{}
-		for _, snapshot := range r.capabilityManager.Snapshots(names) {
-			servers = append(servers, map[string]any{
-				"tool_count": snapshot.ToolCount, "tool_count_known": snapshot.ToolCountKnown,
-				"catalog_state": map[string]any{"state": snapshot.CatalogState.State},
-			})
-		}
 	}
 	reference["dynamic_mcp_summary"] = contextCatalogSummary(servers, original["warnings"], revision)
 }

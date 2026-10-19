@@ -34,6 +34,12 @@ func (r *Runtime) applyStructuredOutputPolicy(p *preparedExecution, result Resul
 	if (p.spec.Name == "mcp_tool_call" || p.spec.Name == "mcp_result_continue") && result["host_page"] != nil || p.spec.Name == "mcp_result_raw" {
 		return result
 	}
+	if contextReferenceResult(result) {
+		// References are complete terminal projections of an already retained
+		// Context. Reapplying required_full pagination would expand the original
+		// page and contradict the compact reference returned to this waiter.
+		return result
+	}
 	if p.structuredResume != nil && p.structuredResume.Reference {
 		return result
 	}

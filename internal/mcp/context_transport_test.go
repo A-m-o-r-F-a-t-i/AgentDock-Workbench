@@ -16,6 +16,7 @@ import (
 	"github.com/uvwt/agentdock/internal/insertion"
 	"github.com/uvwt/agentdock/internal/requesttrace"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
+	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
 func assertContextMeasurements(t *testing.T, result *sdk.CallToolResult) {
@@ -235,6 +236,23 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 			if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || cursor == "" {
 				t.Fatalf("optional detail continuation is inconsistent: %+v", value)
 			}
+			if index == 0 {
+				// A repeated root request must remain distinguishable from an
+				// explicit detail read. It may return a compact shared reference,
+				// but it must never consume this immutable cursor or expose page 2.
+				repeated, repeatErr := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+				if repeatErr != nil || repeated.IsError {
+					t.Fatalf("repeated root Context failed: result=%+v err=%v", repeated, repeatErr)
+				}
+				repeatedValue := asMap(repeated.StructuredContent)
+				repeatedDelivery := asMap(repeatedValue["delivery"])
+				repeatedStructured := asMap(repeatedValue["structured_output"])
+				repeatedCursor, _ := repeatedValue["next_cursor"].(string)
+				isReference := repeatedValue["context_delivery"] == "reference" || repeatedValue["context_delivery"] == "shared_reference"
+				if toolcore.IntArg(repeatedDelivery, "page_index", 1) > 1 || repeatedStructured["request_cursor"] == cursor || repeatedCursor != "" && repeatedCursor != cursor || repeatedCursor == "" && !isReference {
+					t.Fatalf("empty Context request silently advanced detail paging: root=%#v pending_cursor=%s", repeatedValue, cursor)
+				}
+			}
 			actionArgs := asMap(asMap(value["required_action"])["arguments"])
 			if len(actionArgs) != 1 || actionArgs["cursor"] != cursor {
 				t.Fatalf("Context continuation should contain only the immutable cursor: %#v", actionArgs)
@@ -251,7 +269,7 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 	if !sequenceComplete {
 		t.Fatal("Context automatic detail paging did not finish")
 	}
-	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
+	result, err := h.session.CallTool(t.Context(), &sdk.CallToolParams{Name: "agentdock_context", Arguments: map[string]any{"known_context_revision": revision}, Meta: sdk.Meta{"openai/session": "model-v2-context-sequence", ContextResponseCapability: map[string]any{"structured": true, "text": "summary"}}})
 	if err != nil || result.IsError || asMap(result.StructuredContent)["unchanged"] != true {
 		t.Fatalf("same revision not reused: %+v err=%v", result, err)
 	}

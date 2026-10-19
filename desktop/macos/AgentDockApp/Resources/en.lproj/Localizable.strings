@@ -428,6 +428,8 @@
 "Timing\n%@" = "Timing\n%@";
 "File editing\n%@" = "File editing\n%@";
 "Original record\n%@" = "Original record\n%@";
+"Record summary\n%@" = "Record summary\n%@";
+"Use Copy or Export to read the complete original JSON record." = "Use Copy or Export to read the complete original JSON record.";
 "OK" = "OK";
 "Confirm" = "Confirm";
 "Enable custom permission settings" = "Enable custom permission settings";

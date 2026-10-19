@@ -154,15 +154,43 @@ func (s *Store) ensureInstalledGenerations() error {
 	}
 	for _, name := range sortedPackageNames(records) {
 		record := records[name]
+		state := normalizeState(record.state, record)
+		generation := state.Generation
+		// A complete formal identity means migration already finished. Startup only
+		// checks that the immutable generation directory still exists; hashing every
+		// file is deferred to the first selected Skill/MCP execution. This keeps Core
+		// readiness independent of large Plugin packages while preserving the same
+		// fail-closed execution boundary.
+		if generation != "" && state.PackageDigest != "" {
+			generationPath, pathErr := s.generationPath(name, generation)
+			if pathErr != nil {
+				return pathErr
+			}
+			info, statErr := os.Lstat(generationPath)
+			if statErr == nil {
+				if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+					return newError("PLUGIN_GENERATION_DRIFT", "Plugin generation is not a regular directory", map[string]any{"plugin": name, "generation": generation}, nil)
+				}
+				if state.InstalledAt.IsZero() {
+					state.InstalledAt = time.Now().UTC()
+					if err := s.writeNamedState(name, state); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+			if !errors.Is(statErr, os.ErrNotExist) {
+				return fmt.Errorf("inspect Plugin %s generation: %w", name, statErr)
+			}
+		}
+
 		packageDigest, err := skills.DigestPackageContent(record.root)
 		if err != nil {
 			return fmt.Errorf("digest installed Plugin %s for generation migration: %w", name, err)
 		}
-		state := normalizeState(record.state, record)
 		if state.PackageDigest != "" && state.PackageDigest != packageDigest {
 			return newError("PLUGIN_PACKAGE_DRIFT", "installed Plugin package does not match persisted digest", map[string]any{"plugin": name}, nil)
 		}
-		generation := state.Generation
 		if generation == "" {
 			generation, err = newLifecycleOwner()
 			if err != nil {
