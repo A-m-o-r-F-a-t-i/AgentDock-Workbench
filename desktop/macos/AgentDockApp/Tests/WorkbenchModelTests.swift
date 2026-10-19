@@ -80,6 +80,31 @@ struct WorkbenchModelTests {
         precondition(runningCall.requestText == "读取")
         precondition(runningCall.responseText == "处理中")
 
+        let retainedCall = WorkbenchCall(json: .object([
+            "call_id": .string("call_retained"),
+            "conversation_id": .string("conv_1"),
+            "tool_name": .string("agentdock_context"),
+            "status": .string("succeeded"),
+            "request": .object([
+                "ref": .string("request-source"),
+                "bytes": .integer(128_000),
+                "preview": .string(String(repeating: "request-preview", count: 8_000))
+            ]),
+            "output_source": .object([
+                "ref": .string("response-source"),
+                "bytes": .integer(512_000),
+                "preview": .string(String(repeating: "response-preview", count: 8_000))
+            ])
+        ]))
+        precondition(retainedCall.requestText.contains("request-source"))
+        precondition(!retainedCall.requestText.contains("request-preview"))
+        precondition(retainedCall.responseText.contains("response-source"))
+        precondition(!retainedCall.responseText.contains("response-preview"))
+        precondition(retainedCall.technicalRecordText.contains("request-source"))
+        precondition(retainedCall.technicalRecordText.contains("response-source"))
+        precondition(!retainedCall.technicalRecordText.contains("request-preview"))
+        precondition(!retainedCall.technicalRecordText.contains("response-preview"))
+
         let permission = WorkbenchPermissionState(json: .object([
             "effective": .object([
                 "mode": .string("full"),

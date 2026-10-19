@@ -371,11 +371,13 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
         if let text = value.stringValue { return text }
         if let inline = value.optionalText("inline") { return inline }
         if let text = value.optionalText("text") { return text }
-        if let preview = value.optionalText("preview") { return preview }
         if let reference = value.optionalText("ref") {
             let bytes = value.integer("bytes")
             return bytes > 0 ? L10n.format("External payload: %@ · %@ bytes", String(describing: reference), String(describing: bytes)) : L10n.format("External payload: %@", String(describing: reference))
         }
+        // Retained payloads often include a large preview beside their stable
+        // reference. The detail pane must not expand that preview eagerly.
+        if let preview = value.optionalText("preview") { return preview }
         return value.prettyPrinted
     }
 
@@ -425,6 +427,29 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
         if let createdAt { values.append(WorkbenchFormatting.clock(createdAt)) }
         if !toolName.isEmpty { values.append(toolName) }
         return values.joined(separator: " · ")
+    }
+
+    var technicalRecordText: String {
+        var lines = [String]()
+        for key in ["call_id", "conversation_id", "parent_call_id", "request_id", "tool_name", "status", "error_code"] {
+            let value = raw.text(key)
+            if !value.isEmpty { lines.append("\(key): \(value)") }
+        }
+        for (label, payload) in [("request", raw["request"]), ("response", raw["response"]), ("output_source", raw["output_source"])] {
+            if let reference = payload.optionalText("ref") {
+                let bytes = payload.integer("bytes")
+                lines.append(bytes > 0 ? "\(label): \(reference) · \(bytes) bytes" : "\(label): \(reference)")
+            } else if let text = payload.stringValue {
+                lines.append("\(label): inline · \(text.count) characters")
+            } else if !payload.isNull {
+                lines.append("\(label): inline")
+            }
+        }
+        for key in ["operation", "capture", "projection", "delivery"] {
+            let value = raw[key]
+            if !value.isNull { lines.append("\(key): \(value.prettyPrinted)") }
+        }
+        return lines.joined(separator: "\n")
     }
 }
 

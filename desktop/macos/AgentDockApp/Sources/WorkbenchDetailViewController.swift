@@ -355,7 +355,8 @@ final class WorkbenchDetailViewController: NSViewController {
         if !call.toolExecutionText.isEmpty { sections.append(L10n.text("Details") + "\n" + call.toolExecutionText) }
         sections.append(L10n.format("Timing\n%@", String(describing: call.timingText)))
         sections.append(L10n.format("File editing\n%@", String(describing: call.fileEditText)))
-        sections.append(L10n.format("Original record\n%@", String(describing: call.raw.prettyPrinted)))
+        sections.append(L10n.format("Record summary\n%@", String(describing: call.technicalRecordText)))
+        sections.append(L10n.text("Use Copy or Export to read the complete original JSON record."))
         return sections.joined(separator: "\n\n")
     }
 

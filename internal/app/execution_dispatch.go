@@ -752,7 +752,12 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 	} else if p.spec.Name == "session_act" && stringArg(p.args, "action") == "kill_all" {
 		result, err = r.executeSessionSelection(ctx, p)
 	} else {
-		result, p.structuredResume, err = r.resumeContextOutput(ctx, p)
+		// Context detail pages are resumed only by an explicit cursor above.
+		// A revision selector may return a compact unchanged reference, but an
+		// empty request always performs the normal Context handler path.
+		if contextReferenceRequested(p.args) {
+			result, p.structuredResume, err = r.resumeContextOutput(ctx, p)
+		}
 		if result == nil && err == nil {
 			result, err = r.executeContextHandler(ctx, p)
 		}

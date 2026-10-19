@@ -159,8 +159,18 @@ func sameContextScope(a, b activity.Binding) bool {
 		a.TaskID == b.TaskID && a.ThreadID == b.ThreadID && a.WorkspaceID == b.WorkspaceID
 }
 
-// Empty Context calls advance a unique immutable sequence. A fully delivered,
-// unchanged snapshot becomes a compact reference; force_refresh starts over.
+func contextReferenceRequested(args map[string]any) bool {
+	return args["force_refresh"] != true && stringArg(args, "cursor") == "" && stringArg(args, "known_context_revision") != ""
+}
+
+func contextReferenceResult(result Result) bool {
+	delivery := stringArg(result, "context_delivery")
+	return delivery == "reference" || delivery == "shared_reference"
+}
+
+// A known revision may reuse a fully delivered immutable Context as a compact
+// reference. Detail pages are resumed only by their explicit structured cursor;
+// an empty Context request never advances an existing page sequence.
 func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution) (Result, *structuredOutputResume, error) {
 	if !p.modelOutput {
 		return nil, nil, nil
@@ -168,19 +178,19 @@ func (r *Runtime) resumeContextOutput(ctx context.Context, p *preparedExecution)
 	if p.spec.Name != "agentdock_context" && p.spec.Name != "workspace_context" {
 		return nil, nil, nil
 	}
-	if p.args["force_refresh"] == true {
+	if !contextReferenceRequested(p.args) {
 		return nil, nil, nil
 	}
-	if p.state.binding.ConversationID == "" && stringArg(p.args, "known_context_revision") == "" {
-		return nil, nil, nil
-	}
-	candidates := []*structuredOutputSnapshot{}
 	knownRevision := stringArg(p.args, "known_context_revision")
+	candidates := []*structuredOutputSnapshot{}
 	requestedWorkdir := stringArg(p.args, "workdir")
 	r.structuredOutputMu.Lock()
 	r.pruneStructuredOutputLocked(time.Now())
 	for _, stored := range r.structuredSnapshots {
 		if stored.Tool != p.spec.Name || !stored.Required || stored.OutputFailure != nil {
+			continue
+		}
+		if stored.ContextRevision != knownRevision {
 			continue
 		}
 		scopeMatches := sameContextScope(stored.Binding, p.state.binding)

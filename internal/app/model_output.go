@@ -36,18 +36,20 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	}
 	if p.spec.Name == "agentdock_context" {
 		ctx := activity.WithSource(activity.WithBinding(context.Background(), p.state.binding), p.source)
-		routes := []map[string]any{}
-		for _, name := range r.ToolNames() {
-			if !r.BuiltinToolVisible(ctx, name) {
-				continue
+		if !contextReferenceResult(out) {
+			routes := []map[string]any{}
+			for _, name := range r.ToolNames() {
+				if !r.BuiltinToolVisible(ctx, name) {
+					continue
+				}
+				routes = append(routes, map[string]any{
+					"name": name, "scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin,
+					"invoke_via": toolmcp.InvokeDirect, "dynamic_mcp_search": false,
+				})
 			}
-			routes = append(routes, map[string]any{
-				"name": name, "scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin,
-				"invoke_via": toolmcp.InvokeDirect, "dynamic_mcp_search": false,
-			})
+			out["host_tools"], out["permission"] = routes, p.decision
+			r.prepareContextBootstrap(ctx, out, p.state.binding)
 		}
-		out["host_tools"], out["permission"] = routes, p.decision
-		r.prepareContextBootstrap(ctx, out, p.state.binding)
 		out["bootstrap_complete"] = modelObject(out["context_diagnostics"])["complete"] == true
 		result = out
 	}
