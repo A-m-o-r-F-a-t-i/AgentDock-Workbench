@@ -178,7 +178,7 @@ func TestMCPRecoveryRequestPreservesExactPagedArguments(t *testing.T) {
 				"detail": strings.Repeat("complete original request ", 2048),
 				"marker": "private-recovery-fixture",
 			}
-			request := map[string]any{"name": "fixture:write", "arguments": arguments, "reason": "repeat the exact original call", "task_id": "must-not-be-replayed"}
+			request := map[string]any{"name": "fixture:write", "arguments": arguments, "interaction_intent": "desktop_gui", "reason": "legacy field must not be replayed", "task_id": "must-not-be-replayed"}
 			redactor := activity.NewRedactor()
 			if redacted {
 				redactor = activity.NewRedactor("private-recovery-fixture")
@@ -202,7 +202,7 @@ func TestMCPRecoveryRequestPreservesExactPagedArguments(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || recovered["task_id"] != nil {
+			if err != nil || recovered["task_id"] != nil || recovered["reason"] != nil {
 				t.Fatalf("exact recovery request unavailable or inherited an untrusted task: %#v %v", recovered, err)
 			}
 			accepted, err := cloneExecutionArguments(recovered)
@@ -221,7 +221,7 @@ func TestMCPRecoveryRequestPreservesExactPagedArguments(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if retry.Name != "fixture:write" || retry.Reason != request["reason"] || !bytes.Equal(got, want) {
+			if retry.Name != "fixture:write" || retry.InteractionIntent != "desktop_gui" || !bytes.Equal(got, want) {
 				t.Fatal("retained request was rounded or truncated before capability replay")
 			}
 		})

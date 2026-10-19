@@ -46,6 +46,10 @@ func contextToolContract(name string, cfg config.Config) (ToolContract, bool) {
 	}
 	contract.ValidationInputSchema = maps.Clone(contract.ValidationInputSchema)
 	input := maps.Clone(contract.ValidationInputSchema["properties"].(map[string]any))
+	// Context page size is server-owned. Remove the historical caller budget
+	// from validation as well as the public projection so a protocol module
+	// update cannot silently reintroduce it.
+	delete(input, "max_response_bytes")
 	input["workdir"] = map[string]any{
 		"type": "string", "maxLength": 4096,
 		"description": "Existing workspace; empty inherits the conversation or device default.",

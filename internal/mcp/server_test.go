@@ -13,6 +13,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/app"
+	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
 )
 
@@ -33,6 +34,64 @@ func TestToolDescriptorsExposeSafetyAnnotations(t *testing.T) {
 		if def.Annotations == nil {
 			t.Fatalf("%s has no safety annotations", def.Name)
 		}
+	}
+}
+
+func TestHostToolContractRevisionChangesWithPublishedSchema(t *testing.T) {
+	base := ToolDefinition{
+		Name: "agentdock_context", Title: "AgentDock context", Description: "context",
+		InputSchema: map[string]any{
+			"type": "object", "properties": map[string]any{"cursor": map[string]any{"type": "string"}},
+		},
+	}
+	first := hostToolContractRevision([]ToolDefinition{base})
+	changed := base
+	changed.InputSchema = map[string]any{
+		"type": "object", "properties": map[string]any{"known_context_revision": map[string]any{"type": "string"}},
+	}
+	second := hostToolContractRevision([]ToolDefinition{changed})
+	if first == "" || second == "" || first == second {
+		t.Fatalf("tool contract revisions did not distinguish schema changes: first=%q second=%q", first, second)
+	}
+	version := mcpImplementationVersion("1.1.9", first)
+	if !strings.HasPrefix(version, "1.1.9+tools.") || len(version) != len("1.1.9+tools.")+12 {
+		t.Fatalf("implementation version did not carry the contract revision: %q", version)
+	}
+	if got := mcpImplementationVersion("1.1.9+dev", first); !strings.HasPrefix(got, "1.1.9+dev.tools.") {
+		t.Fatalf("implementation version corrupted an existing build suffix: %q", got)
+	}
+}
+
+func TestInitializePublishesCurrentHostToolContract(t *testing.T) {
+	root := t.TempDir()
+	h := newMCPAppTestHarnessWithApps(t, config.Config{
+		AgentDockHome: filepath.Join(root, "home"), AgentDockDefaultDir: root,
+	}, false)
+	expected := hostToolContractRevision(h.runtime.ToolDefinitions())
+	initialized := h.session.InitializeResult()
+	if initialized == nil || initialized.ServerInfo == nil || initialized.Capabilities == nil {
+		t.Fatalf("initialize result missing server identity or capabilities: %#v", initialized)
+	}
+	if want := mcpImplementationVersion(buildinfo.Version, expected); initialized.ServerInfo.Version != want {
+		t.Fatalf("server version = %q, want %q", initialized.ServerInfo.Version, want)
+	}
+	contract, _ := initialized.Capabilities.Experimental["agentdock/tool-contract-v1"].(map[string]any)
+	if contract["revision"] != expected {
+		t.Fatalf("initialize tool contract revision = %#v, want %q", contract, expected)
+	}
+	listed, err := h.session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]map[string]any{}
+	for _, tool := range listed.Tools {
+		schema, _ := tool.InputSchema.(map[string]any)
+		byName[tool.Name] = schema
+	}
+	contextProperties, _ := byName["agentdock_context"]["properties"].(map[string]any)
+	callProperties, _ := byName["mcp_tool_call"]["properties"].(map[string]any)
+	if contextProperties["max_response_bytes"] != nil || callProperties["reason"] != nil {
+		t.Fatalf("tools/list retained removed fields: context=%#v call=%#v", contextProperties, callProperties)
 	}
 }
 

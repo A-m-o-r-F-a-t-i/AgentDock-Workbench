@@ -18,7 +18,7 @@ func TestComputerUseCapabilitiesRequireExplicitSelection(t *testing.T) {
 	if !RequiresDesktopGUIIntent("computer-use", "cua-driver:launch_app") {
 		t.Fatal("launch_app should require desktop GUI intent")
 	}
-	if ValidDesktopGUIIntent("desktop_gui", "") || !ValidDesktopGUIIntent("desktop_gui", "Open the user-requested Windows Settings page") {
+	if ValidDesktopGUIIntent("") || !ValidDesktopGUIIntent("desktop_gui") {
 		t.Fatal("desktop GUI intent validation is incorrect")
 	}
 }

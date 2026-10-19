@@ -117,7 +117,6 @@ func TestComputerUsePluginIsExplicitAndLaunchAppRequiresIntent(t *testing.T) {
 		"name":               "cua-driver:launch_app",
 		"arguments":          map[string]any{"name": "notepad"},
 		"interaction_intent": "desktop_gui",
-		"reason":             "用户明确要求启动 Windows 记事本",
 	})
 	if err != nil {
 		t.Fatal(err)

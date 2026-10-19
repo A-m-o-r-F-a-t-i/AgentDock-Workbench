@@ -34,6 +34,10 @@ application state instead of bypassing the managed tool.
 Use list_dir, search_text, and read_file for source inspection; use exec_command
 for project commands; use apply_patch for text-file changes.
 
+For multi-step or long-running work, use task_manage to create or resume the task,
+record concrete steps and checkpoints, and keep status and next_action current.
+Task records must reflect observed progress; do not mark work complete before verification.
+
 Reuse running command sessions and delivered completion events. Determine command success
 from command status and exit code. Continue independent work while a command runs and
 observe the same session only when the next decision requires its result. Reconcile

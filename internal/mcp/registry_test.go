@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/config"
+	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 )
 
 func TestToolRegistryHasNoDuplicates(t *testing.T) {
@@ -143,6 +146,44 @@ func TestAgentDockContextSchemaIsStructuredEntrypoint(t *testing.T) {
 	required, ok := success["required"].([]string)
 	if !ok || !reflect.DeepEqual(required, []string{"runtime", "skills", "dynamic_mcp", "workflow_templates", "rules"}) {
 		t.Fatalf("agentdock_context output schema required = %#v", success["required"])
+	}
+}
+
+func TestAgentDockContextValidationRejectsRemovedResponseBudget(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{AgentDockHome: filepath.Join(root, ".agentdock"), AgentDockDefaultDir: root}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := app.NewRuntime(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	_, err = runtime.Call(context.Background(), "agentdock_context", map[string]any{"max_response_bytes": 4096})
+	var toolErr *app.ToolError
+	if !errors.As(err, &toolErr) || toolErr.Code != "INVALID_ARGUMENT" {
+		t.Fatalf("agentdock_context accepted removed max_response_bytes: %v", err)
+	}
+}
+
+func TestMCPToolCallSchemaOmitsReason(t *testing.T) {
+	def, ok := toolDefinition("mcp_tool_call")
+	if !ok {
+		t.Fatal("mcp_tool_call definition missing")
+	}
+	if strings.Contains(strings.ToLower(def.Description), "reason") {
+		t.Fatalf("mcp_tool_call description still asks for reason: %q", def.Description)
+	}
+	validation, ok := toolmcp.InputSchema(toolmcp.ToolCall)
+	if !ok {
+		t.Fatal("mcp_tool_call validation schema missing")
+	}
+	for label, schema := range map[string]map[string]any{"public": def.InputSchema, "validation": validation} {
+		properties, _ := schema["properties"].(map[string]any)
+		if properties["reason"] != nil || properties["interaction_intent"] == nil {
+			t.Fatalf("%s mcp_tool_call schema = %#v", label, properties)
+		}
 	}
 }
 
