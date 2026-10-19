@@ -81,8 +81,16 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 			return nil, invocationError(ctx, "response_measure", "Response measurement failed after tool execution", err)
 		}
 	}
-	s.runtime.RecordToolResponse(pending, envelope)
-	return envelope, nil
+	wire, err := modelWireEnvelope(ctx, name, envelope)
+	if err != nil {
+		return nil, invocationError(ctx, "response_encode", "Final response encoding failed; inspect the original call before retrying", err)
+	}
+	if name == "mcp_tool_call" || name == "mcp_result_continue" {
+		s.runtime.RecordToolResponse(pending, wire, envelope)
+	} else {
+		s.runtime.RecordToolResponse(pending, wire)
+	}
+	return wire, nil
 }
 
 // Only callers holding adapter-owned ToolResponse state supply additions. Never
