@@ -36,6 +36,31 @@ func TestToolDescriptorsExposeSafetyAnnotations(t *testing.T) {
 	}
 }
 
+func TestHostToolContractRevisionChangesWithPublishedSchema(t *testing.T) {
+	base := ToolDefinition{
+		Name: "agentdock_context", Title: "AgentDock context", Description: "context",
+		InputSchema: map[string]any{
+			"type": "object", "properties": map[string]any{"cursor": map[string]any{"type": "string"}},
+		},
+	}
+	first := hostToolContractRevision([]ToolDefinition{base})
+	changed := base
+	changed.InputSchema = map[string]any{
+		"type": "object", "properties": map[string]any{"known_context_revision": map[string]any{"type": "string"}},
+	}
+	second := hostToolContractRevision([]ToolDefinition{changed})
+	if first == "" || second == "" || first == second {
+		t.Fatalf("tool contract revisions did not distinguish schema changes: first=%q second=%q", first, second)
+	}
+	version := mcpImplementationVersion("1.1.9", first)
+	if !strings.HasPrefix(version, "1.1.9+tools.") || len(version) != len("1.1.9+tools.")+12 {
+		t.Fatalf("implementation version did not carry the contract revision: %q", version)
+	}
+	if got := mcpImplementationVersion("1.1.9+dev", first); !strings.HasPrefix(got, "1.1.9+dev.tools.") {
+		t.Fatalf("implementation version corrupted an existing build suffix: %q", got)
+	}
+}
+
 func assertToolAnnotation(t *testing.T, descriptor map[string]any, readOnly, destructive, openWorld bool) {
 	t.Helper()
 	annotations, ok := descriptor["annotations"].(map[string]any)

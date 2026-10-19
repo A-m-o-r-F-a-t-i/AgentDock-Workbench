@@ -9,7 +9,7 @@ const (
 	DesktopGUIIntent  = "desktop_gui"
 
 	// ComputerUseRule is injected only when the Computer Use plugin is enabled.
-	ComputerUseRule = "Computer Use 采用显式加载和显式意图：只有当前任务明确要求操作当前网页、Windows 原生界面或启动桌面应用时，才调用 plugin_load(\"computer-use\")。代码、文件、Git、终端、PCB、API、纯文本及普通 MCP 任务不得加载或调用 computer-use。网页正文优先 current-browser-control；只有其不适用时才使用 cua-driver；chatgpt-native-computer-use 仅作最终回退。调用 computer-use 的动态 MCP 工具必须传 interaction_intent=desktop_gui 和与用户任务直接对应的具体 reason。cua-driver:launch_app 仅用于明确要求启动尚未运行的 Windows 应用或打开 URL，不得用于能力探测、会话恢复、查找已有窗口、获取 PID 或通用任务初始化。"
+	ComputerUseRule = "Computer Use 采用显式加载和显式意图：只有当前任务明确要求操作当前网页、Windows 原生界面或启动桌面应用时，才调用 plugin_load(\"computer-use\")。代码、文件、Git、终端、PCB、API、纯文本及普通 MCP 任务不得加载或调用 computer-use。网页正文优先 current-browser-control；只有其不适用时才使用 cua-driver；chatgpt-native-computer-use 仅作最终回退。调用 computer-use 的动态 MCP 工具必须传 interaction_intent=desktop_gui。cua-driver:launch_app 仅用于明确要求启动尚未运行的 Windows 应用或打开 URL，不得用于能力探测、会话恢复、查找已有窗口、获取 PID 或通用任务初始化。"
 )
 
 const (
@@ -17,8 +17,8 @@ const (
 	currentBrowserPrefix    = "显式网页交互能力；仅在当前任务明确要求控制已打开的 Edge 页面时使用。"
 	cuaDriverPrefix         = "显式 Windows GUI 控制能力；仅在 current-browser-control 不适用且当前任务明确需要原生界面时使用。"
 	nativeComputerUsePrefix = "最终回退的原生 Computer Use；仅在 cua-driver 不可用、不兼容或用户明确指定时使用。"
-	computerUseToolPrefix   = "仅在当前任务明确需要网页或 Windows GUI 交互时调用；通过 AgentDock 调用时必须传 interaction_intent=desktop_gui 和具体 reason。"
-	launchAppPrefix         = "仅在当前任务明确要求启动尚未运行的 Windows 应用或打开 URL 时调用；通过 AgentDock 调用时必须传 interaction_intent=desktop_gui 和具体 reason；不得用于能力探测、会话恢复、查找已有窗口、获取 PID 或通用任务初始化。"
+	computerUseToolPrefix   = "仅在当前任务明确需要网页或 Windows GUI 交互时调用；通过 AgentDock 调用时必须传 interaction_intent=desktop_gui。"
+	launchAppPrefix         = "仅在当前任务明确要求启动尚未运行的 Windows 应用或打开 URL 时调用；通过 AgentDock 调用时必须传 interaction_intent=desktop_gui；不得用于能力探测、会话恢复、查找已有窗口、获取 PID 或通用任务初始化。"
 )
 
 func RequiresExplicitPluginLoad(plugin string) bool {
@@ -58,8 +58,8 @@ func RequiresDesktopGUIIntent(plugin, qualifiedName string) bool {
 	return ok && IsComputerUseServer(plugin, server)
 }
 
-func ValidDesktopGUIIntent(intent, reason string) bool {
-	return normalizeName(intent) == DesktopGUIIntent && strings.TrimSpace(reason) != ""
+func ValidDesktopGUIIntent(intent string) bool {
+	return normalizeName(intent) == DesktopGUIIntent
 }
 
 func PluginDescription(plugin, description string) string {

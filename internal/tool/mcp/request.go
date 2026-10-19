@@ -61,7 +61,6 @@ type CallRequest struct {
 	Name              string         `json:"name"`
 	Arguments         map[string]any `json:"arguments"`
 	InteractionIntent string         `json:"interaction_intent,omitempty"`
-	Reason            string         `json:"reason,omitempty"`
 }
 
 type ResultContinueRequest struct {

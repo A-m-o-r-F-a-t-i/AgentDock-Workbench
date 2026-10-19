@@ -26,7 +26,7 @@ func dynamicMCPToolSpecs() []ToolSpec {
 			}
 			return r.dynamicMCP.Inspect(ctx, request)
 		})},
-		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Invoke one exact qualified nested MCP tool using server:tool from the current AgentDock dynamic catalog. Direct AgentDock built-ins and ChatGPT host tools are rejected. The request is validated against the cached schema; oversized results use an AgentDock result cursor without changing any domain cursor. Computer Use additionally requires interaction_intent=desktop_gui and a concrete reason.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
+		{Name: "mcp_tool_call", Contract: mcpToolContract, Title: "Call a dynamic MCP tool", Description: "Invoke one exact qualified nested dynamic MCP tool using server:tool from the current AgentDock catalog. Direct AgentDock built-ins and ChatGPT host tools are rejected. The request is validated against the cached schema; oversized results use an AgentDock result cursor without changing any domain cursor. Computer Use additionally requires interaction_intent=desktop_gui.", Annotations: mutatingToolAnnotations(true, true), Handler: typedToolHandler("mcp_tool_call", func(ctx context.Context, r *Runtime, request toolmcp.CallRequest) (Result, error) {
 			result, err := r.dynamicMCP.Call(ctx, request)
 			if result != nil {
 				callID, _ := result["call_id"].(string)

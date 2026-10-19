@@ -57,14 +57,14 @@ func (s *Service) validateCallRequest(request CallRequest) (validatedCall, error
 		return validatedCall{}, err
 	}
 	pluginName := s.pluginName(serverName)
-	if capabilityrouting.RequiresDesktopGUIIntent(pluginName, qualifiedName) && !capabilityrouting.ValidDesktopGUIIntent(request.InteractionIntent, request.Reason) {
+	if capabilityrouting.RequiresDesktopGUIIntent(pluginName, qualifiedName) && !capabilityrouting.ValidDesktopGUIIntent(request.InteractionIntent) {
 		return validatedCall{}, toolErrorDetails(
 			"MCP_EXPLICIT_INTENT_REQUIRED",
-			"Computer Use calls require an explicit desktop GUI intent and a concrete user-task reason",
+			"Computer Use calls require an explicit desktop GUI intent",
 			"validation",
 			map[string]any{
 				"tool": qualifiedName, "plugin": pluginName,
-				"required": map[string]any{"interaction_intent": capabilityrouting.DesktopGUIIntent, "reason": "specific user-task reason"},
+				"required": map[string]any{"interaction_intent": capabilityrouting.DesktopGUIIntent},
 			},
 		)
 	}

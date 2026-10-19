@@ -123,7 +123,7 @@ func (r *Runtime) readMCPRecoveryRequest(ctx context.Context, origin activity.Ex
 }
 func mcpRecoveryBusinessRequest(request map[string]any) map[string]any {
 	result := map[string]any{}
-	for _, key := range []string{"name", "arguments", "interaction_intent", "reason"} {
+	for _, key := range []string{"name", "arguments", "interaction_intent"} {
 		if value, exists := request[key]; exists {
 			result[key] = value
 		}

@@ -20,12 +20,11 @@ current-browser-control
 
 ```json
 {
-  "interaction_intent": "desktop_gui",
-  "reason": "与当前用户任务直接对应的具体 GUI 操作原因"
+  "interaction_intent": "desktop_gui"
 }
 ```
 
-缺少任一字段时，AgentDock 在请求转发至第三方 MCP 前返回 `MCP_EXPLICIT_INTENT_REQUIRED`。其他动态 MCP 工具保持原调用契约。
+缺少该字段时，AgentDock 在请求转发至第三方 MCP 前返回 `MCP_EXPLICIT_INTENT_REQUIRED`。其他动态 MCP 工具保持原调用契约。
 
 ## 验收
 
@@ -33,4 +32,4 @@ current-browser-control
 - 无范围 `mcp_tool_search` 不返回 Computer Use 工具。
 - `plugin_load("computer-use")` 和指定服务器的目录读取仍可用。
 - `cua-driver:launch_app` 的所有目录与 Schema 描述均先显示适用边界。
-- 缺少显式 GUI 意图的业务调用不会到达上游 MCP；带有效意图与具体原因的调用保持可用。
+- 缺少显式 GUI 意图的业务调用不会到达上游 MCP；带有效意图的调用保持可用。

@@ -54,12 +54,24 @@ var publicToolHiddenFields = map[string][]string{
 	"browser_snapshot":    {"workspace_id"},
 }
 
+var publicToolRemovedFields = map[string][]string{
+	"agentdock_context": {"max_response_bytes"},
+	"workspace_context": {"max_response_bytes"},
+	"mcp_tool_call":     {"reason"},
+}
+
 func publicToolInputSchema(name string, validation map[string]any) map[string]any {
 	public := cloneJSONSchemaMap(validation)
 	if len(public) == 0 {
 		return public
 	}
 	properties, _ := public["properties"].(map[string]any)
+	for _, field := range publicToolRemovedFields[name] {
+		delete(properties, field)
+	}
+	if required, exists := public["required"]; exists {
+		public["required"] = withoutSchemaFields(required, publicToolRemovedFields[name])
+	}
 	if executionOverrideTools[name] {
 		hidden := append([]string(nil), inheritedExecutionFields...)
 		hidden = append(hidden, publicToolHiddenFields[name]...)

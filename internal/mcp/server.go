@@ -40,21 +40,29 @@ type Server struct {
 }
 
 func NewServer(runtime *app.Runtime, cfg config.Config) *Server {
+	toolContractRevision := ""
+	if runtime != nil {
+		toolContractRevision = hostToolContractRevision(runtime.ToolDefinitions())
+	}
+	experimental := map[string]any{
+		ContextResponseCapability: map[string]any{
+			"text_modes": []string{responseTextFull, responseTextSummary}, "structured_required": true,
+		},
+		StructuredResultsCapability: map[string]any{
+			"text_modes": []string{responseTextFull, responseTextSummary}, "default_for_modern_protocol": responseTextSummary, "structured_required": true,
+		},
+		"agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true},
+	}
+	if toolContractRevision != "" {
+		experimental["agentdock/tool-contract-v1"] = map[string]any{"revision": toolContractRevision}
+	}
 	server := &Server{runtime: runtime, cfg: cfg, registeredTools: map[string]struct{}{}}
 	serverOptions := &mcpsdk.ServerOptions{
-		Capabilities: &mcpsdk.ServerCapabilities{Experimental: map[string]any{
-			ContextResponseCapability: map[string]any{
-				"text_modes": []string{responseTextFull, responseTextSummary}, "structured_required": true,
-			},
-			StructuredResultsCapability: map[string]any{
-				"text_modes": []string{responseTextFull, responseTextSummary}, "default_for_modern_protocol": responseTextSummary, "structured_required": true,
-			},
-			"agentdock/response-additions-v1": map[string]any{"passthrough": true, "receipt_tool": "insertion_ack", "context_commit_requires_host": true},
-		}},
+		Capabilities: &mcpsdk.ServerCapabilities{Experimental: experimental},
 		Instructions: initialServerInstructions(runtime, cfg),
 	}
 	server.sdk = mcpsdk.NewServer(
-		&mcpsdk.Implementation{Name: config.ServerName, Version: buildinfo.Version},
+		&mcpsdk.Implementation{Name: config.ServerName, Version: mcpImplementationVersion(buildinfo.Version, toolContractRevision)},
 		serverOptions,
 	)
 	if runtime != nil {
@@ -113,6 +121,35 @@ func (s *Server) ToolContractHash() string {
 		return ""
 	}
 	return fmt.Sprintf("sha256:%x", sha256.Sum256(encoded))
+}
+
+func hostToolContractRevision(definitions []ToolDefinition) string {
+	descriptors := toolDescriptors(definitions, false)
+	sort.Slice(descriptors, func(i, j int) bool {
+		left, _ := descriptors[i]["name"].(string)
+		right, _ := descriptors[j]["name"].(string)
+		return left < right
+	})
+	encoded, err := json.Marshal(descriptors)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("sha256:%x", sha256.Sum256(encoded))
+}
+
+func mcpImplementationVersion(base, revision string) string {
+	const prefix = "sha256:"
+	if len(revision) < len(prefix)+12 || revision[:len(prefix)] != prefix {
+		return base
+	}
+	separator := "+tools."
+	for index := 0; index < len(base); index++ {
+		if base[index] == '+' {
+			separator = ".tools."
+			break
+		}
+	}
+	return base + separator + revision[len(prefix):len(prefix)+12]
 }
 
 func (s *Server) ToolDescriptors() []map[string]any {
