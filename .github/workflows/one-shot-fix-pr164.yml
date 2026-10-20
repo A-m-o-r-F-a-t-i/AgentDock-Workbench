@@ -1,0 +1,56 @@
+name: One-shot fix PR 164
+
+on:
+  push:
+    branches:
+      - fix/20261020-macos-workbench-contracts
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[one-shot-pr164]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/20261020-macos-workbench-contracts
+      - name: Patch async recovery probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('desktop/macos/AgentDockApp/Sources/AppDelegate.swift')
+          text = path.read_text()
+          old = '''                let paths = service.paths
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    DispatchQueue.global(qos: .utility).async {
+                        // 正常更新时 source Arbiter 持有 transaction.lock，此探针立即无害返回；
+                        // 若 Arbiter 崩溃，则由同一 known-good source Arbiter 保守接管 rollback。
+                        _ = DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: paths)
+                        continuation.resume()
+                    }
+                }
+'''
+          new = '''                let paths = service.paths
+                // recoverIfNeeded already performs its blocking work on a utility queue.
+                // Await it directly so the async call is not placed inside a synchronous
+                // checked-continuation callback.
+                _ = await DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: paths)
+'''
+          if text.count(old) != 1:
+              raise SystemExit('expected recovery probe block not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/one-shot-fix-pr164.yml
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add desktop/macos/AgentDockApp/Sources/AppDelegate.swift .github/workflows/one-shot-fix-pr164.yml
+          git commit -m 'fix(macos): await update recovery probe [one-shot-pr164]'
+          git push origin HEAD:fix/20261020-macos-workbench-contracts
