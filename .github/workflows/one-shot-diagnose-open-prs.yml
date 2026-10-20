@@ -83,5 +83,163 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add diagnostics
+          git diff --cached --quiet && exit 0
           git commit -m 'chore: persist failed job logs [diagnostic-results]'
           git push origin HEAD:ops/diagnose-open-prs-20261020
+
+  patch_pr164:
+    if: ${{ contains(github.event.head_commit.message, 'patch PR 164 plugin fixture contract') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/20261020-macos-workbench-contracts
+      - name: Align plugin fixture with review-token contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift')
+          text = path.read_text()
+          old = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
+                        "review": .object(["source": .string("new.zip")])]))
+'''
+          new = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
+                        "review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])]))
+'''
+          if text.count(old) != 1:
+              raise SystemExit('plugin validation fixture block not found exactly once')
+          text = text.replace(old, new)
+          old = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
+            if accepted { XCTAssertTrue(updates[1].flag("confirmed_source_change")) }
+'''
+          new = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
+            XCTAssertEqual(updates[0].text("review_token"), "review_fixture")
+            if accepted {
+                XCTAssertTrue(updates[1].flag("confirmed_source_change"))
+                XCTAssertEqual(updates[1].text("review_token"), "review_fixture")
+            }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('plugin rebind assertions not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+      - name: Commit fixture fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift
+          git commit -m 'test(macos): preserve plugin review token on rebind'
+          git push origin HEAD:fix/20261020-macos-workbench-contracts
+
+  patch_pr169:
+    if: ${{ contains(github.event.head_commit.message, 'patch PR 169 duplicate native attachments') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6
+      - name: Remove exact duplicated nested native attachments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('internal/mcp/tool_text.go')
+          text = path.read_text()
+          old = '''import (
+	"encoding/json"
+	"fmt"
+	"maps"
+	"strings"
+'''
+          new = '''import (
+	"encoding/json"
+	"fmt"
+	"maps"
+	"reflect"
+	"strings"
+'''
+          if text.count(old) != 1:
+              raise SystemExit('tool_text import block not found exactly once')
+          text = text.replace(old, new)
+          old = '''	output["content"] = kept
+	return output
+}
+
+func jsonTextMatches(text string, structured any) bool {
+'''
+          new = '''	output["content"] = kept
+	if name == "mcp_tool_call" {
+		output = removeForwardedContentDuplicates(output, kept)
+	}
+	return output
+}
+
+// Dynamic MCP native blocks are already transported in the outer MCP content
+// array. Remove only exact nested duplicates at the final text-presentation
+// boundary; retain unique nested attachments and the immutable upstream result.
+func removeForwardedContentDuplicates(envelope map[string]any, outer []any) map[string]any {
+	structured := maps.Clone(asMap(envelope["structuredContent"]))
+	result := maps.Clone(asMap(structured["result"]))
+	if len(result) == 0 {
+		return envelope
+	}
+	nested := envelopeBlocks(result["content"])
+	if len(nested) == 0 {
+		return envelope
+	}
+	kept := make([]any, 0, len(nested))
+	removed := false
+	for _, candidate := range nested {
+		kind, _ := asMap(candidate)["type"].(string)
+		if kind != "text" && slicesContainExact(outer, candidate) {
+			removed = true
+			continue
+		}
+		kept = append(kept, candidate)
+	}
+	if !removed {
+		return envelope
+	}
+	if len(kept) == 0 {
+		delete(result, "content")
+	} else {
+		result["content"] = kept
+	}
+	structured["result"] = result
+	out := maps.Clone(envelope)
+	out["structuredContent"] = structured
+	return out
+}
+
+func slicesContainExact(items []any, candidate any) bool {
+	for _, item := range items {
+		if reflect.DeepEqual(item, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonTextMatches(text string, structured any) bool {
+'''
+          if text.count(old) != 1:
+              raise SystemExit('tool_text return block not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+          gofmt -w internal/mcp/tool_text.go
+          git diff --check
+      - name: Commit projection fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add internal/mcp/tool_text.go
+          git commit -m 'fix(mcp): deduplicate forwarded native attachments'
+          git push origin HEAD:copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6
