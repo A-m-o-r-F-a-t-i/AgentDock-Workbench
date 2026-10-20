@@ -52,7 +52,10 @@ func TestEnsureManagedSkillDataDirCreatesPrivateStablePath(t *testing.T) {
 func TestEnsureManagedSkillDataDirRejectsSymlinkedDataRoot(t *testing.T) {
 	svc, cfg := newCommandTestService(t)
 	outside := t.TempDir()
-	dataRoot := filepath.Join(cfg.AgentDockHome, "data")
+	dataRoot, err := config.SkillDataRoot(*cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(outside, dataRoot); err != nil {
 		t.Skipf("symlink unavailable on this platform: %v", err)
 	}
@@ -60,7 +63,7 @@ func TestEnsureManagedSkillDataDirRejectsSymlinkedDataRoot(t *testing.T) {
 	if _, err := svc.ensureManagedSkillDataDir("demo-skill"); err == nil || !strings.Contains(err.Error(), "symlink") {
 		t.Fatalf("ensureManagedSkillDataDir() error = %v, want symlink rejection", err)
 	}
-	if _, err := os.Stat(filepath.Join(outside, "skills", "demo-skill")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(outside, "demo-skill")); !os.IsNotExist(err) {
 		t.Fatalf("data directory escaped through symlink: %v", err)
 	}
 }

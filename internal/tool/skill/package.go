@@ -9,6 +9,7 @@ import (
 	"github.com/uvwt/agentdock/internal/envstore"
 	skills "github.com/uvwt/agentdock/internal/skill"
 	skillstate "github.com/uvwt/agentdock/internal/skill/state"
+	"github.com/uvwt/agentdock/internal/skilldata"
 )
 
 type skillManager struct {
@@ -17,24 +18,26 @@ type skillManager struct {
 }
 
 type skillToolInput struct {
-	Action   string
-	Skill    string
-	Version  string
-	Source   string
-	Digest   string
-	MaxBytes int64
-	Activate bool
+	Action    string
+	Skill     string
+	Version   string
+	Source    string
+	Digest    string
+	MaxBytes  int64
+	Activate  bool
+	PurgeData bool
 }
 
 func normalizePackageRequest(request PackageRequest) skillToolInput {
 	return skillToolInput{
-		Action:   strings.ToLower(strings.TrimSpace(request.Action)),
-		Skill:    strings.TrimSpace(request.Skill),
-		Version:  strings.TrimSpace(request.Version),
-		Source:   strings.TrimSpace(request.Source),
-		Digest:   strings.TrimSpace(request.Digest),
-		MaxBytes: int64(intValue(request.MaxBytes, 0)),
-		Activate: boolValue(request.Activate, true),
+		Action:    strings.ToLower(strings.TrimSpace(request.Action)),
+		Skill:     strings.TrimSpace(request.Skill),
+		Version:   strings.TrimSpace(request.Version),
+		Source:    strings.TrimSpace(request.Source),
+		Digest:    strings.TrimSpace(request.Digest),
+		MaxBytes:  int64(intValue(request.MaxBytes, 0)),
+		Activate:  boolValue(request.Activate, true),
+		PurgeData: boolValue(request.PurgeData, false),
 	}
 }
 
@@ -267,12 +270,29 @@ func (s *Service) skillUninstall(ctx context.Context, input skillToolInput) (Res
 	if err != nil {
 		return nil, err
 	}
+	if input.Version != "" && input.PurgeData {
+		return nil, toolErrorDetails("VALIDATION_ERROR", "purge_data applies only when uninstalling the whole Skill", "validation", map[string]any{
+			"field": "purge_data", "skill": skill, "version": input.Version,
+		})
+	}
 	if err := s.rejectPluginManagedSkill(skill, "uninstall"); err != nil {
 		return nil, err
 	}
 	result, err := s.manager.Uninstall(ctx, skill, input.Version)
 	if err != nil {
 		return nil, skillToolError(err)
+	}
+	if input.Version == "" {
+		cleanup, cleanupErr := skilldata.Cleanup(s.cfg, skill, input.PurgeData)
+		result.DataPath = cleanup.Path
+		result.LegacyDataPath = cleanup.LegacyPath
+		result.DataState = cleanup.State
+		result.PreservedData = cleanup.Preserved
+		if cleanupErr != nil {
+			result.DataState = "cleanup_failed"
+			result.DataError = cleanupErr.Error()
+			result.PreservedData = true
+		}
 	}
 	return Result{"action": "uninstall", "result": result}, nil
 }

@@ -39,6 +39,10 @@ type UninstallResult struct {
 	ActiveVersion        string   `json:"active_version,omitempty"`
 	PreservedEnvironment bool     `json:"preserved_environment"`
 	PreservedData        bool     `json:"preserved_data"`
+	DataPath             string   `json:"data_path,omitempty"`
+	LegacyDataPath       string   `json:"legacy_data_path,omitempty"`
+	DataState            string   `json:"data_state,omitempty"`
+	DataError            string   `json:"data_error,omitempty"`
 }
 
 type ValidateRequest struct {

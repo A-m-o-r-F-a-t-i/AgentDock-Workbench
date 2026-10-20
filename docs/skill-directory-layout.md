@@ -43,7 +43,9 @@ AgentDock-specific version management stays hidden:
 - `.tmp` keeps transaction staging on the same filesystem so directory swaps can use atomic rename;
 - `.cache` is reserved for validated downloads and package cache entries.
 
-Skill environment files and private runtime data remain outside the package directory. Updating, rolling back, or uninstalling package files therefore does not silently overwrite credentials or delete user state.
+Skill environment files and private runtime data remain outside the package directory. Updating and rolling back package files therefore do not overwrite credentials or delete user state. A full uninstall removes an empty `skill-data/<skill-name>` directory, preserves non-empty data by default, and deletes non-empty data only when `purge_data: true` is explicitly requested.
+
+Older builds wrote managed Skill runtime data to `~/.agentdock/data/skills/<skill-name>`. Startup migrates valid non-empty directories to the documented `~/.agentdock/skill-data/<skill-name>` root and removes empty legacy directories. If both locations contain non-empty data for the same Skill, startup reports a migration conflict instead of merging or deleting either tree.
 
 ## Installation and activation
 

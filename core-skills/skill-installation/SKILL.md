@@ -322,9 +322,11 @@ version: 1.3.0
 - 传 `version` 时只卸载指定版本；当前激活版本不能直接卸载，必须先显式激活其他版本；
 - 内置 bundled Skill 不能卸载；
 - 卸载不会自动切换激活版本；
-- 卸载不会删除 `~/.agentdock/env/skill/<skill-name>.env` 或 `~/.agentdock/skill-data/<skill-name>/`，这些用户配置和运行数据需要独立管理。
+- 环境文件 `~/.agentdock/env/skill/<skill-name>.env` 始终保留；
+- 完整卸载会自动删除空的 `~/.agentdock/skill-data/<skill-name>/`，非空运行数据默认保留；
+- 只有完整卸载可显式传入 `purge_data: true` 删除非空运行数据，按版本卸载不得使用该参数。
 
-卸载后确认目标版本或 Skill 已不再出现在已安装列表中；保留的环境配置和私有运行数据不得被误删。
+卸载后确认目标版本或 Skill 已不再出现在已安装列表中，并检查返回的 `data_state`、`data_path` 与 `data_error`。未显式请求 `purge_data` 时，非空私有运行数据不得被误删。
 
 ## 环境变量
 

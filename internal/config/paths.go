@@ -49,24 +49,52 @@ const (
 	PluginDataDirEnvKey = "PLUGIN_DATA_DIR"
 )
 
-// SkillDir returns the managed Skill root. Each child directory is the current
-// installed content for one standalone managed Skill.
-func SkillDir(cfg Config) string {
-	return filepath.Join(cfg.AgentDockHome, "skills")
+// SkillDataRoot returns the documented private runtime-data root for managed
+// Skills. It deliberately stays outside the installed Skill registry.
+func SkillDataRoot(cfg Config) (string, error) {
+	home := filepath.Clean(strings.TrimSpace(cfg.AgentDockHome))
+	if home == "." || !filepath.IsAbs(home) {
+		return "", fmt.Errorf("AgentDockHome must be an absolute path")
+	}
+	return filepath.Join(home, "skill-data"), nil
+}
+
+// LegacySkillDataRoot returns the pre-migration private data root. It is only
+// used at the storage migration boundary and must never receive new writes.
+func LegacySkillDataRoot(cfg Config) (string, error) {
+	home := filepath.Clean(strings.TrimSpace(cfg.AgentDockHome))
+	if home == "." || !filepath.IsAbs(home) {
+		return "", fmt.Errorf("AgentDockHome must be an absolute path")
+	}
+	return filepath.Join(home, "data", "skills"), nil
 }
 
 // SkillDataDir returns the private persistent-data directory assigned to one
 // managed Skill. It validates the Skill identity itself so callers cannot turn
 // a data-directory lookup into an arbitrary path join.
 func SkillDataDir(cfg Config, skill string) (string, error) {
-	home := filepath.Clean(strings.TrimSpace(cfg.AgentDockHome))
-	if home == "." || !filepath.IsAbs(home) {
-		return "", fmt.Errorf("AgentDockHome must be an absolute path")
+	root, err := SkillDataRoot(cfg)
+	if err != nil {
+		return "", err
 	}
+	return skillDataPath(root, skill)
+}
+
+// LegacySkillDataDir returns the old private-data location for one Skill. New
+// callers should use SkillDataDir; the legacy path exists only for migration
+// and uninstall cleanup.
+func LegacySkillDataDir(cfg Config, skill string) (string, error) {
+	root, err := LegacySkillDataRoot(cfg)
+	if err != nil {
+		return "", err
+	}
+	return skillDataPath(root, skill)
+}
+
+func skillDataPath(root, skill string) (string, error) {
 	if !validSkillDataName(skill) {
 		return "", fmt.Errorf("invalid Skill name %q", skill)
 	}
-	root := filepath.Join(home, "data", "skills")
 	target := filepath.Join(root, skill)
 	relative, err := filepath.Rel(root, target)
 	if err != nil || relative != skill || filepath.IsAbs(relative) {
