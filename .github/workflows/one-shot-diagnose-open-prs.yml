@@ -1,4 +1,4 @@
-name: One-shot diagnose open PRs
+name: One-shot focused branch patches
 
 on:
   push:
@@ -6,87 +6,9 @@ on:
       - ops/diagnose-open-prs-20261020
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
-  diagnose:
-    if: ${{ !contains(github.event.head_commit.message, '[diagnostic-results]') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ops/diagnose-open-prs-20261020
-      - name: Extract failed job evidence
-        shell: bash
-        run: |
-          set -u
-          rm -rf diagnostics
-          mkdir -p diagnostics
-          while IFS=: read -r pr job label; do
-            raw="diagnostics/pr-${pr}-job-${job}.raw"
-            log="diagnostics/pr-${pr}-job-${job}.log"
-            excerpt="diagnostics/pr-${pr}-job-${job}.txt"
-            status=0
-            curl -sS -L \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" \
-              -o "$raw" || status=$?
-            {
-              echo "pr=$pr"
-              echo "job=$job"
-              echo "label=$label"
-              echo "curl_status=$status"
-              file "$raw" 2>&1 || true
-            } > "$excerpt"
-            if python3 - "$raw" <<'PY'
-          import sys, zipfile
-          raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
-          PY
-            then
-              unzip -p "$raw" > "$log" 2>> "$excerpt" || true
-            else
-              cp "$raw" "$log" 2>> "$excerpt" || true
-            fi
-            python3 - "$log" "$excerpt" <<'PY'
-          import re, sys
-          from pathlib import Path
-          log_path, excerpt_path = map(Path, sys.argv[1:])
-          text = log_path.read_text(errors='replace') if log_path.exists() else ''
-          lines = text.splitlines()
-          pattern = re.compile(r'(?i)(^|[\s:])(fail(?:ed|ure)?|error|panic|fatal|undefined|not found|cannot|mismatch|timeout)([\s:]|$)')
-          selected = set()
-          for i, line in enumerate(lines):
-              if pattern.search(line):
-                  selected.update(range(max(0, i - 6), min(len(lines), i + 10)))
-          body = '\n'.join(lines[i] for i in sorted(selected)) if selected else '\n'.join(lines[-300:])
-          if len(body) > 60000:
-              body = body[-60000:]
-          with excerpt_path.open('a') as output:
-              output.write('\n\n--- extracted log ---\n')
-              output.write(body)
-              output.write('\n')
-          PY
-          done <<'EOF'
-          169:118585853052:Go check ubuntu after canonical native fix
-          EOF
-          rm -f diagnostics/*.raw diagnostics/*.log
-      - name: Commit diagnostics
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add diagnostics
-          git diff --cached --quiet && exit 0
-          git commit -m 'chore: persist failed job logs [diagnostic-results]'
-          git push origin HEAD:ops/diagnose-open-prs-20261020
-
   patch_pr164:
     if: ${{ contains(github.event.head_commit.message, 'patch PR 164 plugin fixture contract') }}
     runs-on: ubuntu-24.04
@@ -102,27 +24,10 @@ jobs:
           from pathlib import Path
           path = Path('desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift')
           text = path.read_text()
-          old = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
-                        "review": .object(["source": .string("new.zip")])]))
-'''
-          new = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
-                        "review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])]))
-'''
+          old = '"review": .object(["source": .string("new.zip")])'
+          new = '"review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])'
           if text.count(old) != 1:
               raise SystemExit('plugin validation fixture block not found exactly once')
-          text = text.replace(old, new)
-          old = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
-            if accepted { XCTAssertTrue(updates[1].flag("confirmed_source_change")) }
-'''
-          new = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
-            XCTAssertEqual(updates[0].text("review_token"), "review_fixture")
-            if accepted {
-                XCTAssertTrue(updates[1].flag("confirmed_source_change"))
-                XCTAssertEqual(updates[1].text("review_token"), "review_fixture")
-            }
-'''
-          if text.count(old) != 1:
-              raise SystemExit('plugin rebind assertions not found exactly once')
           path.write_text(text.replace(old, new))
           PY
           git diff --check
@@ -151,86 +56,71 @@ jobs:
           from pathlib import Path
           path = Path('internal/mcp/tool_text.go')
           text = path.read_text()
-          old = '''import (
-	"encoding/json"
-	"fmt"
-	"maps"
-	"strings"
-'''
-          new = '''import (
-	"encoding/json"
-	"fmt"
-	"maps"
-	"reflect"
-	"strings"
-'''
+          old = '\t"maps"\n\t"strings"'
+          new = '\t"maps"\n\t"reflect"\n\t"strings"'
           if text.count(old) != 1:
               raise SystemExit('tool_text import block not found exactly once')
           text = text.replace(old, new)
-          old = '''	output["content"] = kept
-	return output
-}
-
-func jsonTextMatches(text string, structured any) bool {
-'''
-          new = '''	output["content"] = kept
-	if name == "mcp_tool_call" {
-		output = removeForwardedContentDuplicates(output, kept)
-	}
-	return output
-}
-
-// Dynamic MCP native blocks are already transported in the outer MCP content
-// array. Remove only exact nested duplicates at the final text-presentation
-// boundary; retain unique nested attachments and the immutable upstream result.
-func removeForwardedContentDuplicates(envelope map[string]any, outer []any) map[string]any {
-	structured := maps.Clone(asMap(envelope["structuredContent"]))
-	result := maps.Clone(asMap(structured["result"]))
-	if len(result) == 0 {
-		return envelope
-	}
-	nested := envelopeBlocks(result["content"])
-	if len(nested) == 0 {
-		return envelope
-	}
-	kept := make([]any, 0, len(nested))
-	removed := false
-	for _, candidate := range nested {
-		kind, _ := asMap(candidate)["type"].(string)
-		if kind != "text" && slicesContainExact(outer, candidate) {
-			removed = true
-			continue
-		}
-		kept = append(kept, candidate)
-	}
-	if !removed {
-		return envelope
-	}
-	if len(kept) == 0 {
-		delete(result, "content")
-	} else {
-		result["content"] = kept
-	}
-	structured["result"] = result
-	out := maps.Clone(envelope)
-	out["structuredContent"] = structured
-	return out
-}
-
-func slicesContainExact(items []any, candidate any) bool {
-	for _, item := range items {
-		if reflect.DeepEqual(item, candidate) {
-			return true
-		}
-	}
-	return false
-}
-
-func jsonTextMatches(text string, structured any) bool {
-'''
-          if text.count(old) != 1:
+          marker = '\toutput["content"] = kept\n\treturn output\n}\n\nfunc jsonTextMatches(text string, structured any) bool {'
+          replacement = '\n'.join([
+              '\toutput["content"] = kept',
+              '\tif name == "mcp_tool_call" {',
+              '\t\toutput = removeForwardedContentDuplicates(output, kept)',
+              '\t}',
+              '\treturn output',
+              '}',
+              '',
+              '// Dynamic MCP native blocks are already transported in the outer MCP content',
+              '// array. Remove only exact nested duplicates at the final text-presentation',
+              '// boundary; retain unique nested attachments and the immutable upstream result.',
+              'func removeForwardedContentDuplicates(envelope map[string]any, outer []any) map[string]any {',
+              '\tstructured := maps.Clone(asMap(envelope["structuredContent"]))',
+              '\tresult := maps.Clone(asMap(structured["result"]))',
+              '\tif len(result) == 0 {',
+              '\t\treturn envelope',
+              '\t}',
+              '\tnested := envelopeBlocks(result["content"])',
+              '\tif len(nested) == 0 {',
+              '\t\treturn envelope',
+              '\t}',
+              '\tkept := make([]any, 0, len(nested))',
+              '\tremoved := false',
+              '\tfor _, candidate := range nested {',
+              '\t\tkind, _ := asMap(candidate)["type"].(string)',
+              '\t\tif kind != "text" && slicesContainExact(outer, candidate) {',
+              '\t\t\tremoved = true',
+              '\t\t\tcontinue',
+              '\t\t}',
+              '\t\tkept = append(kept, candidate)',
+              '\t}',
+              '\tif !removed {',
+              '\t\treturn envelope',
+              '\t}',
+              '\tif len(kept) == 0 {',
+              '\t\tdelete(result, "content")',
+              '\t} else {',
+              '\t\tresult["content"] = kept',
+              '\t}',
+              '\tstructured["result"] = result',
+              '\tout := maps.Clone(envelope)',
+              '\tout["structuredContent"] = structured',
+              '\treturn out',
+              '}',
+              '',
+              'func slicesContainExact(items []any, candidate any) bool {',
+              '\tfor _, item := range items {',
+              '\t\tif reflect.DeepEqual(item, candidate) {',
+              '\t\t\treturn true',
+              '\t\t}',
+              '\t}',
+              '\treturn false',
+              '}',
+              '',
+              'func jsonTextMatches(text string, structured any) bool {',
+          ])
+          if text.count(marker) != 1:
               raise SystemExit('tool_text return block not found exactly once')
-          path.write_text(text.replace(old, new))
+          path.write_text(text.replace(marker, replacement))
           PY
           gofmt -w internal/mcp/tool_text.go
           git diff --check
