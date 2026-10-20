@@ -1,0 +1,189 @@
+job=118592016130
+label=x86_64
+
+2026-10-20T11:05:45.5505370Z Test Case '-[WorkbenchRegressionTests.ContractTests testInteractionAndLiveExecutionRemainIndependent]' started.
+2026-10-20T11:05:45.5533750Z Test Case '-[WorkbenchRegressionTests.ContractTests testInteractionAndLiveExecutionRemainIndependent]' passed (0.012 seconds).
+2026-10-20T11:05:45.5561810Z Test Case '-[WorkbenchRegressionTests.ContractTests testNewPermissionFieldsKeepConfiguredAndEffectiveSeparate]' started.
+2026-10-20T11:05:45.5586270Z Test Case '-[WorkbenchRegressionTests.ContractTests testNewPermissionFieldsKeepConfiguredAndEffectiveSeparate]' passed (0.001 seconds).
+2026-10-20T11:05:45.5611610Z Test Case '-[WorkbenchRegressionTests.ContractTests testNumericOverflowAndUnknownFields]' started.
+2026-10-20T11:05:45.5626580Z Test Case '-[WorkbenchRegressionTests.ContractTests testNumericOverflowAndUnknownFields]' passed (0.002 seconds).
+2026-10-20T11:05:45.5656990Z Test Case '-[WorkbenchRegressionTests.ContractTests testOldPinnedAndLiveRowsSurviveRecentFilter]' started.
+2026-10-20T11:05:45.5718880Z Test Case '-[WorkbenchRegressionTests.ContractTests testOldPinnedAndLiveRowsSurviveRecentFilter]' passed (0.004 seconds).
+2026-10-20T11:05:45.5746490Z Test Case '-[WorkbenchRegressionTests.ContractTests testPagingAndPartialFailuresAreVisible]' started.
+2026-10-20T11:05:45.5795750Z Test Case '-[WorkbenchRegressionTests.ContractTests testPagingAndPartialFailuresAreVisible]' passed (0.001 seconds).
+2026-10-20T11:05:45.5818580Z Test Case '-[WorkbenchRegressionTests.ContractTests testPayloadScalarAndByteUnits]' started.
+2026-10-20T11:05:45.5846420Z Test Case '-[WorkbenchRegressionTests.ContractTests testPayloadScalarAndByteUnits]' passed (0.001 seconds).
+2026-10-20T11:05:45.5884330Z Test Case '-[WorkbenchRegressionTests.ContractTests testReceiptTypesDoNotAssertModelExecution]' started.
+2026-10-20T11:05:45.5926070Z Test Case '-[WorkbenchRegressionTests.ContractTests testReceiptTypesDoNotAssertModelExecution]' passed (0.001 seconds).
+2026-10-20T11:05:45.5955700Z Test Case '-[WorkbenchRegressionTests.ContractTests testRecentFiveExpandedFifteenAndCompleteHistory]' started.
+2026-10-20T11:05:45.5998450Z Test Case '-[WorkbenchRegressionTests.ContractTests testRecentFiveExpandedFifteenAndCompleteHistory]' passed (2.145 seconds).
+2026-10-20T11:05:45.6049470Z Test Case '-[WorkbenchRegressionTests.ContractTests testServerClockProgressExpiresPresentation]' started.
+2026-10-20T11:05:45.6072570Z Test Case '-[WorkbenchRegressionTests.ContractTests testServerClockProgressExpiresPresentation]' passed (0.003 seconds).
+2026-10-20T11:05:45.6097540Z Test Case '-[WorkbenchRegressionTests.ContractTests testSidebarRejectsDuplicateAndMissingOrdinaryIDs]' started.
+2026-10-20T11:05:45.6111100Z Test Case '-[WorkbenchRegressionTests.ContractTests testSidebarRejectsDuplicateAndMissingOrdinaryIDs]' passed (0.010 seconds).
+2026-10-20T11:05:45.6136600Z Test Case '-[WorkbenchRegressionTests.ContractTests testSSEFragmentationCRLFAndLimits]' started.
+2026-10-20T11:05:45.6160950Z Test Case '-[WorkbenchRegressionTests.ContractTests testSSEFragmentationCRLFAndLimits]' passed (0.002 seconds).
+2026-10-20T11:05:45.6177100Z Test Case '-[WorkbenchRegressionTests.ContractTests testTenThousandCallsAreBoundedAndMonotonic]' started.
+2026-10-20T11:05:45.6179090Z Test Case '-[WorkbenchRegressionTests.ContractTests testTenThousandCallsAreBoundedAndMonotonic]' passed (3.870 seconds).
+2026-10-20T11:05:45.6202580Z Test Case '-[WorkbenchRegressionTests.ContractTests testUnattributedUsesNavigationOnly]' started.
+2026-10-20T11:05:45.6239960Z Test Case '-[WorkbenchRegressionTests.ContractTests testUnattributedUsesNavigationOnly]' passed (0.002 seconds).
+2026-10-20T11:05:45.6276840Z Test Case '-[WorkbenchRegressionTests.ContractTests testUnknownTimesStayUnknownAndAsyncOutputDoesNotRenew]' started.
+2026-10-20T11:05:45.6296400Z Test Case '-[WorkbenchRegressionTests.ContractTests testUnknownTimesStayUnknownAndAsyncOutputDoesNotRenew]' passed (0.002 seconds).
+2026-10-20T11:05:45.6310780Z Test Suite 'ContractTests' passed at 2026-10-20 11:05:07.672.
+2026-10-20T11:05:45.6335720Z 	 Executed 16 tests, with 0 failures (0 unexpected) in 6.074 (6.076) seconds
+2026-10-20T11:05:45.6344260Z Test Suite 'ExternalAgentAccessTests' started at 2026-10-20 11:05:07.672.
+2026-10-20T11:05:45.6370980Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testAgentSetupPromptSubstitutesEndpointAndAuthenticationInstruction]' started.
+2026-10-20T11:05:45.6401590Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testAgentSetupPromptSubstitutesEndpointAndAuthenticationInstruction]' passed (0.000 seconds).
+2026-10-20T11:05:45.6435430Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testAnonymousConfigurationOmitsLoginAndBearerReference]' started.
+2026-10-20T11:05:45.6477080Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testAnonymousConfigurationOmitsLoginAndBearerReference]' passed (0.000 seconds).
+2026-10-20T11:05:45.6508790Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testBearerConfigurationsReferenceEnvironmentWithoutEmbeddingCredential]' started.
+2026-10-20T11:05:45.6559970Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testBearerConfigurationsReferenceEnvironmentWithoutEmbeddingCredential]' passed (0.001 seconds).
+2026-10-20T11:05:45.6592070Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testClaudeCodeConfigurationUsesHTTPAndOAuthFlow]' started.
+2026-10-20T11:05:45.6621350Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testClaudeCodeConfigurationUsesHTTPAndOAuthFlow]' passed (0.000 seconds).
+2026-10-20T11:05:45.6648960Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testCodexConfigurationUsesOAuthWithoutEmbeddingCredentials]' started.
+2026-10-20T11:05:45.6678700Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testCodexConfigurationUsesOAuthWithoutEmbeddingCredentials]' passed (0.000 seconds).
+2026-10-20T11:05:45.6702680Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testEndpointValidationAndNormalization]' started.
+2026-10-20T11:05:45.6704590Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testEndpointValidationAndNormalization]' passed (0.000 seconds).
+2026-10-20T11:05:45.6706400Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testGenericMCPConfigurationIsValidJSON]' started.
+2026-10-20T11:05:45.6730160Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testGenericMCPConfigurationIsValidJSON]' passed (0.000 seconds).
+2026-10-20T11:05:45.6742380Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testRuntimeConfigurationUsesCoreAuthenticationPrecedence]' started.
+2026-10-20T11:05:45.6786730Z Test Case '-[WorkbenchRegressionTests.ExternalAgentAccessTests testRuntimeConfigurationUsesCoreAuthenticationPrecedence]' passed (0.004 seconds).
+2026-10-20T11:05:45.6815160Z Test Suite 'ExternalAgentAccessTests' passed at 2026-10-20 11:05:07.680.
+2026-10-20T11:05:45.6839020Z 	 Executed 8 tests, with 0 failures (0 unexpected) in 0.007 (0.008) seconds
+2026-10-20T11:05:45.6861870Z Test Suite 'FrontendRegressionTests' started at 2026-10-20 11:05:07.680.
+2026-10-20T11:05:45.6876480Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testInsertionCapacityNeverErasesUnresolvedIdentity]' started.
+2026-10-20T11:05:45.6903530Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testInsertionCapacityNeverErasesUnresolvedIdentity]' passed (0.005 seconds).
+2026-10-20T11:05:45.6921490Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testInsertionUTF8ByteBoundaries]' started.
+2026-10-20T11:05:45.6933290Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testInsertionUTF8ByteBoundaries]' passed (0.001 seconds).
+2026-10-20T11:05:45.6953790Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testIPv6ActualConfigurationEntryAndNonLoopbackRejection]' started.
+2026-10-20T11:05:45.6979560Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testIPv6ActualConfigurationEntryAndNonLoopbackRejection]' passed (0.009 seconds).
+2026-10-20T11:05:45.6990710Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testLatePayloadCannotReplaceNewRevision]' started.
+2026-10-20T11:05:45.7012250Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testLatePayloadCannotReplaceNewRevision]' passed (0.676 seconds).
+2026-10-20T11:05:45.7026430Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testModelSameTextAfterTerminalIsANewSubmission]' started.
+2026-10-20T11:05:45.7047270Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testModelSameTextAfterTerminalIsANewSubmission]' passed (0.192 seconds).
+2026-10-20T11:05:45.7073700Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testNonRetryableStreamFailureDoesNotCreateRefreshReconnectLoop]' started.
+2026-10-20T11:05:45.7090920Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testNonRetryableStreamFailureDoesNotCreateRefreshReconnectLoop]' passed (0.357 seconds).
+2026-10-20T11:05:45.7093230Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testOrdinaryAndSSETimeoutsAreIndependent]' started.
+2026-10-20T11:05:45.7120620Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testOrdinaryAndSSETimeoutsAreIndependent]' passed (0.000 seconds).
+2026-10-20T11:05:45.7152030Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testOversizedInsertionIsRejectedBeforeHTTP]' started.
+2026-10-20T11:05:45.7193960Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testOversizedInsertionIsRejectedBeforeHTTP]' passed (0.001 seconds).
+2026-10-20T11:05:45.7213210Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPayloadRevisionInvalidatesExhaustedCacheAndAllowsReload]' started.
+2026-10-20T11:05:45.7239560Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPayloadRevisionInvalidatesExhaustedCacheAndAllowsReload]' passed (0.146 seconds).
+2026-10-20T11:05:45.7268340Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPermissionChoiceSurvivesRepeatedRenderAndResetsOnConversationChange]' started.
+2026-10-20T11:05:45.7290740Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPermissionChoiceSurvivesRepeatedRenderAndResetsOnConversationChange]' passed (0.113 seconds).
+2026-10-20T11:05:45.7320490Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPluginRebindNeedsExplicitConfirmation]' started.
+2026-10-20T11:05:45.7345470Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPluginRebindNeedsExplicitConfirmation]' passed (0.038 seconds).
+2026-10-20T11:05:45.7366150Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPluginValidationAndOtherFailuresNeverRetryWrites]' started.
+2026-10-20T11:05:45.7376840Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPluginValidationAndOtherFailuresNeverRetryWrites]' passed (0.013 seconds).
+2026-10-20T11:05:45.7425340Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testReloadButtonRequestsRestartAndComposerPreservesOversizedDraft]' started.
+2026-10-20T11:05:45.7455920Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testReloadButtonRequestsRestartAndComposerPreservesOversizedDraft]' passed (0.106 seconds).
+2026-10-20T11:05:45.7483730Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testSelectedInsertionDoesNotStealTabOnRender]' started.
+2026-10-20T11:05:45.7502840Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testSelectedInsertionDoesNotStealTabOnRender]' passed (0.032 seconds).
+2026-10-20T11:05:45.7520600Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testSSERequestKeepsLongTimeoutAndResumeCursor]' started.
+2026-10-20T11:05:45.7537040Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testSSERequestKeepsLongTimeoutAndResumeCursor]' passed (0.003 seconds).
+2026-10-20T11:05:45.7567660Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testStreamFailureRequiresRESTVerificationOfStaleness]' started.
+2026-10-20T11:05:45.7576320Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testStreamFailureRequiresRESTVerificationOfStaleness]' passed (0.104 seconds).
+2026-10-20T11:05:45.7603680Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testTerminalInsertionCreatesNewIdentityButPendingRetryDoesNot]' started.
+2026-10-20T11:05:45.7641490Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testTerminalInsertionCreatesNewIdentityButPendingRetryDoesNot]' passed (0.001 seconds).
+2026-10-20T11:05:45.7671640Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testUnknownInsertionWriteUsesSameIdentityOnlyOnExplicitRetry]' started.
+2026-10-20T11:05:45.7701090Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testUnknownInsertionWriteUsesSameIdentityOnlyOnExplicitRetry]' passed (0.145 seconds).
+2026-10-20T11:05:45.7732710Z Test Suite 'FrontendRegressionTests' passed at 2026-10-20 11:05:09.623.
+2026-10-20T11:05:45.7754680Z 	 Executed 18 tests, with 0 failures (0 unexpected) in 1.942 (1.943) seconds
+2026-10-20T11:05:45.7792570Z Test Suite 'LocalizationTests' started at 2026-10-20 11:05:09.623.
+2026-10-20T11:05:45.7808850Z Test Case '-[WorkbenchRegressionTests.LocalizationTests testWorkbenchUsesRealChineseAndEnglishResources]' started.
+2026-10-20T11:05:45.7819000Z Test Case '-[WorkbenchRegressionTests.LocalizationTests testWorkbenchUsesRealChineseAndEnglishResources]' passed (0.006 seconds).
+2026-10-20T11:05:45.7843070Z Test Suite 'LocalizationTests' passed at 2026-10-20 11:05:09.629.
+2026-10-20T11:05:45.7856970Z 	 Executed 1 test, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+2026-10-20T11:05:45.7880450Z Test Suite 'NativeChromeThemeTests' started at 2026-10-20 11:05:09.629.
+2026-10-20T11:05:45.7917240Z Test Case '-[WorkbenchRegressionTests.NativeChromeThemeTests testApplicationAppearanceIncludesExistingAndNewNativeWindows]' started.
+2026-10-20T11:05:45.7950030Z Test Case '-[WorkbenchRegressionTests.NativeChromeThemeTests testApplicationAppearanceIncludesExistingAndNewNativeWindows]' passed (0.064 seconds).
+2026-10-20T11:05:45.7978230Z Test Suite 'NativeChromeThemeTests' passed at 2026-10-20 11:05:09.693.
+2026-10-20T11:05:45.8019770Z 	 Executed 1 test, with 0 failures (0 unexpected) in 0.064 (0.064) seconds
+2026-10-20T11:05:45.8049850Z Test Suite 'NativeUITests' started at 2026-10-20 11:05:09.693.
+2026-10-20T11:05:45.8066730Z Test Case '-[WorkbenchRegressionTests.NativeUITests testCompletionPanelsAreBoundedAndDeduplicated]' started.
+2026-10-20T11:05:45.8088490Z Test Case '-[WorkbenchRegressionTests.NativeUITests testCompletionPanelsAreBoundedAndDeduplicated]' passed (0.246 seconds).
+2026-10-20T11:05:45.8104360Z Test Case '-[WorkbenchRegressionTests.NativeUITests testNativeResourceNavigationAndScreenshots]' started.
+2026-10-20T11:05:45.8123490Z Test Case '-[WorkbenchRegressionTests.NativeUITests testNativeResourceNavigationAndScreenshots]' passed (2.031 seconds).
+2026-10-20T11:05:45.8135790Z Test Case '-[WorkbenchRegressionTests.NativeUITests testNativeWindowReuseThemesAndAccessibleControls]' started.
+2026-10-20T11:05:45.8159450Z Test Case '-[WorkbenchRegressionTests.NativeUITests testNativeWindowReuseThemesAndAccessibleControls]' passed (0.678 seconds).
+2026-10-20T11:05:45.8175010Z Test Suite 'NativeUITests' passed at 2026-10-20 11:05:12.649.
+2026-10-20T11:05:45.8196120Z 	 Executed 3 tests, with 0 failures (0 unexpected) in 2.955 (2.956) seconds
+2026-10-20T11:05:45.8217110Z Test Suite 'PostmergeTransportBoundaryTests' started at 2026-10-20 11:05:12.649.
+2026-10-20T11:05:45.8228370Z Test Case '-[WorkbenchRegressionTests.PostmergeTransportBoundaryTests testIPv6LoopbackConnectionIsAccepted]' started.
+2026-10-20T11:05:45.8248930Z Test Case '-[WorkbenchRegressionTests.PostmergeTransportBoundaryTests testIPv6LoopbackConnectionIsAccepted]' passed (0.000 seconds).
+2026-10-20T11:05:45.8250950Z Test Case '-[WorkbenchRegressionTests.PostmergeTransportBoundaryTests testNonLoopbackIPv6ConnectionStaysRejected]' started.
+2026-10-20T11:05:45.8277370Z Test Case '-[WorkbenchRegressionTests.PostmergeTransportBoundaryTests testNonLoopbackIPv6ConnectionStaysRejected]' passed (0.000 seconds).
+2026-10-20T11:05:45.8305030Z Test Suite 'PostmergeTransportBoundaryTests' passed at 2026-10-20 11:05:12.650.
+2026-10-20T11:05:45.8321440Z 	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+2026-10-20T11:05:45.8340200Z Test Suite 'RealCoreTests' started at 2026-10-20 11:05:12.650.
+2026-10-20T11:05:45.8365940Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testAuthenticatedNativeReadsAndPayload]' started.
+2026-10-20T11:05:45.8392080Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testAuthenticatedNativeReadsAndPayload]' passed (0.063 seconds).
+2026-10-20T11:05:45.8427050Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testNativeApplicationDisplaysRealCore]' started.
+2026-10-20T11:05:45.8442350Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testNativeApplicationDisplaysRealCore]' passed (0.493 seconds).
+2026-10-20T11:05:45.8457110Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testNativeMutationApprovalAndInsertionIdempotency]' started.
+2026-10-20T11:05:45.8475900Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testNativeMutationApprovalAndInsertionIdempotency]' passed (0.264 seconds).
+2026-10-20T11:05:45.8506410Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testQuietNativeSSESurvivesHeartbeatAndOldResourceTimeout]' started.
+2026-10-20T11:05:45.8519600Z Test Case '-[WorkbenchRegressionTests.RealCoreTests testQuietNativeSSESurvivesHeartbeatAndOldResourceTimeout]' passed (32.038 seconds).
+2026-10-20T11:05:45.8537330Z Test Suite 'RealCoreTests' passed at 2026-10-20 11:05:45.507.
+2026-10-20T11:05:45.8542680Z 	 Executed 4 tests, with 0 failures (0 unexpected) in 32.857 (32.857) seconds
+2026-10-20T11:05:45.8568140Z Test Suite 'RecentConversationPresentationTests' started at 2026-10-20 11:05:45.507.
+2026-10-20T11:05:45.8634360Z Test Case '-[WorkbenchRegressionTests.RecentConversationPresentationTests testExecutionDoesNotChangeConversationText]' started.
+2026-10-20T11:05:45.8669440Z Test Case '-[WorkbenchRegressionTests.RecentConversationPresentationTests testExecutionDoesNotChangeConversationText]' passed (0.003 seconds).
+2026-10-20T11:05:45.8694830Z Test Case '-[WorkbenchRegressionTests.RecentConversationPresentationTests testInactiveManagementStatesCannotBeReactivatedByClock]' started.
+2026-10-20T11:05:45.8697320Z Test Case '-[WorkbenchRegressionTests.RecentConversationPresentationTests testInactiveManagementStatesCannotBeReactivatedByClock]' passed (0.005 seconds).
+2026-10-20T11:05:45.8718790Z Test Suite 'RecentConversationPresentationTests' passed at 2026-10-20 11:05:45.515.
+2026-10-20T11:05:45.8732170Z 	 Executed 2 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+2026-10-20T11:05:45.8754270Z Test Suite 'TransportTests' started at 2026-10-20 11:05:45.515.
+2026-10-20T11:05:45.8780250Z Test Case '-[WorkbenchRegressionTests.TransportTests test403AndConflictAreNotRetried]' started.
+2026-10-20T11:05:45.8807640Z Test Case '-[WorkbenchRegressionTests.TransportTests test403AndConflictAreNotRetried]' passed (0.004 seconds).
+2026-10-20T11:05:45.8823890Z Test Case '-[WorkbenchRegressionTests.TransportTests testAuthenticatedQueryAndLazyPayload]' started.
+2026-10-20T11:05:47.1869620Z Test Case '-[WorkbenchRegressionTests.TransportTests testAuthenticatedQueryAndLazyPayload]' passed (0.003 seconds).
+2026-10-20T11:05:47.1878370Z Test Case '-[WorkbenchRegressionTests.TransportTests testAutomaticCallDetailAndPartialRefreshRetention]' started.
+2026-10-20T11:05:47.1906560Z Test Case '-[WorkbenchRegressionTests.TransportTests testAutomaticCallDetailAndPartialRefreshRetention]' passed (0.366 seconds).
+2026-10-20T11:05:47.1917080Z Test Case '-[WorkbenchRegressionTests.TransportTests testLoopbackBoundaryAndIDValidation]' started.
+2026-10-20T11:05:47.1930660Z Test Case '-[WorkbenchRegressionTests.TransportTests testLoopbackBoundaryAndIDValidation]' passed (0.002 seconds).
+2026-10-20T11:05:47.1934820Z Test Case '-[WorkbenchRegressionTests.TransportTests testOfflineSnapshotAndSelectionGeneration]' started.
+2026-10-20T11:05:47.1946990Z Test Case '-[WorkbenchRegressionTests.TransportTests testOfflineSnapshotAndSelectionGeneration]' passed (0.703 seconds).
+2026-10-20T11:05:47.1949040Z Test Case '-[WorkbenchRegressionTests.TransportTests testOversizedAndInvalidResponsesDoNotBecomeEmptyLists]' started.
+2026-10-20T11:05:47.1966490Z Test Case '-[WorkbenchRegressionTests.TransportTests testOversizedAndInvalidResponsesDoNotBecomeEmptyLists]' passed (0.003 seconds).
+2026-10-20T11:05:47.1977920Z Test Case '-[WorkbenchRegressionTests.TransportTests testPluginInstallUsesValidatedReviewToken]' started.
+2026-10-20T11:05:47.1981110Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift:153: error: -[WorkbenchRegressionTests.TransportTests testPluginInstallUsesValidatedReviewToken] : XCTUnwrap failed: expected non-nil value of type "Data"
+2026-10-20T11:05:47.1991450Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/Sources/WorkbenchTransport.swift:202: error: -[WorkbenchRegressionTests.TransportTests testPluginInstallUsesValidatedReviewToken] : failed: caught error: "transport("Core 请求失败：The operation couldn’t be completed. (com.apple.XCTestErrorDomain error 105.)")"
+2026-10-20T11:05:47.1999400Z Test Case '-[WorkbenchRegressionTests.TransportTests testPluginInstallUsesValidatedReviewToken]' failed (0.433 seconds).
+2026-10-20T11:05:47.2001240Z Test Case '-[WorkbenchRegressionTests.TransportTests testPluginUpdateReusesReviewTokenForConfirmedSourceChange]' started.
+2026-10-20T11:05:47.2014510Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift:182: error: -[WorkbenchRegressionTests.TransportTests testPluginUpdateReusesReviewTokenForConfirmedSourceChange] : XCTUnwrap failed: expected non-nil value of type "Data"
+2026-10-20T11:05:47.2021780Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/Sources/WorkbenchTransport.swift:202: error: -[WorkbenchRegressionTests.TransportTests testPluginUpdateReusesReviewTokenForConfirmedSourceChange] : failed: caught error: "transport("Core 请求失败：The operation couldn’t be completed. (com.apple.XCTestErrorDomain error 105.)")"
+2026-10-20T11:05:47.2033270Z Test Case '-[WorkbenchRegressionTests.TransportTests testPluginUpdateReusesReviewTokenForConfirmedSourceChange]' failed (0.004 seconds).
+2026-10-20T11:05:47.2042540Z Test Case '-[WorkbenchRegressionTests.TransportTests testSourcePayloadRoute]' started.
+2026-10-20T11:05:47.2056040Z Test Case '-[WorkbenchRegressionTests.TransportTests testSourcePayloadRoute]' passed (0.003 seconds).
+2026-10-20T11:05:47.2060200Z Test Case '-[WorkbenchRegressionTests.TransportTests testSSECursorAndBoundedStreamParsing]' started.
+2026-10-20T11:05:47.2065960Z Test Case '-[WorkbenchRegressionTests.TransportTests testSSECursorAndBoundedStreamParsing]' passed (0.003 seconds).
+2026-10-20T11:05:47.2068660Z Test Suite 'TransportTests' failed at 2026-10-20 11:05:47.037.
+2026-10-20T11:05:47.2070600Z 	 Executed 10 tests, with 4 failures (2 unexpected) in 1.522 (1.522) seconds
+2026-10-20T11:05:47.2072530Z Test Suite 'AgentDockWorkbenchPackageTests.xctest' failed at 2026-10-20 11:05:47.037.
+2026-10-20T11:05:47.2074490Z 	 Executed 65 tests, with 4 failures (2 unexpected) in 45.435 (45.441) seconds
+2026-10-20T11:05:47.2076340Z Test Suite 'All tests' failed at 2026-10-20 11:05:47.037.
+2026-10-20T11:05:47.2078120Z 	 Executed 65 tests, with 4 failures (2 unexpected) in 45.435 (45.443) seconds
+2026-10-20T11:05:47.2079760Z ◇ Test run started.
+2026-10-20T11:05:47.2081450Z ↳ Testing Library Version: 124.4
+2026-10-20T11:05:47.2083770Z ↳ Target Platform: x86_64-apple-macos14.0
+2026-10-20T11:05:47.2085230Z ✔ Test run with 0 tests passed after 0.001 seconds.
+2026-10-20T11:05:47.7022010Z swift-driver version: 1.120.5 
+2026-10-20T11:05:47.7080730Z ##[error]Process completed with exit code 1.
+2026-10-20T11:05:47.7230970Z ##[group]Run actions/upload-artifact@v7
+2026-10-20T11:05:47.7231500Z with:
+2026-10-20T11:05:47.7231830Z   name: macos-frontend-x86_64-39412002047
+2026-10-20T11:05:47.7232300Z   path: evidence/x86_64/
+2026-10-20T11:05:47.7232700Z   if-no-files-found: warn
+2026-10-20T11:05:47.7233090Z   retention-days: 14
+2026-10-20T11:05:47.7233460Z   compression-level: 6
+2026-10-20T11:05:47.7233820Z   overwrite: false
+2026-10-20T11:05:47.7234180Z   include-hidden-files: false
+2026-10-20T11:05:47.7234580Z   archive: true
+2026-10-20T11:05:47.7234890Z env:
+2026-10-20T11:05:47.7235180Z   GOTOOLCHAIN: local
+2026-10-20T11:05:47.7235710Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:05:47.7236630Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/x64/lib/pkgconfig
+2026-10-20T11:05:47.7237510Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:05:47.7238290Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:05:47.7239120Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
