@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"time"
@@ -160,15 +161,24 @@ func (r *Runtime) resumeStructuredOutput(ctx context.Context, p *preparedExecuti
 	}
 	now := time.Now()
 	r.structuredOutputMu.Lock()
-	r.pruneStructuredOutputLocked(now)
 	position, found := r.structuredCursors[cursor]
 	snapshot, snapshotFound := r.structuredSnapshots[position.SnapshotID]
 	if found && snapshotFound {
 		snapshot = cloneStructuredSnapshot(snapshot)
 	}
+	r.pruneStructuredOutputLocked(now)
 	r.structuredOutputMu.Unlock()
 	if !found || !snapshotFound || snapshot == nil || now.After(position.ExpiresAt) || now.After(snapshot.ExpiresAt) {
-		return nil, nil, toolError("STRUCTURED_CURSOR_EXPIRED", "The structured result cursor expired or is unavailable. Re-run the original read-only operation to create a fresh snapshot.", "runtime")
+		p.state.executed = false
+		if found && snapshotFound && snapshot != nil && snapshot.Tool == p.spec.Name &&
+			structuredSelectorSubsetMatches(snapshot.SelectorArguments, structuredSelectorArguments(p.args)) {
+			if result, resume, err := r.expiredContextDetails(ctx, p, snapshot); result != nil || err != nil {
+				return result, resume, err
+			}
+		}
+		return nil, nil, toolErrorDetails("STRUCTURED_CURSOR_EXPIRED", "The retained detail cursor expired or is unavailable. Request a fresh snapshot only if those details are needed.", "validation", map[string]any{
+			"execution_performed": false, "executed": false, "effect_state": "none", "retry_safe": true,
+		})
 	}
 	providedSelectors := structuredSelectorArguments(p.args)
 	selectorsMatch := snapshot.ArgumentsHash == argumentsHash
@@ -378,9 +388,12 @@ func (r *Runtime) storeStructuredSnapshot(snapshot *structuredOutputSnapshot) (*
 	if r.structuredCursors == nil {
 		r.structuredCursors = map[string]structuredOutputCursor{}
 	}
-	if stored.ContextStamp != "" {
+	if stored.ContextRevision != "" {
 		for _, existing := range r.structuredSnapshots {
-			if existing.OutputFailure == nil && stored.OutputFailure == nil && existing.Tool == stored.Tool && existing.ContextStamp == stored.ContextStamp && existing.ContextGuardStamp == stored.ContextGuardStamp && existing.ArgumentsHash == stored.ArgumentsHash && existing.PermissionRevision == stored.PermissionRevision && sameContextScope(existing.Binding, stored.Binding) {
+			if existing.OutputFailure == nil && stored.OutputFailure == nil && existing.Tool == stored.Tool &&
+				existing.ContextRevision == stored.ContextRevision && filepath.Clean(existing.ContextWorkdir) == filepath.Clean(stored.ContextWorkdir) &&
+				existing.ContextGuardStamp == stored.ContextGuardStamp && existing.PermissionRevision == stored.PermissionRevision && sameContextScope(existing.Binding, stored.Binding) {
+				existing.ContextStamp = stored.ContextStamp
 				return cloneStructuredSnapshot(existing), nil
 			}
 		}

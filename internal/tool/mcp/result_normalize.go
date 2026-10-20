@@ -29,13 +29,22 @@ type resultPagePosition struct {
 
 func normalizeDynamicMCPResult(raw map[string]any) (map[string]any, []string, bool) {
 	result := cloneResultMap(raw)
+	delete(result, "_meta")
+	delete(result, "icons")
 	blocks := resultContentBlocks(result["content"])
 	structured, hasStructured := result["structuredContent"]
 	parsedText := false
-	if (!hasStructured || structured == nil) && len(blocks) == 1 {
-		block := resultMap(blocks[0])
-		if block["type"] == "text" {
-			if text, ok := block["text"].(string); ok {
+	if !hasStructured || structured == nil {
+		var textBlock map[string]any
+		textCount := 0
+		for _, block := range blocks {
+			if object := resultMap(block); object["type"] == "text" {
+				textBlock = object
+				textCount++
+			}
+		}
+		if textCount == 1 {
+			if text, ok := textBlock["text"].(string); ok {
 				var parsed any
 				if toolcore.DecodeJSON(strings.NewReader(text), &parsed) == nil {
 					structured, hasStructured, parsedText = parsed, true, true
@@ -48,6 +57,8 @@ func normalizeDynamicMCPResult(raw map[string]any) (map[string]any, []string, bo
 	kept := make([]any, 0, len(blocks))
 	for _, block := range blocks {
 		object := resultMap(block)
+		delete(object, "_meta")
+		delete(object, "icons")
 		kind, _ := object["type"].(string)
 		if kind == "" {
 			kind = "unknown"

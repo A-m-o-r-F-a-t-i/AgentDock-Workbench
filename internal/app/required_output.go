@@ -163,6 +163,10 @@ func (r *Runtime) applyRequiredOutputPolicy(p *preparedExecution, result Result)
 	if isContext {
 		bootstrapReady := p.spec.Name == "agentdock_context" && page["bootstrap_complete"] == true
 		setContextDeliveryComplete(page, retained.OutputFailure == nil && retained.SourceComplete && (!hasMore || bootstrapReady))
+		if bootstrapReady && page["context_ready"] == true {
+			meta["class"] = toolcontract.OutputRecoverablePreview
+			meta["required_delivery_complete"] = true
+		}
 	}
 	return page
 }
@@ -201,7 +205,12 @@ func (r *Runtime) commitStructuredDelivery(binding activity.Binding, result Resu
 	if index == stored.NextPage+1 {
 		stored.NextPage = index
 	}
+	bootstrapReady := stored.Tool == "agentdock_context" && stored.SourceComplete &&
+		result["bootstrap_complete"] == true && result["context_ready"] == true
 	stored.Delivered = stored.NextPage == count && result["required_unit_unavailable"] == nil
+	if stored.Tool == "agentdock_context" {
+		stored.Delivered = wasDelivered || bootstrapReady || stored.Delivered
+	}
 	var schemaSource []byte
 	if !wasDelivered && stored.Delivered && stored.Tool == "mcp_tool_inspect" {
 		schemaSource = append([]byte(nil), stored.Encoded...)

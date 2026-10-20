@@ -337,6 +337,7 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 		return owned && membership.Heavy, err
 	})
 	runtime.media = toolmedia.New(cfg, ws, runtime.command.InternalCommandEnv)
+	runtime.dynamicMCP.SetMediaPublisher(runtime.media.PublishMCPMedia)
 	runtime.browser = toolbrowser.New(
 		toolbrowser.Config{AgentDockHome: cfg.AgentDockHome, ExecutablePath: cfg.BrowserExecutablePath, CDPURL: cfg.BrowserCDPURL, ReuseExistingCDP: cfg.BrowserReuseExistingCDP},
 		runtime.media.PublishBrowserScreenshot,

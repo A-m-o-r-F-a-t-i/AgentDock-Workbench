@@ -19,6 +19,7 @@ const (
 	resultRawReadLimit         = 8
 	resultRawDefaultBytes      = 8000
 	resultRawMaximumBytes      = 64 << 10
+	resultBusinessPageBudget   = 1024
 )
 
 type resultCursorState struct {
@@ -52,6 +53,8 @@ type storedMCPResult struct {
 	RawReference   string
 	Failure        map[string]any
 	FailureBytes   int
+	BusinessPage   map[string]any
+	BusinessBytes  int
 	Normalized     map[string]any
 	ContentKinds   []string
 	ParsedJSONText bool
@@ -80,7 +83,13 @@ type resultStore struct {
 func (s *resultStore) store(binding activity.Binding, name string, raw, normalized map[string]any, contentKinds []string, parsedJSONText bool) (Result, error) {
 	failure := retainResultFailure(raw)
 	failureBytes := resultFailureProjectionBytes(failure)
-	pages, err := buildResultPages(normalized, resultPayloadBudget(failureBytes))
+	businessPage := retainResultBusinessPage(normalized)
+	businessBytes := 0
+	if len(businessPage) > 0 {
+		encoded, _ := json.Marshal(map[string]any{"business_page": businessPage})
+		businessBytes = len(encoded)
+	}
+	pages, err := buildResultPages(normalized, resultPayloadBudget(failureBytes)-businessBytes)
 	if err != nil {
 		return nil, toolErrorCause("MCP_RESULT_ENCODING_FAILED", "encode normalized MCP result", "runtime", nil, err)
 	}
@@ -97,6 +106,7 @@ func (s *resultStore) store(binding activity.Binding, name string, raw, normaliz
 		CallID: callID, Name: name, Binding: binding, ScopeKey: resultScopeKey(binding, callID),
 		Raw: cloneResultMap(raw), RawBytes: rawBytes, Normalized: cloneResultMap(normalized),
 		Failure: failure, FailureBytes: failureBytes,
+		BusinessPage: businessPage, BusinessBytes: businessBytes,
 		ContentKinds: append([]string{}, contentKinds...), ParsedJSONText: parsedJSONText,
 		Pages: pages, NextPage: 1, LastPage: -1, CreatedAt: now, TouchedAt: now,
 	}
@@ -120,7 +130,7 @@ func (s *resultStore) store(binding activity.Binding, name string, raw, normaliz
 	if len(pages) > 1 {
 		entry.NextCursor = s.newCursorLocked(callID, 1)
 	}
-	if !s.consumeProjectionBudgetLocked(entry, pages[0].Bytes+failureBytes, true) {
+	if !s.consumeProjectionBudgetLocked(entry, pages[0].Bytes+failureBytes+businessBytes, true) {
 		return resultBudgetProjection(entry, "root_task"), nil
 	}
 	return resultPageProjection(entry, 0, entry.NextCursor, false), nil
@@ -166,7 +176,7 @@ func (s *resultStore) continueResult(ctxBinding activity.Binding, callID, cursor
 	}
 	pageIndex := entry.NextPage
 	page := entry.Pages[pageIndex]
-	if !s.consumeProjectionBudgetLocked(entry, page.Bytes+entry.FailureBytes, false) {
+	if !s.consumeProjectionBudgetLocked(entry, page.Bytes+entry.FailureBytes+entry.BusinessBytes, false) {
 		return nil, resultBudgetError(entry)
 	}
 	entry.LastCursor, entry.LastPage = cursor, pageIndex
@@ -355,6 +365,45 @@ func (s *resultStore) consumeProjectionBudgetLocked(entry *storedMCPResult, byte
 	return true
 }
 
+// Repeat only the upstream paging controls, outside host record/fragment paging.
+// Oversized controls remain in the original result and are explicitly omitted.
+func retainResultBusinessPage(normalized map[string]any) map[string]any {
+	body := resultMap(normalized["structuredContent"])
+	sources := []map[string]any{body, resultMap(body["data"])}
+	page := map[string]any{}
+	for _, source := range sources {
+		for _, key := range []string{"page", "remaining", "resultId", "nextAction"} {
+			if value, exists := source[key]; exists && page[key] == nil {
+				page[key] = cloneResultValue(value)
+			}
+		}
+		if page["nextAction"] == nil {
+			if value := resultMap(source["summary"])["nextAction"]; value != nil {
+				page["nextAction"] = cloneResultValue(value)
+			}
+		}
+	}
+	if page["page"] == nil && page["remaining"] == nil && page["nextAction"] == nil {
+		return nil
+	}
+	bounded := map[string]any{}
+	omitted := []string{}
+	for _, key := range []string{"page", "remaining", "resultId", "nextAction"} {
+		if value, exists := page[key]; exists {
+			bounded[key] = value
+			encoded, err := json.Marshal(bounded)
+			if err != nil || len(encoded) > resultBusinessPageBudget-128 {
+				delete(bounded, key)
+				omitted = append(omitted, key)
+			}
+		}
+	}
+	if len(omitted) > 0 {
+		bounded["omitted_fields"] = omitted
+	}
+	return bounded
+}
+
 func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor string, replayed bool) Result {
 	page := entry.Pages[pageIndex]
 	remaining := max(0, len(entry.Pages)-pageIndex-1)
@@ -375,7 +424,10 @@ func resultPageProjection(entry *storedMCPResult, pageIndex int, nextCursor stri
 	}
 	if nextCursor != "" {
 		result["host_cursor"] = nextCursor
-		result["continue_result"] = map[string]any{"tool": ToolResultContinue, "arguments": map[string]any{"call_id": entry.CallID, "cursor": nextCursor}}
+		result["continue_result"] = map[string]any{"purpose": "expand_current_response", "tool": ToolResultContinue, "arguments": map[string]any{"call_id": entry.CallID, "cursor": nextCursor}}
+	}
+	if len(entry.BusinessPage) > 0 {
+		result["business_page"] = cloneResultMap(entry.BusinessPage)
 	}
 	if pageIndex > 0 {
 		resultMap(result["host_page"])["read_succeeded"] = successfulResultRead(true)

@@ -43,6 +43,7 @@ func TestMCPModelSuccessHasBoundedEnvelopeAndOneBusinessCopy(t *testing.T) {
 			}
 		}
 		original := compactMCPFixture()
+		asMap(asMap(original["structuredContent"])["mcp_catalog"])["stale"] = true
 		before, _ := json.Marshal(original)
 		logical := normalizeResponseStages("mcp_tool_call", nil, original)
 		wire, err := modelWireEnvelope(ctx, "mcp_tool_call", logical)
@@ -88,12 +89,16 @@ func TestMCPModelProjectionPreservesHostPagingAndDomainCursor(t *testing.T) {
 	full := asMap(original["structuredContent"])
 	asMap(asMap(full["result"])["structuredContent"])["cursor"] = "domain-cursor"
 	full["host_page"] = map[string]any{"mode": "semantic_records", "complete": false, "page_index": 0, "page_count": 3, "returned_bytes": 4000}
+	full["business_page"] = map[string]any{"page": map[string]any{"cursor": "domain-cursor", "remaining": 347}}
 	full["continue_result"] = map[string]any{"tool": "mcp_result_continue", "arguments": map[string]any{"call_id": "original-call", "cursor": "host-next"}}
 	projected := projectMCPModelEnvelope("mcp_tool_call", original)
 	payload := asMap(projected["structuredContent"])
 	continuation := asMap(payload["continuation"])
-	if continuation["tool"] != "mcp_result_continue" || !reflect.DeepEqual(continuation["arguments"], asMap(full["continue_result"])["arguments"]) || continuation["complete"] != false || continuation["page_count"] != 3 {
+	if continuation["tool"] != "mcp_result_continue" || !reflect.DeepEqual(continuation["arguments"], asMap(full["continue_result"])["arguments"]) || continuation["complete"] != false || continuation["page_count"] != 3 || continuation["purpose"] != "expand_current_response" {
 		t.Fatalf("exact host continuation was lost: %#v", continuation)
+	}
+	if !reflect.DeepEqual(payload["business_page"], full["business_page"]) {
+		t.Fatal("model projection dropped the business page summary")
 	}
 	if continuation["returned_bytes"] != nil || asMap(asMap(payload["result"])["structuredContent"])["cursor"] != "domain-cursor" {
 		t.Fatal("host diagnostics or domain cursor changed")

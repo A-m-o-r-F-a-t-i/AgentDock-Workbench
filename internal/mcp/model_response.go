@@ -190,7 +190,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	}
 	if (name == "mcp_tool_call" || name == "mcp_result_continue") && full["host_page"] != nil || name == "mcp_result_raw" {
 		// The MCP pager already bounded this page. Keep its body and exact cursor.
-		for _, key := range []string{"name", "result", "isError", "result_call_id", "continue_result", "host_page", "host_cursor", "content_kinds", "json_text_parsed", "raw_result_ref", "offset", "next_offset", "limit", "data", "complete", "raw_reads", "raw_read_limit", "replayed", "content_returned", "resume_cursor", "result_retained", "projection_budget_exhausted", "budget_scope", "message"} {
+		for _, key := range []string{"name", "result", "isError", "result_call_id", "continue_result", "host_page", "host_cursor", "business_page", "content_kinds", "json_text_parsed", "raw_result_ref", "offset", "next_offset", "limit", "data", "complete", "raw_reads", "raw_read_limit", "replayed", "content_returned", "resume_cursor", "result_retained", "projection_budget_exhausted", "budget_scope", "message"} {
 			if value, exists := full[key]; exists {
 				payload[key] = value
 			}
@@ -238,7 +238,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 		}
 		payload["bootstrap_complete"], payload["context_ready"] = true, true
 		payload["context_diagnostics"] = map[string]any{"complete": true, "components_complete": asMap(full["context_diagnostics"])["components_complete"], "binding_status": asMap(full["context_diagnostics"])["binding_status"]}
-		payload["delivery"] = map[string]any{"class": class, "sequence_complete": false, "continuation_required": false, "continuation_available": source != ""}
+		payload["delivery"] = map[string]any{"class": toolcontract.OutputRecoverablePreview, "sequence_complete": true, "continuation_required": false, "continuation_available": source != ""}
 		if source != "" {
 			payload["required_action"] = map[string]any{"category": "detail", "required": false, "execution_performed": false, "reason_code": "context_details_paged", "tool": "read_file", "arguments": map[string]any{"path": source, "offset": 0, "limit_chars": 8000}}
 		}

@@ -21,6 +21,7 @@ type Service struct {
 	catalogDeliveries catalogDeliveryState
 	schemaDeliveries  schemaDeliveryState
 	results           resultStore
+	mediaPublisher    func(context.Context, []byte, string) (map[string]any, error)
 }
 
 type PluginMembershipLookup func(string) (plugin string, enabled bool, owned bool, err error)
@@ -44,6 +45,11 @@ func (s *Service) RawResult(callID string) (map[string]any, bool) {
 
 func (s *Service) SetRawResultReference(callID, reference string) {
 	s.results.setRawReference(callID, reference)
+}
+
+// SetMediaPublisher retains inline upstream media before model JSON is paged.
+func (s *Service) SetMediaPublisher(publish func(context.Context, []byte, string) (map[string]any, error)) {
+	s.mediaPublisher = publish
 }
 
 func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {

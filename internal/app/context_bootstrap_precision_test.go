@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/agentinstructions"
 	"github.com/uvwt/agentdock/internal/config"
 	mcpclient "github.com/uvwt/agentdock/internal/mcp/client"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 	toolcore "github.com/uvwt/agentdock/internal/tool/core"
 )
 
@@ -123,11 +125,21 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 	meta := modelObject(full["structured_output"])
 	snapshotID := stringArg(meta, "snapshot_id")
 	revision := stringArg(full, "context_revision")
-	if snapshotID == "" || revision == "" || full["has_more"] != true || toolcore.IntArg(meta, "page_count", 0) < 2 || modelObject(full["delivery"])["sequence_complete"] != false {
+	if snapshotID == "" || revision == "" || full["has_more"] != true || toolcore.IntArg(meta, "page_count", 0) < 2 || modelObject(full["delivery"])["sequence_complete"] != true {
 		t.Fatalf("fixture did not leave Context details pending: %#v", full)
 	}
 	if full["bootstrap_complete"] != true || full["context_ready"] != true || full["source_complete"] != true || meta["source_complete"] != true {
 		t.Fatalf("paging changed Context preparation or source completeness: %#v", full)
+	}
+	if modelObject(full["delivery"])["class"] != toolcontract.OutputRecoverablePreview || meta["required_delivery_complete"] != true {
+		t.Fatalf("optional Context details were marked as required delivery: %#v", full["delivery"])
+	}
+	repeated, err := rt.Call(ctx, "agentdock_context", map[string]any{"workdir": workdir + string(os.PathSeparator)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repeated["unchanged"] != true || repeated["structured_output"] != nil || stringArg(repeated, "context_revision") != revision {
+		t.Fatalf("unchanged Context started another detail sequence: %#v", repeated)
 	}
 	origin, err := rt.activity.Call(ctx, stringArg(full, "call_id"))
 	if err != nil {
@@ -138,7 +150,7 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 		t.Fatalf("Context source lost its original owner or payload version: %#v", origin)
 	}
 	// An indivisible semantic unit may omit next_cursor while details remain.
-	// Consume the published source continuation; readiness alone is not delivery.
+	// Optional source details remain readable after Bootstrap delivery.
 	continuation := modelObject(meta["continue_read"])
 	var assembled strings.Builder
 	for pageIndex := 0; ; pageIndex++ {
@@ -148,6 +160,11 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 		readArgs := modelObject(continuation["arguments"])
 		if continuation["tool"] != "read_file" || stringArg(readArgs, "path") != source || toolcore.IntArg(readArgs, "offset", -1) != assembled.Len() {
 			t.Fatalf("Context source lost its exact byte continuation: %#v", continuation)
+		}
+		if pageIndex == 0 {
+			readArgs = map[string]any{"path": source}
+		} else if pageIndex == 1 {
+			readArgs["max_bytes"] = 1024
 		}
 		page, err := rt.Call(ctx, "read_file", readArgs)
 		if err != nil {
@@ -162,6 +179,9 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 			t.Fatalf("Context source changed snapshot, owner scope or byte range: %#v", page)
 		}
 		content := stringArg(page, "content")
+		if pageIndex == 0 && toolcore.IntArg(page, "limit_chars", -1) != 8000 || pageIndex == 1 && len(content) > 1024 {
+			t.Fatalf("activity source defaults or byte limit were ignored: %#v", page)
+		}
 		if content == "" || page["source_complete"] != true || modelObject(page["capture"])["complete"] != true {
 			t.Fatalf("Context source page is missing retained content: %#v", page)
 		}
@@ -225,5 +245,33 @@ func TestContextBootstrapCountsMatchFullAndReference(t *testing.T) {
 		if sourceSummary[key] != fullSummary[key] || referenceSummary[key] != fullSummary[key] {
 			t.Fatalf("source or reference changed %s: full=%#v source=%#v reference=%#v", key, fullSummary, sourceSummary, referenceSummary)
 		}
+	}
+	implicit, err := rt.Call(ctx, "agentdock_context", map[string]any{})
+	if err != nil || implicit["unchanged"] != true || stringArg(implicit, "context_revision") != revision {
+		t.Fatalf("implicit workdir rebuilt the same Context: result=%#v err=%v", implicit, err)
+	}
+	// Optional detail expiry cannot revoke an authorized, delivered Bootstrap.
+	rt.structuredOutputMu.Lock()
+	retained := rt.structuredSnapshots[snapshotID]
+	retained.ExpiresAt = time.Now().Add(-time.Second)
+	rt.structuredCursors["scur_expired_details"] = structuredOutputCursor{
+		SnapshotID: snapshotID, ExpiresAt: retained.ExpiresAt,
+	}
+	binding, permissionRevision := retained.Binding, retained.PermissionRevision
+	rt.structuredOutputMu.Unlock()
+	prepared := &preparedExecution{
+		modelOutput: true, spec: ToolSpec{Name: "agentdock_context"},
+		args: map[string]any{"cursor": "scur_expired_details"},
+	}
+	prepared.state.binding = binding
+	prepared.decision.Revision = permissionRevision
+	expired, resume, err := rt.resumeStructuredOutput(activity.WithBinding(ctx, binding), prepared)
+	if err != nil || resume == nil || expired["details_expired"] != true || expired["context_ready"] != true || expired["execution_performed"] != false {
+		t.Fatalf("optional detail expiry invalidated Bootstrap: result=%#v err=%v", expired, err)
+	}
+	prepared.args["cursor"] = "scur_unknown"
+	unknown, _, err := rt.resumeStructuredOutput(activity.WithBinding(ctx, binding), prepared)
+	if err == nil || unknown != nil || prepared.state.executed {
+		t.Fatalf("unknown cursor claimed successful execution or Bootstrap delivery: result=%#v err=%v", unknown, err)
 	}
 }

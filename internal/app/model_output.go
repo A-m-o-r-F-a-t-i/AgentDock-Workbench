@@ -227,6 +227,7 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	required := class == toolcontract.OutputRequiredFull && hasMore
 	bootstrapReady := p.spec.Name == "agentdock_context" && result["bootstrap_complete"] == true
 	if bootstrapReady {
+		class = toolcontract.OutputRecoverablePreview
 		required = false
 	}
 	delivery := map[string]any{

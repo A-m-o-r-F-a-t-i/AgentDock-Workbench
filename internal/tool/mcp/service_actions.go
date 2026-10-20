@@ -266,6 +266,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	}
 	if result != nil {
 		normalized, contentKinds, parsedJSONText := normalizeDynamicMCPResult(result)
+		normalized = s.retainModelMedia(ctx, normalized)
 		projected, projectionErr := s.results.store(activity.FromContext(ctx), validated.qualifiedName, result, normalized, contentKinds, parsedJSONText)
 		if projectionErr != nil {
 			response["result"] = normalized

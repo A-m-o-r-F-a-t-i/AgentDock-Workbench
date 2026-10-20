@@ -307,6 +307,35 @@ func (r *Runtime) discardStructuredSnapshot(id string) {
 	}
 }
 
+// Expiring optional pages does not revoke a Bootstrap that was already delivered.
+// Only a retained, authorized snapshot with unchanged rules can establish this.
+func (r *Runtime) expiredContextDetails(ctx context.Context, p *preparedExecution, retained *structuredOutputSnapshot) (Result, *structuredOutputResume, error) {
+	if retained.Tool != "agentdock_context" || !retained.Delivered || !retained.SourceComplete || retained.OutputFailure != nil || retained.PermissionRevision != p.decision.Revision {
+		return nil, nil, nil
+	}
+	if err := r.authorizeStructuredSnapshot(ctx, retained.Binding, p.state.binding); err != nil {
+		return nil, nil, err
+	}
+	stamp, err := r.contextContinuationStamp(ctx, retained.ContextWorkdir, retained.Binding)
+	if err != nil || retained.ContextGuardStamp == "" || stamp != retained.ContextGuardStamp {
+		return nil, nil, nil
+	}
+	original, err := decodeStructuredResult(retained.Encoded)
+	if err != nil || original["bootstrap_complete"] != true {
+		return nil, nil, nil
+	}
+	result := Result{
+		"context_revision": retained.ContextRevision, "context_delivery": "reference",
+		"context_ready": true, "bootstrap_complete": true, "details_expired": true,
+		"execution_performed": false, "effect_state": "none",
+		"context_diagnostics": map[string]any{"complete": true, "components_complete": true, "binding_status": "unchanged"},
+		"operation":           map[string]any{"state": "completed", "ok": true, "executed": false},
+		"capture":             map[string]any{"state": "complete", "complete": true},
+	}
+	r.refreshContextBootstrapReference(ctx, result, original)
+	return result, &structuredOutputResume{Snapshot: *retained, Reference: true}, nil
+}
+
 func (r *Runtime) discardContextSequences(replacement structuredOutputSnapshot) {
 	ids := []string{}
 	r.structuredOutputMu.Lock()
@@ -328,7 +357,34 @@ func bareContextRequest(args map[string]any) bool {
 }
 
 func (r *Runtime) compactSharedContext(ctx context.Context, original Result, workdir string, binding activity.Binding, info snapshot.Info) Result {
+	revision := stringArg(original, "context_revision")
 	diagnostics := modelObject(original["context_diagnostics"])
+	if revision == "" || diagnostics["complete"] != true {
+		return original
+	}
+	resolvedWorkdir := stringArg(modelObject(original["instruction_files"]), "workdir")
+	if resolvedWorkdir == "" {
+		resolvedWorkdir = stringArg(original, "workdir")
+	}
+	if resolvedWorkdir == "" {
+		resolvedWorkdir = workdir
+	}
+	workspaceID := stringArg(original, "workspace_id")
+	if workspaceID == "" {
+		workspaceID = binding.WorkspaceID
+	}
+	var state activity.ConversationState
+	if remarshal(original["conversation_state"], &state) == nil {
+		binding.TaskID, binding.ThreadID = state.ActiveTaskID, state.ActiveTaskThreadID
+		if state.WorkspaceID != "" {
+			workspaceID = state.WorkspaceID
+		}
+	}
+	key := fmt.Sprintf("%q|%q|%q|%q|%q|%q|%q", binding.SourceOwnerKey, binding.ConversationID,
+		binding.TaskID, binding.ThreadID, workspaceID, filepath.Clean(resolvedWorkdir), revision)
+	if r.contextSnapshots.claimCompleteDelivery(key, time.Now()) {
+		return original
+	}
 	result := Result{
 		"context_revision": original["context_revision"], "unchanged": true,
 		"context_delivery": "shared_reference", "shared_snapshot": true,
@@ -401,7 +457,7 @@ func (r *Runtime) executeContextHandler(ctx context.Context, p *preparedExecutio
 			diagnostics["context_snapshot"] = info
 		}
 		workdir := stringArg(p.args, "workdir")
-		if buildErr == nil && bareContextRequest(p.args) && !r.contextSnapshots.claimCompleteDelivery(info.BuildID, time.Now()) {
+		if buildErr == nil && bareContextRequest(p.args) {
 			p.contextShared = true
 			p.contextSharedInfo = info
 			p.contextSharedWorkdir = workdir
