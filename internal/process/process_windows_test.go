@@ -46,6 +46,22 @@ func TestConfigurePreservesExistingCreationFlags(t *testing.T) {
 	}
 }
 
+func TestConfigureConsoleTreeUsesHiddenConsole(t *testing.T) {
+	existingFlags := uint32(windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS)
+	cmd := exec.Command("git.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: existingFlags}
+
+	ConfigureConsoleTree(cmd)
+
+	wantFlags := uint32(windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NEW_CONSOLE)
+	if cmd.SysProcAttr.CreationFlags != wantFlags {
+		t.Fatalf("creation flags = %#x, want %#x", cmd.SysProcAttr.CreationFlags, wantFlags)
+	}
+	if !cmd.SysProcAttr.HideWindow {
+		t.Fatal("ConfigureConsoleTree did not hide the console")
+	}
+}
+
 func TestConfigureStdioCommandPromptUsesHiddenConsole(t *testing.T) {
 	existingFlags := uint32(windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS)
 	cmd := exec.Command("cmd.exe")

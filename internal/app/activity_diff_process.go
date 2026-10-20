@@ -81,7 +81,11 @@ func (r *Runtime) runActivityGit(ctx context.Context, record workspace.Record, o
 		}
 	}
 	command.Env = append(command.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+globalConfig, "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
-	process.Configure(command)
+	if record.Runtime == "wsl" {
+		process.Configure(command)
+	} else {
+		process.ConfigureConsoleTree(command)
+	}
 	stdout, stderr := &diffBuffer{}, &diffBuffer{}
 	command.Stdout, command.Stderr = stdout, stderr
 	started := time.Now()
