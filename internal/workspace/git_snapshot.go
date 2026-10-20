@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	processcontrol "github.com/uvwt/agentdock/internal/process"
 )
 
 // GitSnapshot contains local observation only. Its revision never invalidates
@@ -60,11 +62,7 @@ func ReadGitSnapshot(parent context.Context, root string) GitSnapshot {
 	}
 	result := GitSnapshot{}
 	command := func(args ...string) (string, error) {
-		cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false"}, args...)...)
-		cmd.Dir = root
-		// Optional index/cache writes are disabled; this observer never fetches,
-		// changes branches, rewrites user config or requests credentials.
-		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+		cmd := newGitSnapshotCommand(ctx, root, args...)
 		stdout := &gitSnapshotBuffer{maximum: 4 << 20}
 		stderr := &gitSnapshotBuffer{maximum: 4096}
 		cmd.Stdout, cmd.Stderr = stdout, stderr
@@ -127,4 +125,14 @@ func ReadGitSnapshot(parent context.Context, root string) GitSnapshot {
 	encoded, _ := json.Marshal(result)
 	result.Revision = fmt.Sprintf("gitrev_%x", sha256.Sum256(append(encoded, []byte(status)...)))
 	return result
+}
+
+func newGitSnapshotCommand(ctx context.Context, root string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false"}, args...)...)
+	cmd.Dir = root
+	// Optional index/cache writes are disabled; this observer never fetches,
+	// changes branches, rewrites user config or requests credentials.
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	processcontrol.Configure(cmd)
+	return cmd
 }
