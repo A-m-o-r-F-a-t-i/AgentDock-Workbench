@@ -1,4 +1,4 @@
-name: One-shot diagnose PR 164
+name: One-shot patch PR 164 request body tests
 
 on:
   push:
@@ -6,71 +6,64 @@ on:
       - ops/diagnose-open-prs-20261020
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
-  diagnose:
-    if: ${{ contains(github.event.head_commit.message, 'diagnose PR 164 latest') }}
+  patch:
+    if: ${{ contains(github.event.head_commit.message, 'patch PR164 request body stream') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ops/diagnose-open-prs-20261020
-      - name: Extract latest failed job logs
+          ref: fix/20261020-macos-workbench-contracts
+      - name: Read streamed URL request bodies in transport fixtures
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf diagnostics/latest-pr164
-          mkdir -p diagnostics/latest-pr164
-          while IFS=: read -r job label; do
-            raw="diagnostics/latest-pr164/${job}.raw"
-            log="diagnostics/latest-pr164/${job}.log"
-            out="diagnostics/latest-pr164/${job}.txt"
-            curl -sS -L \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" \
-              -o "$raw"
-            if python3 - "$raw" <<'PY'
-          import sys, zipfile
-          raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
-          PY
-            then
-              unzip -p "$raw" > "$log"
-            else
-              cp "$raw" "$log"
-            fi
-            python3 - "$job" "$label" "$log" "$out" <<'PY'
-          import re, sys
+          python3 - <<'PY'
           from pathlib import Path
-          job, label, log_path, out_path = sys.argv[1:]
-          lines = Path(log_path).read_text(errors='replace').splitlines()
-          pat = re.compile(r'(?i)(error:|fatal:|--- FAIL:|Assertion failed|XCTAssert|Process completed with exit code|test failed|failure)')
-          selected = set()
-          for i, line in enumerate(lines):
-              if pat.search(line):
-                  selected.update(range(max(0, i-8), min(len(lines), i+18)))
-          excerpt = '\n'.join(lines[i] for i in sorted(selected)) if selected else '\n'.join(lines[-400:])
-          if len(excerpt) > 90000:
-              excerpt = excerpt[-90000:]
-          Path(out_path).write_text(f'job={job}\nlabel={label}\n\n{excerpt}\n')
+          path = Path('desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift')
+          text = path.read_text()
+          marker = '''    private func answer(_ value: WorkbenchJSON, status: Int = 200, delay: Double = 0) throws -> (Int, String, Data, Double) {
+        (status, "application/json", try value.encodedData(), delay)
+    }
+'''
+          helper = marker + '''    private func requestBody(_ request: URLRequest) throws -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        stream.open()
+        defer { stream.close() }
+        let capacity = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
+        defer { buffer.deallocate() }
+        var data = Data()
+        while true {
+            let count = stream.read(buffer, maxLength: capacity)
+            if count < 0 { throw stream.streamError ?? URLError(.cannotDecodeContentData) }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('answer helper marker not found exactly once')
+          text = text.replace(marker, helper)
+          old = 'let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))'
+          if text.count(old) != 2:
+              raise SystemExit(f'expected two direct httpBody decodes, found {text.count(old)}')
+          text = text.replace(old, 'let body = try WorkbenchJSON.decode(try self.requestBody(request))')
+          path.write_text(text)
           PY
-          done <<'EOF'
-          118592016226:arm64
-          118592016130:x86_64
-          EOF
-          rm -f diagnostics/latest-pr164/*.raw diagnostics/latest-pr164/*.log
-      - name: Commit diagnostics
+          git diff --check
+      - name: Commit focused fixture fix
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add diagnostics/latest-pr164
-          git commit -m 'chore: save latest PR 164 failure logs [diagnostic-results]'
-          git push origin HEAD:ops/diagnose-open-prs-20261020
+          git add desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift
+          git commit -m 'test(macos): read streamed plugin request bodies'
+          git push origin HEAD:fix/20261020-macos-workbench-contracts
