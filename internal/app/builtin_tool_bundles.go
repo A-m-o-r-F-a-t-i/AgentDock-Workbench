@@ -294,14 +294,14 @@ func (r *Runtime) loadBuiltinToolBundle(ctx context.Context, request toolcapabil
 	result := Result{
 		"action": request.Action, "scoped": scoped, "changed": changed,
 		"directory_changed": changed, "bundles": bundles,
-		"tool_catalog_revision": r.ToolCatalogRevision(ctx), "host_refresh_required": scoped, "execution_performed": false,
+		"tool_catalog_revision": r.ToolCatalogRevision(ctx), "host_refresh_required": scoped && changed, "execution_performed": false,
 	}
 	if request.Action == toolcapability.ActionLoad {
 		result["loaded"], result["bundle"] = true, loadedBundle.Name
 		result["loaded_bundle"] = loadedBundle.Name
 		result["revealed_tools"] = r.availableBundleTools(loadedBundle)
 		result["bundles"] = []map[string]any{}
-		if scoped {
+		if scoped && changed {
 			result["next_required_action"] = "Refresh the host tools/list snapshot, then invoke the original tool with its original arguments. Loading did not execute it."
 			result["required_action"] = map[string]any{"category": "protocol", "action": "refresh_host_tools", "method": "tools/list", "execution_performed": false, "reason_code": "host_tool_snapshot_refresh"}
 		} else {

@@ -25,7 +25,10 @@ func TestCanonicalOutputValidationCannotBeSatisfiedByProjection(t *testing.T) {
 		"effect_state": "complete", "changed": true,
 		"operation": map[string]any{}, "capture": map[string]any{},
 		"projection": map[string]any{"mode": "compact_receipt", "complete": true},
-		"delivery":   "full",
+		"delivery": map[string]any{
+			"class": "compact_receipt", "sequence_complete": true,
+			"continuation_required": false, "continuation_available": false,
+		},
 	}
 	err = r.validateExecutionResult(p, result)
 	var failure *ToolError

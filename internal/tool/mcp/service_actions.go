@@ -246,7 +246,7 @@ func (s *Service) Call(ctx context.Context, request CallRequest) (Result, error)
 	}
 	catalog = maps.Clone(catalog)
 	delete(catalog, "tools")
-	catalog["delivery"], catalog["catalog_delivery"] = "summary", "summary"
+	catalog["catalog_delivery"] = "summary"
 	catalog["tools_omitted"], catalog["refresh_tool"] = true, ToolList
 	annotateDynamicMCPRoute(catalog, validated.serverName)
 	response := Result{

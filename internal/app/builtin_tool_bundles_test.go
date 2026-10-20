@@ -80,7 +80,7 @@ func TestBuiltinToolBundlesIsolateScopesAndGateRuntimeCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertToolResultMatchestestOutputSchema(t, toolcapability.ToolLoad, loaded)
-	if loaded["changed"] != true || loaded["directory_changed"] != true || loaded["scoped"] != true || directoryChanges.Load() != 1 {
+	if loaded["changed"] != true || loaded["directory_changed"] != true || loaded["host_refresh_required"] != true || loaded["required_action"] == nil || loaded["scoped"] != true || directoryChanges.Load() != 1 {
 		t.Fatalf("first load result=%#v notifications=%d", loaded, directoryChanges.Load())
 	}
 	for _, name := range []string{"mcp_manage", "plugin_manage", "skill_package"} {
@@ -101,7 +101,7 @@ func TestBuiltinToolBundlesIsolateScopesAndGateRuntimeCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repeated["changed"] != false || repeated["directory_changed"] != false || directoryChanges.Load() != 1 {
+	if repeated["changed"] != false || repeated["directory_changed"] != false || repeated["host_refresh_required"] != false || repeated["required_action"] != nil || directoryChanges.Load() != 1 {
 		t.Fatalf("idempotent load result=%#v notifications=%d", repeated, directoryChanges.Load())
 	}
 	if _, err := runtime.Call(ctxA, "mcp_manage", map[string]any{"action": "list"}); err != nil {

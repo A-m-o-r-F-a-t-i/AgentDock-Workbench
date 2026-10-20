@@ -130,7 +130,7 @@ func TestComputerUsePluginIsExplicitAndLaunchAppRequiresIntent(t *testing.T) {
 		t.Fatalf("explicit launch_app result = %#v", called)
 	}
 	summary, _ := called["mcp_catalog"].(map[string]any)
-	if summary["delivery"] != "summary" || summary["tools"] != nil {
+	if summary["catalog_delivery"] != "summary" || summary["tools"] != nil {
 		t.Fatalf("business result duplicated its tool catalog: %#v", summary)
 	}
 	catalog, err := rt.Call(context.Background(), "mcp_tool_list", map[string]any{"server": "cua-driver"})

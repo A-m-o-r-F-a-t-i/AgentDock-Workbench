@@ -58,6 +58,8 @@ func TestExecutionSchemaStoresBusinessDefinitionsOnceWithoutWideningSuccess(t *t
 		{"nested constraint", "payload/~", map[string]any{"count": 0}},
 		{"nested type", "payload/~", map[string]any{"count": "1"}},
 		{"unknown field", "unexpected", true},
+		{"legacy delivery", "delivery", "full"},
+		{"schema summary delivery", "delivery", "summary"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			value := cloneJSONSchemaMap(valid)
