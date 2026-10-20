@@ -1,0 +1,155 @@
+name: One-shot publish verified v1.1.9
+
+on:
+  push:
+    branches:
+      - ops/diagnose-open-prs-20261020
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  publish:
+    if: ${{ contains(github.event.head_commit.message, 'publish verified build 1.1.9') && !contains(github.event.head_commit.message, '[publish-result]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: 1.1.9
+      TAG: v1.1.9
+      MAIN_SHA: 6fff01f1a206db9e3b1e96492767a969da45839c
+      CANDIDATE_RUN_ID: '39429892778'
+      OPS_BRANCH: ops/diagnose-open-prs-20261020
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ops/diagnose-open-prs-20261020
+      - name: Confirm immutable source and candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$current_main" == "$MAIN_SHA" ]]
+          candidate="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+          [[ "$(jq -r '.status' <<<"$candidate")" == completed ]]
+          [[ "$(jq -r '.conclusion' <<<"$candidate")" == success ]]
+          [[ "$(jq -r '.head_sha' <<<"$candidate")" == "$MAIN_SHA" ]]
+          [[ "$(jq -r '.path' <<<"$candidate")" == '.github/workflows/workbench-release.yml' ]]
+      - name: Replace stable v1.1.9 from verified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at="$(date -u -d '-5 seconds' +%Y-%m-%dT%H:%M:%SZ)"
+          jq -n \
+            --arg ref main \
+            --arg run_id "$CANDIDATE_RUN_ID" \
+            --arg commit "$MAIN_SHA" \
+            --arg version "$VERSION" \
+            '{ref:$ref,inputs:{run_id:$run_id,commit:$commit,version:$version,prerelease:"false",replace_published:"false",replace_stable:"true"}}' \
+            | gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/workbench-publish-existing.yml/dispatches" --input -
+          for _ in $(seq 1 180); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/workbench-publish-existing.yml/runs?event=workflow_dispatch&branch=main&per_page=30")"
+            run_id="$(jq -r --arg sha "$MAIN_SHA" --arg started "$started_at" '[.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started)] | sort_by(.created_at) | last | .id // empty' <<<"$runs")"
+            if [[ -n "$run_id" ]]; then
+              state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+              status="$(jq -r '.status' <<<"$state")"
+              conclusion="$(jq -r '.conclusion // ""' <<<"$state")"
+              echo "publisher run=$run_id status=$status conclusion=$conclusion"
+              if [[ "$status" == completed ]]; then
+                [[ "$conclusion" == success ]]
+                echo "PUBLISH_RUN_ID=$run_id" >> "$GITHUB_ENV"
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          echo 'Timed out waiting for stable release replacement' >&2
+          exit 1
+      - name: Replace release notes with direct installer links
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/contents/docs/releases/v1.1.9.md?ref=${MAIN_SHA}" --jq '.content' \
+            | tr -d '\n' | base64 -d > /tmp/v1.1.9-release.md
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id')"
+          jq -n --rawfile body /tmp/v1.1.9-release.md \
+            '{name:"AgentDock Workbench 1.1.9",body:$body,draft:false,prerelease:false}' \
+            | gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --input - >/tmp/release-updated.json
+      - name: Verify release contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > /tmp/release.json
+          tag_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}")"
+          tag_sha="$(jq -r '.object.sha' <<<"$tag_ref")"
+          tag_type="$(jq -r '.object.type' <<<"$tag_ref")"
+          if [[ "$tag_type" == tag ]]; then
+            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" --jq '.object.sha')"
+          fi
+          [[ "$tag_sha" == "$MAIN_SHA" ]]
+          python3 - "$MAIN_SHA" "$CANDIDATE_RUN_ID" "$PUBLISH_RUN_ID" "$tag_sha" <<'PY'
+          import json, sys
+          from pathlib import Path
+          main_sha, candidate_run, publish_run, tag_sha = sys.argv[1:]
+          release = json.loads(Path('/tmp/release.json').read_text())
+          installers = [
+              'AgentDock-Workbench-Setup-amd64.exe',
+              'AgentDock-Workbench-Setup-arm64.exe',
+              'AgentDock-macos-universal.dmg',
+              'agentdock-workbench_1.1.9_amd64.deb',
+              'agentdock-workbench_1.1.9_arm64.deb',
+              'agentdock-workbench-1.1.9-1.x86_64.rpm',
+              'agentdock-workbench-1.1.9-1.aarch64.rpm',
+              'AgentDock-Workbench-1.1.9-Android.apk',
+          ]
+          updater = [
+              'agentdock_windows_amd64.zip',
+              'agentdock_windows_arm64.zip',
+              'AgentDock-macos-universal.zip',
+              'agentdock_darwin_amd64.tar.gz',
+              'agentdock_darwin_arm64.tar.gz',
+              'agentdock_linux_amd64.tar.gz',
+              'agentdock_linux_arm64.tar.gz',
+          ]
+          expected = set(installers + updater + [name + '.sha256' for name in updater])
+          actual = {asset['name'] for asset in release['assets']}
+          if actual != expected:
+              raise SystemExit(f'asset contract mismatch; missing={sorted(expected-actual)} extra={sorted(actual-expected)}')
+          body = release.get('body') or ''
+          prefix = 'https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/releases/download/v1.1.9/'
+          missing_links = [prefix + name for name in installers if prefix + name not in body]
+          if missing_links:
+              raise SystemExit(f'missing direct installer links: {missing_links}')
+          if release.get('draft') or release.get('prerelease'):
+              raise SystemExit('v1.1.9 must be a published stable release')
+          result = {
+              'version': '1.1.9',
+              'main_sha': main_sha,
+              'tag_sha': tag_sha,
+              'candidate_run_id': int(candidate_run),
+              'publish_run_id': int(publish_run),
+              'release_id': release['id'],
+              'release_url': release['html_url'],
+              'published_at': release.get('published_at'),
+              'asset_count': len(actual),
+              'assets': sorted(actual),
+              'direct_installer_links_verified': len(installers),
+              'draft': release.get('draft'),
+              'prerelease': release.get('prerelease'),
+          }
+          Path('/tmp/publish-v1.1.9-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+      - name: Record verified publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops
+          cp /tmp/publish-v1.1.9-result.json ops/republish-v1.1.9-result.json
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ops/republish-v1.1.9-result.json
+          git commit -m 'chore: record v1.1.9 publication [publish-result]'
+          git pull --rebase origin "$OPS_BRANCH"
+          git push origin HEAD:"$OPS_BRANCH"
