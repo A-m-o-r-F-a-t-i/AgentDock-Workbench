@@ -1,0 +1,157 @@
+--- a/desktop/macos/AgentDockApp/Sources/AppDelegate.swift
++++ b/desktop/macos/AgentDockApp/Sources/AppDelegate.swift
+@@ -9,6 +9,8 @@
+     private var statusItem: NSStatusItem?
+     private var currentStatus = ServiceStatus.missing
+     private var timer: Timer?
++    private var statusRefreshGeneration = 0
++    private var statusWindowRequestPending = false
+     private lazy var completionNotifications = WorkbenchCompletionNotifications { [weak self] notification in
+         self?.workbenchWindow.presentTask(notification.taskID)
+     }
+@@ -46,7 +48,14 @@
+             workbenchWindow.present()
+             return
+         }
+-        let recoveryReady = DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: service.paths)
++        Task { [weak self] in
++            guard let self else { return }
++            await finishLaunchingAfterRecovery()
++        }
++    }
++
++    private func finishLaunchingAfterRecovery() async {
++        let recoveryReady = await DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: service.paths)
+         var pendingUpdateResult = DesktopUpdateResult.load(from: service.paths.updateResult)
+         var updateResultExists = FileManager.default.fileExists(atPath: service.paths.updateResult.path)
+ 
+@@ -445,22 +454,27 @@
+     }
+ 
+     private func refreshStatus(showWindow: Bool = false) {
+-        Task {
++        statusRefreshGeneration += 1
++        let generation = statusRefreshGeneration
++        statusWindowRequestPending = statusWindowRequestPending || showWindow
++        Task { [weak self] in
++            guard let self else { return }
+             let status = await service.status()
+-            await MainActor.run {
+-                self.currentStatus = status
+-                self.rebuildMenu()
+-                if showWindow {
+-                    if status.installed {
+-                        self.workbenchWindow.present()
+-                    } else {
+-                        self.setupWindow.present(status: status)
+-                    }
+-                } else if self.setupWindow.window?.isVisible == true {
+-                    self.setupWindow.refreshServiceStatus(status)
+-                } else if self.workbenchWindow.window?.isVisible == true {
+-                    self.workbenchWindow.refresh()
+-                }
++            guard generation == statusRefreshGeneration else { return }
++            let shouldShowWindow = statusWindowRequestPending
++            statusWindowRequestPending = false
++            currentStatus = status
++            rebuildMenu()
++            if shouldShowWindow {
++                if status.installed {
++                    workbenchWindow.present()
++                } else {
++                    setupWindow.present(status: status)
++                }
++            } else if setupWindow.window?.isVisible == true {
++                setupWindow.refreshServiceStatus(status)
++            } else if workbenchWindow.window?.isVisible == true {
++                workbenchWindow.refresh()
+             }
+         }
+     }
+--- a/desktop/macos/AgentDockApp/Sources/InstallerRunner.swift
++++ b/desktop/macos/AgentDockApp/Sources/InstallerRunner.swift
+@@ -345,7 +345,7 @@
+     }
+ 
+     private func validPort(_ value: String?) -> Int? {
+-        guard let value, let port = Int(value), (1...65535).contains(port) else { return nil }
++        guard let value, let port = Int(value), ServicePortValidation.allowedRange.contains(port) else { return nil }
+         return port
+     }
+ 
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchAPIRoutes.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchAPIRoutes.swift
+@@ -59,7 +59,7 @@
+     }
+ 
+     func callPayload(_ id: String, source: String, offset: Int = 0, limit: Int = 10000) async throws -> WorkbenchJSON {
+-        guard source == "request" || source == "response" else {
++        guard source == "request" || source == "response" || source == "source" else {
+             throw WorkbenchClientError.configuration(L10n.format("Unknown call payload source: %@", String(describing: source)))
+         }
+         let path = "/internal/runtime/calls/\(try encodedPathComponent(id))/payload/\(source)"
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchDetailViewController.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchDetailViewController.swift
+@@ -172,7 +172,8 @@
+ 
+         technicalText.string = technicalDetail(snapshot: snapshot, selectedInsertion: selectedInsertion)
+         if let slice = model.payloadSlices["request"] { requestText.string = slice.text }
+-        if let slice = model.payloadSlices["response"] {
++        let outputSource = currentCall?.outputPayloadSource ?? "response"
++        if let slice = model.payloadSlices[outputSource] {
+             loadedOutput = slice.text
+             outputText.string = slice.text
+             payloadCaption.stringValue = slice.caption
+@@ -182,7 +183,7 @@
+             payloadCaption.stringValue = L10n.text("Hidden output does not fetch payloads. Each chunk contains at most 10000 Unicode scalars.")
+         }
+         readRequestButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["request"]?.hasMore != false
+-        readOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["response"]?.hasMore != false
++        readOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices[outputSource]?.hasMore != false
+         reloadOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload
+         updateActions(model)
+     }
+@@ -193,8 +194,8 @@
+     }
+ 
+     @objc private func reloadOutput() {
+-        guard currentCall != nil else { return }
+-        onReadPayload?("response", true)
++        guard let currentCall else { return }
++        onReadPayload?(currentCall.outputPayloadSource, true)
+     }
+ 
+     private var conversationActions: [(title: String, key: String)] {
+@@ -251,6 +252,7 @@
+         let scroll = enclosingScroll(for: permissionText)
+         permissionText.setAccessibilityIdentifier("workbench.detail.permission")
+         permissionMode.addItems(withTitles: [L10n.text("Approval required"), L10n.text("Full permission"), L10n.text("Read only")])
++        permissionMode.item(withTitle: L10n.text("Full permission"))?.isEnabled = false
+         permissionMode.setAccessibilityLabel(L10n.text("Permission mode"))
+         permissionMode.setAccessibilityIdentifier("workbench.permission.mode")
+         permissionMode.target = self
+@@ -379,7 +381,10 @@
+     @objc private func openChildren() { if let id = currentCall?.id { onChildCalls?(id) } }
+     @objc private func stopCall(_ sender: Any?) { onStopCall?() }
+     @objc private func readRequest() { onReadPayload?("request", false) }
+-    @objc private func readOutput() { onReadPayload?("response", false) }
++    @objc private func readOutput() {
++        guard let currentCall else { return }
++        onReadPayload?(currentCall.outputPayloadSource, false)
++    }
+     @objc private func openPolicy() { onOpenPolicy?() }
+     @objc private func copyOutput() {
+         guard !loadedOutput.isEmpty else { return }
+@@ -388,7 +393,11 @@
+     }
+     @objc private func approve(_ sender: Any?) { onApprovalDecision?(true) }
+     @objc private func reject(_ sender: Any?) { onApprovalDecision?(false) }
+-    @objc private func applyPermission(_ sender: Any?) { onPermissionMode?(selectedMode()) }
++    @objc private func applyPermission(_ sender: Any?) {
++        let mode = selectedMode()
++        guard mode != "full" else { return }
++        onPermissionMode?(mode)
++    }
+ 
+     @objc private func conversationAction(_ sender: NSPopUpButton) {
+         defer { sender.selectItem(at: 0) }
