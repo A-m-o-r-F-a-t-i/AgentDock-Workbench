@@ -1,7 +1,26 @@
 {
-  "checked_at": "2026-10-20T13:58:20Z",
+  "checked_at": "2026-10-20T14:00:09Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
+  "original_republish_run": {
+    "id": 39429858059,
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-10-20T13:22:38Z",
+    "updated_at": "2026-10-20T13:41:22Z",
+    "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429858059",
+    "display_title": "republish v1.1.9 after final open PR merge"
+  },
   "republish_runs": [
+    {
+      "id": 39435279158,
+      "head_sha": "b956acadb245722d012bee1b5f67b0b2dfef40df",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:59:55Z",
+      "updated_at": "2026-10-20T13:59:58Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39435279158",
+      "display_title": "monitor republish original parent"
+    },
     {
       "id": 39435024328,
       "head_sha": "a8481f7fcf6d7ec9187ac940b907ab5a609a6694",
@@ -71,16 +90,6 @@
       "updated_at": "2026-10-20T13:40:47Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432485196",
       "display_title": "cancel duplicate publication runs"
-    },
-    {
-      "id": 39432304784,
-      "head_sha": "02720861b092146fa5696352d4aeaa19af671e5f",
-      "status": "completed",
-      "conclusion": "skipped",
-      "created_at": "2026-10-20T13:39:34Z",
-      "updated_at": "2026-10-20T13:39:35Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432304784",
-      "display_title": "monitor republish run inventory"
     }
   ],
   "candidate_runs": [
