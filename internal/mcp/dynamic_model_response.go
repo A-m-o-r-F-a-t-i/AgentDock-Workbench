@@ -30,6 +30,7 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 		for _, key := range []string{
 			"error", "code", "category", "details", "retryable", "executed", "status",
 			"operation_status", "effect_state", "execution_performed", "retry_safe",
+			"outcome", "counts", "saved",
 			"required_action", "next_required_action", "approval", "approval_id",
 			"origin_call_id", "call_id", "result_call_id", "upstream_failure",
 			"result_projection_error", "result_retained", "projection_budget_exhausted",

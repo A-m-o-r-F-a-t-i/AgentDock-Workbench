@@ -11,7 +11,7 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-func TestModelResponseCountsAndCompactsNativeAttachment(t *testing.T) {
+func TestModelResponseKeepsNativeAttachmentOutsideTextBudget(t *testing.T) {
 	data := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x5a}, 16000))
 	envelope := normalizeResponseStages("mcp_tool_call", map[string]any{}, map[string]any{
 		"isError":           false,
@@ -22,12 +22,32 @@ func TestModelResponseCountsAndCompactsNativeAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if chars <= toolcontract.ModelVisibleTotalChars {
-		t.Fatalf("native attachment was excluded from final JSON count: %d", chars)
+	if chars > toolcontract.ModelVisibleTotalChars {
+		t.Fatalf("native attachment consumed the text budget: %d", chars)
+	}
+	if got := nativeAttachmentBytes(envelope); got != 16000 {
+		t.Fatalf("native bytes = %d, want 16000", got)
+	}
+	blocks := envelopeBlocks(envelope["content"])
+	if len(blocks) != 1 || asMap(blocks[0])["type"] != "image" {
+		t.Fatalf("native attachment was removed: %#v", blocks)
+	}
+}
+
+func TestModelResponseCompactsNativeAttachmentAboveDedicatedBudget(t *testing.T) {
+	size := toolcontract.ModelVisibleNativeAttachmentBytes + 1
+	data := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x5a}, size))
+	envelope := normalizeResponseStages("mcp_tool_call", map[string]any{}, map[string]any{
+		"isError":           false,
+		"structuredContent": map[string]any{"name": "fixture::image"},
+		"content":           []any{map[string]any{"type": "image", "data": data, "mimeType": "image/png"}},
+	})
+	if got := nativeAttachmentBytes(envelope); got != int64(size) {
+		t.Fatalf("native bytes = %d, want %d", got, size)
 	}
 
 	compacted := compactModelResponse("mcp_tool_call", map[string]any{}, envelope, "activity://call/call_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/source/"+base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{1}, 48)))
-	chars, err = modelEnvelopeChars(compacted)
+	chars, err := modelEnvelopeChars(compacted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +62,7 @@ func TestModelResponseCountsAndCompactsNativeAttachment(t *testing.T) {
 	}
 	payload := asMap(compacted["structuredContent"])
 	items, ok := payload["content_blocks_omitted"].([]map[string]any)
-	if !ok || len(items) != 1 || items[0]["decoded_bytes"] != 16000 {
+	if !ok || len(items) != 1 || items[0]["decoded_bytes"] != size {
 		t.Fatalf("native omission receipt = %#v", payload["content_blocks_omitted"])
 	}
 	if payload["source_ref"] == "" || asMap(payload["delivery"])["continuation_available"] != true {
@@ -191,7 +211,8 @@ func TestDynamicMCPProjectionKeepsAdjacentLargeIntegerText(t *testing.T) {
 	}
 	projected := compactToolEnvelopeText("mcp_tool_call", normalizeResponseStages("mcp_tool_call", nil, envelope))
 	result := asMap(asMap(projected["structuredContent"])["result"])
-	if !reflect.DeepEqual(result["content"], blocks) || !reflect.DeepEqual(projected["content"], blocks) || !reflect.DeepEqual(result["_meta"], metadata) {
-		t.Fatalf("projection treated adjacent numbers as the same business result: %#v", projected)
+	nested := envelopeBlocks(result["content"])
+	if len(nested) != 1 || asMap(nested[0])["text"] != distinct || !reflect.DeepEqual(projected["content"], blocks) || !reflect.DeepEqual(result["_meta"], metadata) {
+		t.Fatalf("projection treated adjacent numbers as the same business result or duplicated native content: %#v", projected)
 	}
 }

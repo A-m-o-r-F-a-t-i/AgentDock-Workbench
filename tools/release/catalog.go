@@ -9,8 +9,8 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 中的安装包；
-// 内部归档、安装脚本和 checksum 仅用于构建与验收。
+// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 资产；
+// 除用户安装包外，内置更新器依赖的不可变归档及其 checksum 也必须公开。
 type Artifact struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
@@ -56,14 +56,14 @@ func verifyDist(dir string, stdout io.Writer) error {
 func ReleaseCatalog() []Artifact {
 	payloads := []Artifact{
 		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
-		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true},
-		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true},
-		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true},
-		{Name: "agentdock_darwin_arm64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "arm64", Required: true},
-		{Name: "agentdock_windows_amd64.zip", Kind: "binary-archive", Platform: "windows", Arch: "amd64", Required: true},
-		{Name: "agentdock_windows_arm64.zip", Kind: "binary-archive", Platform: "windows", Arch: "arm64", Required: true},
+		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
+		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true, PublicContract: true},
+		{Name: "agentdock_darwin_arm64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "arm64", Required: true, PublicContract: true},
+		{Name: "agentdock_windows_amd64.zip", Kind: "binary-archive", Platform: "windows", Arch: "amd64", Required: true, PublicContract: true},
+		{Name: "agentdock_windows_arm64.zip", Kind: "binary-archive", Platform: "windows", Arch: "arm64", Required: true, PublicContract: true},
 		{Name: "AgentDock-macos-universal.dmg", Kind: "disk-image", Platform: "darwin", Arch: "universal", Required: true, PublicContract: true},
-		{Name: "AgentDock-macos-universal.zip", Kind: "desktop-update", Platform: "darwin", Arch: "universal", Required: true},
+		{Name: "AgentDock-macos-universal.zip", Kind: "desktop-update", Platform: "darwin", Arch: "universal", Required: true, PublicContract: true},
 		{Name: "agentdock-workbench_" + buildinfo.Version + "_amd64.deb", Kind: "debian-package", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
 		{Name: "agentdock-workbench_" + buildinfo.Version + "_arm64.deb", Kind: "debian-package", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
 		{Name: "agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm", Kind: "rpm-package", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
@@ -79,11 +79,12 @@ func ReleaseCatalog() []Artifact {
 	catalog = append(catalog, payloads...)
 	for _, artifact := range payloads {
 		catalog = append(catalog, Artifact{
-			Name:     artifact.Name + ".sha256",
-			Kind:     "checksum",
-			Platform: artifact.Platform,
-			Arch:     artifact.Arch,
-			Required: artifact.Required,
+			Name:           artifact.Name + ".sha256",
+			Kind:           "checksum",
+			Platform:       artifact.Platform,
+			Arch:           artifact.Arch,
+			Required:       artifact.Required,
+			PublicContract: artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update",
 		})
 	}
 	catalog = append(catalog, scripts...)

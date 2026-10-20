@@ -2,10 +2,10 @@ package main
 
 import "testing"
 
-// Public downloads are installer-only, but every verified payload must retain
-// its required internal checksum. Do not weaken this independent contract when
-// changing which artifacts are exposed on the Release page.
-func TestReleaseCatalogRetainsInternalPayloadChecksums(t *testing.T) {
+// Every verified payload must retain its required checksum. Checksums for the
+// immutable archives consumed by the built-in updater are public Release
+// assets; checksums for direct-install packages remain internal evidence.
+func TestReleaseCatalogRetainsPayloadChecksumContracts(t *testing.T) {
 	catalog := ReleaseCatalog()
 	byName := make(map[string]Artifact, len(catalog))
 	for _, artifact := range catalog {
@@ -20,8 +20,9 @@ func TestReleaseCatalogRetainsInternalPayloadChecksums(t *testing.T) {
 			continue
 		}
 		checksum, exists := byName[payload.Name+".sha256"]
-		if !exists || checksum.Kind != "checksum" || checksum.Required != payload.Required || checksum.PublicContract {
-			t.Errorf("payload %s lost its internal checksum contract: %+v", payload.Name, checksum)
+		wantPublic := payload.Kind == "binary-archive" || payload.Kind == "desktop-update"
+		if !exists || checksum.Kind != "checksum" || checksum.Required != payload.Required || checksum.PublicContract != wantPublic {
+			t.Errorf("payload %s has the wrong checksum contract: %+v (want public=%t)", payload.Name, checksum, wantPublic)
 		}
 		checked++
 	}

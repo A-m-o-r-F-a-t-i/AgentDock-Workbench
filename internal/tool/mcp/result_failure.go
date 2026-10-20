@@ -19,7 +19,7 @@ func retainResultFailure(raw map[string]any) map[string]any {
 	if !failed {
 		return nil
 	}
-	fields := []string{"code", "operation_status", "effect_state", "execution_performed", "executed", "retry_safe", "required_action", "message"}
+	fields := []string{"code", "operation_status", "effect_state", "execution_performed", "executed", "retry_safe", "required_action", "outcome", "counts", "saved", "message"}
 	omissionEnvelope, _ := json.Marshal(map[string]any{"omitted_fields": fields})
 	limit := resultFailureBudget - len(omissionEnvelope)
 	facts := map[string]any{}
@@ -38,9 +38,9 @@ func retainResultFailure(raw map[string]any) map[string]any {
 		}
 		valid := false
 		switch key {
-		case "execution_performed", "executed", "retry_safe":
+		case "execution_performed", "executed", "retry_safe", "saved":
 			_, valid = value.(bool)
-		case "required_action":
+		case "required_action", "counts":
 			valid = resultMap(value) != nil
 		default:
 			_, valid = value.(string)
