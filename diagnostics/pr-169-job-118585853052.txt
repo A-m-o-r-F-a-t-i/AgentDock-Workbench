@@ -1,0 +1,77 @@
+pr=169
+job=118585853052
+label=Go check ubuntu after canonical native fix
+curl_status=0
+diagnostics/pr-169-job-118585853052.raw: Unicode text, UTF-8 (with BOM) text, with very long lines (1321), with escape sequences
+
+
+--- extracted log ---
+2026-10-20T10:47:13.4944849Z 2026/10/20 10:46:49 INFO tool finished tool=agentdock_context request_id=req_d9367b78e48c0618c1ca55bc5df3d6c7 call_id=call_48c7447e09e0f2a44124b3943b5d9388 duration_ms=9 ok=true
+2026-10-20T10:47:13.4946108Z 2026/10/20 10:46:50 INFO MCP presentation updated mode=TextOnly revision=1 template_references=0 templates_ready=true
+2026-10-20T10:47:13.4947066Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_0b8cf9541619d1c3edf8fae0ef3d14fd
+2026-10-20T10:47:13.4948125Z 2026/10/20 10:46:50 INFO tool finished tool=read_file request_id=req_0b8cf9541619d1c3edf8fae0ef3d14fd call_id=call_476da38bd648c96a9bb6d45c7ff60297 duration_ms=26 ok=true
+2026-10-20T10:47:13.4948833Z 2026/10/20 10:46:50 INFO MCP presentation updated mode=TextOnly revision=1 template_references=0 templates_ready=true
+2026-10-20T10:47:13.4949600Z 2026/10/20 10:46:50 INFO tool started tool=mcp_tool_search request_id=req_bdf95beb612e9511bb57744770e3df1e
+2026-10-20T10:47:13.4950883Z 2026/10/20 10:46:50 INFO tool finished tool=mcp_tool_search request_id=req_bdf95beb612e9511bb57744770e3df1e call_id=call_c1c1a622824e539375fa667db11da3ac duration_ms=5 ok=false error="AgentDock direct device built-in read_file cannot be searched or inspected as nested dynamic MCP. Invoke the already exposed AgentDock tool directly. No business action ran."
+2026-10-20T10:47:13.4952117Z 2026/10/20 10:46:50 INFO tool started tool=mcp_tool_inspect request_id=req_f71511bdafa4d96afd6db2f04fa82fdc
+2026-10-20T10:47:13.4953428Z 2026/10/20 10:46:50 INFO tool finished tool=mcp_tool_inspect request_id=req_f71511bdafa4d96afd6db2f04fa82fdc call_id=call_5f6c058d173eacd92522ef437170acc8 duration_ms=6 ok=false error="AgentDock direct device built-in read_file cannot be searched or inspected as nested dynamic MCP. Invoke the already exposed AgentDock tool directly. No business action ran."
+2026-10-20T10:47:13.4954716Z 2026/10/20 10:46:50 INFO tool started tool=mcp_tool_inspect request_id=req_ac709984388aabe6aa40028fcfe7525b
+2026-10-20T10:47:13.4956009Z 2026/10/20 10:46:50 INFO tool finished tool=mcp_tool_inspect request_id=req_ac709984388aabe6aa40028fcfe7525b call_id=call_4e47ff11b5f6a4b2e9b108d573b0c50b duration_ms=11 ok=false error="AgentDock direct device built-in read_file cannot be searched or inspected as nested dynamic MCP. Invoke the already exposed AgentDock tool directly. No business action ran."
+2026-10-20T10:47:13.4957159Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_e143bc37591e1f1fd49009c29ed8b55b
+2026-10-20T10:47:13.4958091Z 2026/10/20 10:46:50 INFO tool finished tool=read_file request_id=req_e143bc37591e1f1fd49009c29ed8b55b call_id=call_4702cd49945be8ae75189a57619665ba duration_ms=5 ok=true
+2026-10-20T10:47:13.4958863Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_2ab69ca4935bf4e2d7ce18e84925b6fc
+2026-10-20T10:47:13.4959719Z 2026/10/20 10:46:50 INFO tool finished tool=read_file request_id=req_2ab69ca4935bf4e2d7ce18e84925b6fc call_id=call_b24039865eff27c844000468f9fa21f1 duration_ms=4 ok=true
+2026-10-20T10:47:13.4960385Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_086ea3eebf3f4a8a27707f39840621a4
+2026-10-20T10:47:13.4961156Z 2026/10/20 10:46:50 INFO tool finished tool=read_file request_id=req_086ea3eebf3f4a8a27707f39840621a4 call_id=call_c5cbb1f340a2ae79dbbfa7769dd0d118 duration_ms=12 ok=true
+2026-10-20T10:47:13.4961912Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_d32e3bbca56a6ffe7dd7543900d52653
+2026-10-20T10:47:13.4962691Z 2026/10/20 10:46:50 INFO tool finished tool=read_file request_id=req_d32e3bbca56a6ffe7dd7543900d52653 call_id=call_8d3c656feece37e388463f4fe3527dd1 duration_ms=4 ok=true
+2026-10-20T10:47:13.4963441Z 2026/10/20 10:46:50 INFO tool started tool=read_file request_id=req_c3ee16b3bc5ba85918901ad56167573c
+2026-10-20T10:47:13.5023254Z 2026/10/20 10:46:51 INFO tool finished tool=session_observe request_id=req_60b4d6695d232beb84ee989e8209ea0c call_id=call_493067a5b8e931d25f7535c64eb940aa duration_ms=196 ok=false error="The same empty command-session list was already delivered. Wait for a new running command before listing sessions again."
+2026-10-20T10:47:13.5025081Z 2026/10/20 10:46:51 INFO tool started tool=session_observe request_id=req_21360d0dfbc892a00b0da3978f98d8e1
+2026-10-20T10:47:13.5026869Z 2026/10/20 10:46:51 INFO tool finished tool=session_observe request_id=req_21360d0dfbc892a00b0da3978f98d8e1 call_id=call_0a2055e5e37002ef2ba16cade0ba08ba duration_ms=5 ok=false error="The same empty command-session list was already delivered. Wait for a new running command before listing sessions again."
+2026-10-20T10:47:13.5028688Z 2026/10/20 10:46:51 INFO tool started tool=session_observe request_id=req_59330ce033f58634e25c8382de887916
+2026-10-20T10:47:13.5053103Z 2026/10/20 10:46:51 INFO tool finished tool=session_observe request_id=req_59330ce033f58634e25c8382de887916 call_id=call_baf3af7666f1cd85d08914fc3a99ba84 duration_ms=7 ok=false error="The same empty command-session list was already delivered. Wait for a new running command before listing sessions again."
+2026-10-20T10:47:13.5054590Z 2026/10/20 10:46:52 INFO MCP presentation updated mode=App revision=1 template_references=5 templates_ready=true
+2026-10-20T10:47:13.5055113Z --- FAIL: TestDynamicMCPProjectionKeepsAdjacentLargeIntegerText (0.00s)
+2026-10-20T10:47:13.5059929Z     model_response_budget_test.go:216: projection treated adjacent numbers as the same business result or duplicated native content: map[string]interface {}{"content":[]interface {}{map[string]interface {}{"text":"{\"id\":9007199254740993}", "type":"text"}, map[string]interface {}{"_meta":map[string]interface {}{"revision":"18446744073709551615"}, "data":"AQID", "mimeType":"image/png", "type":"image"}}, "structuredContent":map[string]interface {}{"capture":map[string]interface {}{"complete":true, "retained_with":"response", "state":"complete"}, "delivery":map[string]interface {}{"class":"recoverable_preview", "continuation_available":false, "continuation_required":false, "sequence_complete":true}, "name":"fixture:write", "operation":map[string]interface {}{"ok":true, "state":"completed"}, "projection":map[string]interface {}{"complete":true, "mode":"full"}, "result":map[string]interface {}{"_meta":map[string]interface {}{"revision":"18446744073709551615"}, "content":[]interface {}{map[string]interface {}{"text":"{\"id\":9007199254740993}", "type":"text"}, map[string]interface {}{"_meta":map[string]interface {}{"revision":"18446744073709551615"}, "data":"AQID", "mimeType":"image/png", "type":"image"}}, "structuredContent":map[string]interface {}{"id":"9007199254740992"}}}}
+2026-10-20T10:47:13.5063394Z 2026/10/20 10:46:52 INFO MCP presentation updated mode=App revision=1 template_references=5 templates_ready=true
+2026-10-20T10:47:13.5063959Z 2026/10/20 10:46:52 INFO MCP presentation updated mode=App revision=2 template_references=5 templates_ready=true
+2026-10-20T10:47:13.5064585Z 2026/10/20 10:46:52 INFO tool started tool=list_dir request_id=req_d36ffa3fa7e76b0465ecb4e972c60199
+2026-10-20T10:47:13.5065267Z 2026/10/20 10:46:52 INFO tool finished tool=list_dir request_id=req_d36ffa3fa7e76b0465ecb4e972c60199 call_id=call_a18ceb5d9812e82e316441937ae6284d duration_ms=11 ok=true
+2026-10-20T10:47:13.5065914Z 2026/10/20 10:46:52 INFO tool started tool=read_file request_id=req_133e26a01dc3f54e09d815533119175a
+2026-10-20T10:47:13.5066586Z 2026/10/20 10:46:52 INFO tool finished tool=read_file request_id=req_133e26a01dc3f54e09d815533119175a call_id=call_efa2b696c8e6361af6a90ce5ff6e49a5 duration_ms=14 ok=true
+2026-10-20T10:47:13.5067311Z 2026/10/20 10:46:52 INFO tool started tool=insertion_ack request_id=req_eef379c51b5efa83bc2b7905df951435
+2026-10-20T10:47:13.5068041Z 2026/10/20 10:46:52 INFO tool finished tool=insertion_ack request_id=req_eef379c51b5efa83bc2b7905df951435 call_id=call_0a67a32e6b440287f940025d5e5fce61 duration_ms=10 ok=true
+2026-10-20T10:47:13.5106108Z 2026/10/20 10:46:55 INFO tool started tool=mcp_manage request_id=req_0c7ea354a07787524886b5728484f535
+2026-10-20T10:47:13.5107030Z 2026/10/20 10:46:55 INFO tool finished tool=mcp_manage request_id=req_0c7ea354a07787524886b5728484f535 call_id=call_f61f817748ed128472acd60fc2d2e7b2 duration_ms=4 ok=false error="Load the conversation-scoped built-in tool bundle before using this low-frequency tool."
+2026-10-20T10:47:13.5107933Z 2026/10/20 10:46:55 INFO tool started tool=capability_load request_id=req_ce636a1b3b5408b82fa13cd2f4cc7130
+2026-10-20T10:47:13.5108632Z 2026/10/20 10:46:55 INFO tool finished tool=capability_load request_id=req_ce636a1b3b5408b82fa13cd2f4cc7130 call_id=call_2cec0b49441489fcc3f75abefa4784b4 duration_ms=12 ok=true
+2026-10-20T10:47:13.5109596Z 2026/10/20 10:46:55 INFO tool started tool=capability_load request_id=req_df0cfa5154fe3123945c034ca1a0958b
+2026-10-20T10:47:13.5110747Z 2026/10/20 10:46:55 INFO tool finished tool=capability_load request_id=req_df0cfa5154fe3123945c034ca1a0958b call_id=call_4dd898e083c1f2929965e768c778a4b7 duration_ms=6 ok=true
+2026-10-20T10:47:13.5111611Z FAIL
+2026-10-20T10:47:13.5111942Z FAIL	github.com/uvwt/agentdock/internal/mcp	9.256s
+2026-10-20T10:47:13.5112442Z ok  	github.com/uvwt/agentdock/internal/mcp/client	4.164s
+2026-10-20T10:47:13.5113071Z ?   	github.com/uvwt/agentdock/internal/mcpappcompat	[no test files]
+2026-10-20T10:47:13.5113640Z ok  	github.com/uvwt/agentdock/internal/nexusbridge	0.142s
+2026-10-20T10:47:13.5114152Z ok  	github.com/uvwt/agentdock/internal/nexusclient	0.005s
+2026-10-20T10:47:13.5114656Z ok  	github.com/uvwt/agentdock/internal/permission	1.241s
+2026-10-20T10:47:13.5115121Z ok  	github.com/uvwt/agentdock/internal/plugin	2.679s
+2026-10-20T10:47:13.5115592Z ok  	github.com/uvwt/agentdock/internal/process	0.402s
+2026-10-20T10:47:13.5116097Z ok  	github.com/uvwt/agentdock/internal/publicartifacts	0.047s
+2026-10-20T10:47:13.5116609Z ok  	github.com/uvwt/agentdock/internal/requesttrace	0.002s
+2026-10-20T10:47:24.1768730Z ?   	github.com/uvwt/agentdock/internal/updateplatform	[no test files]
+2026-10-20T10:47:24.3961610Z ok  	github.com/uvwt/agentdock/internal/workspace	0.110s
+2026-10-20T10:47:24.9025891Z ok  	github.com/uvwt/agentdock/internal/wslfilehelper	0.211s
+2026-10-20T10:47:24.9026884Z ?   	github.com/uvwt/agentdock/scripts/ci/parallel-macos/fixture-core	[no test files]
+2026-10-20T10:47:25.6452686Z ok  	github.com/uvwt/agentdock/scripts/test	0.579s
+2026-10-20T10:47:25.6453102Z ok  	github.com/uvwt/agentdock/tools/release	0.005s
+2026-10-20T10:47:25.6453443Z FAIL
+2026-10-20T10:47:25.6993009Z ##[error]Process completed with exit code 1.
+2026-10-20T10:47:25.7143561Z Post job cleanup.
+2026-10-20T10:47:25.7861075Z [command]/usr/bin/git version
+2026-10-20T10:47:25.7898489Z git version 2.55.0
+2026-10-20T10:47:25.7943758Z Temporarily overriding HOME='/home/runner/work/_temp/b0e2ca19-da15-4941-88a6-b41985887980' before making global git config changes
+2026-10-20T10:47:25.7945096Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T10:47:25.7950584Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-20T10:47:25.7976491Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T10:47:25.8009740Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
