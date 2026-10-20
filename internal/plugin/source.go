@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	processcontrol "github.com/uvwt/agentdock/internal/process"
 )
 
 const (
@@ -284,12 +286,20 @@ func runPluginGit(ctx context.Context, gitDir string, args ...string) (string, e
 }
 
 func capturePluginGit(command *exec.Cmd) (string, error) {
-	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_LFS_SKIP_SMUDGE=1", "GIT_OPTIONAL_LOCKS=0")
-	command.WaitDelay = 2 * time.Second
+	preparePluginGitCommand(command)
 	var output pluginGitOutput
 	command.Stdout, command.Stderr = &output, &output
 	err := command.Run()
 	return output.String(), err
+}
+
+func preparePluginGitCommand(command *exec.Cmd) {
+	if command == nil {
+		return
+	}
+	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_LFS_SKIP_SMUDGE=1", "GIT_OPTIONAL_LOCKS=0")
+	command.WaitDelay = 2 * time.Second
+	processcontrol.Configure(command)
 }
 
 // A capped diagnostic prefix still drains all writes; it cannot block a noisy child.
@@ -318,7 +328,7 @@ func extractGitArchive(ctx context.Context, gitDir, revision, destination string
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	command := exec.CommandContext(childCtx, "git", "--git-dir", gitDir, "archive", "--format=tar", revision)
-	command.WaitDelay = 2 * time.Second
+	preparePluginGitCommand(command)
 	var diagnostics pluginGitOutput
 	command.Stderr = &diagnostics
 	stdout, err := command.StdoutPipe()
