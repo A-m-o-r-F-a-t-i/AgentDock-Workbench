@@ -1,0 +1,42 @@
+pr=164
+job=118585493895
+label=Native frontend regression arm64 after recovery overload
+curl_status=0
+diagnostics/pr-164-job-118585493895.raw: Unicode text, UTF-8 (with BOM) text, with very long lines (319), with escape sequences
+
+
+--- extracted log ---
+2026-10-20T10:46:18.5502430Z [78/79] Linking AgentDockWorkbenchPackageTests
+2026-10-20T10:46:18.5526070Z Build complete! (27.76s)
+2026-10-20T10:46:18.6884570Z go: downloading github.com/go-oauth2/oauth2/v4 v4.5.4
+2026-10-20T10:46:19.4547400Z go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+2026-10-20T10:46:19.4548330Z go: downloading github.com/google/uuid v1.1.1
+2026-10-20T10:46:38.6469600Z [0/1] Planning build
+2026-10-20T10:46:42.8968730Z error: Exited with unexpected signal code 5
+2026-10-20T10:46:42.9761820Z Test Suite 'All tests' started at 2026-10-20 10:46:39.017.
+2026-10-20T10:46:42.9762420Z Test Suite 'AgentDockWorkbenchPackageTests.xctest' started at 2026-10-20 10:46:39.018.
+2026-10-20T10:46:42.9763170Z Test Suite 'ContractTests' started at 2026-10-20 10:46:39.018.
+2026-10-20T10:46:42.9763970Z Test Case '-[WorkbenchRegressionTests.ContractTests testCallPagingMovesBackwardAndScopedSkillsRemainDistinct]' started.
+2026-10-20T10:46:43.0082110Z Test Case '-[WorkbenchRegressionTests.ContractTests testCallPagingMovesBackwardAndScopedSkillsRemainDistinct]' passed (0.012 seconds).
+2026-10-20T10:46:43.0083400Z Test Case '-[WorkbenchRegressionTests.ContractTests testCanonicalNoneReceiptIsUnconfirmedNotUnknown]' started.
+2026-10-20T10:46:43.0084400Z Test Case '-[WorkbenchRegressionTests.ContractTests testCanonicalNoneReceiptIsUnconfirmedNotUnknown]' passed (0.001 seconds).
+2026-10-20T10:46:43.0200550Z Test Case '-[WorkbenchRegressionTests.ContractTests testInteractionAndLiveExecutionRemainIndependent]' started.
+2026-10-20T10:46:43.0201640Z Test Case '-[WorkbenchRegressionTests.ContractTests testInteractionAndLiveExecutionRemainIndependent]' passed (0.007 seconds).
+2026-10-20T10:46:43.0274320Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testOversizedInsertionIsRejectedBeforeHTTP]' passed (0.001 seconds).
+2026-10-20T10:46:43.0275240Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPayloadRevisionInvalidatesExhaustedCacheAndAllowsReload]' started.
+2026-10-20T10:46:43.0276350Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPayloadRevisionInvalidatesExhaustedCacheAndAllowsReload]' passed (0.142 seconds).
+2026-10-20T10:46:43.0278190Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPermissionChoiceSurvivesRepeatedRenderAndResetsOnConversationChange]' started.
+2026-10-20T10:46:43.0279390Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPermissionChoiceSurvivesRepeatedRenderAndResetsOnConversationChange]' passed (0.116 seconds).
+2026-10-20T10:46:43.0280460Z Test Case '-[WorkbenchRegressionTests.FrontendRegressionTests testPluginRebindNeedsExplicitConfirmation]' started.
+2026-10-20T10:46:43.0282440Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift:389: error: -[WorkbenchRegressionTests.FrontendRegressionTests testPluginRebindNeedsExplicitConfirmation] : XCTAssertEqual failed: ("0") is not equal to ("1")
+2026-10-20T10:46:43.0284840Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift:391: error: -[WorkbenchRegressionTests.FrontendRegressionTests testPluginRebindNeedsExplicitConfirmation] : XCTAssertEqual failed: ("0") is not equal to ("1")
+2026-10-20T10:46:43.0286640Z Swift/ContiguousArrayBuffer.swift:690: Fatal error: Index out of range
+2026-10-20T10:46:43.0288010Z ◇ Test run started.
+2026-10-20T10:46:43.0288330Z ↳ Testing Library Version: 124.4
+2026-10-20T10:46:43.0288730Z ↳ Target Platform: arm64e-apple-macos14.0
+2026-10-20T10:46:43.0289050Z ✔ Test run with 0 tests passed after 0.001 seconds.
+2026-10-20T10:46:43.2613740Z swift-driver version: 1.120.5 
+2026-10-20T10:46:43.2629620Z ##[error]Process completed with exit code 1.
+2026-10-20T10:46:43.2831640Z ##[group]Run actions/upload-artifact@v7
+2026-10-20T10:46:43.2831980Z with:
+2026-10-20T10:46:43.2832250Z   name: macos-frontend-arm64-39410097441
