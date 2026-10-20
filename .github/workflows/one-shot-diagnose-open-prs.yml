@@ -1,4 +1,4 @@
-name: One-shot diagnose v1.1.9 republish
+name: One-shot diagnose republish monitor
 
 on:
   push:
@@ -11,31 +11,31 @@ permissions:
 
 jobs:
   diagnose:
-    if: ${{ contains(github.event.head_commit.message, 'diagnose republish') && !contains(github.event.head_commit.message, '[diagnostic-results]') }}
+    if: ${{ contains(github.event.head_commit.message, 'diagnose republish monitor') && !contains(github.event.head_commit.message, '[diagnostic-results]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
       OPS_BRANCH: ops/diagnose-open-prs-20261020
-      JOB_ID: '118653032914'
+      JOB_ID: '118657656035'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ops/diagnose-open-prs-20261020
-      - name: Extract republish job progress
+      - name: Extract failed job log
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p diagnostics
-          raw=/tmp/republish.raw
-          log=/tmp/republish.log
-          out=diagnostics/republish-v1.1.9-progress.txt
-          http="$(curl -sS -L -w '%{http_code}' \
+          raw=/tmp/monitor.raw
+          log=/tmp/monitor.log
+          out=diagnostics/republish-monitor-failure.txt
+          curl -sS -L \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
-            -o "$raw")"
+            -o "$raw"
           if python3 - "$raw" <<'PY'
           import sys, zipfile
           raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
@@ -45,19 +45,7 @@ jobs:
           else
             cp "$raw" "$log"
           fi
-          python3 - "$http" "$log" "$out" <<'PY'
-          import re, sys
-          from pathlib import Path
-          http, log_path, out_path = sys.argv[1:]
-          lines = Path(log_path).read_text(errors='replace').splitlines()
-          pattern = re.compile(r'(?i)(candidate run=|publisher run=|Final main:|error|fail(?:ed|ure)?|timed out|Process completed|##\[error\])')
-          selected = set(range(max(0, len(lines)-250), len(lines)))
-          for i, line in enumerate(lines):
-              if pattern.search(line):
-                  selected.update(range(max(0, i-8), min(len(lines), i+18)))
-          excerpt = '\n'.join(lines[i] for i in sorted(selected))
-          Path(out_path).write_text(f'job_id=118653032914\nlog_http={http}\n\n{excerpt}\n')
-          PY
+          tail -n 500 "$log" > "$out"
           cat "$out"
       - name: Commit diagnostic
         shell: bash
@@ -66,6 +54,6 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git pull --rebase origin "$OPS_BRANCH"
-          git add diagnostics/republish-v1.1.9-progress.txt
-          git commit -m 'chore: record republish progress [diagnostic-results]'
+          git add diagnostics/republish-monitor-failure.txt
+          git commit -m 'chore: record monitor failure [diagnostic-results]'
           git push origin HEAD:"$OPS_BRANCH"
