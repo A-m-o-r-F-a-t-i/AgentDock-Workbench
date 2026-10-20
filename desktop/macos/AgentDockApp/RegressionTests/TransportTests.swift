@@ -55,6 +55,25 @@ final class TransportTests: XCTestCase {
     private func answer(_ value: WorkbenchJSON, status: Int = 200, delay: Double = 0) throws -> (Int, String, Data, Double) {
         (status, "application/json", try value.encodedData(), delay)
     }
+    private func requestBody(_ request: URLRequest) throws -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        stream.open()
+        defer { stream.close() }
+        let capacity = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
+        defer { buffer.deallocate() }
+        var data = Data()
+        while true {
+            let count = stream.read(buffer, maxLength: capacity)
+            if count < 0 { throw stream.streamError ?? URLError(.cannotDecodeContentData) }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
     func testLoopbackBoundaryAndIDValidation() throws {
         for value in ["https://127.0.0.1:18765", "http://example.com", "http://user@localhost", "http://localhost/?secret=x"] {
             XCTAssertThrowsError(try WorkbenchConnection(baseURL: URL(string: value)!, bearerToken: "fixture"))
@@ -150,7 +169,7 @@ final class TransportTests: XCTestCase {
 
     @MainActor func testPluginInstallUsesValidatedReviewToken() async throws {
         RuntimeProtocol.configure { request in
-            let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))
+            let body = try WorkbenchJSON.decode(try self.requestBody(request))
             switch body.text("action") {
             case "validate":
                 return try self.answer(.object([
@@ -179,7 +198,7 @@ final class TransportTests: XCTestCase {
             if request.httpMethod == "GET" {
                 return try self.answer(.object(["plugin": .object(["name": .string("example")])]))
             }
-            let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))
+            let body = try WorkbenchJSON.decode(try self.requestBody(request))
             switch body.text("action") {
             case "validate":
                 return try self.answer(.object([
