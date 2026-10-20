@@ -1,0 +1,286 @@
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchManagement.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchManagement.swift
+@@ -117,20 +117,47 @@
+ 
+ 
+ extension WorkbenchAPIClient {
++    private func validatedLocalPluginCandidate(source: String) async throws -> (WorkbenchJSON, String) {
++        let endpoint = WorkbenchResource.plugins.endpoint
++        let candidate = try await post(endpoint, body: .object([
++            "action": .string("validate"),
++            "source": .string(source),
++        ]))
++        try Task.checkCancellation()
++        let reviewToken = candidate["review"].text("review_token").trimmingCharacters(in: .whitespacesAndNewlines)
++        guard candidate.flag("valid"), !reviewToken.isEmpty else {
++            throw WorkbenchClientError.invalidResponse(L10n.text("The candidate plugin package did not pass validation."))
++        }
++        return (candidate, reviewToken)
++    }
++
++    @MainActor
++    func installLocalPlugin(source: String,
++                            confirmCandidate: (WorkbenchJSON) -> Bool) async throws -> WorkbenchJSON {
++        let (candidate, reviewToken) = try await validatedLocalPluginCandidate(source: source)
++        guard confirmCandidate(candidate) else { throw WorkbenchClientError.cancelled }
++        try Task.checkCancellation()
++        return try await post(WorkbenchResource.plugins.endpoint, body: .object([
++            "action": .string("install"),
++            "source": .string(source),
++            "review_token": .string(reviewToken),
++        ]))
++    }
++
+     @MainActor
+     func updateLocalPlugin(name: String, source: String,
+                            confirmCandidate: (WorkbenchJSON) -> Bool,
+                            confirmSourceChange: (WorkbenchJSON, WorkbenchJSON) -> Bool) async throws -> WorkbenchJSON {
+         let endpoint = WorkbenchResource.plugins.endpoint
+-        let candidate = try await post(endpoint, body: .object(["action": .string("validate"), "source": .string(source)]))
+-        try Task.checkCancellation()
+-        guard candidate.flag("valid") else {
+-            throw WorkbenchClientError.invalidResponse(L10n.text("The candidate plugin package did not pass validation."))
+-        }
++        let (candidate, reviewToken) = try await validatedLocalPluginCandidate(source: source)
+         guard confirmCandidate(candidate) else { throw WorkbenchClientError.cancelled }
+         try Task.checkCancellation()
+-        var fields: [String: WorkbenchJSON] = ["action": .string("update"), "name": .string(name),
+-            "source": .string(source), "confirmed": .bool(true)]
++        var fields: [String: WorkbenchJSON] = [
++            "action": .string("update"),
++            "name": .string(name),
++            "source": .string(source),
++            "review_token": .string(reviewToken),
++        ]
+         do {
+             return try await post(endpoint, body: .object(fields))
+         } catch let error as WorkbenchClientError {
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchManagementWindow.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchManagementWindow.swift
+@@ -148,7 +148,6 @@
+                 page = loaded; stale = false; table.reloadData()
+                 status.stringValue = L10n.format("Loaded %@ items · Offset %@ · Total %@", String(describing: loaded.items.count), String(describing: requestedOffset), String(describing: loaded.total.map(String.init) ?? L10n.text("Unknown")))
+                 if !parent.isEmpty { status.stringValue += " · parent_call_id=" + parent }
+-                if type == .workspaces { status.stringValue += L10n.text(" · Writes require the WB01 interface to be integrated") }
+                 actions.isEnabled = true; previous.isEnabled = !offsets.isEmpty; next.isEnabled = loaded.hasMore
+                 if type == .display { detail = loaded.items.first ?? .null; text.1.string = detail.prettyPrinted }
+             } catch {
+@@ -253,8 +252,20 @@
+             fields["name"] = .string(values[0]); fields["url"] = .string(values[1]); fields["transport"] = .string("streamable_http")
+         }
+         if action == "register" {
+-            guard let values = WorkbenchForms.fields(title: L10n.text("Register workspace"), message: L10n.text("The WB01 workspace interface must be integrated. No second workspace store is created."), fields: [(L10n.text("Name"), ""), (L10n.text("Absolute directory"), "")]), values[1].hasPrefix("/") else { return }
++            guard let values = WorkbenchForms.fields(title: L10n.text("Register workspace"), message: L10n.text("Absolute directory"), fields: [(L10n.text("Name"), ""), (L10n.text("Absolute directory"), "")]), values[1].hasPrefix("/") else { return }
+             fields["name"] = .string(values[0]); fields["root"] = .string(values[1]); fields["kind"] = .string("repository"); fields["runtime"] = .string("unix")
++        }
++        if type == .plugins, action == "install" {
++            let source = fields["source"]?.stringValue ?? ""
++            mutate { [weak self, client] in
++                guard let self else { throw WorkbenchClientError.cancelled }
++                return try await client.installLocalPlugin(source: source, confirmCandidate: { [weak self] candidate in
++                    guard self?.window?.isVisible == true, !Task.isCancelled else { return false }
++                    return WorkbenchForms.confirm(L10n.text("Install local package"),
++                        source + "\n" + String(candidate.prettyPrinted.prefix(8192)))
++                })
++            }
++            return
+         }
+         if type == .plugins, action == "update" {
+             let name = fields["name"]?.stringValue ?? ""
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchModels.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchModels.swift
+@@ -80,6 +80,14 @@
+     var stopEligible: Bool?
+     var insertionEligibilityReason: String
+     var raw: WorkbenchJSON
++
++    private static let insertionEligibilityFields = [
++        "insertion_eligible",
++        "can_insert",
++        "insertion.eligible",
++        "insertion_state.eligible",
++        "eligibility.can_insert",
++    ]
+ 
+     init(json: WorkbenchJSON, serverNow: Date?) {
+         id = json.firstText("conversation_id", "id")
+@@ -119,13 +127,7 @@
+             ?? lastInteractionAt?.addingTimeInterval(120)
+         recentlyActive = !terminated && !trashed && !archived && !unattributed && (json.optionalFlag("recently_active")
+             ?? Self.isRecentlyActive(lastActivityAt: lastInteractionAt, serverNow: serverNow, inFlight: false))
+-        let explicitInsertionEligibility = json.firstField([
+-            "insertion_eligible",
+-            "can_insert",
+-            "insertion.eligible",
+-            "insertion_state.eligible",
+-            "eligibility.can_insert"
+-        ]).boolValue
++        let explicitInsertionEligibility = json.firstField(Self.insertionEligibilityFields).boolValue
+         if let explicitInsertionEligibility {
+             insertionEligible = explicitInsertionEligibility
+         } else if let serverNow, let lastToolCallAt, lastToolCallAt <= serverNow, !terminated, !trashed {
+@@ -167,7 +169,7 @@
+         if let request = lastToolCallAt {
+             insertionEligible = !terminated && !trashed && !unattributed
+                 && request <= serverNow && serverNow.timeIntervalSince(request) < 180
+-                && raw.firstField(["insertion_eligible", "can_insert"]).boolValue != false
++                && raw.firstField(Self.insertionEligibilityFields).boolValue != false
+         }
+     }
+ 
+@@ -259,6 +261,7 @@
+     var summary: String
+     var requestText: String
+     var responseText: String
++    var outputPayloadSource: String
+     var progressText: String
+     var timingText: String
+     var fileEditText: String
+@@ -305,7 +308,8 @@
+             title = L10n.text("Execution record")
+         }
+         requestText = Self.payloadText(json["request"])
+-        let response = json["output_source"].text("ref").isEmpty ? json["response"] : json["output_source"]
++        outputPayloadSource = json["output_source"].isNull ? "response" : "source"
++        let response = outputPayloadSource == "source" ? json["output_source"] : json["response"]
+         responseText = Self.payloadText(response)
+         let stdout = json.text("output_preview")
+         let stderr = json.text("stderr_preview")
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchViewModel.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchViewModel.swift
+@@ -114,13 +114,13 @@
+                 snapshot.message = L10n.format("Connected · %@ conversations", String(describing: newSidebar.total))
+                 isRefreshing = false
+                 let all = newSidebar.groups.flatMap(\.conversations)
+-                let selected = all.first { $0.navigationID == selectedNavigationID }
+-                    ?? (newSidebar.selected?.navigationID == selectedNavigationID ? newSidebar.selected : nil)
++                let selected = all.first { $0.navigationID == self.selectedNavigationID }
++                    ?? (newSidebar.selected?.navigationID == self.selectedNavigationID ? newSidebar.selected : nil)
+                     ?? all.first
+                 let changed = selected?.navigationID != selectedNavigationID
+                 if changed { selectConversation(selected?.navigationID ?? "") }
+                 else if let selected { snapshot.selectedConversation = selected }
+-                if !changed, reason != "poll" || snapshot.calls.calls.isEmpty { loadSelection() }
++                if !changed { loadSelection() }
+                 if streamTask == nil, reason != "stream-reconnect" { startStream(after: newSidebar.latestSequence) }
+                 notify()
+             } catch {
+@@ -178,9 +178,9 @@
+             do {
+                 let calls = try await client.calls(conversationID: selected.id, unattributed: selected.unattributed)
+                 var detailed = selected
+-                var permission: WorkbenchPermissionState?
+-                var insertions = WorkbenchInsertionPage.empty
+-                var task: WorkbenchTaskSummary?
++                var permission = snapshot.permission
++                var insertions = snapshot.insertions
++                var task = snapshot.task
+                 var warnings = [String]()
+                 if !selected.unattributed {
+                     let json = try await client.conversation(selected.id)
+@@ -191,7 +191,10 @@
+                     catch { warnings.append(L10n.format("Permission read unavailable: %@", String(describing: error.localizedDescription))) }
+                     do { insertions = try await client.insertions(conversationID: selected.id) }
+                     catch { warnings.append(L10n.format("Supplement read unavailable: %@", String(describing: error.localizedDescription))) }
+-                    if !detailed.activeTaskID.isEmpty {
++                    if detailed.activeTaskID.isEmpty {
++                        task = nil
++                    } else {
++                        if task?.id != detailed.activeTaskID { task = nil }
+                         do {
+                             let data = try await client.task(detailed.activeTaskID)
+                             let threads = (try? await client.taskThreads(detailed.activeTaskID)) ?? .null
+@@ -207,10 +210,12 @@
+                 var page = calls
+                 page.calls = Self.mergeCalls(calls.calls, snapshot.calls.calls)
+                 snapshot.calls = page
+-                if !page.calls.contains(where: { $0.id == selectedCallID }) { selectedCallID = page.calls.first?.id ?? "" }
+-                setSelectedCall(page.calls.first { $0.id == selectedCallID })
++                if !page.calls.contains(where: { $0.id == self.selectedCallID }) { selectedCallID = page.calls.first?.id ?? "" }
++                setSelectedCall(page.calls.first { $0.id == self.selectedCallID })
+                 snapshot.message = warnings.isEmpty ? L10n.text("Conversation details synchronized") : warnings.joined(separator: " · ")
++                let detailID = self.selectedCallID
+                 notify()
++                loadCallDetail(detailID)
+             } catch {
+                 guard currentEpoch == epoch, !Task.isCancelled else { return }
+                 snapshot.message = L10n.format("Failed to read details: %@", String(describing: error.localizedDescription)); snapshot.stale = true; notify()
+@@ -218,11 +223,17 @@
+         }
+     }
+     func selectCall(_ id: String) {
+-        guard id != selectedCallID else { return }
+-        detailTask?.cancel(); payloadTask?.cancel()
+-        payloadGeneration += 1
+-        selectedCallID = id; payloadSlices.removeAll(); isReadingPayload = false
+-        setSelectedCall(snapshot.calls.calls.first { $0.id == id }); notify()
++        if id != selectedCallID {
++            detailTask?.cancel(); payloadTask?.cancel()
++            payloadGeneration += 1
++            selectedCallID = id; payloadSlices.removeAll(); isReadingPayload = false
++            setSelectedCall(snapshot.calls.calls.first { $0.id == id }); notify()
++        }
++        loadCallDetail(id)
++    }
++
++    private func loadCallDetail(_ id: String) {
++        detailTask?.cancel()
+         guard !fixtureMode, !id.isEmpty else { return }
+         let currentEpoch = epoch
+         detailTask = Task { [weak self] in
+@@ -242,8 +253,9 @@
+     }
+     private func setSelectedCall(_ call: WorkbenchCall?) {
+         let previous = snapshot.selectedCall
+-        let changed = ["request", "response"].filter { source in
+-            previous?.id != call?.id || (previous?.raw[source] ?? .null) != (call?.raw[source] ?? .null)
++        let changed = ["request", "response", "source"].filter { source in
++            let key = source == "source" ? "output_source" : source
++            return previous?.id != call?.id || (previous?.raw[key] ?? .null) != (call?.raw[key] ?? .null)
+         }
+         if !changed.isEmpty {
+             payloadGeneration += 1
+@@ -286,9 +298,7 @@
+             let older = try await client.calls(conversationID: selected.id, unattributed: selected.unattributed, before: before)
+             guard currentEpoch == epoch else { return .object([:]) }
+             var page = older
+-            if snapshot.calls.calls.count + older.calls.count <= Self.maximumCalls {
+-                page.calls = Self.mergeCalls(snapshot.calls.calls, older.calls)
+-            }
++            page.calls = Self.mergeCalls(snapshot.calls.calls, older.calls)
+             snapshot.calls = page
+             return .object(["message": .string(L10n.text("Earlier records loaded; the display window holds at most 1000 items."))])
+         }
+@@ -414,12 +424,12 @@
+         }
+     }
+     func updatePermissionMode(_ mode: String) {
+-        guard let permission = snapshot.permission, !selectedConversationID.isEmpty,
++        guard mode == "rules" || mode == "readonly",
++              let permission = snapshot.permission, !selectedConversationID.isEmpty,
+               permission.revision > 0, permission.revision <= UInt64(Int64.max) else { return }
+         let change: WorkbenchJSON = .object([
+             "scope": .string("conversation"), "scope_id": .string(selectedConversationID),
+-            "mode": .string(mode), "expected_revision": .integer(Int64(permission.revision)),
+-            "confirm_full": .bool(mode == "full")])
++            "mode": .string(mode), "expected_revision": .integer(Int64(permission.revision))])
+         performOperation(refreshAfter: true) { [client] in try await client.updatePermission(change) }
+     }
+     func submitInsertion(_ text: String) {
+--- a/desktop/macos/AgentDockApp/Sources/WorkbenchWindowController.swift
++++ b/desktop/macos/AgentDockApp/Sources/WorkbenchWindowController.swift
+@@ -294,14 +294,6 @@
+     }
+ 
+     private func applyPermissionMode(_ mode: String) {
+-        if mode == "full" {
+-            guard confirm(
+-                title: L10n.text("Enable full permission?"),
+-                message: L10n.text("This reduces Core approval prompts for business tools. Explicit deny rules and macOS system permissions remain effective."),
+-                destructive: true,
+-                confirmTitle: L10n.text("Enable full permission")
+-            ) else { return }
+-        }
+         model.updatePermissionMode(mode)
+     }
+ 
