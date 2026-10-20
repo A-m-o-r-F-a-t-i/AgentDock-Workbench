@@ -173,7 +173,16 @@ func TestSDKToolResultKeepsCanonicalNumbersAndMeasuresActualJSON(t *testing.T) {
 			t.Fatalf("final SDK output omitted exact number %s: %s", exact, encoded)
 		}
 	}
-	if chars, err := modelEnvelopeChars(envelope); err != nil || chars != utf8.RuneCount(encoded) {
-		t.Fatalf("budget counted rounded data: chars=%d actual=%d err=%v", chars, utf8.RuneCount(encoded), err)
+	measuredEnvelope := asMap(withoutNativeAttachmentData(envelope))
+	measuredResult, err := sdkToolResult(measuredEnvelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	measuredEncoded, err := json.Marshal(measuredResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chars, err := modelEnvelopeChars(envelope); err != nil || chars != utf8.RuneCount(measuredEncoded) || chars >= utf8.RuneCount(encoded) {
+		t.Fatalf("budget did not preserve exact numbers while excluding native payload data: chars=%d measured=%d actual=%d err=%v", chars, utf8.RuneCount(measuredEncoded), utf8.RuneCount(encoded), err)
 	}
 }
