@@ -16,7 +16,10 @@ const (
 	// bootstrap and final CallToolResult envelope fields outside the body.
 	ModelVisibleControlChars = 4100
 	ModelVisibleTotalChars   = ModelVisibleBodyChars + ModelVisibleControlChars
-	CompatSummaryMaxChars    = 512
+	// ModelVisibleNativeAttachmentBytes bounds decoded image and audio content
+	// independently from the model-facing JSON character budgets above.
+	ModelVisibleNativeAttachmentBytes = 256 * 1024
+	CompatSummaryMaxChars             = 512
 )
 
 type OutputClass string

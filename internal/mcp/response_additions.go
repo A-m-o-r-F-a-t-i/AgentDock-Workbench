@@ -26,10 +26,6 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	if err != nil {
 		return nil, invocationError(ctx, "response_encode", "MCP response encoding failed; inspect the original call before retrying", err)
 	}
-	var check mcpsdk.CallToolResult
-	if err := json.Unmarshal(encoded, &check); err != nil {
-		return nil, invocationError(ctx, "response_decode", "MCP response validation failed; inspect the original call before retrying", err)
-	}
 	var envelope map[string]any
 	if err := json.Unmarshal(encoded, &envelope); err != nil {
 		return nil, err
@@ -84,6 +80,9 @@ func (s *Server) finishResponse(ctx context.Context, name string, arguments map[
 	wire, err := modelWireEnvelope(ctx, name, envelope)
 	if err != nil {
 		return nil, invocationError(ctx, "response_encode", "Final response encoding failed; inspect the original call before retrying", err)
+	}
+	if _, err := sdkToolResult(wire); err != nil {
+		return nil, invocationError(ctx, "response_decode", "MCP response validation failed after attachment bounding; inspect the original call before retrying", err)
 	}
 	if name == "mcp_tool_call" || name == "mcp_result_continue" {
 		s.runtime.RecordToolResponse(pending, wire, envelope)

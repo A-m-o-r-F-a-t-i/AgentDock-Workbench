@@ -87,7 +87,11 @@ func outcomeFailure(name string, result Result, failure error) *ToolError {
 		code = stringArg(details, "code")
 		message = stringArg(details, "message")
 		if code == "" {
-			code = "MCP_BUSINESS_FAILED"
+			if stringArg(details, "operation_status") == "partial" {
+				code = "MCP_BUSINESS_PARTIAL"
+			} else {
+				code = "MCP_BUSINESS_FAILED"
+			}
 		}
 	} else if isCommandExecutionTool(name) {
 		code = "COMMAND_FAILED"
@@ -148,7 +152,7 @@ func failureControl(name string, result Result, failure *ToolError, state execut
 	}
 	control["retry_safe"] = safe
 	status := stringArg(control, "operation_status")
-	if status != "failed" && status != "blocked" {
+	if status != "failed" && status != "blocked" && status != "partial" {
 		status = "failed"
 		if effect == "none" && (failure.Category == "permission" || failure.Category == "auth" || failure.Code == "TOOL_BUNDLE_REQUIRED") {
 			status = "blocked"
@@ -373,6 +377,11 @@ func (r *Runtime) executionOutcome(name string, args map[string]any, result Resu
 		result = maps.Clone(result)
 		if result == nil {
 			result = Result{}
+		}
+		for _, key := range []string{"outcome", "counts", "saved"} {
+			if value, exists := base.Details[key]; exists {
+				result[key] = value
+			}
 		}
 		for key, value := range control {
 			result[key] = value

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -69,7 +70,56 @@ func compactToolEnvelopeText(name string, envelope map[string]any) map[string]an
 		kept = append([]any{map[string]any{"type": "text", "text": toolResultSummary(name, envelope)}}, kept...)
 	}
 	output["content"] = kept
+	if name == "mcp_tool_call" {
+		output = removeForwardedContentDuplicates(output, kept)
+	}
 	return output
+}
+
+// Dynamic MCP native blocks are already transported in the outer MCP content
+// array. Remove only exact nested duplicates at the final text-presentation
+// boundary; retain unique nested attachments and the immutable upstream result.
+func removeForwardedContentDuplicates(envelope map[string]any, outer []any) map[string]any {
+	structured := maps.Clone(asMap(envelope["structuredContent"]))
+	result := maps.Clone(asMap(structured["result"]))
+	if len(result) == 0 {
+		return envelope
+	}
+	nested := envelopeBlocks(result["content"])
+	if len(nested) == 0 {
+		return envelope
+	}
+	kept := make([]any, 0, len(nested))
+	removed := false
+	for _, candidate := range nested {
+		kind, _ := asMap(candidate)["type"].(string)
+		if kind != "text" && slicesContainExact(outer, candidate) {
+			removed = true
+			continue
+		}
+		kept = append(kept, candidate)
+	}
+	if !removed {
+		return envelope
+	}
+	if len(kept) == 0 {
+		delete(result, "content")
+	} else {
+		result["content"] = kept
+	}
+	structured["result"] = result
+	out := maps.Clone(envelope)
+	out["structuredContent"] = structured
+	return out
+}
+
+func slicesContainExact(items []any, candidate any) bool {
+	for _, item := range items {
+		if reflect.DeepEqual(item, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func jsonTextMatches(text string, structured any) bool {

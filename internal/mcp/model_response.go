@@ -15,10 +15,14 @@ import (
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
-// Measure the actual SDK CallToolResult wire JSON, including base64 attachment
-// data. Oversized native content is replaced by a retained-source receipt.
+// Measure the SDK CallToolResult control JSON. Native image and audio bytes
+// use a separate decoded-byte budget and are scrubbed only for measurement.
 func modelEnvelopeChars(envelope map[string]any) (int, error) {
-	result, err := sdkToolResult(envelope)
+	// Native attachments are transported as MCP content blocks with their own
+	// decoded-byte budget. Measure the JSON control surface without charging the
+	// Base64 payload against the text/structured-output character budget.
+	measured := asMap(withoutNativeAttachmentData(envelope))
+	result, err := sdkToolResult(measured)
 	if err != nil {
 		return 0, err
 	}
@@ -26,11 +30,42 @@ func modelEnvelopeChars(envelope map[string]any) (int, error) {
 	return utf8.RuneCount(encoded), err
 }
 
+func withoutNativeAttachmentData(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			out[key] = withoutNativeAttachmentData(item)
+		}
+		kind, _ := typed["type"].(string)
+		if kind == "image" || kind == "audio" {
+			if _, exists := typed["data"]; exists {
+				out["data"] = ""
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for index, item := range typed {
+			out[index] = withoutNativeAttachmentData(item)
+		}
+		return out
+	case []map[string]any:
+		out := make([]map[string]any, len(typed))
+		for index, item := range typed {
+			out[index] = asMap(withoutNativeAttachmentData(item))
+		}
+		return out
+	default:
+		return value
+	}
+}
+
 // modelBodyChars measures the model-facing structured body without the
 // self-describing projection measurement. MCP envelope and projection control
 // fields are bounded separately from the 12,000-character business body.
 func modelBodyChars(envelope map[string]any) (int, error) {
-	payload := maps.Clone(asMap(envelope["structuredContent"]))
+	payload := maps.Clone(asMap(withoutNativeAttachmentData(envelope["structuredContent"])))
 	if payload == nil {
 		return 0, nil
 	}
@@ -84,7 +119,6 @@ func singleBodyEnvelope(name string, envelope map[string]any) map[string]any {
 // metadata. A large result remains a successful operation with a source receipt.
 func (s *Server) boundModelResponse(ctx context.Context, name string, arguments map[string]any, pending *app.ToolResponse, envelope map[string]any) (map[string]any, error) {
 	out := normalizeResponseStages(name, arguments, envelope)
-	nativeBytes := nativeAttachmentBytes(out)
 	if responseTextMode(ctx, name) != responseTextOnly {
 		out = singleBodyEnvelope(name, out)
 	}
@@ -98,10 +132,7 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		out["_meta"] = meta
 		out["resultType"] = "complete"
 	}
-	bodyChars, wireChars, err := modelResponseChars(ctx, name, out)
-	if err != nil {
-		return nil, err
-	}
+	nativeBytes := nativeAttachmentBytes(out)
 	compact := func(current map[string]any) (map[string]any, error) {
 		source, storeErr := s.runtime.RetainResponseSource(pending, responseRetentionValue(name, envelope))
 		if storeErr != nil {
@@ -116,6 +147,17 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 			return nil, fmt.Errorf("MODEL_RESPONSE_BUDGET_EXCEEDED: body=%d/%d wire=%d/%d retained source=%s; inspect the completed operation before any retry", body, toolcontract.ModelVisibleBodyChars, wire, toolcontract.ModelVisibleTotalChars, source)
 		}
 		return projected, nil
+	}
+	var err error
+	if nativeBytes > toolcontract.ModelVisibleNativeAttachmentBytes {
+		out, err = compact(out)
+		if err != nil {
+			return nil, err
+		}
+	}
+	bodyChars, wireChars, err := modelResponseChars(ctx, name, out)
+	if err != nil {
+		return nil, err
 	}
 	if bodyChars > toolcontract.ModelVisibleBodyChars || wireChars > toolcontract.ModelVisibleTotalChars {
 		out, err = compact(out)
@@ -139,9 +181,10 @@ func (s *Server) boundModelResponse(ctx context.Context, name string, arguments 
 		payload["model_projection"] = map[string]any{
 			"chars": bodyChars, "budget_chars": toolcontract.ModelVisibleBodyChars,
 			"wire_chars": wireChars, "wire_budget_chars": toolcontract.ModelVisibleTotalChars,
-			"class":                   modelOutputClass(name, arguments, payload),
-			"native_attachment_bytes": nativeBytes,
-			"mode":                    projection["mode"], "complete": projection["complete"],
+			"class":                          modelOutputClass(name, arguments, payload),
+			"native_attachment_bytes":        nativeBytes,
+			"native_attachment_budget_bytes": toolcontract.ModelVisibleNativeAttachmentBytes,
+			"mode":                           projection["mode"], "complete": projection["complete"],
 		}
 		out["structuredContent"] = payload
 		out, err = measureContextResponse(ctx, name, out)
@@ -177,7 +220,7 @@ func compactModelResponse(name string, args map[string]any, original map[string]
 	full := asMap(original["structuredContent"])
 	class := modelOutputClass(name, args, full)
 	payload := map[string]any{}
-	for _, key := range []string{"operation", "capture", "agentdock_guidance", "required_action", "effect_state", "operation_status", "execution_performed", "retry_safe", "origin_call_id", "output_class", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms", "upstream_failure"} {
+	for _, key := range []string{"operation", "capture", "agentdock_guidance", "required_action", "effect_state", "operation_status", "execution_performed", "retry_safe", "outcome", "counts", "saved", "origin_call_id", "output_class", "call_id", "request_id", "conversation_id", "task_id", "thread_id", "workspace_id", "session_id", "status", "command_ok", "exit_code", "timed_out", "cancelled", "signal", "action", "changed", "files_changed", "verified", "error", "code", "category", "retryable", "executed", "route_code", "required_host_tool", "retry_dynamic_search", "no_change", "next_observe_after_ms", "upstream_failure"} {
 		if value, exists := full[key]; exists {
 			if text, ok := value.(string); ok {
 				value = toolcontract.JSONTextPrefix(text, 512)

@@ -8,15 +8,15 @@ import (
 
 	"github.com/uvwt/agentdock/internal/httpx/requestmeta"
 	"github.com/uvwt/agentdock/internal/publicartifacts"
+	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 const (
 	defaultViewImageBytes = 750000
 	hardViewImageBytes    = 2 * 1024 * 1024
-	// Base64 data is part of the final CallToolResult character budget. Keeping
-	// processed image bytes below this threshold leaves room for structured
-	// metadata, status fields and the compatibility summary.
-	modelVisibleViewImageBytes = 4096
+	// Native image bytes use the shared attachment budget and do not consume the
+	// model-facing text or structured JSON character budget.
+	modelVisibleViewImageBytes = toolcontract.ModelVisibleNativeAttachmentBytes
 )
 
 func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {
