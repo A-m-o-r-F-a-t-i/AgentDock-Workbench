@@ -23,8 +23,11 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 		return r.readProjectedFile(ctx, request)
 	}
 	parts := outputSourceURI.FindStringSubmatch(request.Path)
-	if len(parts) != 3 || request.StartLine != nil || request.EndLine != nil || request.MaxBytes != nil || request.EndOffset != nil || request.SourceRevision != "" {
-		return nil, toolError("INVALID_ARGUMENT", "Use an exact activity source URI with offset and limit_chars only.", "validation")
+	if len(parts) != 3 || request.StartLine != nil || request.EndLine != nil || request.EndOffset != nil || request.SourceRevision != "" {
+		return nil, toolError("INVALID_ARGUMENT", "Use an activity source URI with optional offset, limit_chars and max_bytes.", "validation")
+	}
+	if request.MaxBytes != nil && *request.MaxBytes <= 0 {
+		return nil, toolError("INVALID_ARGUMENT", "max_bytes must be positive.", "validation")
 	}
 	call, err := r.activity.Call(ctx, parts[1])
 	if err != nil {
@@ -57,12 +60,13 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	if !ok {
 		policy = r.MCPPresentationSettings().ToolOutput
 	}
-	limit := toolcontract.ModelVisibleBodyChars
+	limit := 8000
+	if request.LimitChars != nil {
+		limit = *request.LimitChars
+	}
+	limit = min(limit, toolcontract.ModelVisibleBodyChars)
 	if policy.Enabled && policy.MaxChars > 0 {
 		limit = min(limit, policy.MaxChars)
-	}
-	if request.LimitChars != nil {
-		limit = min(limit, *request.LimitChars)
 	}
 	offset := int64(0)
 	if request.Offset != nil {
@@ -73,6 +77,16 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 		return nil, err
 	}
 	visible := toolcontract.JSONTextPrefix(page.Text, toolcontract.ModelVisibleBodyChars-2000)
+	if request.MaxBytes != nil && len(visible) > *request.MaxBytes {
+		end := *request.MaxBytes
+		for end > 0 && !utf8.RuneStart(visible[end]) {
+			end--
+		}
+		if end == 0 {
+			return nil, toolError("INVALID_ARGUMENT", "max_bytes is too small for the next UTF-8 character.", "validation")
+		}
+		visible = visible[:end]
+	}
 	page.HasMore = page.HasMore || len(visible) < len(page.Text)
 	page.NextOffset = page.Offset + int64(len(visible))
 	page.Text, page.ReturnedChars = visible, utf8.RuneCountInString(visible)

@@ -39,7 +39,7 @@ func TestResultReplayKeepsOriginalResultIdentity(t *testing.T) {
 	}
 }
 
-func TestNormalizedResultKeepsDistinctLargeNumberTextAndMetadata(t *testing.T) {
+func TestNormalizedResultKeepsDistinctLargeNumberTextAndMedia(t *testing.T) {
 	const text = `{"id":9007199254740993}`
 	metadata := map[string]any{"revision": json.Number("18446744073709551615")}
 	image := map[string]any{"type": "image", "data": "AQID", "mimeType": "image/png", "_meta": metadata}
@@ -50,8 +50,11 @@ func TestNormalizedResultKeepsDistinctLargeNumberTextAndMetadata(t *testing.T) {
 	}
 	normalized, _, parsed := normalizeDynamicMCPResult(raw)
 	blocks := resultContentBlocks(normalized["content"])
-	if parsed || len(blocks) != 2 || resultMap(blocks[0])["text"] != text || !reflect.DeepEqual(blocks[1], image) || !reflect.DeepEqual(normalized["_meta"], metadata) {
-		t.Fatalf("normalization lost non-equivalent text, native content or metadata: %#v", normalized)
+	if parsed || len(blocks) != 2 || resultMap(blocks[0])["text"] != text || resultMap(blocks[1])["data"] != "AQID" || normalized["_meta"] != nil || resultMap(blocks[1])["_meta"] != nil {
+		t.Fatalf("normalization lost text/media or retained transport metadata: %#v", normalized)
+	}
+	if !reflect.DeepEqual(raw["_meta"], metadata) || !reflect.DeepEqual(resultMap(raw["content"].([]any)[1])["_meta"], metadata) {
+		t.Fatal("normalization changed the original metadata")
 	}
 	promoted, _, parsed := normalizeDynamicMCPResult(map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}})
 	if !parsed || resultMap(promoted["structuredContent"])["id"] != json.Number("9007199254740993") || len(resultContentBlocks(promoted["content"])) != 0 {
@@ -220,6 +223,49 @@ func TestResultFailureSemanticContinuationSeparatesReadOutcome(t *testing.T) {
 	original, ok := store.rawCopy(binding.CallID)
 	if !ok || !resultValuesEqual(original, raw) {
 		t.Fatal("continuation modified the retained original response")
+	}
+}
+
+func TestResultBusinessPagingSurvivesHostFragments(t *testing.T) {
+	controls := map[string]any{
+		"page":       map[string]any{"returned": 32, "remaining": 347, "cursor": "business-next"},
+		"resultId":   "read-result",
+		"nextAction": map[string]any{"tool": "board:read", "arguments": map[string]any{"cursor": "business-next", "refs": []any{"U1", "U2"}}},
+	}
+	body := cloneResultMap(controls)
+	body["summary"] = map[string]any{"nextAction": body["nextAction"]}
+	delete(body, "nextAction")
+	body["detail"] = strings.Repeat("board detail ", 900)
+	raw := map[string]any{"structuredContent": body}
+	normalized, kinds, parsed := normalizeDynamicMCPResult(raw)
+	binding := activity.Binding{SourceOwnerKey: "owner", ConversationID: "conversation", CallID: "call_business_pages"}
+	store := resultStore{}
+	page, err := store.store(binding, "board:read", raw, normalized, kinds, parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resultMap(page["host_page"])["mode"] != "json_fragment" {
+		t.Fatal("fixture did not fragment the current response")
+	}
+	for {
+		if !resultValuesEqual(page["business_page"], controls) {
+			t.Fatalf("host paging changed the business continuation: %#v", page["business_page"])
+		}
+		encoded, err := json.Marshal(page)
+		if err != nil || len(encoded) > resultPageBudget {
+			t.Fatalf("business summary exceeded the host page budget: %d, %v", len(encoded), err)
+		}
+		cursor, _ := page["host_cursor"].(string)
+		if cursor == "" {
+			break
+		}
+		if resultMap(page["continue_result"])["purpose"] != "expand_current_response" {
+			t.Fatal("host continuation did not identify its scope")
+		}
+		page, err = store.continueResult(binding, binding.CallID, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

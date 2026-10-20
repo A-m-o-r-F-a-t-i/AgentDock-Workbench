@@ -18,6 +18,9 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 		result = map[string]any{}
 	}
 	payload := map[string]any{"result": result, "continuation": mcpModelContinuation(full), "error": nil}
+	if page := full["business_page"]; page != nil {
+		payload["business_page"] = page
+	}
 	// Failed calls, approval receipts and retained-only results carry the facts
 	// needed to decide whether any action ran. Successful business objects remain
 	// untouched, including their own cursors, metadata, errors and attachments.
@@ -52,9 +55,9 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 		payload["content_blocks_omitted"] = omitted
 	}
 	catalog := asMap(full["mcp_catalog"])
-	if full["catalog_changed"] == true || catalog["stale"] == true || catalog["error"] != nil {
+	if full["catalog_changed"] == true || catalog["error"] != nil {
 		current := map[string]any{}
-		for _, key := range []string{"server", "server_fingerprint", "catalog_revision", "catalog_state", "complete", "stale", "error"} {
+		for _, key := range []string{"server", "catalog_revision", "complete", "error"} {
 			if value, exists := catalog[key]; exists {
 				current[key] = value
 			}
@@ -115,6 +118,9 @@ func mcpModelContinuation(full map[string]any) map[string]any {
 	}
 	if asMap(full["projection"])["complete"] == false && len(continuation) == 0 {
 		continuation["complete"] = false
+	}
+	if len(continuation) > 0 {
+		continuation["purpose"] = "expand_current_response"
 	}
 	return continuation
 }

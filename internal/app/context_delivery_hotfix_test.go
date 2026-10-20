@@ -4,18 +4,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/activity"
 )
 
-func TestContextCompleteDeliveryIsClaimedOncePerSharedBuild(t *testing.T) {
-	snapshots := &contextSnapshots{deliveries: map[uint64]time.Time{}}
+func TestContextOptionalDetailFailureKeepsBootstrapDelivered(t *testing.T) {
+	binding := activity.Binding{SourceOwnerKey: "owner", ConversationID: "conversation"}
+	retained := &structuredOutputSnapshot{
+		ID: "snapshot", Tool: "agentdock_context", Binding: binding,
+		Required: true, SourceComplete: true, Delivered: true, NextPage: 1,
+	}
+	runtime := &Runtime{structuredSnapshots: map[string]*structuredOutputSnapshot{"snapshot": retained}}
+	runtime.commitStructuredDelivery(binding, Result{
+		"structured_output":         map[string]any{"snapshot_id": "snapshot", "page_index": 2, "page_count": 3},
+		"required_unit_unavailable": map[string]any{"reason": "optional detail exceeds page budget"},
+	})
+	if !retained.Delivered {
+		t.Fatal("optional detail failure revoked the delivered Bootstrap")
+	}
+}
+
+func TestContextCompleteDeliveryIsClaimedOncePerScopedRevision(t *testing.T) {
+	snapshots := &contextSnapshots{deliveries: map[string]time.Time{}}
 	now := time.Now()
-	if !snapshots.claimCompleteDelivery(42, now) {
+	if !snapshots.claimCompleteDelivery("owner|conversation|workspace|ctxrev_a", now) {
 		t.Fatal("first waiter did not claim the shared Context delivery")
 	}
-	if snapshots.claimCompleteDelivery(42, now.Add(time.Second)) {
+	if snapshots.claimCompleteDelivery("owner|conversation|workspace|ctxrev_a", now.Add(time.Minute)) {
 		t.Fatal("duplicate waiter was allowed to create a second full Context sequence")
 	}
-	if !snapshots.claimCompleteDelivery(42, now.Add(contextDeliveryClaimTTL+time.Second)) {
+	if !snapshots.claimCompleteDelivery("owner|other-conversation|workspace|ctxrev_a", now.Add(time.Minute)) {
+		t.Fatal("another conversation inherited the first conversation's delivery claim")
+	}
+	if !snapshots.claimCompleteDelivery("owner|conversation|workspace|ctxrev_b", now.Add(time.Minute)) {
+		t.Fatal("changed Context revision did not receive a full delivery")
+	}
+	if !snapshots.claimCompleteDelivery("owner|conversation|workspace|ctxrev_a", now.Add(contextDeliveryClaimTTL+time.Second)) {
 		t.Fatal("expired delivery claim was not released")
 	}
 }

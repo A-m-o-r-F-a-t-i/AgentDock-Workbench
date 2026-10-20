@@ -39,7 +39,7 @@ type contextSnapshots struct {
 	ruleFiles   contextFiles
 	skillFiles  contextFiles
 	deliveryMu  sync.Mutex
-	deliveries  map[uint64]time.Time
+	deliveries  map[string]time.Time
 	once        sync.Once
 }
 
@@ -59,7 +59,7 @@ func newContextSnapshots(cfg config.Config) *contextSnapshots {
 		first := strings.Split(filepath.ToSlash(relative), "/")[0]
 		return first != ".locks" && first != ".tmp" && first != ".cache"
 	}
-	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter), deliveries: map[uint64]time.Time{}}
+	resources := &contextSnapshots{rules: snapshot.New[agentinstructions.Snapshot](32, cfg.ContextBudget(), time.Minute), skills: snapshot.New[skillIndexSnapshot](4, cfg.ContextBudget(), time.Minute), ruleFiles: snapshot.NewFiles(ruleFilter), skillFiles: snapshot.NewTreeFiles(skillRoot, skillFilter), deliveries: map[string]time.Time{}}
 	resources.complete = snapshot.New[Result](32, cfg.ContextBudget(), 15*time.Minute)
 	resources.common = snapshot.New[*capabilityCommonSkillIndex](4, cfg.ContextBudget(), time.Minute)
 	resources.commonFiles = snapshot.NewScopedFiles(nil)
@@ -82,13 +82,12 @@ func (s *contextSnapshots) Close() {
 	})
 }
 
-const contextDeliveryClaimTTL = 30 * time.Second
+const contextDeliveryClaimTTL = structuredSnapshotTTL
 
-// claimCompleteDelivery allows one caller to expand a shared immutable Context
-// build. Concurrent duplicates and immediate cache hits receive a compact
-// reference instead of creating parallel retained page sequences.
-func (s *contextSnapshots) claimCompleteDelivery(buildID uint64, now time.Time) bool {
-	if s == nil || buildID == 0 {
+// claimCompleteDelivery allows one expansion per scoped Context revision while
+// its details can be retained. Revalidation build IDs do not change delivery.
+func (s *contextSnapshots) claimCompleteDelivery(key string, now time.Time) bool {
+	if s == nil || key == "" {
 		return true
 	}
 	s.deliveryMu.Lock()
@@ -98,10 +97,13 @@ func (s *contextSnapshots) claimCompleteDelivery(buildID uint64, now time.Time) 
 			delete(s.deliveries, id)
 		}
 	}
-	if _, exists := s.deliveries[buildID]; exists {
+	if _, exists := s.deliveries[key]; exists {
 		return false
 	}
-	s.deliveries[buildID] = now
+	if s.deliveries == nil {
+		s.deliveries = map[string]time.Time{}
+	}
+	s.deliveries[key] = now
 	return true
 }
 func (r *Runtime) cachedInstructions(ctx context.Context, options agentinstructions.Options) (agentinstructions.Snapshot, error) {

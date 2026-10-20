@@ -146,7 +146,7 @@ func TestContextTransportProjectionCannotStripBootstrap(t *testing.T) {
 	if structured["has_more"] == true {
 		delivery := asMap(structured["delivery"])
 		action := asMap(structured["required_action"])
-		if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || action["category"] != "detail" || action["required"] != false {
+		if delivery["sequence_complete"] != true || delivery["continuation_required"] != false || action["category"] != "detail" || action["required"] != false {
 			t.Fatalf("optional detail paging became a global blocker: delivery=%#v action=%#v", delivery, action)
 		}
 	}
@@ -233,7 +233,7 @@ func TestModelV2ContextFinalBudgetAndAutomaticPaging(t *testing.T) {
 		delivery := asMap(value["delivery"])
 		if value["has_more"] == true {
 			cursor, _ := value["next_cursor"].(string)
-			if delivery["sequence_complete"] != false || delivery["continuation_required"] != false || cursor == "" {
+			if delivery["sequence_complete"] != true || delivery["continuation_required"] != false || cursor == "" {
 				t.Fatalf("optional detail continuation is inconsistent: %+v", value)
 			}
 			if index == 0 {
