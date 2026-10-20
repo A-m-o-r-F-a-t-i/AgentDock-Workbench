@@ -1,0 +1,698 @@
+=== job 118602078043: Validate installer on Windows PowerShell 5.1, log_http=200 ===
+2026-10-20T11:27:55.2951241Z  * [new branch]        feat/tailscale-funnel                    -> origin/feat/tailscale-funnel
+2026-10-20T11:27:55.2952275Z  * [new branch]        feat/task-activity-center                -> origin/feat/task-activity-center
+2026-10-20T11:27:55.2953708Z  * [new branch]        feat/windows-shell-selector-20261013     -> origin/feat/windows-shell-selector-20261013
+2026-10-20T11:27:55.2954915Z  * [new branch]        fix/1.1.8-self-update-assets-20261020    -> origin/fix/1.1.8-self-update-assets-20261020
+2026-10-20T11:27:55.2956100Z  * [new branch]        fix/1.1.9-activity-reveal                -> origin/fix/1.1.9-activity-reveal
+2026-10-20T11:27:55.2957964Z  * [new branch]        fix/1.1.9-android-lazy-workmanager       -> origin/fix/1.1.9-android-lazy-workmanager
+2026-10-20T11:27:55.2960488Z  * [new branch]        fix/1.1.9-android-room-constructor       -> origin/fix/1.1.9-android-room-constructor
+2026-10-20T11:27:55.2961211Z  * [new branch]        fix/1.1.9-host-builtin-handoff           -> origin/fix/1.1.9-host-builtin-handoff
+2026-10-20T11:27:55.2962370Z  * [new branch]        fix/1.1.9-mcp-activity-labels            -> origin/fix/1.1.9-mcp-activity-labels
+2026-10-20T11:27:55.2964207Z  * [new branch]        fix/1.1.9-sidebar-live-expansion         -> origin/fix/1.1.9-sidebar-live-expansion
+2026-10-20T11:27:55.2965988Z  * [new branch]        fix/1.1.9-termux-launch-recovery         -> origin/fix/1.1.9-termux-launch-recovery
+2026-10-20T11:27:55.2966793Z  * [new branch]        fix/1.1.9-termux-noninteractive-bootstrap -> origin/fix/1.1.9-termux-noninteractive-bootstrap
+2026-10-20T11:27:55.2968032Z  * [new branch]        fix/20260926-agent-failure-guards        -> origin/fix/20260926-agent-failure-guards
+2026-10-20T11:27:55.2968730Z  * [new branch]        fix/20260927-android-security-audit      -> origin/fix/20260927-android-security-audit
+2026-10-20T11:27:55.2969482Z  * [new branch]        fix/20260927-installer-reliability-speed -> origin/fix/20260927-installer-reliability-speed
+2026-10-20T11:27:55.2970181Z  * [new branch]        fix/20260927-windows-118-start           -> origin/fix/20260927-windows-118-start
+2026-10-20T11:27:55.2970844Z  * [new branch]        fix/20260928-context-transport           -> origin/fix/20260928-context-transport
+2026-10-20T11:27:55.2971518Z  * [new branch]        fix/20260929-android-reliability         -> origin/fix/20260929-android-reliability
+2026-10-20T11:27:55.2972244Z  * [new branch]        fix/20260929-dashboard-activity-counts   -> origin/fix/20260929-dashboard-activity-counts
+2026-10-20T11:27:55.2972928Z  * [new branch]        fix/20260929-macos-frontend              -> origin/fix/20260929-macos-frontend
+2026-10-20T11:27:55.2973576Z  * [new branch]        fix/20260929-plugin-snapshot-stability   -> origin/fix/20260929-plugin-snapshot-stability
+2026-10-20T11:27:55.2974312Z  * [new branch]        fix/20260929-tool-failure-audit          -> origin/fix/20260929-tool-failure-audit
+2026-10-20T11:27:55.2974957Z  * [new branch]        fix/20260929-windows-ui-safety           -> origin/fix/20260929-windows-ui-safety
+2026-10-20T11:27:55.2975621Z  * [new branch]        fix/20260929-workbench-status-page       -> origin/fix/20260929-workbench-status-page
+2026-10-20T11:27:55.2976269Z  * [new branch]        fix/20261001-native-dark-chrome          -> origin/fix/20261001-native-dark-chrome
+2026-10-20T11:27:55.2977146Z  * [new branch]        fix/20261001-recent-conversation-running -> origin/fix/20261001-recent-conversation-running
+2026-10-20T11:27:55.2978044Z  * [new branch]        fix/20261002-proxy-rpc-recovery          -> origin/fix/20261002-proxy-rpc-recovery
+2026-10-20T11:27:55.2979313Z  * [new branch]        fix/20261002-sidebar-group-stability     -> origin/fix/20261002-sidebar-group-stability
+2026-10-20T11:27:55.2980023Z  * [new branch]        fix/20261003-funnel-longrun-recovery     -> origin/fix/20261003-funnel-longrun-recovery
+2026-10-20T11:27:55.2980761Z  * [new branch]        fix/20261004-published-release-replacement -> origin/fix/20261004-published-release-replacement
+2026-10-20T11:27:55.2981767Z  * [new branch]        fix/20261020-macos-workbench-contracts   -> origin/fix/20261020-macos-workbench-contracts
+2026-10-20T11:27:55.2982518Z  * [new branch]        fix/activity-call-parameters-20261015    -> origin/fix/activity-call-parameters-20261015
+2026-10-20T11:27:55.2983366Z  * [new branch]        fix/activity-parameter-detail-only-20261015 -> origin/fix/activity-parameter-detail-only-20261015
+2026-10-20T11:27:55.2984133Z  * [new branch]        fix/agent-runtime-hotfix-1.1.9-20261018  -> origin/fix/agent-runtime-hotfix-1.1.9-20261018
+2026-10-20T11:27:55.2984955Z  * [new branch]        fix/android-core-resumable-download-20261013 -> origin/fix/android-core-resumable-download-20261013
+2026-10-20T11:27:55.2985770Z  * [new branch]        fix/android-local-pair-refresh-20261013  -> origin/fix/android-local-pair-refresh-20261013
+2026-10-20T11:27:55.2986797Z  * [new branch]        fix/android-release-core-bound-20261015  -> origin/fix/android-release-core-bound-20261015
+2026-10-20T11:27:55.2987599Z  * [new branch]        fix/android-runtime-contract-sync-20261020 -> origin/fix/android-runtime-contract-sync-20261020
+2026-10-20T11:27:55.2988583Z  * [new branch]        fix/android-single-apk-workbench-installer-names-20261014 -> origin/fix/android-single-apk-workbench-installer-names-20261014
+2026-10-20T11:27:55.2989494Z  * [new branch]        fix/android-stable-signing-20261013      -> origin/fix/android-stable-signing-20261013
+2026-10-20T11:27:55.2990420Z  * [new branch]        fix/android-storage-lifecycle-20261013   -> origin/fix/android-storage-lifecycle-20261013
+2026-10-20T11:27:55.2991712Z  * [new branch]        fix/android-termux-host-recovery-20261013 -> origin/fix/android-termux-host-recovery-20261013
+2026-10-20T11:27:55.2992638Z  * [new branch]        fix/android-termux-protocol              -> origin/fix/android-termux-protocol
+2026-10-20T11:27:55.2993310Z  * [new branch]        fix/code-scanning-high-20261013          -> origin/fix/code-scanning-high-20261013
+2026-10-20T11:27:55.2994233Z  * [new branch]        fix/conditional-android-device-tools-20261013 -> origin/fix/conditional-android-device-tools-20261013
+2026-10-20T11:27:55.2995132Z  * [new branch]        fix/context-bound-task-20261013          -> origin/fix/context-bound-task-20261013
+2026-10-20T11:27:55.2995951Z  * [new branch]        fix/context-host-schema-task-guidance-1.1.9-20261019 -> origin/fix/context-host-schema-task-guidance-1.1.9-20261019
+2026-10-20T11:27:55.2997395Z  * [new branch]        fix/context-observation-reuse-20261015   -> origin/fix/context-observation-reuse-20261015
+2026-10-20T11:27:55.2998735Z  * [new branch]        fix/context-reliability-followup-20261018 -> origin/fix/context-reliability-followup-20261018
+2026-10-20T11:27:55.2999877Z  * [new branch]        fix/context-server-owned-budget-20261018 -> origin/fix/context-server-owned-budget-20261018
+2026-10-20T11:27:55.3000897Z  * [new branch]        fix/core-integration-quality-20261017    -> origin/fix/core-integration-quality-20261017
+2026-10-20T11:27:55.3001601Z  * [new branch]        fix/cua-launch-app-routing               -> origin/fix/cua-launch-app-routing
+2026-10-20T11:27:55.3002392Z  * [new branch]        fix/event-driven-command-terminal-settlement-20261013 -> origin/fix/event-driven-command-terminal-settlement-20261013
+2026-10-20T11:27:55.3004726Z  * [new branch]        fix/generic-mcp-structured-output        -> origin/fix/generic-mcp-structured-output
+2026-10-20T11:27:55.3005820Z  * [new branch]        fix/goal-mode-running-task-only-20261014 -> origin/fix/goal-mode-running-task-only-20261014
+2026-10-20T11:27:55.3006819Z  * [new branch]        fix/install-startup-performance-1.1.9-20261018 -> origin/fix/install-startup-performance-1.1.9-20261018
+2026-10-20T11:27:55.3007647Z  * [new branch]        fix/macos-release-regressions-1.1.9-20261014 -> origin/fix/macos-release-regressions-1.1.9-20261014
+2026-10-20T11:27:55.3008649Z  * [new branch]        fix/mcp-discovery-recovery-20261013      -> origin/fix/mcp-discovery-recovery-20261013
+2026-10-20T11:27:55.3009628Z  * [new branch]        fix/mcp-error-result-continuation-20261019 -> origin/fix/mcp-error-result-continuation-20261019
+2026-10-20T11:27:55.3010910Z  * [new branch]        fix/mcp-host-routing-loop-20261014       -> origin/fix/mcp-host-routing-loop-20261014
+2026-10-20T11:27:55.3011708Z  * [new branch]        fix/mcp-prepared-call-snapshot-20261013  -> origin/fix/mcp-prepared-call-snapshot-20261013
+2026-10-20T11:27:55.3012465Z  * [new branch]        fix/mcp-projection-and-plugin-update     -> origin/fix/mcp-projection-and-plugin-update
+2026-10-20T11:27:55.3013213Z  * [new branch]        fix/mcp-schema-delivery-20261020         -> origin/fix/mcp-schema-delivery-20261020
+2026-10-20T11:27:55.3013993Z  * [new branch]        fix/mcp-tool-domain-boundary-20261017    -> origin/fix/mcp-tool-domain-boundary-20261017
+2026-10-20T11:27:55.3014749Z  * [new branch]        fix/mcp-tool-domain-isolation-20261017   -> origin/fix/mcp-tool-domain-isolation-20261017
+2026-10-20T11:27:55.3015537Z  * [new branch]        fix/model-result-context-delivery-20261020 -> origin/fix/model-result-context-delivery-20261020
+2026-10-20T11:27:55.3016328Z  * [new branch]        fix/output-reliability-1.1.9-20261015    -> origin/fix/output-reliability-1.1.9-20261015
+2026-10-20T11:27:55.3017058Z  * [new branch]        fix/plugin-lifecycle-transaction-20261016 -> origin/fix/plugin-lifecycle-transaction-20261016
+2026-10-20T11:27:55.3018178Z  * [new branch]        fix/plugin-runtime-preparation-deadline-20261017 -> origin/fix/plugin-runtime-preparation-deadline-20261017
+2026-10-20T11:27:55.3020126Z  * [new branch]        fix/plugin-source-confirmation-20261006  -> origin/fix/plugin-source-confirmation-20261006
+2026-10-20T11:27:55.3021250Z  * [new branch]        fix/publish-prerelease-promotion-20261012 -> origin/fix/publish-prerelease-promotion-20261012
+2026-10-20T11:27:55.3021996Z  * [new branch]        fix/release-1.1.8-final-20261012         -> origin/fix/release-1.1.8-final-20261012
+2026-10-20T11:27:55.3022756Z  * [new branch]        fix/release-catalog-stable-android-1.1.9-20261014 -> origin/fix/release-catalog-stable-android-1.1.9-20261014
+2026-10-20T11:27:55.3023647Z  * [new branch]        fix/release-replacement-signing-1.1.9-20261014 -> origin/fix/release-replacement-signing-1.1.9-20261014
+2026-10-20T11:27:55.3024486Z  * [new branch]        fix/release-self-update-assets-20261020  -> origin/fix/release-self-update-assets-20261020
+2026-10-20T11:27:55.3025195Z  * [new branch]        fix/release-test-fixtures-20261015       -> origin/fix/release-test-fixtures-20261015
+2026-10-20T11:27:55.3026168Z  * [new branch]        fix/restore-agentdock-brand-20261017     -> origin/fix/restore-agentdock-brand-20261017
+2026-10-20T11:27:55.3026909Z  * [new branch]        fix/restore-v1.1.9-release-20261013      -> origin/fix/restore-v1.1.9-release-20261013
+2026-10-20T11:27:55.3027567Z  * [new branch]        fix/restore-version-1.1.9-20261019       -> origin/fix/restore-version-1.1.9-20261019
+2026-10-20T11:27:55.3028463Z  * [new branch]        fix/schema-projection-20261015           -> origin/fix/schema-projection-20261015
+2026-10-20T11:27:55.3029157Z  * [new branch]        fix/session-observe-backoff-20261013     -> origin/fix/session-observe-backoff-20261013
+2026-10-20T11:27:55.3029869Z  * [new branch]        fix/session-observe-contract-20261013    -> origin/fix/session-observe-contract-20261013
+2026-10-20T11:27:55.3030995Z  * [new branch]        fix/skill-storage-lifecycle-20261020     -> origin/fix/skill-storage-lifecycle-20261020
+2026-10-20T11:27:55.3031920Z  * [new branch]        fix/snapshot-cancel-isolation-20261013   -> origin/fix/snapshot-cancel-isolation-20261013
+2026-10-20T11:27:55.3032664Z  * [new branch]        fix/snapshot-canonical-fixture-20261017  -> origin/fix/snapshot-canonical-fixture-20261017
+2026-10-20T11:27:55.3033565Z  * [new branch]        fix/task-store-cancel-20261013           -> origin/fix/task-store-cancel-20261013
+2026-10-20T11:27:55.3034236Z  * [new branch]        fix/tool-routing-loop-20261012           -> origin/fix/tool-routing-loop-20261012
+2026-10-20T11:27:55.3034886Z  * [new branch]        fix/tool-routing-recovery-20261013       -> origin/fix/tool-routing-recovery-20261013
+2026-10-20T11:27:55.3035986Z  * [new branch]        fix/view-image-budget-convergence-20261016 -> origin/fix/view-image-budget-convergence-20261016
+2026-10-20T11:27:55.3036777Z  * [new branch]        fix/windows-cmd-git-window-20261020      -> origin/fix/windows-cmd-git-window-20261020
+2026-10-20T11:27:55.3037480Z  * [new branch]        fix/windows-core-start-health-20261020   -> origin/fix/windows-core-start-health-20261020
+2026-10-20T11:27:55.3038440Z  * [new branch]        fix/windows-git-child-console-20261020   -> origin/fix/windows-git-child-console-20261020
+2026-10-20T11:27:55.3039667Z  * [new branch]        fix/windows-installer-acl-backward-compat-20261013 -> origin/fix/windows-installer-acl-backward-compat-20261013
+2026-10-20T11:27:56.2922105Z ##[group]Run actions/setup-go@v6
+2026-10-20T11:27:56.2922448Z with:
+2026-10-20T11:27:56.2922640Z   go-version-file: go.mod
+2026-10-20T11:27:56.2922856Z   cache: true
+2026-10-20T11:27:56.2923038Z   check-latest: false
+2026-10-20T11:27:56.2925538Z   token: ***
+2026-10-20T11:27:56.2925718Z ##[endgroup]
+2026-10-20T11:27:56.4685867Z Setup go version spec 1.26.5
+2026-10-20T11:27:56.4707086Z Attempting to download 1.26.5...
+2026-10-20T11:27:57.4115989Z matching 1.26.5...
+2026-10-20T11:27:57.4159890Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-win32-x64.zip
+2026-10-20T11:27:58.1507633Z Extracting Go...
+2026-10-20T11:27:58.4095575Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.5-win32-x64.zip', 'D:\a\_temp\49a53ea6-efe1-4c91-be8f-3c9736f46101', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.5-win32-x64.zip' -DestinationPath 'D:\a\_temp\49a53ea6-efe1-4c91-be8f-3c9736f46101' -Force } else { throw $_ } } ;"
+2026-10-20T11:28:03.9680820Z Successfully extracted go to D:\a\_temp\49a53ea6-efe1-4c91-be8f-3c9736f46101
+2026-10-20T11:28:03.9681274Z Adding to the cache ...
+2026-10-20T11:28:15.5779302Z Created link C:\hostedtoolcache\windows\go\1.26.5\x64 => D:\hostedtoolcache\windows\go\1.26.5\x64
+2026-10-20T11:28:15.5784593Z Created link C:\hostedtoolcache\windows\go\1.26.5\x64.complete => D:\hostedtoolcache\windows\go\1.26.5\x64.complete
+2026-10-20T11:28:15.5785787Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.5\x64
+2026-10-20T11:28:15.5790997Z Added go to the path
+2026-10-20T11:28:15.5793980Z Successfully set up Go version 1.26.5
+2026-10-20T11:28:15.9373199Z [command]C:\hostedtoolcache\windows\go\1.26.5\x64\bin\go.exe env GOCACHE
+2026-10-20T11:28:15.9537676Z [command]C:\hostedtoolcache\windows\go\1.26.5\x64\bin\go.exe env GOMODCACHE
+2026-10-20T11:28:15.9889786Z C:\Users\runneradmin\AppData\Local\go-build
+2026-10-20T11:28:15.9919388Z C:\Users\runneradmin\go\pkg\mod
+2026-10-20T11:28:16.3480541Z Cache hit for: setup-go-Windows-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-20T11:28:17.5885409Z Received 75497472 of 137951316 (54.7%), 71.8 MBs/sec
+2026-10-20T11:28:18.3028934Z Received 137951316 of 137951316 (100.0%), 76.6 MBs/sec
+2026-10-20T11:28:18.3033004Z Cache Size: ~132 MB (137951316 B)
+2026-10-20T11:28:18.3140658Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/20d33c8f-f3ad-429f-8667-fdb61dd974ee/cache.tzst -P -C D:/a/AgentDock-Workbench/AgentDock-Workbench --force-local --use-compress-program "zstd -d"
+2026-10-20T11:28:34.9035605Z Cache restored successfully
+2026-10-20T11:28:34.9137985Z Cache restored from key: setup-go-Windows-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-20T11:28:34.9158624Z go version go1.26.5 windows/amd64
+2026-10-20T11:28:34.9158991Z 
+2026-10-20T11:28:34.9159312Z ##[group]go env
+2026-10-20T11:28:35.3405599Z set AR=ar
+2026-10-20T11:28:35.3406084Z set CC=gcc
+2026-10-20T11:28:35.3406692Z set CGO_CFLAGS=-O2 -g
+2026-10-20T11:28:35.3407086Z set CGO_CPPFLAGS=
+2026-10-20T11:28:35.3407447Z set CGO_CXXFLAGS=-O2 -g
+2026-10-20T11:28:35.3407826Z set CGO_ENABLED=1
+2026-10-20T11:28:35.3408157Z set CGO_FFLAGS=-O2 -g
+2026-10-20T11:28:35.3408527Z set CGO_LDFLAGS=-O2 -g
+2026-10-20T11:28:35.3409298Z set CXX=g++
+2026-10-20T11:28:35.3409591Z set GCCGO=gccgo
+2026-10-20T11:28:35.3409904Z set GO111MODULE=
+2026-10-20T11:28:35.3410207Z set GOAMD64=v1
+2026-10-20T11:28:35.3410560Z set GOARCH=amd64
+2026-10-20T11:28:39.1929170Z dotnet-install: Note that the script does not ensure your Windows version is supported during the installation.
+2026-10-20T11:28:39.1935550Z dotnet-install: To check the list of supported versions, go to https://learn.microsoft.com/dotnet/core/install/windows#supported-versions
+2026-10-20T11:28:39.1942944Z dotnet-install: Installed version is 10.0.13
+2026-10-20T11:28:39.1951923Z dotnet-install: Installation finished
+2026-10-20T11:28:39.3686101Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v5\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Channel 8.0
+2026-10-20T11:28:44.7894195Z dotnet-install: Downloaded file https://builds.dotnet.microsoft.com/dotnet/Sdk/8.0.426/dotnet-sdk-8.0.426-win-x64.zip size is 285292840 bytes.
+2026-10-20T11:28:44.7902815Z dotnet-install: Either downloaded or local package size can not be measured. One of them may be corrupted.
+2026-10-20T11:28:44.7932680Z dotnet-install: Extracting the archive.
+2026-10-20T11:29:03.5024738Z dotnet-install: Note that the script does not ensure your Windows version is supported during the installation.
+2026-10-20T11:29:03.5030211Z dotnet-install: To check the list of supported versions, go to https://learn.microsoft.com/dotnet/core/install/windows#supported-versions
+2026-10-20T11:29:03.5036088Z dotnet-install: Installed version is 8.0.426
+2026-10-20T11:29:03.5042601Z dotnet-install: Installation finished
+2026-10-20T11:29:03.5767919Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:29:03.5768380Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:29:03.5768813Z [36;1mgo test ./internal/envstore ./internal/fs/securepath[0m
+2026-10-20T11:29:03.8507887Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:29:03.8508398Z env:
+2026-10-20T11:29:03.8508610Z   GOTOOLCHAIN: local
+2026-10-20T11:29:03.8508874Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:29:03.8509159Z ##[endgroup]
+2026-10-20T11:29:11.1549948Z ok  	github.com/uvwt/agentdock/internal/envstore	3.312s
+2026-10-20T11:29:11.1550849Z ok  	github.com/uvwt/agentdock/internal/fs/securepath	0.094s
+2026-10-20T11:29:11.8688067Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:29:11.8688514Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:29:11.8688916Z [36;1m& .\scripts\ci\parallel-installer\test-setup-archive.ps1[0m
+2026-10-20T11:29:11.8766258Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:29:11.8766698Z env:
+2026-10-20T11:29:11.8766880Z   GOTOOLCHAIN: local
+2026-10-20T11:29:11.8767137Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:29:11.8767392Z ##[endgroup]
+2026-10-20T11:29:14.9730319Z WB05 Setup archive and timing tests passed.
+2026-10-20T11:29:15.0291890Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:29:15.0292608Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:29:15.0293550Z [36;1m$runtimeTestAgentDockBinary = Join-Path $env:RUNNER_TEMP 'agentdock-runtime-launch-test.exe'[0m
+2026-10-20T11:29:15.0294856Z [36;1m$env:CGO_ENABLED = '0'[0m
+2026-10-20T11:29:15.0295303Z [36;1m$env:GOOS = 'windows'[0m
+2026-10-20T11:29:15.0295743Z [36;1m$env:GOARCH = 'amd64'[0m
+2026-10-20T11:29:15.0296393Z [36;1mgo build -trimpath -o $runtimeTestAgentDockBinary .\cmd\agentdock[0m
+2026-10-20T11:29:15.0297316Z [36;1mif ($LASTEXITCODE -ne 0) { throw 'Runtime test Core build failed.' }[0m
+2026-10-20T11:29:15.0298345Z [36;1m$runtimeTestNativeLauncher = Join-Path $env:RUNNER_TEMP 'agentdock-tray-shim.exe'[0m
+2026-10-20T11:29:15.0299593Z [36;1mgo build -trimpath -ldflags '-s -w -H=windowsgui' -o $runtimeTestNativeLauncher .\cmd\agentdock-shim[0m
+2026-10-20T11:29:15.0300832Z [36;1mif ($LASTEXITCODE -ne 0) { throw 'Runtime test native GUI launcher build failed.' }[0m
+2026-10-20T11:29:15.0301813Z [36;1m& .\scripts\test\test-windows-runtime-launch-diagnostics.ps1 `[0m
+2026-10-20T11:29:15.0302718Z [36;1m  -LauncherPath .\scripts\install\launch-windows-process.ps1 `[0m
+2026-10-20T11:29:15.0303529Z [36;1m  -AgentDockBinary $runtimeTestAgentDockBinary[0m
+2026-10-20T11:29:15.0387495Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:29:15.0387936Z env:
+2026-10-20T11:29:15.0388120Z   GOTOOLCHAIN: local
+2026-10-20T11:29:15.0388347Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:29:15.0388605Z ##[endgroup]
+2026-10-20T11:30:01.4895719Z Windows Setup runtime diagnostic launcher validation passed.
+2026-10-20T11:30:01.5313496Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:30:01.5313955Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:30:01.5314681Z [36;1mgo test ./internal/desktopruntime -run TestSelectInteractiveTaskSessionID -count=1[0m
+2026-10-20T11:30:01.5386726Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:30:01.5387175Z env:
+2026-10-20T11:30:01.5387359Z   GOTOOLCHAIN: local
+2026-10-20T11:30:01.5387580Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:30:01.5387832Z ##[endgroup]
+2026-10-20T11:30:05.6923233Z ok  	github.com/uvwt/agentdock/internal/desktopruntime	0.030s
+2026-10-20T11:30:05.9453019Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:30:05.9453573Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:30:05.9454025Z [36;1mgo test ./internal/desktopruntime -run '^TestBinaryProcessStop' -count=3 -v[0m
+2026-10-20T11:30:05.9454596Z [36;1mif ($LASTEXITCODE -ne 0) { throw 'Native process-stop regression failed.' }[0m
+2026-10-20T11:30:05.9527889Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:30:05.9528342Z env:
+2026-10-20T11:30:05.9528523Z   GOTOOLCHAIN: local
+2026-10-20T11:30:05.9528749Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:30:05.9529005Z ##[endgroup]
+2026-10-20T11:30:07.2853292Z === RUN   TestBinaryProcessStopConfirmsSameHandle
+2026-10-20T11:30:07.2854269Z === RUN   TestBinaryProcessStopConfirmsSameHandle/already_exited
+2026-10-20T11:30:07.2855705Z === RUN   TestBinaryProcessStopConfirmsSameHandle/normal_termination
+2026-10-20T11:30:07.2857064Z === RUN   TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit
+2026-10-20T11:30:07.2858343Z === RUN   TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure
+2026-10-20T11:30:07.2859742Z === RUN   TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure
+2026-10-20T11:30:07.2861029Z === RUN   TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails
+2026-10-20T11:30:07.2862110Z === RUN   TestBinaryProcessStopConfirmsSameHandle/final_observation_fails
+2026-10-20T11:30:07.2863249Z === RUN   TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success
+2026-10-20T11:30:07.2864754Z --- PASS: TestBinaryProcessStopConfirmsSameHandle (0.00s)
+2026-10-20T11:30:07.2865871Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/already_exited (0.00s)
+2026-10-20T11:30:07.2867034Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/normal_termination (0.00s)
+2026-10-20T11:30:07.2868660Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit (0.00s)
+2026-10-20T11:30:07.2870018Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure (0.00s)
+2026-10-20T11:30:07.2871538Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure (0.00s)
+2026-10-20T11:30:07.2872946Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails (0.00s)
+2026-10-20T11:30:07.2874208Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/final_observation_fails (0.00s)
+2026-10-20T11:30:07.2875575Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success (0.00s)
+2026-10-20T11:30:07.2876467Z === RUN   TestBinaryProcessStopNativeConcurrentExit
+2026-10-20T11:30:07.3062647Z     service_process_windows_test.go:101: Native TerminateProcess returned access denied after child exit; pinned handle confirmed termination
+2026-10-20T11:30:07.3063541Z --- PASS: TestBinaryProcessStopNativeConcurrentExit (0.02s)
+2026-10-20T11:30:07.3064028Z === RUN   TestBinaryProcessStopNativeAccessDenial
+2026-10-20T11:30:07.3260967Z --- PASS: TestBinaryProcessStopNativeAccessDenial (0.02s)
+2026-10-20T11:30:07.3262274Z === RUN   TestBinaryProcessStopChild
+2026-10-20T11:30:07.3263334Z --- PASS: TestBinaryProcessStopChild (0.00s)
+2026-10-20T11:30:07.3264037Z === RUN   TestBinaryProcessStopConfirmsSameHandle
+2026-10-20T11:30:07.3264890Z === RUN   TestBinaryProcessStopConfirmsSameHandle/already_exited
+2026-10-20T11:30:07.3266230Z === RUN   TestBinaryProcessStopConfirmsSameHandle/normal_termination
+2026-10-20T11:30:07.3267222Z === RUN   TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit
+2026-10-20T11:30:07.3268283Z === RUN   TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure
+2026-10-20T11:30:07.3269517Z === RUN   TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure
+2026-10-20T11:30:07.3270654Z === RUN   TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails
+2026-10-20T11:30:07.3274343Z === RUN   TestBinaryProcessStopConfirmsSameHandle/final_observation_fails
+2026-10-20T11:30:07.3275484Z === RUN   TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success
+2026-10-20T11:30:07.3276458Z --- PASS: TestBinaryProcessStopConfirmsSameHandle (0.00s)
+2026-10-20T11:30:07.3277520Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/already_exited (0.00s)
+2026-10-20T11:30:07.3278717Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/normal_termination (0.00s)
+2026-10-20T11:30:07.3280442Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit (0.00s)
+2026-10-20T11:30:07.3281862Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure (0.00s)
+2026-10-20T11:30:07.3283438Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure (0.00s)
+2026-10-20T11:30:07.3284965Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails (0.00s)
+2026-10-20T11:30:07.3286268Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/final_observation_fails (0.00s)
+2026-10-20T11:30:07.3287674Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success (0.00s)
+2026-10-20T11:30:07.3288598Z === RUN   TestBinaryProcessStopNativeConcurrentExit
+2026-10-20T11:30:07.3466449Z     service_process_windows_test.go:101: Native TerminateProcess returned access denied after child exit; pinned handle confirmed termination
+2026-10-20T11:30:07.3467334Z --- PASS: TestBinaryProcessStopNativeConcurrentExit (0.02s)
+2026-10-20T11:30:07.3467783Z === RUN   TestBinaryProcessStopNativeAccessDenial
+2026-10-20T11:30:07.3756399Z --- PASS: TestBinaryProcessStopNativeAccessDenial (0.03s)
+2026-10-20T11:30:07.3757175Z === RUN   TestBinaryProcessStopChild
+2026-10-20T11:30:07.3757790Z --- PASS: TestBinaryProcessStopChild (0.00s)
+2026-10-20T11:30:07.3758421Z === RUN   TestBinaryProcessStopConfirmsSameHandle
+2026-10-20T11:30:07.3759231Z === RUN   TestBinaryProcessStopConfirmsSameHandle/already_exited
+2026-10-20T11:30:07.3760126Z === RUN   TestBinaryProcessStopConfirmsSameHandle/normal_termination
+2026-10-20T11:30:07.3761112Z === RUN   TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit
+2026-10-20T11:30:07.3762265Z === RUN   TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure
+2026-10-20T11:30:07.3763525Z === RUN   TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure
+2026-10-20T11:30:07.3764689Z === RUN   TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails
+2026-10-20T11:30:07.3765767Z === RUN   TestBinaryProcessStopConfirmsSameHandle/final_observation_fails
+2026-10-20T11:30:07.3766820Z === RUN   TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success
+2026-10-20T11:30:07.3767720Z --- PASS: TestBinaryProcessStopConfirmsSameHandle (0.00s)
+2026-10-20T11:30:07.3768712Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/already_exited (0.00s)
+2026-10-20T11:30:07.3769886Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/normal_termination (0.00s)
+2026-10-20T11:30:07.3771148Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/concurrent_supervisor_exit (0.00s)
+2026-10-20T11:30:07.3773152Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/real_access_denial_remains_failure (0.00s)
+2026-10-20T11:30:07.3774776Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/termination_success_without_exit_is_failure (0.00s)
+2026-10-20T11:30:07.3776681Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/initial_observation_fails (0.00s)
+2026-10-20T11:30:07.3778018Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/final_observation_fails (0.00s)
+2026-10-20T11:30:07.3779443Z     --- PASS: TestBinaryProcessStopConfirmsSameHandle/unknown_wait_state_is_not_success (0.00s)
+2026-10-20T11:30:07.3780452Z === RUN   TestBinaryProcessStopNativeConcurrentExit
+2026-10-20T11:30:07.3960072Z     service_process_windows_test.go:101: Native TerminateProcess returned access denied after child exit; pinned handle confirmed termination
+2026-10-20T11:30:07.3961590Z --- PASS: TestBinaryProcessStopNativeConcurrentExit (0.02s)
+2026-10-20T11:30:07.3962315Z === RUN   TestBinaryProcessStopNativeAccessDenial
+2026-10-20T11:30:07.4155165Z --- PASS: TestBinaryProcessStopNativeAccessDenial (0.02s)
+2026-10-20T11:30:07.4159673Z === RUN   TestBinaryProcessStopChild
+2026-10-20T11:30:07.4160534Z --- PASS: TestBinaryProcessStopChild (0.00s)
+2026-10-20T11:30:07.4161798Z PASS
+2026-10-20T11:30:07.4185584Z ok  	github.com/uvwt/agentdock/internal/desktopruntime	0.162s
+2026-10-20T11:30:07.6972656Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:30:07.6973148Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:30:07.6973576Z [36;1m$releaseRoot = Join-Path $env:RUNNER_TEMP 'agentdock-current-release'[0m
+2026-10-20T11:30:07.6974018Z [36;1m$distRoot = Join-Path $releaseRoot 'dist'[0m
+2026-10-20T11:30:07.6974472Z [36;1m$bundleRoot = Join-Path $distRoot 'share\agentdock\core-skills'[0m
+2026-10-20T11:30:07.6974946Z [36;1mNew-Item -ItemType Directory -Path $distRoot -Force | Out-Null[0m
+2026-10-20T11:30:07.6975316Z [36;1m[0m
+2026-10-20T11:30:07.6975499Z [36;1m$env:CGO_ENABLED = '0'[0m
+2026-10-20T11:30:07.6975744Z [36;1m$env:GOOS = 'windows'[0m
+2026-10-20T11:30:07.6975970Z [36;1m$env:GOARCH = 'amd64'[0m
+2026-10-20T11:30:07.6976342Z [36;1mgo build -trimpath -o (Join-Path $distRoot 'agentdock.exe') .\cmd\agentdock[0m
+2026-10-20T11:30:07.6977054Z [36;1mgo build -trimpath -ldflags '-s -w' -o (Join-Path $distRoot 'agentdock-arbiter.exe') .\cmd\agentdock-arbiter[0m
+2026-10-20T11:30:07.6977794Z [36;1mgo build -trimpath -ldflags '-s -w' -o (Join-Path $distRoot 'agentdock-shim.exe') .\cmd\agentdock-shim[0m
+2026-10-20T11:30:07.6978585Z [36;1mgo build -trimpath -ldflags '-s -w -H=windowsgui' -o (Join-Path $distRoot 'agentdock-tray-shim.exe') .\cmd\agentdock-shim[0m
+2026-10-20T11:30:07.6979237Z [36;1m$controlPanelOutput = Join-Path $distRoot 'control-panel'[0m
+2026-10-20T11:30:07.6979749Z [36;1mdotnet publish .\desktop\windows\control-panel\AgentDock.ControlPanel.csproj `[0m
+2026-10-20T11:30:07.6980174Z [36;1m  -c Release `[0m
+2026-10-20T11:30:07.6980379Z [36;1m  -r win-x64 `[0m
+2026-10-20T11:30:07.6980589Z [36;1m  --self-contained true `[0m
+2026-10-20T11:30:07.6980846Z [36;1m  -o $controlPanelOutput[0m
+2026-10-20T11:30:07.6981369Z [36;1mCopy-Item (Join-Path $controlPanelOutput 'agentdock-tray.exe') (Join-Path $distRoot 'agentdock-tray.exe') -Force[0m
+2026-10-20T11:30:07.6982138Z [36;1mCopy-Item .\packaging\windows\assets\agentdock.ico (Join-Path $distRoot 'agentdock.ico') -Force[0m
+2026-10-20T11:30:07.6982870Z [36;1mCopy-Item .\packaging\windows\compat\manage-windows.ps1 (Join-Path $distRoot 'manage-windows.ps1') -Force[0m
+2026-10-20T11:30:07.6983508Z [36;1mpython .\packaging\build-core-skill-bundle.py --output $bundleRoot[0m
+2026-10-20T11:30:07.6984131Z [36;1m& .\packaging\windows\build-wsl-helper-payload.ps1 -OutputDirectory (Join-Path $distRoot 'wsl-helper')[0m
+2026-10-20T11:30:07.6985065Z [36;1m[0m
+2026-10-20T11:30:07.6985284Z [36;1m$assetName = 'agentdock_windows_amd64.zip'[0m
+2026-10-20T11:30:07.6985626Z [36;1m$archivePath = Join-Path $releaseRoot $assetName[0m
+2026-10-20T11:30:07.6985932Z [36;1mCompress-Archive `[0m
+2026-10-20T11:30:07.6987346Z [36;1m  -Path (Join-Path $distRoot 'agentdock.exe'), (Join-Path $distRoot 'agentdock-tray.exe'), (Join-Path $distRoot 'agentdock-arbiter.exe'), (Join-Path $distRoot 'agentdock-shim.exe'), (Join-Path $distRoot 'agentdock-tray-shim.exe'), (Join-Path $distRoot 'agentdock.ico'), (Join-Path $distRoot 'manage-windows.ps1'), (Join-Path $distRoot 'share'), (Join-Path $distRoot 'wsl-helper') `[0m
+2026-10-20T11:30:07.6989068Z [36;1m  -DestinationPath $archivePath `[0m
+2026-10-20T11:30:07.6989328Z [36;1m  -Force[0m
+2026-10-20T11:30:07.6989724Z [36;1m$hash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()[0m
+2026-10-20T11:30:07.6990182Z [36;1m[IO.File]::WriteAllText([0m
+2026-10-20T11:30:07.6990419Z [36;1m  "$archivePath.sha256",[0m
+2026-10-20T11:30:07.6990649Z [36;1m  "$hash  $assetName`n",[0m
+2026-10-20T11:30:07.6996225Z [36;1m$listener.Stop()[0m
+2026-10-20T11:30:07.6996547Z [36;1m$releaseBaseUrl = "http://127.0.0.1:$port"[0m
+2026-10-20T11:30:07.6996861Z [36;1m$server = Start-Process `[0m
+2026-10-20T11:30:07.6997126Z [36;1m  -FilePath 'python' `[0m
+2026-10-20T11:30:07.6997565Z [36;1m  -ArgumentList @('-m', 'http.server', $port, '--bind', '127.0.0.1', '--directory', $releaseRoot) `[0m
+2026-10-20T11:30:07.6998018Z [36;1m  -WindowStyle Hidden `[0m
+2026-10-20T11:30:07.6998318Z [36;1m  -PassThru[0m
+2026-10-20T11:30:07.6998513Z [36;1mtry {[0m
+2026-10-20T11:30:07.6998744Z [36;1m  $deadline = [DateTime]::UtcNow.AddSeconds(15)[0m
+2026-10-20T11:30:07.6999027Z [36;1m  do {[0m
+2026-10-20T11:30:07.6999241Z [36;1m    Start-Sleep -Milliseconds 250[0m
+2026-10-20T11:30:07.6999625Z [36;1m    try {[0m
+2026-10-20T11:30:07.7000179Z [36;1m      Invoke-WebRequest -UseBasicParsing -Uri "$releaseBaseUrl/$assetName.sha256" -TimeoutSec 2 | Out-Null[0m
+2026-10-20T11:30:07.7000817Z [36;1m      break[0m
+2026-10-20T11:30:07.7001119Z [36;1m    } catch {[0m
+2026-10-20T11:30:07.7001473Z [36;1m      if ([DateTime]::UtcNow -ge $deadline) { throw }[0m
+2026-10-20T11:30:07.7001872Z [36;1m    }[0m
+2026-10-20T11:30:07.7002184Z [36;1m  } while ($true)[0m
+2026-10-20T11:30:07.7002471Z [36;1m[0m
+2026-10-20T11:30:07.7002867Z [36;1m  & .\scripts\test\run-windows-installer-e2e-as-standard-user.ps1 `[0m
+2026-10-20T11:30:07.7003407Z [36;1m    -InstallerPath .\scripts\install\install.ps1 `[0m
+2026-10-20T11:30:07.7003868Z [36;1m    -Version latest `[0m
+2026-10-20T11:30:07.7004215Z [36;1m    -ReleaseBaseUrl $releaseBaseUrl[0m
+2026-10-20T11:30:07.7004951Z [36;1m} finally {[0m
+2026-10-20T11:30:07.7005427Z [36;1m  Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue[0m
+2026-10-20T11:30:07.7005883Z [36;1m}[0m
+2026-10-20T11:30:07.7080379Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:30:07.7081020Z env:
+2026-10-20T11:30:07.7081306Z   GOTOOLCHAIN: local
+2026-10-20T11:30:07.7081620Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:30:07.7081997Z ##[endgroup]
+2026-10-20T11:30:20.5736475Z   Determining projects to restore...
+2026-10-20T11:30:30.0463798Z   Restored D:\a\AgentDock-Workbench\AgentDock-Workbench\desktop\windows\control-panel\AgentDock.ControlPanel.csproj (in 7.65 sec).
+2026-10-20T11:30:48.0003122Z   AgentDock.ControlPanel -> D:\a\AgentDock-Workbench\AgentDock-Workbench\desktop\windows\control-panel\bin\Release\net8.0-windows10.0.19041.0\win-x64\agentdock-tray.dll
+2026-10-20T11:30:49.6519149Z   AgentDock.ControlPanel -> D:\a\_temp\agentdock-current-release\dist\control-panel\
+2026-10-20T11:30:51.8150388Z built core Skill Bundle: D:\a\_temp\agentdock-current-release\dist\share\agentdock\core-skills
+2026-10-20T11:31:19.7215464Z WSL helper payload built: D:\a\_temp\agentdock-current-release\dist\wsl-helper
+2026-10-20T11:31:37.1648132Z Preparing worktree (detached HEAD 59eaceda)
+2026-10-20T11:31:37.4094523Z HEAD is now at 59eaceda release: 发布 v0.8.2
+2026-10-20T11:31:43.6910697Z ok  	github.com/uvwt/agentdock/internal/selfupdate	3.740s
+2026-10-20T11:31:43.7912108Z v0.8.2 updater accepted current Windows Release ZIP.
+2026-10-20T11:31:43.9485350Z Preparing worktree (detached HEAD bd92f80e)
+2026-10-20T11:31:44.1911253Z HEAD is now at bd92f80e release: 发布 v0.8.3
+2026-10-20T11:31:50.4026083Z ok  	github.com/uvwt/agentdock/internal/selfupdate	3.753s
+2026-10-20T11:31:50.5258104Z v0.8.3 updater accepted current Windows Release ZIP.
+2026-10-20T11:32:37.4825102Z Validated 15 archive entries and streamed 13 required payload entries (252539107 bytes).
+2026-10-20T11:32:37.4826748Z Downloading cloudflared: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+2026-10-20T11:32:37.4829535Z Core Skills were installed by the Installer Engine.
+2026-10-20T11:32:37.4831098Z AgentDock installed: C:\Users\adocke2e3c2e7062\AppData\Local\Temp\agentdock-installer-e2e-a091d4d0025344e3b4b969d331e33ac2\bin\agentdock.exe
+2026-10-20T11:32:37.4832503Z Local MCP address: http://127.0.0.1:18765/mcp
+2026-10-20T11:32:37.4833367Z Open a new terminal if the updated user PATH is not visible yet.
+2026-10-20T11:32:37.4835011Z *** agentdock-e2e-token
+2026-10-20T11:32:37.4835946Z Validated 15 archive entries and streamed 13 required payload entries (252539107 bytes).
+2026-10-20T11:32:37.4836962Z Core Skills were installed by the Installer Engine.
+2026-10-20T11:32:37.4838453Z AgentDock installed: C:\Users\adocke2e3c2e7062\AppData\Local\Temp\agentdock-installer-e2e-a091d4d0025344e3b4b969d331e33ac2\bin\agentdock.exe
+2026-10-20T11:32:37.4839838Z Local MCP address: http://127.0.0.1:18765/mcp
+2026-10-20T11:32:37.4840661Z Open a new terminal if the updated user PATH is not visible yet.
+2026-10-20T11:32:37.4841534Z *** agentdock-e2e-token
+2026-10-20T11:32:37.4842442Z AgentDock Windows full install, in-place upgrade, and redirected manifest recovery passed.
+2026-10-20T11:32:37.4861576Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\.agentdock\plugins\.locks\store.lock
+2026-10-20T11:32:37.4872280Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\.agentdock\mcp\.store.lock
+2026-10-20T11:32:37.4879357Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\.agentdock\env\.store.lock
+2026-10-20T11:32:37.4886301Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\.agentdock\tasks\.store.lock
+2026-10-20T11:32:37.4894426Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\AppData\Local\Temp\agentdock-installer-e2e-a091d4d0025344e3b4b969d331e33ac2\auth-token.dpapi.lock
+2026-10-20T11:32:37.4899371Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\AppData\Local\Temp\agentdock-installer-e2e-a091d4d0025344e3b4b969d331e33ac2\oauth-password.dpapi.lock
+2026-10-20T11:32:37.4906131Z 2026/10/20 11:32:36 INFO recovered abandoned runtime lock path=C:\Users\adocke2e3c2e7062\AppData\Local\Temp\agentdock-installer-e2e-a091d4d0025344e3b4b969d331e33ac2\oauth-token-secret.dpapi.lock
+2026-10-20T11:32:39.2039015Z AgentDock Setup user-context guard passed.
+2026-10-20T11:32:39.2212574Z AgentDock Windows standard-user E2E passed.
+2026-10-20T11:32:39.2832753Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:32:39.2833214Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:32:39.2833618Z [36;1mNew-Item -ItemType Directory -Path dist -Force | Out-Null[0m
+2026-10-20T11:32:39.2833993Z [36;1m$env:CGO_ENABLED = '0'[0m
+2026-10-20T11:32:39.2834246Z [36;1m$env:GOOS = 'windows'[0m
+2026-10-20T11:32:39.2834482Z [36;1m$env:GOARCH = 'amd64'[0m
+2026-10-20T11:32:39.2835672Z [36;1mgo build -trimpath -o dist\agentdock.exe .\cmd\agentdock[0m
+2026-10-20T11:32:39.2836211Z [36;1mgo build -trimpath -ldflags '-s -w' -o dist\agentdock-arbiter.exe .\cmd\agentdock-arbiter[0m
+2026-10-20T11:32:39.2836875Z [36;1mgo build -trimpath -ldflags '-s -w' -o dist\agentdock-shim.exe .\cmd\agentdock-shim[0m
+2026-10-20T11:32:39.2837563Z [36;1mgo build -trimpath -ldflags '-s -w -H=windowsgui' -o dist\agentdock-tray-shim.exe .\cmd\agentdock-shim[0m
+2026-10-20T11:32:39.2838277Z [36;1mdotnet publish .\desktop\windows\control-panel\AgentDock.ControlPanel.csproj `[0m
+2026-10-20T11:32:39.2838719Z [36;1m  -c Release `[0m
+2026-10-20T11:32:39.2838933Z [36;1m  -r win-x64 `[0m
+2026-10-20T11:32:39.2839150Z [36;1m  --self-contained true `[0m
+2026-10-20T11:32:39.2839415Z [36;1m  -o dist\control-panel[0m
+2026-10-20T11:32:39.2839899Z [36;1mCopy-Item .\dist\control-panel\agentdock-tray.exe .\dist\agentdock-tray.exe -Force[0m
+2026-10-20T11:32:39.2840536Z [36;1m& .\packaging\windows\build-wsl-helper-payload.ps1 -OutputDirectory .\dist\wsl-helper[0m
+2026-10-20T11:32:39.2915130Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:32:39.2915563Z env:
+2026-10-20T11:32:39.2915751Z   GOTOOLCHAIN: local
+2026-10-20T11:32:39.2915982Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:32:39.2916242Z ##[endgroup]
+2026-10-20T11:32:46.2838022Z   Determining projects to restore...
+2026-10-20T11:32:46.6310586Z   All projects are up-to-date for restore.
+2026-10-20T11:32:47.1717369Z   AgentDock.ControlPanel -> D:\a\AgentDock-Workbench\AgentDock-Workbench\desktop\windows\control-panel\bin\Release\net8.0-windows10.0.19041.0\win-x64\agentdock-tray.dll
+2026-10-20T11:32:48.4259296Z   AgentDock.ControlPanel -> D:\a\AgentDock-Workbench\AgentDock-Workbench\dist\control-panel\
+2026-10-20T11:32:50.8922489Z WSL helper payload built: D:\a\AgentDock-Workbench\AgentDock-Workbench\dist\wsl-helper
+2026-10-20T11:32:50.9358265Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:32:50.9358727Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:32:50.9359159Z [36;1mif ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64) -or[0m
+2026-10-20T11:32:50.9359965Z [36;1m    [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD)) {[0m
+2026-10-20T11:32:50.9360411Z [36;1m  if (-not [string]::IsNullOrWhiteSpace('')) {[0m
+2026-10-20T11:32:50.9361027Z [36;1m    throw 'Windows signing secrets are required for a test package.'[0m
+2026-10-20T11:32:50.9361406Z [36;1m  }[0m
+2026-10-20T11:32:50.9361834Z [36;1m  Write-Host 'Windows signing secrets are not configured; skipping Authenticode integration test.'[0m
+2026-10-20T11:32:50.9362320Z [36;1m  exit 0[0m
+2026-10-20T11:32:50.9362501Z [36;1m}[0m
+2026-10-20T11:32:50.9362663Z [36;1m[0m
+2026-10-20T11:32:50.9362850Z [36;1m$paths = @([0m
+2026-10-20T11:32:50.9363068Z [36;1m  '.\dist\agentdock.exe',[0m
+2026-10-20T11:32:50.9363381Z [36;1m  '.\dist\agentdock-tray.exe',[0m
+2026-10-20T11:32:50.9363680Z [36;1m  '.\dist\agentdock-arbiter.exe',[0m
+2026-10-20T11:32:50.9363955Z [36;1m  '.\dist\agentdock-shim.exe',[0m
+2026-10-20T11:32:50.9364235Z [36;1m  '.\dist\agentdock-tray-shim.exe'[0m
+2026-10-20T11:32:50.9364494Z [36;1m)[0m
+2026-10-20T11:32:50.9364745Z [36;1m.\packaging\windows\sign-windows.ps1 -Path $paths[0m
+2026-10-20T11:32:50.9365176Z [36;1m.\packaging\windows\sign-windows.ps1 -Path $paths -VerifyOnly[0m
+2026-10-20T11:32:50.9443359Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-20T11:32:50.9443736Z env:
+2026-10-20T11:32:50.9443923Z   GOTOOLCHAIN: local
+2026-10-20T11:32:50.9444149Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:32:50.9444417Z   WINDOWS_SIGNING_CERT_BASE64: 
+2026-10-20T11:32:50.9444673Z   WINDOWS_SIGNING_CERT_PASSWORD: 
+2026-10-20T11:32:50.9444907Z ##[endgroup]
+2026-10-20T11:32:51.3536911Z Windows signing secrets are not configured; skipping Authenticode integration test.
+2026-10-20T11:32:51.4196105Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:32:51.4196589Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:32:51.4197030Z [36;1m$payloadRoot = Join-Path $env:RUNNER_TEMP 'agentdock-offline-amd64'[0m
+2026-10-20T11:32:51.4197631Z [36;1mRemove-Item -LiteralPath $payloadRoot -Recurse -Force -ErrorAction SilentlyContinue[0m
+2026-10-20T11:32:51.4198247Z [36;1mNew-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null[0m
+2026-10-20T11:32:51.4198641Z [36;1m[0m
+2026-10-20T11:32:51.4199043Z [36;1mpython .\packaging\build-core-skill-bundle.py --output .\dist\share\agentdock\core-skills[0m
+2026-10-20T11:32:51.4199676Z [36;1mCopy-Item .\packaging\windows\assets\agentdock.ico .\dist\agentdock.ico -Force[0m
+2026-10-20T11:32:51.4200294Z [36;1mCopy-Item .\packaging\windows\compat\manage-windows.ps1 .\dist\manage-windows.ps1 -Force[0m
+2026-10-20T11:32:51.4200880Z [36;1m$archivePath = Join-Path $payloadRoot 'agentdock_windows_amd64.zip'[0m
+2026-10-20T11:32:51.4201314Z [36;1mCompress-Archive `[0m
+2026-10-20T11:32:51.4202197Z [36;1m  -Path .\dist\agentdock.exe, .\dist\agentdock-tray.exe, .\dist\agentdock-arbiter.exe, .\dist\agentdock-shim.exe, .\dist\agentdock-tray-shim.exe, .\dist\agentdock.ico, .\dist\manage-windows.ps1, .\dist\share, .\dist\wsl-helper `[0m
+2026-10-20T11:32:51.4203135Z [36;1m  -DestinationPath $archivePath `[0m
+2026-10-20T11:32:51.4203406Z [36;1m  -Force[0m
+2026-10-20T11:32:51.4203803Z [36;1m$hash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()[0m
+2026-10-20T11:32:51.4204295Z [36;1m$checksumPath = "$archivePath.sha256"[0m
+2026-10-20T11:32:51.4204845Z [36;1m[IO.File]::WriteAllText($checksumPath, "$hash  agentdock_windows_amd64.zip`n", [Text.UTF8Encoding]::new($false))[0m
+2026-10-20T11:32:51.4205362Z [36;1m[0m
+2026-10-20T11:32:51.4205729Z [36;1m"AMD64_ARCHIVE=$archivePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append[0m
+2026-10-20T11:32:51.4206370Z [36;1m"AMD64_CHECKSUM=$checksumPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append[0m
+2026-10-20T11:32:51.4282155Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-20T11:32:51.4282524Z env:
+2026-10-20T11:32:51.4282723Z   GOTOOLCHAIN: local
+2026-10-20T11:32:51.4282954Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:32:51.4283217Z ##[endgroup]
+2026-10-20T11:32:51.9032344Z built core Skill Bundle: D:\a\AgentDock-Workbench\AgentDock-Workbench\dist\share\agentdock\core-skills
+2026-10-20T11:32:58.4635146Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:32:58.4635619Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:32:58.4636017Z [36;1m& .\scripts\test\test-windows-legacy-online-migration.ps1 `[0m
+2026-10-20T11:32:58.4636434Z [36;1m  -ArchivePath $env:AMD64_ARCHIVE `[0m
+2026-10-20T11:32:58.4636739Z [36;1m  -ChecksumPath $env:AMD64_CHECKSUM[0m
+2026-10-20T11:32:58.4637449Z [36;1m& .\scripts\test\test-windows-legacy-online-migration.ps1 `[0m
+2026-10-20T11:32:58.4637894Z [36;1m  -ArchivePath $env:AMD64_ARCHIVE `[0m
+2026-10-20T11:32:58.4638198Z [36;1m  -ChecksumPath $env:AMD64_CHECKSUM `[0m
+2026-10-20T11:32:58.4638502Z [36;1m  -InjectTrayReplaceFailure[0m
+2026-10-20T11:32:58.4710737Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:32:58.4711184Z env:
+2026-10-20T11:32:58.4711374Z   GOTOOLCHAIN: local
+2026-10-20T11:32:58.4711604Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:32:58.4712057Z   AMD64_ARCHIVE: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip
+2026-10-20T11:32:58.4712603Z   AMD64_CHECKSUM: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip.sha256
+2026-10-20T11:32:58.4713024Z ##[endgroup]
+2026-10-20T11:33:01.8704045Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\home\plugins\.locks\store.lock
+2026-10-20T11:33:01.8706031Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\home\mcp\.store.lock
+2026-10-20T11:33:01.8707917Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\home\env\.store.lock
+2026-10-20T11:33:01.8709412Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\home\tasks\.store.lock
+2026-10-20T11:33:01.8710959Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\runtime\auth-token.dpapi.lock
+2026-10-20T11:33:01.8712771Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\runtime\oauth-password.dpapi.lock
+2026-10-20T11:33:01.8714192Z 2026/10/20 11:33:01 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-e66de4c8dc694d85b07a1413d1e85fd2\runtime\oauth-token-secret.dpapi.lock
+2026-10-20T11:33:02.3766457Z {"action":"start","completed":true}
+2026-10-20T11:33:07.9536836Z 已安排 Windows generation 一次性迁移：v1.1.9
+2026-10-20T11:33:14.1495238Z Windows legacy flat -> generation migration E2E passed on v1.1.9.
+2026-10-20T11:33:17.3574375Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\home\plugins\.locks\store.lock
+2026-10-20T11:33:17.3577530Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\home\mcp\.store.lock
+2026-10-20T11:33:17.3579780Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\home\env\.store.lock
+2026-10-20T11:33:17.3581972Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\home\tasks\.store.lock
+2026-10-20T11:33:17.3584245Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\runtime\auth-token.dpapi.lock
+2026-10-20T11:33:17.3586452Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\runtime\oauth-password.dpapi.lock
+2026-10-20T11:33:17.3591881Z 2026/10/20 11:33:17 INFO recovered abandoned runtime lock path=D:\a\_temp\agentdock-legacy-migration-e2e-3546c6f7f9b643928851959a94c0fbfb\runtime\oauth-token-secret.dpapi.lock
+2026-10-20T11:33:17.8635919Z {"action":"start","completed":true}
+2026-10-20T11:33:22.7552869Z 已安排 Windows generation 一次性迁移：v1.1.9
+2026-10-20T11:33:29.0097586Z Windows legacy migration rollback E2E passed on v1.1.9.
+2026-10-20T11:33:33.9327808Z 已安排 Windows generation 一次性迁移：v1.1.9
+2026-10-20T11:33:33.9587019Z Windows legacy migration retry scheduled after rollback.
+2026-10-20T11:33:38.5269786Z Windows legacy flat -> generation migration E2E passed on v1.1.9.
+2026-10-20T11:33:39.2125711Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:33:39.2126402Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:33:39.2126964Z [36;1m$ProgressPreference = 'SilentlyContinue'[0m
+2026-10-20T11:33:39.2127790Z [36;1m$cloudflaredPath = Join-Path $env:RUNNER_TEMP 'cloudflared-windows-amd64.exe'[0m
+2026-10-20T11:33:39.2129191Z [36;1m$cloudflaredUrl = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe'[0m
+2026-10-20T11:33:39.2130306Z [36;1mfor ($attempt = 1; $attempt -le 5; $attempt++) {[0m
+2026-10-20T11:33:39.2130647Z [36;1m  try {[0m
+2026-10-20T11:33:39.2131057Z [36;1m    Invoke-WebRequest -UseBasicParsing -Uri $cloudflaredUrl -OutFile $cloudflaredPath[0m
+2026-10-20T11:33:39.2131518Z [36;1m    break[0m
+2026-10-20T11:33:39.2131715Z [36;1m  } catch {[0m
+2026-10-20T11:33:39.2132248Z [36;1m    if ($attempt -eq 5) { throw }[0m
+2026-10-20T11:33:39.2132534Z [36;1m    Start-Sleep -Seconds 2[0m
+2026-10-20T11:33:39.2132814Z [36;1m  }[0m
+2026-10-20T11:33:39.2133067Z [36;1m}[0m
+2026-10-20T11:33:39.2133429Z [36;1m$cloudflaredSignature = Get-AuthenticodeSignature -LiteralPath $cloudflaredPath[0m
+2026-10-20T11:33:39.2134107Z [36;1mif ($cloudflaredSignature.Status -ne [Management.Automation.SignatureStatus]::Valid) {[0m
+2026-10-20T11:33:39.2135269Z [36;1m  throw "cloudflared Authenticode signature is invalid: $($cloudflaredSignature.StatusMessage)"[0m
+2026-10-20T11:33:39.2135945Z [36;1m}[0m
+2026-10-20T11:33:39.2136358Z [36;1m"AMD64_CLOUDFLARED=$cloudflaredPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append[0m
+2026-10-20T11:33:39.2218320Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-20T11:33:39.2218703Z env:
+2026-10-20T11:33:39.2218892Z   GOTOOLCHAIN: local
+2026-10-20T11:33:39.2219127Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:33:39.2219556Z   AMD64_ARCHIVE: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip
+2026-10-20T11:33:39.2220144Z   AMD64_CHECKSUM: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip.sha256
+2026-10-20T11:33:39.2220571Z ##[endgroup]
+2026-10-20T11:33:41.0187573Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-20T11:33:41.0188087Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-20T11:33:41.0188519Z [36;1m$fakeCloudflared = Join-Path $env:RUNNER_TEMP 'fake-cloudflared.exe'[0m
+2026-10-20T11:33:41.0188919Z [36;1m$env:CGO_ENABLED = '0'[0m
+2026-10-20T11:33:41.0189224Z [36;1m$env:GOOS = 'windows'[0m
+2026-10-20T11:33:41.0189502Z [36;1m$env:GOARCH = 'amd64'[0m
+2026-10-20T11:33:41.0189921Z [36;1mgo build -trimpath -o $fakeCloudflared .\scripts\test\testdata\fake-cloudflared[0m
+2026-10-20T11:33:41.0190617Z [36;1m& .\scripts\test\test-windows-quick-tunnel-lifecycle.ps1 `[0m
+2026-10-20T11:33:41.0191223Z [36;1m  -InstallerPath .\scripts\install\install.ps1 `[0m
+2026-10-20T11:33:41.0191670Z [36;1m  -UninstallerPath .\scripts\install\uninstall-windows.ps1 `[0m
+2026-10-20T11:33:41.0192079Z [36;1m  -AgentDockArchive $env:AMD64_ARCHIVE `[0m
+2026-10-20T11:33:41.0192472Z [36;1m  -AgentDockChecksumFile $env:AMD64_CHECKSUM `[0m
+2026-10-20T11:33:41.0192820Z [36;1m  -FakeCloudflaredBinary $fakeCloudflared[0m
+2026-10-20T11:33:41.0268692Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-20T11:33:41.0269155Z env:
+2026-10-20T11:33:41.0269354Z   GOTOOLCHAIN: local
+2026-10-20T11:33:41.0269596Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-20T11:33:41.0270009Z   AMD64_ARCHIVE: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip
+2026-10-20T11:33:41.0270864Z   AMD64_CHECKSUM: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip.sha256
+2026-10-20T11:33:41.0271555Z   AMD64_CLOUDFLARED: D:\a\_temp\cloudflared-windows-amd64.exe
+2026-10-20T11:33:41.0271986Z ##[endgroup]
+2026-10-20T11:33:42.7283178Z Using bundled AgentDock payload: D:\a\_temp\agentdock-offline-amd64\agentdock_windows_amd64.zip
+2026-10-20T11:33:46.5678492Z Validated 15 archive entries and streamed 13 required payload entries (252539107 bytes).
+2026-10-20T11:33:49.0009991Z Core Skills were installed by the Installer Engine.
+2026-10-20T11:33:49.9472059Z AgentDock installed: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\bin\agentdock.exe
+2026-10-20T11:33:49.9474970Z Local MCP address: http://127.0.0.1:59257/mcp
+2026-10-20T11:33:49.9476534Z Open a new terminal if the updated user PATH is not visible yet.
+2026-10-20T11:33:49.9484995Z *** stable-quick-bearer-token
+2026-10-20T11:33:49.9489397Z 
+2026-10-20T11:33:49.9501309Z AgentDock public access configured
+2026-10-20T11:33:49.9511494Z Public mode: quick
+2026-10-20T11:33:49.9524207Z Public access is starting in the background.
+2026-10-20T11:33:49.9536775Z Open the AgentDock control panel to view the public address when it is ready.
+2026-10-20T11:33:49.9551063Z *** stable-quick-bearer-token
+2026-10-20T11:33:49.9563605Z OAuth login password: stable-quick-oauth-password
+2026-10-20T11:33:49.9574757Z Authentication: *** and OAuth are both enabled.
+2026-10-20T11:33:49.9586071Z cloudflared stdout log: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\cloudflared.out.log
+2026-10-20T11:33:49.9597309Z cloudflared stderr log: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\cloudflared.err.log
+2026-10-20T11:33:49.9607435Z The temporary address changes after cloudflared restarts.
+2026-10-20T11:33:49.9616944Z The control panel reports the current address after background startup completes.
+2026-10-20T11:34:35.2957384Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\start-cloudflared.ps1 -----
+2026-10-20T11:34:35.2975330Z $ErrorActionPreference = 'Stop'
+2026-10-20T11:34:35.2976626Z & 'D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\bin\agentdock.exe' tunnel launch --runtime-root 'D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock'
+2026-10-20T11:34:35.2977856Z exit $LASTEXITCODE
+2026-10-20T11:34:35.2991736Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\cloudflared.out.log -----
+2026-10-20T11:34:35.3005434Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\cloudflared.err.log -----
+2026-10-20T11:34:35.3018733Z supervisor started pid=3160 runtime=D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock
+2026-10-20T11:34:35.3019819Z cloudflared started supervisor_pid=3160 child_pid=2816 phase=provision
+2026-10-20T11:34:35.3020340Z INF Your quick Tunnel has been created! Visit it at:
+2026-10-20T11:34:35.3020747Z https://first-agentdock-test.trycloudflare.com
+2026-10-20T11:34:35.3021125Z cloudflared phase=apply-url child_pid=2816
+2026-10-20T11:34:35.3021329Z 
+2026-10-20T11:34:35.3030591Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\quick-tunnel-url.txt -----
+2026-10-20T11:34:35.3042434Z <missing>
+2026-10-20T11:34:35.3056320Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\server-url.txt -----
+2026-10-20T11:34:35.3073392Z https://first-agentdock-test.trycloudflare.com
+2026-10-20T11:34:35.3084313Z ----- diagnostic: D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\runtime.json -----
+2026-10-20T11:34:35.3097015Z {
+2026-10-20T11:34:35.3097475Z   "schema_version": 1,
+2026-10-20T11:34:35.3102035Z   "install_root": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock",
+2026-10-20T11:34:35.3103482Z   "agentdock_home": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\.agentdock",
+2026-10-20T11:34:35.3104942Z   "agentdock_default_dir": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\workspace",
+2026-10-20T11:34:35.3107018Z   "agentdock_binary": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock\\bin\\agentdock.exe",
+2026-10-20T11:34:35.3108868Z   "tray_binary": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock\\bin\\agentdock-tray.exe",
+2026-10-20T11:34:35.3110643Z   "agentdock_launcher": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock\\start-agentdock.ps1",
+2026-10-20T11:34:35.3111768Z   "privilege_mode": "standard",
+2026-10-20T11:34:35.3113023Z   "cloudflared_binary": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock\\bin\\cloudflared.exe",
+2026-10-20T11:34:35.3114923Z   "cloudflared_launcher": "D:\\a\\_temp\\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\\AgentDock\\start-cloudflared.ps1",
+2026-10-20T11:34:35.3116479Z   "startup_value_name": "AgentDockQuickLifecycle-baaa24e5bae1419fb76880812f848c64",
+2026-10-20T11:34:35.3118158Z   "tray_startup_value_name": "AgentDockTrayQuickLifecycle-baaa24e5bae1419fb76880812f848c64",
+2026-10-20T11:34:35.3119621Z   "cloudflared_startup_value_name": "AgentDockCloudflaredQuickLifecycle-baaa24e5bae1419fb76880812f848c64",
+2026-10-20T11:34:35.3120637Z   "host": "127.0.0.1",
+2026-10-20T11:34:35.3121028Z   "port": 59257,
+2026-10-20T11:34:35.3121510Z   "local_mcp_url": "http://127.0.0.1:59257/mcp",
+2026-10-20T11:34:35.3122066Z   "tunnel_mode": "none",
+2026-10-20T11:34:35.3122557Z   "public_access_provider": "none",
+2026-10-20T11:34:35.3123078Z   "public_access_mode": "local",
+2026-10-20T11:34:35.3123577Z   "install_channel": "script"
+2026-10-20T11:34:35.3123967Z }
+2026-10-20T11:34:35.3124132Z 
+2026-10-20T11:34:35.5772578Z Timed out waiting for 
+2026-10-20T11:34:35.5773714Z D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848c64\AgentDock\quick-tunnel-url.txt to become 
+2026-10-20T11:34:35.5774988Z https://first-agentdock-test.trycloudflare.com; actual: <missing>
+2026-10-20T11:34:35.5776210Z At D:\a\AgentDock-Workbench\AgentDock-Workbench\scripts\test\test-windows-quick-tunnel-lifecycle.ps1:119 char:5
+2026-10-20T11:34:35.5777277Z +     throw "Timed out waiting for $Path to become $ExpectedValue; actu ...
+2026-10-20T11:34:35.5779753Z +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-10-20T11:34:35.5781134Z     + CategoryInfo          : OperationStopped: (Timed out waiti...tual: <missing>:String) [], RuntimeException
+2026-10-20T11:34:35.5782889Z     + FullyQualifiedErrorId : Timed out waiting for D:\a\_temp\agentdock-quick-lifecycle-baaa24e5bae1419fb76880812f848 
+2026-10-20T11:34:35.5784944Z    c64\AgentDock\quick-tunnel-url.txt to become https://first-agentdock-test.trycloudflare.com; actual: <missing>
+2026-10-20T11:34:35.5785818Z  
+2026-10-20T11:34:35.6102810Z ##[error]Process completed with exit code 1.
+2026-10-20T11:34:35.6419815Z Post job cleanup.
+2026-10-20T11:34:35.8593548Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-20T11:34:35.9004809Z git version 2.56.0.windows.2
+2026-10-20T11:34:35.9087981Z Temporarily overriding HOME='D:\a\_temp\ed5e1964-136b-491b-8ea7-42677d5e9cc0' before making global git config changes
+2026-10-20T11:34:35.9089459Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T11:34:35.9103487Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\AgentDock-Workbench\AgentDock-Workbench
+2026-10-20T11:34:35.9575234Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T11:34:36.0003206Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-20T11:34:36.6509158Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T11:34:36.6885015Z http.https://github.com/.extraheader
+2026-10-20T11:34:36.6936212Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-20T11:34:36.7360123Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-20T11:34:37.3330291Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T11:34:37.3753064Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-20T11:34:38.0024867Z Cleaning up orphan processes
+2026-10-20T11:34:38.0409612Z Terminate orphan process: pid (9076) (VBCSCompiler)
+2026-10-20T11:34:38.0497201Z Terminate orphan process: pid (5896) (conhost)
+2026-10-20T11:34:38.0882578Z Terminate orphan process: pid (2892) (agentdock-tray)
+2026-10-20T11:34:38.0984968Z Terminate orphan process: pid (9576) (agentdock-core)
+2026-10-20T11:34:38.1038489Z Terminate orphan process: pid (4108) (conhost)
+2026-10-20T11:34:38.1153242Z Terminate orphan process: pid (3160) (agentdock-core)
+
+=== job 118604844498: Windows Installer gate, log_http=200 ===
+2026-10-20T11:34:44.5572881Z ##[endgroup]
+2026-10-20T11:34:44.5573611Z ##[group]GITHUB_TOKEN Permissions
+2026-10-20T11:34:44.5574984Z Contents: write
+2026-10-20T11:34:44.5575373Z Metadata: read
+2026-10-20T11:34:44.5575716Z ##[endgroup]
+2026-10-20T11:34:44.5577137Z Secret source: Actions
+2026-10-20T11:34:44.5577780Z Cache mode: write
+2026-10-20T11:34:44.5578332Z Prepare workflow directory
+2026-10-20T11:34:44.5794556Z Prepare all required actions
+2026-10-20T11:34:44.5865650Z Complete job name: Windows Installer gate
+2026-10-20T11:34:44.6456859Z ##[group]Run if [[ "$CHANGES_RESULT" != "success" ]]; then
+2026-10-20T11:34:44.6457500Z [36;1mif [[ "$CHANGES_RESULT" != "success" ]]; then[0m
+2026-10-20T11:34:44.6458045Z [36;1m  echo "Windows installer change detection failed: $CHANGES_RESULT" >&2[0m
+2026-10-20T11:34:44.6458774Z [36;1m  exit 1[0m
+2026-10-20T11:34:44.6459128Z [36;1mfi[0m
+2026-10-20T11:34:44.6459697Z [36;1mif [[ "$RELEVANT" == "true" ]]; then[0m
+2026-10-20T11:34:44.6460169Z [36;1m  if [[ "$VALIDATE_RESULT" != "success" ]]; then[0m
+2026-10-20T11:34:44.6460742Z [36;1m    echo "Windows installer validation did not pass: $VALIDATE_RESULT" >&2[0m
+2026-10-20T11:34:44.6461330Z [36;1m    exit 1[0m
+2026-10-20T11:34:44.6461673Z [36;1m  fi[0m
+2026-10-20T11:34:44.6462079Z [36;1m  if [[ "$HISTORY_RESULT" != "success" ]]; then[0m
+2026-10-20T11:34:44.6462643Z [36;1m    echo "Windows historical Setup upgrades did not pass: $HISTORY_RESULT" >&2[0m
+2026-10-20T11:34:44.6463158Z [36;1m    exit 1[0m
+2026-10-20T11:34:44.6463644Z [36;1m  fi[0m
+2026-10-20T11:34:44.6464177Z [36;1m  echo 'Windows installer-relevant changes passed full validation and the v1.1.0+ upgrade matrix.'[0m
+2026-10-20T11:34:44.6464829Z [36;1m  exit 0[0m
+2026-10-20T11:34:44.6465185Z [36;1mfi[0m
+2026-10-20T11:34:44.6465616Z [36;1mif [[ "$VALIDATE_RESULT" != "skipped" ]]; then[0m
+2026-10-20T11:34:44.6466263Z [36;1m  echo "Unexpected Windows installer validation result for an unrelated change: $VALIDATE_RESULT" >&2[0m
+2026-10-20T11:34:44.6466849Z [36;1m  exit 1[0m
+2026-10-20T11:34:44.6467220Z [36;1mfi[0m
+2026-10-20T11:34:44.6467583Z [36;1mif [[ "$HISTORY_RESULT" != "skipped" ]]; then[0m
+2026-10-20T11:34:44.6468270Z [36;1m  echo "Unexpected Windows historical upgrade result for an unrelated change: $HISTORY_RESULT" >&2[0m
+2026-10-20T11:34:44.6468868Z [36;1m  exit 1[0m
+2026-10-20T11:34:44.6469251Z [36;1mfi[0m
+2026-10-20T11:34:44.6469849Z [36;1mecho 'Windows installer validation not required for this change.'[0m
+2026-10-20T11:34:44.7473083Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T11:34:44.7474104Z env:
+2026-10-20T11:34:44.7474510Z   CHANGES_RESULT: success
+2026-10-20T11:34:44.7474956Z   RELEVANT: true
+2026-10-20T11:34:44.7475337Z   VALIDATE_RESULT: failure
+2026-10-20T11:34:44.7475764Z   HISTORY_RESULT: skipped
+2026-10-20T11:34:44.7476525Z ##[endgroup]
+2026-10-20T11:34:44.7792489Z Windows installer validation did not pass: failure
+2026-10-20T11:34:44.7806980Z ##[error]Process completed with exit code 1.
+2026-10-20T11:34:44.7951631Z Cleaning up orphan processes
+
