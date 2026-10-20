@@ -54,6 +54,7 @@ jobs:
           $version = (& go run ./tools/release version).Trim()
           go run ./tools/release verify-version "v$version"
           if ($LASTEXITCODE -ne 0) { throw 'Version validation failed.' }
+          "SETUP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Backend full regression
         run: |
           $ErrorActionPreference = 'Stop'
@@ -158,7 +159,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\test\test-windows-setup-e2e.ps1 `
-            -SetupPath .\dist\windows-release\release\AgentDock-Workbench-Setup-amd64.exe `
+            -SetupPath ".\dist\windows-release\release\AgentDock-Workbench-$env:SETUP_VERSION-Setup-amd64.exe" `
             -LegacyCorePath .\dist\windows-release\payload-amd64\agentdock.exe `
             -LegacyTrayPath .\dist\windows-release\payload-amd64\agentdock-tray.exe `
             -AllowLegacyTaskMutation
@@ -260,7 +261,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'Arm64') { throw 'ARM64 OS required.' }
           $release = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-release\release'
-          foreach ($name in @('AgentDock-Workbench-Setup-arm64.exe','agentdock_windows_arm64.zip')) {
+          $packageVersion = [regex]::Match((Get-Content './internal/buildinfo/buildinfo.go' -Raw), 'const\s+Version\s*=\s*"([^"]+)"').Groups[1].Value
+          foreach ($name in @("AgentDock-Workbench-$packageVersion-Setup-arm64.exe",'agentdock_windows_arm64.zip')) {
             $file = Join-Path $release $name
             $expected = ((Get-Content ($file+'.sha256') -Raw).Trim() -split '\s+')[0]
             if ((Get-FileHash $file).Hash.ToLowerInvariant() -ne $expected) { throw 'ARM64 package checksum mismatch.' }
@@ -272,7 +274,7 @@ jobs:
           $report = @{passed=$false; core=$version; runner_architecture='arm64'; production_touched=$false}
           try {
             & .\scripts\test\test-windows-setup-e2e.ps1 `
-              -SetupPath (Join-Path $release 'AgentDock-Workbench-Setup-arm64.exe') `
+              -SetupPath (Join-Path $release "AgentDock-Workbench-$packageVersion-Setup-arm64.exe") `
               -LegacyCorePath (Join-Path $payload 'agentdock.exe') `
               -LegacyTrayPath (Join-Path $payload 'agentdock-tray.exe') -AllowLegacyTaskMutation
             $report.passed = $true
@@ -331,7 +333,7 @@ jobs:
             }
           }
           $directory = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-release\release'
-          $expected = @('AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe','agentdock_windows_amd64.zip','agentdock_windows_arm64.zip','install.ps1')
+          $expected = @("AgentDock-Workbench-$version-Setup-amd64.exe","AgentDock-Workbench-$version-Setup-arm64.exe",'agentdock_windows_amd64.zip','agentdock_windows_arm64.zip','install.ps1')
           foreach ($name in $expected) {
             $path = Join-Path $directory $name
             $checksum = ((Get-Content "$path.sha256" -Raw).Trim() -split '\s+')[0]

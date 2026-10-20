@@ -482,39 +482,6 @@ try {
     Assert-ElevatedCoreLifecycle
     Assert-TaskStopKillsCore
 
-    Write-Host 'Starting AgentDockSetup.exe a second time without changing task state.'
-    $repeatProcess = Start-Process `
-        -FilePath $resolvedSetup `
-        -ArgumentList @(
-            '/VERYSILENT',
-            '/SUPPRESSMSGBOXES',
-            '/LANG=chinesesimplified',
-            '/NORESTART',
-            "/DIR=$InstallRoot",
-            "/LOG=$repeatLogPath",
-            "/PORT=$Port",
-            '/ADMINMODE=elevated'
-        ) `
-        -PassThru
-    Wait-ProcessOrThrow `
-        -Process $repeatProcess `
-        -TimeoutSeconds 180 `
-        -Description 'AgentDock Setup repeated in-place upgrade' `
-        -LogPath $repeatLogPath
-    $repeatLog = Get-Content -LiteralPath $repeatLogPath -Raw
-    if ($repeatLog -notmatch 'existing installation detected: source=setup') {
-        throw 'Repeated Setup did not recognize the existing Setup-managed installation.'
-    }
-    $generation = Get-ActiveGenerationPaths
-    if (-not [string]::Equals($generation.State, 'committed', [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Same-version Setup repair did not end committed: $($generation.State)"
-    }
-    if (@(Get-ChildItem -LiteralPath $versionsDir -Directory -Filter '.repair-backup-*' -ErrorAction SilentlyContinue).Count -ne 0) {
-        throw 'Same-version Setup repair left a .repair-backup-* directory behind.'
-    }
-    Assert-ElevatedAgentDockTask
-    Assert-CoreRunsWithoutConsole
-
     Write-Host 'Creating a running legacy AgentDock scheduled task for migration testing.'
     Stop-ScheduledTask -TaskName 'AgentDock' -TaskPath '\' -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName 'AgentDock' -TaskPath '\' -Confirm:$false -ErrorAction Stop
@@ -589,6 +556,58 @@ try {
     if ((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).tunnel_mode -ne 'none') {
         throw 'Setup repair did not preserve local-only connection mode.'
     }
+
+    # Reuse the repeated-install case with the durable state left by a failed
+    # adapter rollback after the same-version repair above. Its recorded source
+    # is now the committed generation even when the initial legacy fixture was older.
+    # Setup must recover it before confirming the rollback and repairing files.
+    $generation = Get-ActiveGenerationPaths
+    $transaction = Get-Content -LiteralPath (Join-Path $InstallRoot 'install\transaction.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    & $generation.Core install abandon --install-root $InstallRoot --runtime-root $InstallRoot `
+        --transaction-id $transaction.transaction_id --rollback-failed | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not establish the failed adapter rollback state.' }
+    & $binaryPath service stop --runtime-root $InstallRoot | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not stop Core before failed rollback recovery.' }
+    $inspection = (& $generation.Core install inspect --state-root $InstallRoot | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0 -or -not $inspection.requires_adapter_rollback_confirmation) {
+        throw 'The repeated-install case must start with an unconfirmed adapter rollback.'
+    }
+
+    Write-Host 'Starting AgentDockSetup.exe again after rollback left Core stopped.'
+    $repeatProcess = Start-Process `
+        -FilePath $resolvedSetup `
+        -ArgumentList @(
+            '/VERYSILENT',
+            '/SUPPRESSMSGBOXES',
+            '/LANG=chinesesimplified',
+            '/NORESTART',
+            "/DIR=$InstallRoot",
+            "/LOG=$repeatLogPath",
+            "/PORT=$Port",
+            '/ADMINMODE=elevated'
+        ) `
+        -PassThru
+    Wait-ProcessOrThrow `
+        -Process $repeatProcess `
+        -TimeoutSeconds 180 `
+        -Description 'AgentDock Setup repeated in-place upgrade' `
+        -LogPath $repeatLogPath
+    $repeatLog = Get-Content -LiteralPath $repeatLogPath -Raw
+    if ($repeatLog -notmatch 'existing installation detected: source=setup') {
+        throw 'Repeated Setup did not recognize the existing Setup-managed installation.'
+    }
+    if ($repeatLog -notmatch 'Previous failed rollback was verified and closed') {
+        throw 'Repeated Setup did not recover and confirm the stopped source runtime.'
+    }
+    $generation = Get-ActiveGenerationPaths
+    if (-not [string]::Equals($generation.State, 'committed', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Same-version Setup repair did not end committed: $($generation.State)"
+    }
+    if (@(Get-ChildItem -LiteralPath $versionsDir -Directory -Filter '.repair-backup-*' -ErrorAction SilentlyContinue).Count -ne 0) {
+        throw 'Same-version Setup repair left a .repair-backup-* directory behind.'
+    }
+    Assert-ElevatedAgentDockTask
+    Assert-CoreRunsWithoutConsole
 
     New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
     [IO.File]::WriteAllText($stateMarker, 'preserve', [Text.UTF8Encoding]::new($false))

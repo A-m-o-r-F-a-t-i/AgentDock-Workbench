@@ -4,6 +4,7 @@ package desktopruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -83,7 +84,7 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 		return fmt.Errorf("识别已启动的 AgentDock Core 失败: %w", err)
 	}
 	if running {
-		return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+		return waitForCoreHealth(ctx, manifest, runtimeRoot, windowsCoreStartTimeout, true)
 	}
 	recoverAbandonedCoreLocks(manifest, runtimeRoot)
 	if manifest.UsesScheduledTask() {
@@ -93,12 +94,11 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 	} else if err := startDetachedCore(manifest, runtimeRoot); err != nil {
 		return err
 	}
-	return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+	return waitForCoreHealth(ctx, manifest, runtimeRoot, windowsCoreStartTimeout, !manifest.UsesScheduledTask())
 }
 
-// coreProcessRunning excludes the Tunnel supervisor and same-binary command
-// ancestors. For example, `tunnel start` waits for its child supervisor; neither
-// process is the HTTP Core that should satisfy /healthz.
+// coreProcessRunning requires a server entry point, in addition to excluding
+// the Tunnel supervisor and same-binary command ancestors.
 func coreProcessRunning(runtimeRoot, coreBinary string) (bool, error) {
 	excluded, err := ancestorProcessIDsAtPath(coreBinary)
 	if err != nil {
@@ -112,7 +112,27 @@ func coreProcessRunning(runtimeRoot, coreBinary string) (bool, error) {
 		excluded[supervisorPID] = struct{}{}
 	}
 	processes, err := processIDsAtPathExcept(coreBinary, excluded)
-	return len(processes) > 0, err
+	if err != nil {
+		return false, err
+	}
+	for _, processID := range processes {
+		commandLine, err := queryProcessCommandLine(processID)
+		if errors.Is(err, windows.ERROR_INVALID_PARAMETER) || errors.Is(err, windows.STATUS_PROCESS_IS_TERMINATING) || errors.Is(err, windows.STATUS_INVALID_CID) {
+			// A finite CLI probe can exit between the snapshot and this query.
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("读取 AgentDock 进程 PID %d 启动参数失败: %w", processID, err)
+		}
+		server, err := isCoreServerCommandLine(commandLine)
+		if err != nil {
+			return false, fmt.Errorf("识别 AgentDock 进程 PID %d 角色失败: %w", processID, err)
+		}
+		if server {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func stopCore(ctx context.Context, manifest Manifest, runtimeRoot string) error {
@@ -188,19 +208,37 @@ func defaultWindowsWorkDir() string {
 	return workDir
 }
 
-func waitForHealth(ctx context.Context, url string, timeout time.Duration) error {
+func waitForCoreHealth(ctx context.Context, manifest Manifest, runtimeRoot string, timeout time.Duration, observedCore bool) error {
+	url := manifest.HealthURL()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if testHealth(ctx, url) {
 			return nil
 		}
+		running, err := coreProcessRunning(runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest))
+		if err != nil {
+			return fmt.Errorf("检查 AgentDock Core 启动状态失败: %w", err)
+		}
+		if observedCore && !running {
+			return coreStartFailure(runtimeRoot, fmt.Errorf("AgentDock Core 在健康检查就绪前退出: %s", url))
+		}
+		observedCore = observedCore || running
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
-	return fmt.Errorf("AgentDock 健康检查失败: %s", url)
+	return coreStartFailure(runtimeRoot, fmt.Errorf("AgentDock Core 在 %s 内未通过健康检查: %s", timeout, url))
+}
+
+func coreStartFailure(runtimeRoot string, cause error) error {
+	logPath := filepath.Join(runtimeRoot, "logs", "agentdock.err.log")
+	tail := strings.TrimSpace(setupLogTail(logPath, 4096))
+	if tail == "" {
+		return fmt.Errorf("%w; Core 日志: %s", cause, logPath)
+	}
+	return fmt.Errorf("%w; Core 最近日志 (%s): %s", cause, logPath, tail)
 }
 
 func testHealth(ctx context.Context, url string) bool {

@@ -62,6 +62,24 @@ func TestNormalizeACPProfileDoesNotRequireAllowedRoots(t *testing.T) {
 	}
 }
 
+func TestNormalizeACPAllowsMissingOptionalExecutable(t *testing.T) {
+	command := filepath.Join(t.TempDir(), "removed-agent.exe")
+	cfg := Config{
+		AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir(), ACPEnabled: true,
+		ACPProfiles:       []ACPProfile{{ID: "helper", Kind: "custom", Command: command, Enabled: true}},
+		ACPDefaultProfile: "helper",
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("optional missing agent prevented Core configuration: %v", err)
+	}
+	if cfg.ACPProfiles[0].Command != command || !cfg.ACPProfiles[0].Enabled {
+		t.Fatal("missing agent configuration was discarded or disabled")
+	}
+	if err := ValidateACPCommand(command); err == nil {
+		t.Fatal("missing agent was accepted at the execution boundary")
+	}
+}
+
 func TestNormalizeACPRejectsUnsafeConfiguration(t *testing.T) {
 	executable, err := os.Executable()
 	if err != nil {

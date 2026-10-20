@@ -8,7 +8,51 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	agentconfig "github.com/uvwt/agentdock/internal/config"
 )
+
+func TestPrepareCoreEnvironmentKeepsMissingOptionalAgent(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range append(append([]string(nil), managedCoreEnvironment...), "AGENTDOCK_RUNTIME_ROOT", "AGENTDOCK_HOME") {
+		t.Setenv(name, os.Getenv(name))
+	}
+	manifest := Manifest{
+		SchemaVersion: SchemaVersion, InstallRoot: root,
+		AgentDockHome: filepath.Join(root, "data"), AgentDockDefaultDir: root,
+		AgentDockBinary: filepath.Join(root, "bin", "agentdock.exe"),
+		Host: "127.0.0.1", Port: 18765, LocalMCPURL: "http://127.0.0.1:18765/mcp",
+		TunnelMode: "none", InstallChannel: "test",
+	}
+	if err := Save(filepath.Join(root, "runtime.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	command := filepath.Join(root, "removed-agent.exe")
+	settings, err := json.Marshal(controlPanelSettings{
+		Port: 18765, LogLevel: "info", ACPEnabled: true,
+		ACPProfiles: []agentconfig.ACPProfile{{ID: "helper", Kind: "custom", Command: command, Enabled: true}},
+		ACPDefaultProfile: "helper",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "control-panel-settings.json"), settings, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := platformPrepareCoreEnvironment(root); err != nil {
+		t.Fatalf("removed optional agent blocked Core environment: %v", err)
+	}
+	config, err := agentconfig.FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Normalize(); err != nil {
+		t.Fatalf("removed optional agent blocked Core normalization: %v", err)
+	}
+	if len(config.ACPProfiles) != 1 || config.ACPProfiles[0].Command != command || !config.ACPProfiles[0].Enabled {
+		t.Fatalf("optional agent settings changed: %#v", config.ACPProfiles)
+	}
+}
 
 func TestEffectiveOAuthAccessTokenTTL(t *testing.T) {
 	cases := []struct {

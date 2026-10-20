@@ -38,7 +38,7 @@ function Invoke-SetupRuntimeProcess {
         [string] $Arguments = '',
         [switch] $WaitForExit,
         [switch] $PassThruOutput,
-        [int] $TimeoutSeconds = 180
+        [int] $TimeoutSeconds = 240
     )
 
     if ($InstallChannel -ne 'setup') {
@@ -1854,9 +1854,10 @@ try {
     # restarting the source runtime or restoring another Windows adapter. The
     # Engine deliberately persists external_rollback_failed so a later install
     # cannot silently trust partially restored Task/Registry/service state.
-    # When the recorded source generation is still the committed pointer and
-    # its exact version is already healthy, Setup can safely perform the same
-    # explicit confirmation an operator would otherwise run by hand.
+    # When the recorded source generation is still the committed pointer,
+    # start that restored runtime before confirming its exact health version.
+    # A failed rollback can leave Core stopped; requiring it to be running
+    # before retrying Setup would otherwise prevent the installer from repairing it.
     if ([bool] $installInspection.requires_adapter_rollback_confirmation) {
         $failedTransactionId = [string] $installInspection.transaction_id
         $failedSourceVersion = [string] $installInspection.source_version
@@ -1874,6 +1875,23 @@ try {
             -not $sourceMatchesPointer) {
             $installErrorCode = 'stale-rollback-recovery-unsafe'
             throw 'AgentDock found an incomplete OS adapter rollback, but the committed runtime does not match its recorded source version. Setup left the transaction untouched.'
+        }
+
+        if (-not (Test-Path -LiteralPath $runtimeManifestPath -PathType Leaf)) {
+            $installErrorCode = 'stale-rollback-recovery-unsafe'
+            throw 'AgentDock cannot restart the previous runtime because its restored runtime manifest is missing.'
+        }
+        Write-Host 'Starting the restored AgentDock runtime before confirming the previous rollback...'
+        if ($InstallChannel -eq 'setup') {
+            Invoke-SetupRuntimeProcess -FilePath $sourceBinary `
+                -Arguments (ConvertTo-NativeArguments -Values @('service', 'start', '--runtime-root', $runtimeDir)) `
+                -WaitForExit
+        } else {
+            & $sourceBinary service start --runtime-root $runtimeDir
+            if ($LASTEXITCODE -ne 0) {
+                $installErrorCode = 'stale-rollback-recovery-failed'
+                throw "AgentDock could not restart the previous restored runtime (exit $LASTEXITCODE)."
+            }
         }
 
         Write-Host 'Confirming the healthy restored AgentDock runtime before Setup retries the upgrade...'

@@ -30,8 +30,8 @@ docs/releases/vX.Y.Z-主题.md
 　　GitHub Runner 使用 `go.mod` 指定的 Go 版本和 .NET 8 SDK，调用仓库现有的 `packaging/windows/build-windows-release.ps1`，只构建 `windows/amd64`：
 
 ```text
-AgentDock-Workbench-Setup-amd64.exe
-AgentDock-Workbench-Setup-amd64.exe.sha256
+AgentDock-Workbench-<version>-Setup-amd64.exe
+AgentDock-Workbench-<version>-Setup-amd64.exe.sha256
 agentdock_windows_amd64.zip
 agentdock_windows_amd64.zip.sha256
 install.ps1

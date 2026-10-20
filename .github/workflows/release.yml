@@ -185,8 +185,8 @@ jobs:
         with:
           name: agentdock-macos-dmg
           path: |
-            dist/macos-app/AgentDock-macos-universal.dmg
-            dist/macos-app/AgentDock-macos-universal.dmg.sha256
+            dist/macos-app/AgentDock-Workbench-*-macos-universal.dmg
+            dist/macos-app/AgentDock-Workbench-*-macos-universal.dmg.sha256
             dist/macos-app/AgentDock-macos-universal.zip
             dist/macos-app/AgentDock-macos-universal.zip.sha256
           if-no-files-found: error
@@ -394,7 +394,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: agentdock-windows-setup-${{ matrix.goarch }}
-          path: dist/AgentDock-Workbench-Setup-${{ matrix.goarch }}.exe
+          path: dist/AgentDock-Workbench-*-Setup-${{ matrix.goarch }}.exe
           if-no-files-found: error
 
   publish:
@@ -457,8 +457,8 @@ jobs:
             for file in \
               install.sh \
               install.ps1 \
-              AgentDock-Workbench-Setup-amd64.exe \
-              AgentDock-Workbench-Setup-arm64.exe; do
+              "AgentDock-Workbench-${RELEASE_TAG#v}-Setup-amd64.exe" \
+              "AgentDock-Workbench-${RELEASE_TAG#v}-Setup-arm64.exe"; do
               shasum -a 256 "$file" > "$file.sha256"
             done
           )
@@ -468,8 +468,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f dist/AgentDock-macos-universal.dmg
-          test -f dist/AgentDock-macos-universal.dmg.sha256
+          version="$(go run ./tools/release version)"
+          test -f "dist/AgentDock-Workbench-$version-macos-universal.dmg"
+          test -f "dist/AgentDock-Workbench-$version-macos-universal.dmg.sha256"
           test -f dist/AgentDock-macos-universal.zip
           test -f dist/AgentDock-macos-universal.zip.sha256
           (cd dist && shasum -a 256 -c AgentDock-macos-universal.zip.sha256)
@@ -652,7 +653,8 @@ jobs:
           tag='${{ github.event.inputs.tag || github.ref_name }}'
           release_base="https://github.com/${{ github.repository }}/releases/download/$tag"
           installer="$RUNNER_TEMP/install.sh"
-          dmg="$RUNNER_TEMP/AgentDock-macos-universal.dmg"
+          dmg_name="AgentDock-Workbench-${tag#v}-macos-universal.dmg"
+          dmg="$RUNNER_TEMP/$dmg_name"
           zip="$RUNNER_TEMP/AgentDock-macos-universal.zip"
           zip_dir="$RUNNER_TEMP/agentdock-zip"
           mount_dir="$RUNNER_TEMP/agentdock-dmg"
@@ -664,13 +666,13 @@ jobs:
           }
           trap cleanup EXIT
 
-          curl -fL "$release_base/AgentDock-macos-universal.dmg" -o "$dmg"
-          curl -fL "$release_base/AgentDock-macos-universal.dmg.sha256" -o "$dmg.sha256"
+          curl -fL "$release_base/$dmg_name" -o "$dmg"
+          curl -fL "$release_base/$dmg_name.sha256" -o "$dmg.sha256"
           curl -fL "$release_base/AgentDock-macos-universal.zip" -o "$zip"
           curl -fL "$release_base/AgentDock-macos-universal.zip.sha256" -o "$zip.sha256"
           (
             cd "$RUNNER_TEMP"
-            shasum -a 256 -c AgentDock-macos-universal.dmg.sha256
+            shasum -a 256 -c "$dmg_name.sha256"
             shasum -a 256 -c AgentDock-macos-universal.zip.sha256
           )
           mkdir -p "$zip_dir"
@@ -772,10 +774,11 @@ jobs:
             -OutputPath $downloadedInstaller
           "DOWNLOADED_INSTALLER=$downloadedInstaller" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
           "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
-          $setup = Join-Path $env:RUNNER_TEMP 'AgentDock-Workbench-Setup-amd64.exe'
+          $setupName = "AgentDock-Workbench-$($tag.TrimStart('v'))-Setup-amd64.exe"
+          $setup = Join-Path $env:RUNNER_TEMP $setupName
           Invoke-WebRequest `
             -UseBasicParsing `
-            -Uri "https://github.com/${{ github.repository }}/releases/download/$tag/AgentDock-Workbench-Setup-amd64.exe" `
+            -Uri "https://github.com/${{ github.repository }}/releases/download/$tag/$setupName" `
             -OutFile $setup
           "PUBLISHED_SETUP=$setup" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
 

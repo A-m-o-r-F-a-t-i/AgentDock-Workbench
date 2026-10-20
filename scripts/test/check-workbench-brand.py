@@ -26,7 +26,7 @@ def main() -> None:
     assert f'AppName={PRODUCT}\n' in setup
     assert 'D6788C7A-4104-48D4-B5C3-F4858B5606EA' in setup
     assert 'DefaultDirName={localappdata}\\AgentDock' in setup
-    assert 'AgentDock-Workbench-Setup-amd64' in setup and 'AgentDock-Workbench-Setup-arm64' in setup
+    assert '"AgentDock-Workbench-" + AppVersion + "-Setup-amd64"' in setup and '"AgentDock-Workbench-" + AppVersion + "-Setup-arm64"' in setup
     android_strings = ET.fromstring(text('mobile/android/app/src/main/res/values/strings.xml'))
     android_values = {item.attrib['name']: item.text for item in android_strings.findall('string')}
     assert android_values['app_name'] == PRODUCT
@@ -50,7 +50,7 @@ def main() -> None:
     assert 'AgentDock Unix 安装与维护入口。' in installer
     publisher = text('scripts/release/publish-workbench.py')
     assert f"PRODUCT = '{PRODUCT}'" in publisher
-    assert "prefix='AgentDock-Workbench-Setup'" in publisher
+    assert "prefix=f'AgentDock-Workbench-{version}-Setup'" in publisher
     assert "return f'AgentDock-Workbench-{version}-{suffix}'" in publisher
     release_workflow = text('.github/workflows/workbench-release.yml')
     publish_workflow = text('.github/workflows/workbench-publish-existing.yml')

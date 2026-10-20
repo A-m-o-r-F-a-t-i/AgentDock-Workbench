@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -249,4 +250,77 @@ func queryProcessPath(processID uint32) (string, error) {
 		return "", err
 	}
 	return windows.UTF16ToString(buffer[:size]), nil
+}
+
+// queryProcessCommandLine uses the same limited-query right as path lookup.
+// It does not start PowerShell or read another process's address space.
+func queryProcessCommandLine(processID uint32) (string, error) {
+	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, processID)
+	if err != nil {
+		return "", err
+	}
+	defer windows.CloseHandle(process)
+	var size uint32
+	err = windows.NtQueryInformationProcess(process, windows.ProcessCommandLineInformation, nil, 0, &size)
+	if err != nil && !errors.Is(err, windows.STATUS_INFO_LENGTH_MISMATCH) && !errors.Is(err, windows.STATUS_BUFFER_TOO_SMALL) {
+		return "", err
+	}
+	if size < uint32(unsafe.Sizeof(windows.NTUnicodeString{})) || size > 128<<10 {
+		return "", fmt.Errorf("invalid process command line size: %d", size)
+	}
+	buffer := make([]byte, size)
+	if err := windows.NtQueryInformationProcess(process, windows.ProcessCommandLineInformation, unsafe.Pointer(&buffer[0]), size, &size); err != nil {
+		return "", err
+	}
+	value := (*windows.NTUnicodeString)(unsafe.Pointer(&buffer[0]))
+	begin := uintptr(unsafe.Pointer(&buffer[0]))
+	text := uintptr(unsafe.Pointer(value.Buffer))
+	end := begin + uintptr(len(buffer))
+	if value.Length == 0 {
+		return "", nil
+	}
+	if value.Length%2 != 0 || text < begin || text > end || uintptr(value.Length) > end-text {
+		return "", errors.New("invalid process command line buffer")
+	}
+	return value.String(), nil
+}
+
+// Core and finite CLI commands share an executable. Only the server entry
+// points can satisfy /healthz; a sibling status/version command must not block
+// service start for the entire readiness timeout.
+func isCoreServerCommandLine(commandLine string) (bool, error) {
+	args, err := windows.DecomposeCommandLine(commandLine)
+	if err != nil {
+		return false, err
+	}
+	if len(args) == 0 {
+		return false, errors.New("process command line is empty")
+	}
+	if len(args) == 1 {
+		return true, nil
+	}
+	if args[1] == "service" {
+		return len(args) > 2 && args[2] == "launch-core", nil
+	}
+	stdio := false
+	for _, argument := range args[1:] {
+		if !strings.HasPrefix(argument, "-") {
+			continue
+		}
+		flag := strings.TrimPrefix(argument, "-")
+		flag = strings.TrimPrefix(flag, "-")
+		if flag == "stdio" {
+			stdio = true
+		} else if value, ok := strings.CutPrefix(flag, "stdio="); ok {
+			stdio, err = strconv.ParseBool(value)
+			if err != nil {
+				return false, nil
+			}
+		}
+	}
+	if stdio {
+		return false, nil
+	}
+	// The legacy foreground server accepts flags without a subcommand.
+	return strings.HasPrefix(args[1], "-") && args[1] != "--version" && args[1] != "--help" && args[1] != "-help" && args[1] != "-h", nil
 }

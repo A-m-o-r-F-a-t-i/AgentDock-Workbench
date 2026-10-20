@@ -90,3 +90,45 @@ func TestRuntimeOptionsNormalizeCIDRsAndExplicitInstructions(t *testing.T) {
 		t.Fatalf("unexpected CIDRs: %#v", options.TrustedProxyCIDRs)
 	}
 }
+
+func TestRuntimeOptionsStartupPreservesRemovedBrowser(t *testing.T) {
+	root := t.TempDir()
+	browser := filepath.Join(root, "browser.exe")
+	if err := os.WriteFile(browser, []byte("browser"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	options := defaultRuntimeOptions()
+	options.DefaultDir = root
+	options.BrowserExecutablePath = browser
+	saved, err := normalizeRuntimeOptions(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(browser); err != nil {
+		t.Fatal(err)
+	}
+	startup, err := normalizeRuntimeOptionsForStartup(saved)
+	if err != nil {
+		t.Fatalf("saved optional browser blocked startup after removal: %v", err)
+	}
+	if startup.BrowserExecutablePath != browser {
+		t.Fatalf("startup changed saved browser path: %q", startup.BrowserExecutablePath)
+	}
+	if _, err := normalizeRuntimeOptions(saved); err == nil {
+		t.Fatal("saving an unavailable browser must still fail")
+	}
+	for name, modify := range map[string]func(*RuntimeOptions){
+		"relative browser":     func(o *RuntimeOptions) { o.BrowserExecutablePath = "browser.exe" },
+		"invalid browser path": func(o *RuntimeOptions) { o.BrowserExecutablePath = browser + "\x00" },
+		"missing instructions": func(o *RuntimeOptions) { o.InstructionsFile = filepath.Join(root, "missing.md") },
+		"invalid proxy":        func(o *RuntimeOptions) { o.TrustedProxyCIDRs = []string{"all"} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := saved
+			modify(&invalid)
+			if _, err := normalizeRuntimeOptionsForStartup(invalid); err == nil {
+				t.Fatal("startup accepted invalid saved settings")
+			}
+		})
+	}
+}
