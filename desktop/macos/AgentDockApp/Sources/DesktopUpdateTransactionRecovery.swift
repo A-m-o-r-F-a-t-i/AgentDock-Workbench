@@ -23,8 +23,8 @@ private struct DesktopUpdateMacOSPlan: Decodable {
 }
 
 enum DesktopUpdateTransactionRecovery {
-    // The synchronous overload is used only by callers that already dispatch to
-    // a utility queue. Async callers keep the non-blocking wrapper below.
+    // This overload is reserved for callers, such as the startup fallback,
+    // that have already moved the blocking probe onto a utility queue.
     static func recoverIfNeeded(paths: AppPaths) -> Bool {
         recoverBlocking(paths: paths)
     }
