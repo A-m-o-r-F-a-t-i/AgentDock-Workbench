@@ -94,11 +94,9 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	if len(names) == 0 || (len(request.Names) > 0 && request.Name != "") {
 		return nil, toolErrorDetails("MCP_TOOL_NAMES_REQUIRED", "use names for tool selectors or service:*", "validation", nil)
 	}
-	includeSchema := request.ForceFull
-	if request.IncludeSchema != nil {
-		includeSchema = includeSchema || *request.IncludeSchema
-	} else if legacy || (len(names) == 1 && !strings.HasSuffix(strings.TrimSpace(names[0]), ":*")) {
-		includeSchema = true
+	includeSchema := len(names) == 1 && !strings.Contains(names[0], "*")
+	if request.IncludeSchema != nil && !request.ForceFull {
+		includeSchema = includeSchema && *request.IncludeSchema
 	}
 	selected := map[string][]string{}
 	invalid := []map[string]any{}
@@ -260,13 +258,12 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 					entry["output_schema"] = tool.OutputSchema
 				}
 				entry = s.schemaDeliveries.prepare(ctx, entry, request.ForceFull)
-				if entry["delivery"] == "reference" {
+				if entry["schema_delivery"] == "reference" {
 					schemaReferences++
 				} else {
 					fullSchemas++
 				}
 			} else {
-				entry["delivery"] = "summary"
 				entry["schema_delivery"] = "summary"
 				entry["schema_omitted"] = true
 				schemaSummaries++

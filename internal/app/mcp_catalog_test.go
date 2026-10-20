@@ -125,7 +125,7 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 			t.Fatalf("invalid lightweight summary: %#v", tool)
 		}
 	}
-	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}, "include_schema": true})
+	batch, err := r.Call(t.Context(), "mcp_tool_inspect", map[string]any{"names": []string{"two:*", "one:tool_004", "one:*", "one:tool_004"}, "include_schema": true, "force_full": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,8 +141,8 @@ func TestMCPCompleteListBatchSchemasAndEveryBusinessCatalog(t *testing.T) {
 			t.Fatal("batch is duplicated or unstable")
 		}
 		previous = name
-		if tool["input_schema"].(map[string]any)["$defs"] == nil || tool["output_schema"] == nil || tool["metadata"] == nil {
-			t.Fatal("full schema data missing")
+		if tool["input_schema"] != nil || tool["output_schema"] != nil || tool["metadata"] == nil || tool["schema_delivery"] != "summary" || tool["schema_omitted"] != true || tool["delivery"] != nil {
+			t.Fatalf("batch inspection did not remain a summary: %#v", tool)
 		}
 		metadata, _ := json.Marshal(tool["metadata"])
 		if strings.Contains(string(metadata), "data:image") || strings.Contains(string(metadata), "resourceUri") || strings.Contains(string(metadata), "\"icons\"") || strings.Contains(string(metadata), "\"ui\"") || !strings.Contains(string(metadata), "vendor/key") {
@@ -232,13 +232,13 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if firstList["delivery"] != "full" || catalogCount(firstList["tools"]) != 3 {
+	if firstList["catalog_delivery"] != "full" || catalogCount(firstList["tools"]) != 3 {
 		t.Fatalf("first list omitted its catalog: %#v", firstList)
 	}
-	if secondList["delivery"] != "reference" || secondList["tools_omitted"] != true || secondList["tools"] != nil {
+	if secondList["catalog_delivery"] != "reference" || secondList["tools_omitted"] != true || secondList["tools"] != nil {
 		t.Fatalf("repeat list duplicated its catalog: %#v", secondList)
 	}
-	if forcedList["delivery"] != "full" || catalogCount(forcedList["tools"]) != 3 {
+	if forcedList["catalog_delivery"] != "full" || catalogCount(forcedList["tools"]) != 3 {
 		t.Fatalf("force_full list did not restore the catalog: %#v", forcedList)
 	}
 	call := func(callCtx context.Context) map[string]any {
@@ -250,26 +250,26 @@ func TestMCPBusinessCatalogReferencesRepeatWithinTrustedScope(t *testing.T) {
 	}
 	first := call(ctx)
 	second := call(ctx)
-	if first["delivery"] != "summary" || first["tools_omitted"] != true || first["tools"] != nil {
+	if first["catalog_delivery"] != "summary" || first["tools_omitted"] != true || first["tools"] != nil {
 		t.Fatalf("business call duplicated the catalog delivered by list: %#v", first)
 	}
-	if second["delivery"] != "summary" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
+	if second["catalog_delivery"] != "summary" || second["tools_omitted"] != true || second["tools"] != nil || second["refresh_tool"] != "mcp_tool_list" {
 		t.Fatalf("repeated trusted call duplicated its catalog: %#v", second)
 	}
 	other := activity.WithSource(t.Context(), activity.Source{Principal: "catalog-test", Namespace: "mcp", HostConversationID: "catalog-other"})
 	if _, err := r.Call(other, "agentdock_context", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	if isolated := call(other); isolated["delivery"] != "summary" || isolated["tools_omitted"] != true || isolated["tools"] != nil {
+	if isolated := call(other); isolated["catalog_delivery"] != "summary" || isolated["tools_omitted"] != true || isolated["tools"] != nil {
 		t.Fatalf("another conversation received a duplicated call catalog: %#v", isolated)
 	}
-	if legacy := call(t.Context()); legacy["delivery"] != "summary" || legacy["tools_omitted"] != true || legacy["tools"] != nil {
+	if legacy := call(t.Context()); legacy["catalog_delivery"] != "summary" || legacy["tools_omitted"] != true || legacy["tools"] != nil {
 		t.Fatalf("unattributed business call duplicated its catalog: %#v", legacy)
 	}
 }
 
 func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
-	fixture := newCatalogFixture(t, 1)
+	fixture := newCatalogFixture(t, 2)
 	cfg := config.Config{AgentDockHome: t.TempDir(), AgentDockDefaultDir: t.TempDir()}
 	if err := cfg.Normalize(); err != nil {
 		t.Fatal(err)
@@ -297,6 +297,25 @@ func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
 		}
 		return result
 	}
+	summary, err := r.Call(ctx, "mcp_tool_inspect", map[string]any{"name": "fixture:tool_000", "include_schema": false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary["schema_delivery"] != "summary" || summary["input_schema"] != nil {
+		t.Fatalf("single-tool summary is invalid: %#v", summary)
+	}
+	batch, err := r.Call(ctx, "mcp_tool_inspect", map[string]any{"names": []string{"fixture:tool_000", "fixture:tool_001"}, "include_schema": true, "force_full": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batch["schema_summary_count"] != 2 || batch["schema_full_count"] != 0 {
+		t.Fatalf("batch force_full expanded schemas: %#v", batch)
+	}
+	for _, item := range batch["tools"].([]map[string]any) {
+		if item["schema_delivery"] != "summary" || item["schema_omitted"] != true || item["input_schema"] != nil || item["output_schema"] != nil || item["delivery"] != nil {
+			t.Fatalf("batch tool did not remain a summary: %#v", item)
+		}
+	}
 	first := inspect(false)
 	second := inspect(false)
 	forced := inspect(true)
@@ -306,13 +325,13 @@ func TestMCPSchemaReferencesRepeatWithinTrustedConversation(t *testing.T) {
 	for _, tool := range []map[string]any{firstTool, secondTool, forcedTool} {
 		assertNestedMCPRoute(t, tool, "fixture", "fixture:tool_000")
 	}
-	if first["schema_full_count"] != 1 || first["schema_reference_count"] != 0 || firstTool["delivery"] != "full" || firstTool["input_schema"] == nil {
+	if first["schema_full_count"] != 1 || first["schema_reference_count"] != 0 || firstTool["schema_delivery"] != "full" || firstTool["input_schema"] == nil {
 		t.Fatalf("first schema inspection was not complete: %#v", first)
 	}
-	if second["schema_full_count"] != 0 || second["schema_reference_count"] != 1 || secondTool["delivery"] != "reference" || secondTool["schema_omitted"] != true || secondTool["input_schema"] != nil {
+	if second["schema_full_count"] != 0 || second["schema_reference_count"] != 1 || secondTool["schema_delivery"] != "reference" || secondTool["schema_omitted"] != true || secondTool["input_schema"] != nil {
 		t.Fatalf("repeat schema inspection was not compact: %#v", second)
 	}
-	if forced["schema_full_count"] != 1 || forced["schema_reference_count"] != 0 || forcedTool["delivery"] != "full" || forcedTool["input_schema"] == nil {
+	if forced["schema_full_count"] != 1 || forced["schema_reference_count"] != 0 || forcedTool["schema_delivery"] != "full" || forcedTool["input_schema"] == nil {
 		t.Fatalf("force_full schema inspection did not restore the schema: %#v", forced)
 	}
 	legacy, err := r.Call(ctx, "mcp_tool_inspect", map[string]any{"name": "fixture:tool_000"})

@@ -60,8 +60,8 @@ func InputSchema(name string) (map[string]any, bool) {
 	case ToolInspect:
 		props["name"] = stringProp("Qualified nested dynamic MCP tool name in <server>:<tool> form. Bare AgentDock direct device built-ins are rejected as wrong-scope requests.")
 		props["names"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 3}, "description": "Selected server:tool names and server:* selectors, including mixed services."}
-		props["include_schema"] = boolProp("Include complete schemas for a batch. A single explicit tool includes its schema by default; batches default to summaries and digests.")
-		props["force_full"] = boolProp("Return complete schemas even when this conversation already received the same schema digest. Implies include_schema=true.")
+		props["include_schema"] = boolProp("Include the complete schema for one explicit tool (default true). Batches and server:* selectors return summaries and digests only.")
+		props["force_full"] = boolProp("Resend the complete schema for one explicit tool even if already delivered. Batches and server:* selectors remain summaries.")
 	case ToolCall:
 		props["name"] = stringProp("Exact qualified nested dynamic MCP tool name in <server>:<tool> form. Direct AgentDock built-ins are not accepted here.")
 		toolcontract.ActivityProperties(props)
@@ -178,6 +178,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["total"] = intProp("Total successfully resolved selected tools in this untruncated response.")
 		props["schema_full_count"] = intProp("Selected tools returned with complete schemas in this response.")
 		props["schema_reference_count"] = intProp("Selected tools returned as compact references to schemas already delivered in this conversation.")
+		props["schema_summary_count"] = intProp("Selected tools returned as summaries without complete schemas.")
 		props["complete"] = boolProp("All selectors resolved to dynamic schemas without errors. Mixed host built-in selectors are reported as per-selector routing errors.")
 		props["route_kind"] = stringProp("Resolved namespace: host_builtin, dynamic_mcp, or mixed.")
 		props["resolved"] = boolProp("Whether the selector batch has a deterministic terminal route.")
@@ -205,9 +206,8 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["catalog_revision"] = stringProp("Revision of the inspected catalog.")
 		props["catalog_state"] = objectProp("Current freshness and absence authority of the selected catalog, including schema references.")
 		props["server_version"] = stringProp("Version reported by initialize, empty when unknown.")
-		props["delivery"] = stringProp("Legacy schema delivery marker retained for direct Runtime callers.")
 		props["schema_delivery"] = stringProp("full, summary, or reference.")
-		props["schema_omitted"] = boolProp("True only for a compact same-revision schema reference.")
+		props["schema_omitted"] = boolProp("True for a summary or a compact same-revision schema reference.")
 		props["refresh_tool"] = stringProp("Use mcp_tool_inspect with force_full=true when the referenced schema is absent from current model context.")
 		props["title"] = stringProp("Tool title.")
 		props["description"] = stringProp("Tool description.")
@@ -289,7 +289,6 @@ func catalogSchemaProperties() map[string]any {
 		"stale":              toolcontract.Boolean("Whether this catalog is not fresh, including a lazy cached catalog."),
 		"total":              toolcontract.Integer("Catalog tool count."),
 		"error":              toolcontract.String("Catalog attachment error."),
-		"delivery":           toolcontract.String("Legacy delivery marker."),
 		"catalog_delivery":   toolcontract.String("full, summary, or reference."),
 		"tools_omitted":      toolcontract.Boolean("Whether tools are omitted."),
 		"refresh_tool":       toolcontract.String("Catalog refresh tool."),

@@ -35,7 +35,6 @@ type catalogDeliveryState struct {
 // active. Calls without a trusted conversation retain full-catalog behavior.
 func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(catalog)
-	full["delivery"] = "full"
 	full["catalog_delivery"] = "full"
 	full["tools_omitted"] = false
 
@@ -72,7 +71,6 @@ func (s *catalogDeliveryState) prepare(ctx context.Context, catalog map[string]a
 		s.entries[key] = entry
 		reference := maps.Clone(full)
 		delete(reference, "tools")
-		reference["delivery"] = "reference"
 		reference["catalog_delivery"] = "reference"
 		reference["tools_omitted"] = true
 		reference["refresh_tool"] = ToolList

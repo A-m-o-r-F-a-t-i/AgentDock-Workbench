@@ -32,7 +32,6 @@ type schemaDeliveryState struct {
 // losing context without refreshing or reconnecting the upstream service.
 func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any, forceFull bool) map[string]any {
 	full := maps.Clone(schema)
-	full["delivery"] = "full"
 	full["schema_delivery"] = "full"
 	full["schema_omitted"] = false
 
@@ -72,7 +71,7 @@ func (s *schemaDeliveryState) prepare(ctx context.Context, schema map[string]any
 			"name": schema["name"], "server": server, "tool_name": tool,
 			"server_fingerprint": serverFingerprint, "catalog_revision": revision, "server_version": schema["server_version"],
 			"schema_digest": schemaDigest, "annotations_digest": schema["annotations_digest"],
-			"delivery": "reference", "schema_delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
+			"schema_delivery": "reference", "schema_omitted": true, "refresh_tool": ToolInspect,
 		}
 		for _, key := range []string{"title", "description", "annotations", "metadata"} {
 			if value, exists := schema[key]; exists {
