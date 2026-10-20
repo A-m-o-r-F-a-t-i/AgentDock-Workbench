@@ -73,7 +73,7 @@ jobs:
               output.write('\n')
           PY
           done <<'EOF'
-          164:118585493895:Native frontend regression arm64 after recovery overload
+          169:118585853052:Go check ubuntu after canonical native fix
           EOF
           rm -f diagnostics/*.raw diagnostics/*.log
       - name: Commit diagnostics
