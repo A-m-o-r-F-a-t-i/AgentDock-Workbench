@@ -187,13 +187,25 @@ private fun InsertAndStopPage(state: WorkbenchUiState, viewModel: WorkbenchViewM
             item { SectionTitle("插入回执") }
             if (state.snapshot.insertions.isEmpty()) item { EmptyCard("当前对话没有插入记录") }
             lazyItems(state.snapshot.insertions, key = { "insertion-${it.id}" }) { insertion ->
+                val facts = insertion.raw
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(insertion.title, maxLines = 3, overflow = TextOverflow.Ellipsis)
                         Text(insertion.status.ifBlank { "状态未知" })
+                        facts?.optString("receipt_type")?.takeIf { it.isNotBlank() && it != "none" }?.let { Text("回执：$it") }
+                        if (facts != null) {
+                            Text("剩余投递：自动 ${facts.optInt("automatic_attempts_remaining")} · 总计 ${facts.optInt("total_attempts_remaining")}")
+                            facts.optString("next_retry_at").takeIf(String::isNotBlank)?.let { Text("下次可投递：$it") }
+                        }
                         Row {
-                            TextButton(onClick = { viewModel.insertionAction(insertion.id, "retry") }) { Text("有限重投") }
-                            TextButton(onClick = { viewModel.insertionAction(insertion.id, "cancel") }) { Text("撤回") }
+                            TextButton(
+                                onClick = { viewModel.insertionAction(insertion.id, "retry") },
+                                enabled = !state.actionBusy && facts?.optBoolean("manual_retry_available") == true
+                            ) { Text("有限重投") }
+                            TextButton(
+                                onClick = { viewModel.insertionAction(insertion.id, "cancel") },
+                                enabled = !state.actionBusy && facts?.optBoolean("cancel_available") == true
+                            ) { Text("撤回") }
                         }
                     }
                 }

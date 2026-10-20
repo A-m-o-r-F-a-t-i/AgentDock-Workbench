@@ -47,7 +47,16 @@
       "ok": false,
       "code": "STABLE_CODE",
       "error": "human-readable message",
-      "exit_code": 4
+      "exit_code": 4,
+      "error_kind": "validation",
+      "retryable": false,
+      "details": {},
+      "operation_status": "optional execution-state classification",
+      "failure_class": "optional failure classification",
+      "execution_performed": "optional boolean",
+      "effect_state": "optional none|unchanged|changed|unknown",
+      "retry_safe": "optional boolean",
+      "required_action": "optional structured next action"
     },
     "exit_codes": {
       "0": "success",
@@ -153,6 +162,19 @@
       "path": "/status",
       "commands": [
         "status"
+      ],
+      "response_fields": [
+        "runtime_api",
+        "runtime_contract_revision",
+        "minimum_client_revision",
+        "version",
+        "agentdock_home",
+        "agentdock_default_dir",
+        "path_model",
+        "auth_enabled",
+        "external_agent_access",
+        "android_executor",
+        "tool_count"
       ]
     },
     {
@@ -176,6 +198,27 @@
       "path": "/tasks/{task_id}/calls",
       "commands": [
         "task calls"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/{task_id}/threads",
+      "commands": [
+        "task thread-list"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/{task_id}/threads/{thread_id}",
+      "commands": [
+        "task thread-show"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/{task_id}/threads/{thread_id}/activity",
+      "commands": [
+        "task thread-activity"
       ]
     },
     {
@@ -560,6 +603,7 @@
         "automatic_attempts_remaining",
         "total_attempts_remaining",
         "manual_retry_available",
+        "cancel_available",
         "delivery_reason"
       ],
       "unconfirmed_receipt_type": "none",

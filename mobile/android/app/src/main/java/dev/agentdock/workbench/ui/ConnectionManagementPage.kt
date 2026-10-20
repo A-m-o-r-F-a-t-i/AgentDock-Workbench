@@ -40,7 +40,6 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
     fun reload() {
         model.resources.read("connection-status", "/internal/runtime/status")
         model.resources.read("connection", "/internal/runtime/execution/connection")
-        model.resources.read("connection-capabilities", "/internal/runtime/capabilities")
         model.resources.read("oauth-metadata", "/.well-known/oauth-authorization-server")
         model.resources.read("oauth-resource", "/.well-known/oauth-protected-resource/mcp")
     }
@@ -48,7 +47,6 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
 
     val status = resources.views["connection-status"]
     val connection = resources.views["connection"]
-    val capabilities = resources.views["connection-capabilities"]
     val oauth = resources.views["oauth-metadata"]
     val oauthResource = resources.views["oauth-resource"]
     val oauthData = oauth?.data
@@ -126,7 +124,20 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
 
         ResourceSection("节点状态") {
             ResourceFeedback(status, ::reload)
-            status?.data?.let { ResourceObject(it, listOf("ok", "source", "service", "version", "auth_enabled", "oauth_enabled", "nexus_enabled", "browser_enabled", "memory_enabled", "tool_count", "agentdock_home", "default_dir")) }
+            status?.data?.let { value ->
+                ResourceObject(value, listOf(
+                    "ok", "source", "service", "version", "runtime_api", "runtime_contract_revision",
+                    "minimum_client_revision", "auth_enabled", "nexus_enabled", "browser_enabled",
+                    "memory_enabled", "tool_count", "agentdock_home", "agentdock_default_dir", "path_model"
+                ))
+                value.optJSONObject("external_agent_access")?.let {
+                    ResourceObject(it, listOf("schema_version", "protocol", "local_endpoint", "public_endpoint", "auth_mode", "credentials_included"))
+                }
+                value.optJSONObject("android_executor")?.let {
+                    ResourceObject(it, listOf("connected", "protocol", "node_id", "inflight"))
+                }
+            }
+            Text(state.snapshot.managementCompatibilityMessage)
             ResourceFeedback(connection, ::reload)
             connectionData?.let {
                 ResourceObject(it, listOf("state", "summary", "detail", "authorized_clients", "public_reachability", "public_reachability_reason", "updated_at"))
@@ -144,11 +155,7 @@ fun ConnectionManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel,
             oauthData?.let { ResourceObject(it, listOf("issuer", "authorization_endpoint", "token_endpoint", "registration_endpoint", "grant_types_supported", "response_types_supported", "code_challenge_methods_supported", "token_endpoint_auth_methods_supported", "resource_indicators_supported")) }
             ResourceFeedback(oauthResource, ::reload)
             oauthResource?.data?.let { ResourceObject(it, listOf("resource", "authorization_servers", "bearer_methods_supported", "scopes_supported")) }
-            ResourceFeedback(capabilities, ::reload)
-            capabilities?.data?.let { value ->
-                ResourceObject(value, listOf("source", "summary", "tool_count", "skill_count", "plugin_count", "mcp_count", "revision"))
-            }
-            Text("授权服务不可用时，请先处理上方连接错误。")
+            Text("授权服务不可用时，请先处理上方连接错误。能力库存由各管理页面按需读取，不在连接页构建完整 Context。")
         }
 
         ResourceSection("公网访问") {

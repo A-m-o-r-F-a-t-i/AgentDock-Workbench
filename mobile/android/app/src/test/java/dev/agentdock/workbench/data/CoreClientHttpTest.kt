@@ -33,6 +33,28 @@ class CoreClientHttpTest {
         }
     }
 
+    @Test fun preservesExecutionAndRetryFacts() = withServer(409, """{
+        "ok":false,
+        "code":"PARTIAL_EFFECT",
+        "error":"readback required",
+        "error_kind":"conflict",
+        "retryable":true,
+        "execution_performed":true,
+        "effect_state":"unknown",
+        "retry_safe":false,
+        "required_action":{"action":"readback"},
+        "details":{"operation_status":"failed","failure_class":"partial"}
+    }""".trimIndent()) { client ->
+        runBlocking {
+            val result = client.action("/internal/runtime/plugins", JSONObject())
+            assertFalse(result.accepted)
+            assertEquals("PARTIAL_EFFECT", result.status)
+            assertTrue(result.message.contains("影响状态 unknown"))
+            assertTrue(result.message.contains("不要自动重试"))
+            assertEquals("readback", result.serverValue?.getJSONObject("required_action")?.getString("action"))
+        }
+    }
+
     @Test fun doesNotTreatHttp200AsBusinessSuccess() = withServer(200, """{"ok":false,"status":"denied","message":"denied by Core"}""") { client ->
         runBlocking { assertFalse(client.action("/internal/runtime/permissions").accepted) }
     }

@@ -35,6 +35,7 @@ class WorkbenchRepository(
         val client = client(settings)
         return coroutineScope {
             val health = async { safeResult { client.get("/healthz") } }
+            val status = async { safeResult { client.get("/internal/runtime/status") } }
             val sidebar = async { safeResult { client.post("/internal/runtime/execution/sidebar", sidebarRequest()) } }
             val conversations = async { safeResult { client.get(ManagementContract.listPath("conversations", conversationsQuery)) } }
             val tasks = async { safeResult { client.get(ManagementContract.listPath("tasks", tasksQuery)) } }
@@ -51,6 +52,7 @@ class WorkbenchRepository(
             }
 
             val healthResult = health.await()
+            val statusResult = status.await()
             val sidebarResult = sidebar.await()
             val taskResult = tasks.await()
             val conversationResult = conversations.await()
@@ -66,7 +68,8 @@ class WorkbenchRepository(
             val insertionResult = insertions.await()
 
             val endpointResults = mapOf(
-                "home" to healthResult, "workspaces" to sidebarResult, "tasks" to taskPageResult,
+                "home" to healthResult, "runtime-contract" to statusResult,
+                "workspaces" to sidebarResult, "tasks" to taskPageResult,
                 "conversations" to conversationPageResult, "calls" to callResult, "activity" to activityResult,
                 "approvals" to approvalsResult, "permissions" to permissionsResult, "skills" to skillsResult,
                 "plugins" to pluginsResult, "mcp" to mcpResult, "insert" to insertionResult
@@ -76,8 +79,11 @@ class WorkbenchRepository(
             }.toMap()
             val failures = endpointErrors.size
             val healthValue = healthResult.getOrNull()
+            val statusValue = statusResult.getOrNull()
+            val contract = statusValue?.let(ManagementContract::runtimeContract)
+                ?: RuntimeContractStatus(false, 0, 0, "尚未读取 Runtime API 合同。")
             val coreHealth = when {
-                healthValue != null && failures == 0 -> NodeHealth.Healthy
+                healthValue != null && failures == 0 && contract.compatible -> NodeHealth.Healthy
                 healthValue != null -> NodeHealth.Degraded
                 else -> NodeHealth.Unknown
             }
@@ -85,12 +91,17 @@ class WorkbenchRepository(
             val groups = sidebarValue?.optJSONArray("groups") ?: JSONArray()
             WorkbenchSnapshot(
                 coreHealth = coreHealth,
-                coreVersion = healthValue?.optString("version").orEmpty(),
-                connectionMessage = when (coreHealth) {
-                    NodeHealth.Healthy -> "Core 已连接"
-                    NodeHealth.Degraded -> "Core 已连接，但 $failures 个能力端点不可用"
-                    NodeHealth.Unknown -> healthResult.exceptionOrNull()?.message ?: "Core 未运行或未授权"
-                    else -> "Core 状态未知"
+                coreVersion = statusValue?.optString("version").orEmpty().ifBlank { healthValue?.optString("version").orEmpty() },
+                runtimeContractRevision = contract.revision,
+                managementCompatible = contract.compatible,
+                managementCompatibilityMessage = contract.message,
+                connectionMessage = when {
+                    healthValue == null -> healthResult.exceptionOrNull()?.message ?: "Core 未运行"
+                    statusValue == null -> statusResult.exceptionOrNull()?.let(ManagementContract::failure)
+                        ?: "Core 已连接，但 Runtime API 合同不可用"
+                    !contract.compatible -> contract.message
+                    failures > 0 -> "Core 已连接，但 $failures 个能力端点不可用"
+                    else -> "Core 已连接"
                 },
                 workspaces = parseWorkspaceGroups(groups),
                 conversations = conversationPageResult.getOrNull()?.items.orEmpty(),
