@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var currentStatus = ServiceStatus.missing
     private var timer: Timer?
+    private var statusRefreshGeneration = 0
+    private var statusWindowRequestPending = false
     private lazy var completionNotifications = WorkbenchCompletionNotifications { [weak self] notification in
         self?.workbenchWindow.presentTask(notification.taskID)
     }
@@ -46,7 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             workbenchWindow.present()
             return
         }
-        let recoveryReady = DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: service.paths)
+        Task { [weak self] in
+            guard let self else { return }
+            await finishLaunchingAfterRecovery()
+        }
+    }
+
+    private func finishLaunchingAfterRecovery() async {
+        let recoveryReady = await DesktopUpdateTransactionRecovery.recoverIfNeeded(paths: service.paths)
         var pendingUpdateResult = DesktopUpdateResult.load(from: service.paths.updateResult)
         var updateResultExists = FileManager.default.fileExists(atPath: service.paths.updateResult.path)
 
@@ -445,22 +454,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatus(showWindow: Bool = false) {
-        Task {
+        statusRefreshGeneration += 1
+        let generation = statusRefreshGeneration
+        statusWindowRequestPending = statusWindowRequestPending || showWindow
+        Task { [weak self] in
+            guard let self else { return }
             let status = await service.status()
-            await MainActor.run {
-                self.currentStatus = status
-                self.rebuildMenu()
-                if showWindow {
-                    if status.installed {
-                        self.workbenchWindow.present()
-                    } else {
-                        self.setupWindow.present(status: status)
-                    }
-                } else if self.setupWindow.window?.isVisible == true {
-                    self.setupWindow.refreshServiceStatus(status)
-                } else if self.workbenchWindow.window?.isVisible == true {
-                    self.workbenchWindow.refresh()
+            guard generation == statusRefreshGeneration else { return }
+            let shouldShowWindow = statusWindowRequestPending
+            statusWindowRequestPending = false
+            currentStatus = status
+            rebuildMenu()
+            if shouldShowWindow {
+                if status.installed {
+                    workbenchWindow.present()
+                } else {
+                    setupWindow.present(status: status)
                 }
+            } else if setupWindow.window?.isVisible == true {
+                setupWindow.refreshServiceStatus(status)
+            } else if workbenchWindow.window?.isVisible == true {
+                workbenchWindow.refresh()
             }
         }
     }

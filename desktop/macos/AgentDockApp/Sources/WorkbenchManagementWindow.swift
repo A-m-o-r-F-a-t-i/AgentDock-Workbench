@@ -148,7 +148,6 @@ final class WorkbenchManagementWindow: NSWindowController, NSWindowDelegate, NST
                 page = loaded; stale = false; table.reloadData()
                 status.stringValue = L10n.format("Loaded %@ items · Offset %@ · Total %@", String(describing: loaded.items.count), String(describing: requestedOffset), String(describing: loaded.total.map(String.init) ?? L10n.text("Unknown")))
                 if !parent.isEmpty { status.stringValue += " · parent_call_id=" + parent }
-                if type == .workspaces { status.stringValue += L10n.text(" · Writes require the WB01 interface to be integrated") }
                 actions.isEnabled = true; previous.isEnabled = !offsets.isEmpty; next.isEnabled = loaded.hasMore
                 if type == .display { detail = loaded.items.first ?? .null; text.1.string = detail.prettyPrinted }
             } catch {
@@ -253,8 +252,20 @@ final class WorkbenchManagementWindow: NSWindowController, NSWindowDelegate, NST
             fields["name"] = .string(values[0]); fields["url"] = .string(values[1]); fields["transport"] = .string("streamable_http")
         }
         if action == "register" {
-            guard let values = WorkbenchForms.fields(title: L10n.text("Register workspace"), message: L10n.text("The WB01 workspace interface must be integrated. No second workspace store is created."), fields: [(L10n.text("Name"), ""), (L10n.text("Absolute directory"), "")]), values[1].hasPrefix("/") else { return }
+            guard let values = WorkbenchForms.fields(title: L10n.text("Register workspace"), message: L10n.text("Absolute directory"), fields: [(L10n.text("Name"), ""), (L10n.text("Absolute directory"), "")]), values[1].hasPrefix("/") else { return }
             fields["name"] = .string(values[0]); fields["root"] = .string(values[1]); fields["kind"] = .string("repository"); fields["runtime"] = .string("unix")
+        }
+        if type == .plugins, action == "install" {
+            let source = fields["source"]?.stringValue ?? ""
+            mutate { [weak self, client] in
+                guard let self else { throw WorkbenchClientError.cancelled }
+                return try await client.installLocalPlugin(source: source, confirmCandidate: { [weak self] candidate in
+                    guard self?.window?.isVisible == true, !Task.isCancelled else { return false }
+                    return WorkbenchForms.confirm(L10n.text("Install local package"),
+                        source + "\n" + String(candidate.prettyPrinted.prefix(8192)))
+                })
+            }
+            return
         }
         if type == .plugins, action == "update" {
             let name = fields["name"]?.stringValue ?? ""

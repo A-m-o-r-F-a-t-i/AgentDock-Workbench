@@ -59,7 +59,7 @@ extension WorkbenchAPIClient {
     }
 
     func callPayload(_ id: String, source: String, offset: Int = 0, limit: Int = 10000) async throws -> WorkbenchJSON {
-        guard source == "request" || source == "response" else {
+        guard source == "request" || source == "response" || source == "source" else {
             throw WorkbenchClientError.configuration(L10n.format("Unknown call payload source: %@", String(describing: source)))
         }
         let path = "/internal/runtime/calls/\(try encodedPathComponent(id))/payload/\(source)"

@@ -135,4 +135,187 @@ final class TransportTests: XCTestCase {
         XCTAssertEqual(model.snapshot.sidebar.groups.count, 1)
         model.stop()
     }
+    func testSourcePayloadRoute() async throws {
+        RuntimeProtocol.configure { request in
+            XCTAssertTrue(request.url?.path.hasSuffix("/internal/runtime/calls/call_1/payload/source") == true)
+            return try self.answer(.object([
+                "text": .string("business output"),
+                "next_offset": .integer(15),
+                "has_more": .bool(false),
+            ]))
+        }
+        let result = try await client().callPayload("call_1", source: "source")
+        XCTAssertEqual(result.text("text"), "business output")
+    }
+
+    @MainActor func testPluginInstallUsesValidatedReviewToken() async throws {
+        RuntimeProtocol.configure { request in
+            let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))
+            switch body.text("action") {
+            case "validate":
+                return try self.answer(.object([
+                    "ok": .bool(true),
+                    "valid": .bool(true),
+                    "review": .object(["review_token": .string("review-install")]),
+                ]))
+            case "install":
+                XCTAssertEqual(body.text("review_token"), "review-install")
+                XCTAssertTrue(body["confirmed"].isNull)
+                return try self.answer(.object(["ok": .bool(true), "plugin": .object(["name": .string("example")])]))
+            default:
+                return try self.answer(.object(["ok": .bool(false), "error": .string("unexpected action")]), status: 400)
+            }
+        }
+        let result = try await client().installLocalPlugin(source: "/tmp/example") { candidate in
+            candidate["review"].text("review_token") == "review-install"
+        }
+        XCTAssertEqual(result["plugin"].text("name"), "example")
+        XCTAssertEqual(RuntimeProtocol.captured().count, 2)
+    }
+
+    @MainActor func testPluginUpdateReusesReviewTokenForConfirmedSourceChange() async throws {
+        var updateAttempts = 0
+        RuntimeProtocol.configure { request in
+            if request.httpMethod == "GET" {
+                return try self.answer(.object(["plugin": .object(["name": .string("example")])]))
+            }
+            let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))
+            switch body.text("action") {
+            case "validate":
+                return try self.answer(.object([
+                    "ok": .bool(true),
+                    "valid": .bool(true),
+                    "review": .object(["review_token": .string("review-update")]),
+                ]))
+            case "update":
+                updateAttempts += 1
+                XCTAssertEqual(body.text("review_token"), "review-update")
+                XCTAssertTrue(body["confirmed"].isNull)
+                if updateAttempts == 1 {
+                    XCTAssertFalse(body.flag("confirmed_source_change"))
+                    return try self.answer(.object([
+                        "ok": .bool(false),
+                        "code": .string("PLUGIN_SOURCE_CHANGE_CONFIRMATION_REQUIRED"),
+                        "error": .string("source changed"),
+                    ]), status: 409)
+                }
+                XCTAssertTrue(body.flag("confirmed_source_change"))
+                return try self.answer(.object(["ok": .bool(true), "plugin": .object(["name": .string("example")])]))
+            default:
+                return try self.answer(.object(["ok": .bool(false), "error": .string("unexpected action")]), status: 400)
+            }
+        }
+        let result = try await client().updateLocalPlugin(
+            name: "example",
+            source: "/tmp/example",
+            confirmCandidate: { _ in true },
+            confirmSourceChange: { installed, candidate in
+                installed["plugin"].text("name") == "example"
+                    && candidate["review"].text("review_token") == "review-update"
+            }
+        )
+        XCTAssertEqual(result["plugin"].text("name"), "example")
+        XCTAssertEqual(updateAttempts, 2)
+        XCTAssertEqual(RuntimeProtocol.captured().count, 4)
+    }
+
+    @MainActor func testAutomaticCallDetailAndPartialRefreshRetention() async throws {
+        let now = WorkbenchFormatting.iso(Date())
+        let conversation: WorkbenchJSON = .object([
+            "conversation_id": .string("conv_1"),
+            "title": .string("conversation"),
+            "state": .object([
+                "workspace_id": .string("wsp_1"),
+                "active_task_id": .string("task_1"),
+                "active_task_thread_id": .string("main"),
+            ]),
+            "statistics": .object(["last_tool_call_at": .string(now)]),
+        ])
+        func configure(phase: Int) {
+            RuntimeProtocol.configure { request in
+                let path = request.url!.path
+                if path.hasSuffix("/execution/sidebar") {
+                    return try self.answer(.object([
+                        "server_now": .string(now),
+                        "latest_seq": .integer(1),
+                        "groups": .array([.object([
+                            "workspace_id": .string("wsp_1"),
+                            "conversations": .array([conversation]),
+                        ])]),
+                    ]))
+                }
+                if path.hasSuffix("/execution") { return try self.answer(.object(["server_now": .string(now)])) }
+                if path.hasSuffix("/calls/call_1") {
+                    return try self.answer(.object([
+                        "call_id": .string("call_1"),
+                        "conversation_id": .string("conv_1"),
+                        "updated_seq": .integer(1),
+                        "status": .string("succeeded"),
+                        "summary": .string("full detail"),
+                    ]))
+                }
+                if path.hasSuffix("/calls") {
+                    return try self.answer(.object([
+                        "calls": .array([.object([
+                            "call_id": .string("call_1"),
+                            "conversation_id": .string("conv_1"),
+                            "updated_seq": .integer(1),
+                            "status": .string("succeeded"),
+                        ])]),
+                        "latest_seq": .integer(1),
+                    ]))
+                }
+                if path.hasSuffix("/conversations/conv_1") { return try self.answer(.object(["conversation": conversation])) }
+                if path.hasSuffix("/permissions/effective") {
+                    if phase == 1 { return try self.answer(.object(["code": .string("PERMISSION_UNAVAILABLE"), "error": .string("offline")]), status: 503) }
+                    return try self.answer(.object(["effective": .object(["revision": .integer(1), "mode": .string("rules")])]))
+                }
+                if path.hasSuffix("/conversations/conv_1/insertions") {
+                    if phase == 1 { return try self.answer(.object(["code": .string("INSERTION_UNAVAILABLE"), "error": .string("offline")]), status: 503) }
+                    return try self.answer(.object(["insertions": .array([.object([
+                        "insertion_id": .string("ins_1"),
+                        "status": .string("queued"),
+                    ])])]))
+                }
+                if path.hasSuffix("/tasks/task_1/threads") { return try self.answer(.object(["threads": .array([])])) }
+                if path.hasSuffix("/tasks/task_1") {
+                    if phase == 1 { return try self.answer(.object(["code": .string("TASK_UNAVAILABLE"), "error": .string("offline")]), status: 503) }
+                    return try self.answer(.object(["task": .object([
+                        "task_id": .string("task_1"),
+                        "title": .string("task"),
+                        "status": .string(phase == 2 ? "completed" : "running"),
+                    ])]))
+                }
+                return try self.answer(.object(["ok": .bool(false), "error": .string("not found")]), status: 404)
+            }
+        }
+
+        let model = WorkbenchViewModel(client: client())
+        configure(phase: 0)
+        model.refresh()
+        for _ in 0..<200 where model.snapshot.selectedCall?.summary != "full detail" {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(model.snapshot.selectedCall?.summary, "full detail")
+        XCTAssertEqual(model.snapshot.task?.status, "running")
+        XCTAssertEqual(model.snapshot.permission?.mode, "rules")
+        XCTAssertEqual(model.snapshot.insertions.items.map(\.id), ["ins_1"])
+
+        configure(phase: 1)
+        model.refresh(reason: "poll")
+        for _ in 0..<200 where model.isRefreshing { try await Task.sleep(nanoseconds: 10_000_000) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(model.snapshot.task?.status, "running")
+        XCTAssertEqual(model.snapshot.permission?.mode, "rules")
+        XCTAssertEqual(model.snapshot.insertions.items.map(\.id), ["ins_1"])
+
+        configure(phase: 2)
+        model.refresh(reason: "poll")
+        for _ in 0..<200 where model.snapshot.task?.status != "completed" {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(model.snapshot.task?.status, "completed")
+        model.stop()
+    }
+
 }
