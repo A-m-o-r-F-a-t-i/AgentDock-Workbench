@@ -345,7 +345,7 @@ final class InstallerRunner {
     }
 
     private func validPort(_ value: String?) -> Int? {
-        guard let value, let port = Int(value), (1...65535).contains(port) else { return nil }
+        guard let value, let port = Int(value), ServicePortValidation.allowedRange.contains(port) else { return nil }
         return port
     }
 

@@ -172,7 +172,8 @@ final class WorkbenchDetailViewController: NSViewController {
 
         technicalText.string = technicalDetail(snapshot: snapshot, selectedInsertion: selectedInsertion)
         if let slice = model.payloadSlices["request"] { requestText.string = slice.text }
-        if let slice = model.payloadSlices["response"] {
+        let outputSource = currentCall?.outputPayloadSource ?? "response"
+        if let slice = model.payloadSlices[outputSource] {
             loadedOutput = slice.text
             outputText.string = slice.text
             payloadCaption.stringValue = slice.caption
@@ -182,7 +183,7 @@ final class WorkbenchDetailViewController: NSViewController {
             payloadCaption.stringValue = L10n.text("Hidden output does not fetch payloads. Each chunk contains at most 10000 Unicode scalars.")
         }
         readRequestButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["request"]?.hasMore != false
-        readOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices["response"]?.hasMore != false
+        readOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload && model.payloadSlices[outputSource]?.hasMore != false
         reloadOutputButton.isEnabled = currentCall != nil && !model.isReadingPayload
         updateActions(model)
     }
@@ -193,8 +194,8 @@ final class WorkbenchDetailViewController: NSViewController {
     }
 
     @objc private func reloadOutput() {
-        guard currentCall != nil else { return }
-        onReadPayload?("response", true)
+        guard let currentCall else { return }
+        onReadPayload?(currentCall.outputPayloadSource, true)
     }
 
     private var conversationActions: [(title: String, key: String)] {
@@ -251,6 +252,7 @@ final class WorkbenchDetailViewController: NSViewController {
         let scroll = enclosingScroll(for: permissionText)
         permissionText.setAccessibilityIdentifier("workbench.detail.permission")
         permissionMode.addItems(withTitles: [L10n.text("Approval required"), L10n.text("Full permission"), L10n.text("Read only")])
+        permissionMode.item(withTitle: L10n.text("Full permission"))?.isEnabled = false
         permissionMode.setAccessibilityLabel(L10n.text("Permission mode"))
         permissionMode.setAccessibilityIdentifier("workbench.permission.mode")
         permissionMode.target = self
@@ -379,7 +381,10 @@ final class WorkbenchDetailViewController: NSViewController {
     @objc private func openChildren() { if let id = currentCall?.id { onChildCalls?(id) } }
     @objc private func stopCall(_ sender: Any?) { onStopCall?() }
     @objc private func readRequest() { onReadPayload?("request", false) }
-    @objc private func readOutput() { onReadPayload?("response", false) }
+    @objc private func readOutput() {
+        guard let currentCall else { return }
+        onReadPayload?(currentCall.outputPayloadSource, false)
+    }
     @objc private func openPolicy() { onOpenPolicy?() }
     @objc private func copyOutput() {
         guard !loadedOutput.isEmpty else { return }
@@ -388,7 +393,11 @@ final class WorkbenchDetailViewController: NSViewController {
     }
     @objc private func approve(_ sender: Any?) { onApprovalDecision?(true) }
     @objc private func reject(_ sender: Any?) { onApprovalDecision?(false) }
-    @objc private func applyPermission(_ sender: Any?) { onPermissionMode?(selectedMode()) }
+    @objc private func applyPermission(_ sender: Any?) {
+        let mode = selectedMode()
+        guard mode != "full" else { return }
+        onPermissionMode?(mode)
+    }
 
     @objc private func conversationAction(_ sender: NSPopUpButton) {
         defer { sender.selectItem(at: 0) }

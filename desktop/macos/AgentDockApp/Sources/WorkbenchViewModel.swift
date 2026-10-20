@@ -114,13 +114,13 @@ final class WorkbenchViewModel {
                 snapshot.message = L10n.format("Connected · %@ conversations", String(describing: newSidebar.total))
                 isRefreshing = false
                 let all = newSidebar.groups.flatMap(\.conversations)
-                let selected = all.first { $0.navigationID == selectedNavigationID }
-                    ?? (newSidebar.selected?.navigationID == selectedNavigationID ? newSidebar.selected : nil)
+                let selected = all.first { $0.navigationID == self.selectedNavigationID }
+                    ?? (newSidebar.selected?.navigationID == self.selectedNavigationID ? newSidebar.selected : nil)
                     ?? all.first
                 let changed = selected?.navigationID != selectedNavigationID
                 if changed { selectConversation(selected?.navigationID ?? "") }
                 else if let selected { snapshot.selectedConversation = selected }
-                if !changed, reason != "poll" || snapshot.calls.calls.isEmpty { loadSelection() }
+                if !changed { loadSelection() }
                 if streamTask == nil, reason != "stream-reconnect" { startStream(after: newSidebar.latestSequence) }
                 notify()
             } catch {
@@ -178,9 +178,9 @@ final class WorkbenchViewModel {
             do {
                 let calls = try await client.calls(conversationID: selected.id, unattributed: selected.unattributed)
                 var detailed = selected
-                var permission: WorkbenchPermissionState?
-                var insertions = WorkbenchInsertionPage.empty
-                var task: WorkbenchTaskSummary?
+                var permission = snapshot.permission
+                var insertions = snapshot.insertions
+                var task = snapshot.task
                 var warnings = [String]()
                 if !selected.unattributed {
                     let json = try await client.conversation(selected.id)
@@ -191,7 +191,10 @@ final class WorkbenchViewModel {
                     catch { warnings.append(L10n.format("Permission read unavailable: %@", String(describing: error.localizedDescription))) }
                     do { insertions = try await client.insertions(conversationID: selected.id) }
                     catch { warnings.append(L10n.format("Supplement read unavailable: %@", String(describing: error.localizedDescription))) }
-                    if !detailed.activeTaskID.isEmpty {
+                    if detailed.activeTaskID.isEmpty {
+                        task = nil
+                    } else {
+                        if task?.id != detailed.activeTaskID { task = nil }
                         do {
                             let data = try await client.task(detailed.activeTaskID)
                             let threads = (try? await client.taskThreads(detailed.activeTaskID)) ?? .null
@@ -207,10 +210,12 @@ final class WorkbenchViewModel {
                 var page = calls
                 page.calls = Self.mergeCalls(calls.calls, snapshot.calls.calls)
                 snapshot.calls = page
-                if !page.calls.contains(where: { $0.id == selectedCallID }) { selectedCallID = page.calls.first?.id ?? "" }
-                setSelectedCall(page.calls.first { $0.id == selectedCallID })
+                if !page.calls.contains(where: { $0.id == self.selectedCallID }) { selectedCallID = page.calls.first?.id ?? "" }
+                setSelectedCall(page.calls.first { $0.id == self.selectedCallID })
                 snapshot.message = warnings.isEmpty ? L10n.text("Conversation details synchronized") : warnings.joined(separator: " · ")
+                let detailID = self.selectedCallID
                 notify()
+                loadCallDetail(detailID)
             } catch {
                 guard currentEpoch == epoch, !Task.isCancelled else { return }
                 snapshot.message = L10n.format("Failed to read details: %@", String(describing: error.localizedDescription)); snapshot.stale = true; notify()
@@ -218,11 +223,17 @@ final class WorkbenchViewModel {
         }
     }
     func selectCall(_ id: String) {
-        guard id != selectedCallID else { return }
-        detailTask?.cancel(); payloadTask?.cancel()
-        payloadGeneration += 1
-        selectedCallID = id; payloadSlices.removeAll(); isReadingPayload = false
-        setSelectedCall(snapshot.calls.calls.first { $0.id == id }); notify()
+        if id != selectedCallID {
+            detailTask?.cancel(); payloadTask?.cancel()
+            payloadGeneration += 1
+            selectedCallID = id; payloadSlices.removeAll(); isReadingPayload = false
+            setSelectedCall(snapshot.calls.calls.first { $0.id == id }); notify()
+        }
+        loadCallDetail(id)
+    }
+
+    private func loadCallDetail(_ id: String) {
+        detailTask?.cancel()
         guard !fixtureMode, !id.isEmpty else { return }
         let currentEpoch = epoch
         detailTask = Task { [weak self] in
@@ -242,8 +253,9 @@ final class WorkbenchViewModel {
     }
     private func setSelectedCall(_ call: WorkbenchCall?) {
         let previous = snapshot.selectedCall
-        let changed = ["request", "response"].filter { source in
-            previous?.id != call?.id || (previous?.raw[source] ?? .null) != (call?.raw[source] ?? .null)
+        let changed = ["request", "response", "source"].filter { source in
+            let key = source == "source" ? "output_source" : source
+            return previous?.id != call?.id || (previous?.raw[key] ?? .null) != (call?.raw[key] ?? .null)
         }
         if !changed.isEmpty {
             payloadGeneration += 1
@@ -286,9 +298,7 @@ final class WorkbenchViewModel {
             let older = try await client.calls(conversationID: selected.id, unattributed: selected.unattributed, before: before)
             guard currentEpoch == epoch else { return .object([:]) }
             var page = older
-            if snapshot.calls.calls.count + older.calls.count <= Self.maximumCalls {
-                page.calls = Self.mergeCalls(snapshot.calls.calls, older.calls)
-            }
+            page.calls = Self.mergeCalls(snapshot.calls.calls, older.calls)
             snapshot.calls = page
             return .object(["message": .string(L10n.text("Earlier records loaded; the display window holds at most 1000 items."))])
         }
@@ -414,12 +424,12 @@ final class WorkbenchViewModel {
         }
     }
     func updatePermissionMode(_ mode: String) {
-        guard let permission = snapshot.permission, !selectedConversationID.isEmpty,
+        guard mode == "rules" || mode == "readonly",
+              let permission = snapshot.permission, !selectedConversationID.isEmpty,
               permission.revision > 0, permission.revision <= UInt64(Int64.max) else { return }
         let change: WorkbenchJSON = .object([
             "scope": .string("conversation"), "scope_id": .string(selectedConversationID),
-            "mode": .string(mode), "expected_revision": .integer(Int64(permission.revision)),
-            "confirm_full": .bool(mode == "full")])
+            "mode": .string(mode), "expected_revision": .integer(Int64(permission.revision))])
         performOperation(refreshAfter: true) { [client] in try await client.updatePermission(change) }
     }
     func submitInsertion(_ text: String) {

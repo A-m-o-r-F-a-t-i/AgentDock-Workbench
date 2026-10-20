@@ -39,6 +39,16 @@ struct WorkbenchModelTests {
             ])
         ]), serverNow: server)
         precondition(explicitFalse.insertionEligible == false)
+        var nestedExplicitFalse = WorkbenchConversation(json: .object([
+            "conversation_id": .string("conv_nested_explicit"),
+            "insertion": .object(["eligible": .bool(false)]),
+            "statistics": .object([
+                "last_tool_call_at": .string(WorkbenchFormatting.iso(server.addingTimeInterval(-10)))
+            ])
+        ]), serverNow: server)
+        precondition(nestedExplicitFalse.insertionEligible == false)
+        nestedExplicitFalse.advancePresentation(serverNow: server.addingTimeInterval(1))
+        precondition(nestedExplicitFalse.insertionEligible == false)
 
         let fallbackTitle = WorkbenchConversation(json: .object([
             "conversation_id": .string("conv_fallback"),
@@ -79,6 +89,7 @@ struct WorkbenchModelTests {
         precondition(runningCall.sequence == 7)
         precondition(runningCall.requestText == "读取")
         precondition(runningCall.responseText == "处理中")
+        precondition(runningCall.outputPayloadSource == "response")
 
         let retainedCall = WorkbenchCall(json: .object([
             "call_id": .string("call_retained"),
@@ -99,6 +110,7 @@ struct WorkbenchModelTests {
         precondition(retainedCall.requestText.contains("request-source"))
         precondition(!retainedCall.requestText.contains("request-preview"))
         precondition(retainedCall.responseText.contains("response-source"))
+        precondition(retainedCall.outputPayloadSource == "source")
         precondition(!retainedCall.responseText.contains("response-preview"))
         precondition(retainedCall.technicalRecordText.contains("request-source"))
         precondition(retainedCall.technicalRecordText.contains("response-source"))

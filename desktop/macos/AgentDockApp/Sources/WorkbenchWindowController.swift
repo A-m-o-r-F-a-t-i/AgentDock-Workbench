@@ -294,14 +294,6 @@ final class WorkbenchWindowController: NSWindowController, NSWindowDelegate, NST
     }
 
     private func applyPermissionMode(_ mode: String) {
-        if mode == "full" {
-            guard confirm(
-                title: L10n.text("Enable full permission?"),
-                message: L10n.text("This reduces Core approval prompts for business tools. Explicit deny rules and macOS system permissions remain effective."),
-                destructive: true,
-                confirmTitle: L10n.text("Enable full permission")
-            ) else { return }
-        }
         model.updatePermissionMode(mode)
     }
 

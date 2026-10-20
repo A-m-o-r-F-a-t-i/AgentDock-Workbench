@@ -23,13 +23,33 @@ private struct DesktopUpdateMacOSPlan: Decodable {
 }
 
 enum DesktopUpdateTransactionRecovery {
+    // This overload is reserved for callers, such as the startup fallback,
+    // that have already moved the blocking probe onto a utility queue.
     static func recoverIfNeeded(paths: AppPaths) -> Bool {
-        guard let data = try? Data(contentsOf: paths.updateTransaction),
-              let transaction = try? JSONDecoder().decode(DesktopUpdateTransactionEnvelope.self, from: data),
-              transaction.schemaVersion == 1,
-              transaction.state == "trial" || transaction.state == "rolling_back" else {
-            return true
+        recoverBlocking(paths: paths)
+    }
+
+    static func recoverIfNeeded(paths: AppPaths) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: recoverBlocking(paths: paths))
+            }
         }
+    }
+
+    private static func recoverBlocking(paths: AppPaths) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: paths.updateTransaction.path) else { return true }
+        guard let data = try? Data(contentsOf: paths.updateTransaction) else {
+            NSLog("AgentDock update recovery: pending transaction could not be read.")
+            return false
+        }
+        guard let transaction = try? JSONDecoder().decode(DesktopUpdateTransactionEnvelope.self, from: data),
+              transaction.schemaVersion == 1 else {
+            NSLog("AgentDock update recovery: pending transaction is invalid or unsupported.")
+            return false
+        }
+        guard transaction.state == "trial" || transaction.state == "rolling_back" else { return true }
         guard let plan = transaction.macOS else {
             NSLog("AgentDock update recovery: pending macOS transaction has no platform plan.")
             return false
@@ -38,12 +58,13 @@ enum DesktopUpdateTransactionRecovery {
         let allowedRoot = paths.appSupport
             .appendingPathComponent("update/arbiters", isDirectory: true)
             .standardizedFileURL
+            .resolvingSymlinksInPath()
             .path
         let arbiter = URL(fileURLWithPath: plan.sourceArbiterPath).standardizedFileURL
         let resolvedArbiter = arbiter.resolvingSymlinksInPath().path
         let prefix = allowedRoot.hasSuffix("/") ? allowedRoot : allowedRoot + "/"
         guard resolvedArbiter.hasPrefix(prefix),
-              FileManager.default.isExecutableFile(atPath: resolvedArbiter) else {
+              fileManager.isExecutableFile(atPath: resolvedArbiter) else {
             NSLog("AgentDock update recovery: source Arbiter path is not trusted: %@", resolvedArbiter)
             return false
         }
@@ -70,7 +91,15 @@ enum DesktopUpdateTransactionRecovery {
         }
         if process.isRunning {
             process.terminate()
-            NSLog("AgentDock update recovery: source Arbiter exceeded the recovery deadline.")
+            let terminationDeadline = Date().addingTimeInterval(2)
+            while process.isRunning, Date() < terminationDeadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            if process.isRunning {
+                NSLog("AgentDock update recovery: source Arbiter did not exit after termination.")
+            } else {
+                NSLog("AgentDock update recovery: source Arbiter exceeded the recovery deadline and was terminated.")
+            }
             return false
         }
         if process.terminationStatus != 0 {

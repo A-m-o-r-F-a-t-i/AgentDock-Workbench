@@ -117,20 +117,47 @@ extension WorkbenchAPIClient {
 
 
 extension WorkbenchAPIClient {
+    private func validatedLocalPluginCandidate(source: String) async throws -> (WorkbenchJSON, String) {
+        let endpoint = WorkbenchResource.plugins.endpoint
+        let candidate = try await post(endpoint, body: .object([
+            "action": .string("validate"),
+            "source": .string(source),
+        ]))
+        try Task.checkCancellation()
+        let reviewToken = candidate["review"].text("review_token").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard candidate.flag("valid"), !reviewToken.isEmpty else {
+            throw WorkbenchClientError.invalidResponse(L10n.text("The candidate plugin package did not pass validation."))
+        }
+        return (candidate, reviewToken)
+    }
+
+    @MainActor
+    func installLocalPlugin(source: String,
+                            confirmCandidate: (WorkbenchJSON) -> Bool) async throws -> WorkbenchJSON {
+        let (candidate, reviewToken) = try await validatedLocalPluginCandidate(source: source)
+        guard confirmCandidate(candidate) else { throw WorkbenchClientError.cancelled }
+        try Task.checkCancellation()
+        return try await post(WorkbenchResource.plugins.endpoint, body: .object([
+            "action": .string("install"),
+            "source": .string(source),
+            "review_token": .string(reviewToken),
+        ]))
+    }
+
     @MainActor
     func updateLocalPlugin(name: String, source: String,
                            confirmCandidate: (WorkbenchJSON) -> Bool,
                            confirmSourceChange: (WorkbenchJSON, WorkbenchJSON) -> Bool) async throws -> WorkbenchJSON {
         let endpoint = WorkbenchResource.plugins.endpoint
-        let candidate = try await post(endpoint, body: .object(["action": .string("validate"), "source": .string(source)]))
-        try Task.checkCancellation()
-        guard candidate.flag("valid") else {
-            throw WorkbenchClientError.invalidResponse(L10n.text("The candidate plugin package did not pass validation."))
-        }
+        let (candidate, reviewToken) = try await validatedLocalPluginCandidate(source: source)
         guard confirmCandidate(candidate) else { throw WorkbenchClientError.cancelled }
         try Task.checkCancellation()
-        var fields: [String: WorkbenchJSON] = ["action": .string("update"), "name": .string(name),
-            "source": .string(source), "confirmed": .bool(true)]
+        var fields: [String: WorkbenchJSON] = [
+            "action": .string("update"),
+            "name": .string(name),
+            "source": .string(source),
+            "review_token": .string(reviewToken),
+        ]
         do {
             return try await post(endpoint, body: .object(fields))
         } catch let error as WorkbenchClientError {

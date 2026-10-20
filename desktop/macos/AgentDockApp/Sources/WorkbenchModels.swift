@@ -81,6 +81,14 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
     var insertionEligibilityReason: String
     var raw: WorkbenchJSON
 
+    private static let insertionEligibilityFields = [
+        "insertion_eligible",
+        "can_insert",
+        "insertion.eligible",
+        "insertion_state.eligible",
+        "eligibility.can_insert",
+    ]
+
     init(json: WorkbenchJSON, serverNow: Date?) {
         id = json.firstText("conversation_id", "id")
         let created = json.date("created_at")
@@ -119,13 +127,7 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
             ?? lastInteractionAt?.addingTimeInterval(120)
         recentlyActive = !terminated && !trashed && !archived && !unattributed && (json.optionalFlag("recently_active")
             ?? Self.isRecentlyActive(lastActivityAt: lastInteractionAt, serverNow: serverNow, inFlight: false))
-        let explicitInsertionEligibility = json.firstField([
-            "insertion_eligible",
-            "can_insert",
-            "insertion.eligible",
-            "insertion_state.eligible",
-            "eligibility.can_insert"
-        ]).boolValue
+        let explicitInsertionEligibility = json.firstField(Self.insertionEligibilityFields).boolValue
         if let explicitInsertionEligibility {
             insertionEligible = explicitInsertionEligibility
         } else if let serverNow, let lastToolCallAt, lastToolCallAt <= serverNow, !terminated, !trashed {
@@ -167,7 +169,7 @@ struct WorkbenchConversation: Equatable, Identifiable, Sendable {
         if let request = lastToolCallAt {
             insertionEligible = !terminated && !trashed && !unattributed
                 && request <= serverNow && serverNow.timeIntervalSince(request) < 180
-                && raw.firstField(["insertion_eligible", "can_insert"]).boolValue != false
+                && raw.firstField(Self.insertionEligibilityFields).boolValue != false
         }
     }
 
@@ -259,6 +261,7 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
     var summary: String
     var requestText: String
     var responseText: String
+    var outputPayloadSource: String
     var progressText: String
     var timingText: String
     var fileEditText: String
@@ -305,7 +308,8 @@ struct WorkbenchCall: Equatable, Identifiable, Sendable {
             title = L10n.text("Execution record")
         }
         requestText = Self.payloadText(json["request"])
-        let response = json["output_source"].text("ref").isEmpty ? json["response"] : json["output_source"]
+        outputPayloadSource = json["output_source"].isNull ? "response" : "source"
+        let response = outputPayloadSource == "source" ? json["output_source"] : json["response"]
         responseText = Self.payloadText(response)
         let stdout = json.text("output_preview")
         let stderr = json.text("stderr_preview")
