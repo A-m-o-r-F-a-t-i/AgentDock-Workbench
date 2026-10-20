@@ -128,16 +128,35 @@ func writeRuntimeAPIHandlerError(w http.ResponseWriter, err error) {
 		case "not_found":
 			status = http.StatusNotFound
 		}
-		writeRuntimeAPIError(w, status, toolErr.Code, toolErr.Message)
+		payload := map[string]any{
+			"ok":         false,
+			"code":       toolErr.Code,
+			"error":      toolErr.Message,
+			"error_kind": toolErr.Category,
+			"retryable":  toolErr.Retryable,
+		}
+		if len(toolErr.Details) > 0 {
+			payload["details"] = toolErr.Details
+			for _, key := range []string{"operation_status", "failure_class", "execution_performed", "effect_state", "retry_safe", "required_action"} {
+				if value, ok := toolErr.Details[key]; ok {
+					payload[key] = value
+				}
+			}
+		}
+		writeRuntimeAPIErrorPayload(w, status, toolErr.Code, payload)
 		return
 	}
 	writeRuntimeAPIError(w, http.StatusInternalServerError, "RUNTIME_API_ERROR", err.Error())
 }
 
 func writeRuntimeAPIError(w http.ResponseWriter, status int, code, message string) {
+	writeRuntimeAPIErrorPayload(w, status, code, map[string]any{"ok": false, "code": code, "error": message})
+}
+
+func writeRuntimeAPIErrorPayload(w http.ResponseWriter, status int, code string, payload map[string]any) {
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]any{"ok": false, "code": code, "error": message}); err != nil {
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		slog.Warn("write runtime API error response failed", "status", status, "code", code, "error", err)
 	}
 }

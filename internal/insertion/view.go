@@ -16,6 +16,7 @@ type PublicItem struct {
 	AutomaticAttemptsRemaining int        `json:"automatic_attempts_remaining"`
 	TotalAttemptsRemaining     int        `json:"total_attempts_remaining"`
 	ManualRetryAvailable       bool       `json:"manual_retry_available"`
+	CancelAvailable            bool       `json:"cancel_available"`
 }
 
 func attemptsRemaining(limit, attempts int) int {
@@ -31,6 +32,7 @@ func attemptsRemaining(limit, attempts int) int {
 func Present(item Item, now time.Time) PublicItem {
 	raw := item
 	view := PublicItem{Item: Public(item), ReceiptType: "none"}
+	view.CancelAvailable = waiting(raw.Status) || unconfirmed(raw.Status) || raw.Status == "expired" && raw.ExpiredFrom == "pending"
 	if raw.Status == "acknowledged" {
 		view.ReceiptType = raw.AcknowledgedBy
 		return view

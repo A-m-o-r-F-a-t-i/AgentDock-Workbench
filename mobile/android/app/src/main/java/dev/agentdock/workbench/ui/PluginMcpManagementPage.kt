@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,6 +38,11 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
     val prompt = rememberCommandPrompt(model)
     var section by rememberSaveable { mutableStateOf("plugins") }
     var pluginSource by rememberSaveable { mutableStateOf("") }
+    var pluginReview by remember { mutableStateOf<JSONObject?>(null) }
+    var pluginReviewToken by remember { mutableStateOf("") }
+    var reviewedPluginSource by remember { mutableStateOf("") }
+    var reviewedPluginName by remember { mutableStateOf("") }
+    var confirmedSourceChange by rememberSaveable { mutableStateOf(false) }
     var selectedPlugin by rememberSaveable { mutableStateOf("") }
     var memberType by rememberSaveable { mutableStateOf("skill") }
     var memberName by rememberSaveable { mutableStateOf("") }
@@ -51,6 +57,34 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
     var envKey by rememberSaveable(selectedMcp) { mutableStateOf("") }
     var envValue by remember(selectedMcp) { mutableStateOf("") }
 
+    fun clearPluginReview() {
+        pluginReview = null
+        pluginReviewToken = ""
+        reviewedPluginSource = ""
+        reviewedPluginName = ""
+        confirmedSourceChange = false
+    }
+    fun acceptPluginReview(result: JSONObject, source: String) {
+        val review = result.optJSONObject("review")
+        if (review == null) {
+            clearPluginReview()
+            model.showNotice("Core 未返回插件审查结果。")
+            return
+        }
+        val token = review.optString("review_token")
+        val valid = result.optBoolean("valid") && review.optBoolean("valid", true)
+        if (!valid || token.isBlank()) {
+            clearPluginReview()
+            model.showNotice("插件来源未通过验证，或 Core 未返回安装授权令牌。")
+            return
+        }
+        pluginReview = JSONObject(review.toString())
+        pluginReviewToken = token
+        reviewedPluginSource = source
+        reviewedPluginName = review.optString("name")
+        confirmedSourceChange = false
+        model.showNotice("来源验证通过；安装或更新将使用本次验证令牌。")
+    }
     fun reloadPlugins() = model.resources.read("plugins", "/internal/runtime/plugins")
     fun reloadMcp() = model.resources.read("mcp", "/internal/runtime/mcp")
     fun selectPlugin(name: String) {
@@ -63,6 +97,7 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
         model.resources.read("mcp-detail", "/internal/runtime/mcp/${ManagementContract.namedSegment(name)}")
     }
     LaunchedEffect(state.settings.endpoint, state.settings.remoteEndpointEnabled) {
+        clearPluginReview()
         reloadPlugins()
         reloadMcp()
     }
@@ -86,17 +121,42 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
         if (section == "plugins") {
             item {
                 ResourceSection("来源验证与安装") {
-                    ResourceField("插件目录、归档或受支持来源", pluginSource, { pluginSource = it.take(4096) }, multiline = true)
+                    ResourceField("插件目录、归档或受支持来源", pluginSource, {
+                        val next = it.take(4096)
+                        if (next != pluginSource) clearPluginReview()
+                        pluginSource = next
+                    }, multiline = true)
                     ResourceActions {
                         OutlinedButton(onClick = {
-                            prompt.ask({ WorkbenchCommands.plugin("validate", source = pluginSource) })
-                        }, enabled = !resources.actionBusy && pluginSource.isNotBlank()) { Text("仅验证") }
+                            val candidateSource = pluginSource
+                            prompt.ask({ WorkbenchCommands.plugin("validate", source = candidateSource) }) { result ->
+                                acceptPluginReview(result, candidateSource)
+                            }
+                        }, enabled = !resources.actionBusy && pluginSource.isNotBlank()) { Text("验证来源") }
                         Button(onClick = {
-                            prompt.ask({ WorkbenchCommands.plugin("install", source = pluginSource) }) { reloadPlugins() }
-                        }, enabled = !resources.actionBusy && pluginSource.isNotBlank()) { Text("安装") }
+                            prompt.ask({
+                                WorkbenchCommands.plugin(
+                                    "install",
+                                    source = pluginSource,
+                                    reviewToken = pluginReviewToken
+                                )
+                            }) {
+                                clearPluginReview()
+                                reloadPlugins()
+                            }
+                        }, enabled = !resources.actionBusy && pluginReviewToken.isNotBlank() && reviewedPluginSource == pluginSource) { Text("安装已验证来源") }
                         TextButton(onClick = ::reloadPlugins) { Text("刷新库存") }
                     }
-                    Text("验证不安装；安装/更新的实际来源、兼容性和成员状态以 Core 回执为准。")
+                    pluginReview?.let { review ->
+                        ResourceObject(review, listOf("valid", "name", "version", "description", "package_digest"))
+                        review.optJSONArray("warnings")?.let { warnings ->
+                            for (index in 0 until minOf(warnings.length(), 20)) Text(warnings.optString(index).take(2048))
+                        }
+                        review.optJSONArray("issues")?.let { issues ->
+                            for (index in 0 until minOf(issues.length(), 20)) Text(issues.optString(index).take(2048))
+                        }
+                    }
+                    Text("安装和更新必须使用当前来源最近一次验证返回的令牌；编辑来源会立即清除该令牌。")
                     ResourceFeedback(pluginsView, ::reloadPlugins)
                     plugins.exceptionOrNull()?.let { Text(it.message.orEmpty()) }
                 }
@@ -127,9 +187,27 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
                         OutlinedButton(onClick = { prompt.ask({ WorkbenchCommands.plugin("heavy_enable", selectedPlugin) }) { reloadPlugins(); selectPlugin(selectedPlugin) } }, enabled = !resources.actionBusy) { Text("启用 Heavy") }
                         OutlinedButton(onClick = { prompt.ask({ WorkbenchCommands.plugin("heavy_disable", selectedPlugin) }) { reloadPlugins(); selectPlugin(selectedPlugin) } }, enabled = !resources.actionBusy) { Text("停用 Heavy") }
                     }
+                    Row {
+                        Checkbox(confirmedSourceChange, { confirmedSourceChange = it })
+                        Text("确认在 Core 判定来源变化时重新绑定插件来源", Modifier.padding(top = 12.dp))
+                    }
                     ResourceActions {
-                        Button(onClick = { prompt.ask({ WorkbenchCommands.plugin("update", selectedPlugin, source = pluginSource) }) { reloadPlugins(); selectPlugin(selectedPlugin) } }, enabled = !resources.actionBusy && pluginSource.isNotBlank()) { Text("按来源更新") }
-                        OutlinedButton(onClick = { prompt.ask({ WorkbenchCommands.plugin("remove", selectedPlugin) }) { selectedPlugin = ""; reloadPlugins(); reloadMcp() } }, enabled = !resources.actionBusy) { Text("移除插件") }
+                        Button(onClick = {
+                            prompt.ask({
+                                WorkbenchCommands.plugin(
+                                    "update",
+                                    selectedPlugin,
+                                    source = pluginSource,
+                                    reviewToken = pluginReviewToken,
+                                    confirmedSourceChange = confirmedSourceChange
+                                )
+                            }) {
+                                clearPluginReview()
+                                reloadPlugins()
+                                selectPlugin(selectedPlugin)
+                            }
+                        }, enabled = !resources.actionBusy && pluginReviewToken.isNotBlank() && reviewedPluginSource == pluginSource && reviewedPluginName == selectedPlugin) { Text("更新为已验证来源") }
+                        OutlinedButton(onClick = { prompt.ask({ WorkbenchCommands.plugin("remove", selectedPlugin) }) { selectedPlugin = ""; clearPluginReview(); reloadPlugins(); reloadMcp() } }, enabled = !resources.actionBusy) { Text("移除插件") }
                     }
                     PermissionChoice("成员类型", listOf("skill" to "Skill", "mcp_server" to "MCP 服务"), memberType) { memberType = it }
                     ResourceField("成员名称", memberName, { memberName = it.take(256) })
