@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -24,8 +26,7 @@ type Controller struct {
 }
 
 // Configure 在后台子进程启动前禁用控制台窗口，同时保留调用方已有的创建标志。
-// 标准命令、WSL 文件辅助进程和 stdio MCP 通过该入口启动；PowerShell 依赖
-// CREATE_NO_WINDOW 保持重定向输出。ACP 为兼容 Windows sandbox 使用独立启动策略。
+// 标准命令、短生命周期后台 CLI、WSL 文件辅助进程和 stdio MCP 通过该入口启动；ACP 为兼容 Windows sandbox 使用独立启动策略。
 func Configure(cmd *exec.Cmd) {
 	if cmd == nil {
 		return
@@ -37,18 +38,28 @@ func Configure(cmd *exec.Cmd) {
 	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
 }
 
-// ConfigureDetached 用于不会依赖控制台语义的短生命周期原生后台程序。
-// DETACHED_PROCESS 避免部分 Windows 11 环境为 CREATE_NO_WINDOW 进程创建短命 conhost。
-func ConfigureDetached(cmd *exec.Cmd) {
+// ConfigureStdio keeps stdio pipes available without allowing a command-script
+// wrapper to create a visible console for its native child. cmd.exe receives a
+// new console hidden from its first frame; direct executables keep no-window mode.
+func ConfigureStdio(cmd *exec.Cmd) {
 	if cmd == nil {
+		return
+	}
+	executable := cmd.Path
+	if executable == "" && len(cmd.Args) > 0 {
+		executable = cmd.Args[0]
+	}
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(executable)))
+	if base != "cmd" && base != "cmd.exe" {
+		Configure(cmd)
 		return
 	}
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.HideWindow = true
-	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW
-	cmd.SysProcAttr.CreationFlags |= windows.DETACHED_PROCESS
+	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS
+	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_CONSOLE
 }
 
 func Attach(cmd *exec.Cmd) (*Controller, error) {

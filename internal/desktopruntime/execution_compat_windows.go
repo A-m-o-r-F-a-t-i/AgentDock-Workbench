@@ -12,10 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/uvwt/agentdock/internal/executioncompat"
-	processcontrol "github.com/uvwt/agentdock/internal/process"
+	"golang.org/x/sys/windows"
 )
 
 const legacyExecutionPolicyCommit = "c7b3613ed92f"
@@ -46,7 +47,7 @@ func CheckExecutionCompatibility(ctx context.Context, runtimeRoot, targetCore st
 		defer cancel()
 		command := exec.CommandContext(probeCtx, targetCore, "version", "--json")
 		command.Dir = runtimeRoot
-		processcontrol.ConfigureDetached(command)
+		command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
 		output := &capabilityOutput{}
 		command.Stdout, command.Stderr = output, output
 		if err := command.Run(); err != nil {

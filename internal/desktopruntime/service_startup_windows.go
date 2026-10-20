@@ -62,7 +62,7 @@ func platformSetAutostart(ctx context.Context, runtimeRoot, component string, en
 
 func hiddenDesktopCommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
 	command := exec.CommandContext(ctx, name, args...)
-	processcontrol.ConfigureDetached(command)
+	processcontrol.Configure(command)
 	return command
 }
 

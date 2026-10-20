@@ -100,7 +100,7 @@ func run() error {
 	}
 
 	command := exec.Command(target, os.Args[1:]...)
-	processctl.ConfigureDetached(command)
+	processctl.Configure(command)
 	command.Dir = root
 	if !tray || trayRequiresWait(os.Args[1:]) {
 		command.Stdin = os.Stdin
@@ -140,7 +140,7 @@ func run() error {
 	}
 
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP}
-	processctl.ConfigureDetached(command)
+	processctl.Configure(command)
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("start AgentDock tray generation: %w", err)
 	}
@@ -257,7 +257,6 @@ func resolveActiveWithRecovery(root string, store *updateengine.Store, layout up
 	arbiterPath := layout.GenerationArbiter(sourceVersion)
 	command := exec.Command(arbiterPath, "--root", root, "--transaction-id", transaction.TransactionID)
 	command.Dir = root
-	processctl.ConfigureDetached(command)
 	var recoveryStdout, recoveryStderr bytes.Buffer
 	command.Stdout = &recoveryStdout
 	command.Stderr = &recoveryStderr

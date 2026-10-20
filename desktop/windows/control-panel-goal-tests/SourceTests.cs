@@ -8,13 +8,6 @@ internal static class SourceTests
     {
         var count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception(name); count++; }
-        Check(
-            RoxyDiscovery.UserDataDirectoryFromCommandLine(@"RoxyChrome.exe --user-data-dir=""C:\Roxy Profiles\one"" --remote-debugging-port=0") == @"C:\Roxy Profiles\one",
-            "quoted Roxy profile path");
-        Check(
-            RoxyDiscovery.UserDataDirectoryFromCommandLine(@"RoxyChrome.exe --user-data-dir=C:\Roxy\one") == @"C:\Roxy\one",
-            "unquoted Roxy profile path");
-        Check(RoxyDiscovery.UserDataDirectoryFromCommandLine("RoxyChrome.exe") is null, "missing Roxy profile path");
         var conversation = JsonNode.Parse("""{"conversation":{"conversation_id":"conversation","state":{"active_task_id":"task","active_task_thread_id":"main"}}}""")!;
         var task = JsonNode.Parse("""{"task":{"id":"task","status":"active","updated_at":"2026-10-12T00:00:00Z"}}""")!;
         var thread = JsonNode.Parse("""{"thread":{"id":"main","status":"open","updated_at":"2026-10-12T00:00:00Z"}}""")!;

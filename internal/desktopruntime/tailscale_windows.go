@@ -11,9 +11,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
-	processcontrol "github.com/uvwt/agentdock/internal/process"
+	"golang.org/x/sys/windows"
 )
 
 func findTailscaleBinary(saved string) (string, error) {
@@ -93,7 +94,7 @@ func newWindowsTailscaleClient(binary string) tailscaleClient {
 		ctx, cancel := context.WithTimeout(parent, timeout)
 		defer cancel()
 		command := exec.CommandContext(ctx, binary, arguments...)
-		processcontrol.ConfigureDetached(command)
+		command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
 		command.WaitDelay = 2 * time.Second
 		stdout := &tailscaleOutputBuffer{limit: tailscaleJSONLimit}
 		stderr := &tailscaleOutputBuffer{limit: 16 * 1024}

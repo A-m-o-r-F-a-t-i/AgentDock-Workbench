@@ -25,6 +25,11 @@ func Configure(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
+// ConfigureStdio gives stdio servers the same bounded process group on Unix.
+func ConfigureStdio(cmd *exec.Cmd) {
+	Configure(cmd)
+}
+
 // Attach records the process group after the command has started.
 func Attach(cmd *exec.Cmd) (*Controller, error) {
 	if cmd == nil || cmd.Process == nil {

@@ -991,7 +991,6 @@ public sealed partial class RuntimeService : IDisposable
             FileName = fileName,
             UseShellExecute = false,
             CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = utf8,
@@ -1419,7 +1418,6 @@ public sealed partial class RuntimeService : IDisposable
                 FileName = "schtasks.exe",
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
