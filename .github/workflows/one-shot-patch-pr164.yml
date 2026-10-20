@@ -1,0 +1,59 @@
+name: One-shot patch PR 164
+
+on:
+  push:
+    branches:
+      - ops/diagnose-open-prs-20261020
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ contains(github.event.head_commit.message, 'patch PR 164 plugin fixture contract') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/20261020-macos-workbench-contracts
+      - name: Align plugin fixture with review-token contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift')
+          text = path.read_text()
+          old = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
+                        "review": .object(["source": .string("new.zip")])]))
+'''
+          new = '''                    return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
+                        "review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])]))
+'''
+          if text.count(old) != 1:
+              raise SystemExit('plugin validation fixture block not found exactly once')
+          text = text.replace(old, new)
+          old = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
+            if accepted { XCTAssertTrue(updates[1].flag("confirmed_source_change")) }
+'''
+          new = '''            XCTAssertFalse(updates[0].flag("confirmed_source_change"))
+            XCTAssertEqual(updates[0].text("review_token"), "review_fixture")
+            if accepted {
+                XCTAssertTrue(updates[1].flag("confirmed_source_change"))
+                XCTAssertEqual(updates[1].text("review_token"), "review_fixture")
+            }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('plugin rebind assertions not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+      - name: Commit focused fixture fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift
+          git commit -m 'test(macos): preserve plugin review token on rebind'
+          git push origin HEAD:fix/20261020-macos-workbench-contracts
