@@ -1,7 +1,27 @@
 {
-  "checked_at": "2026-10-20T13:39:45Z",
+  "checked_at": "2026-10-20T13:44:42Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
   "republish_runs": [
+    {
+      "id": 39433031944,
+      "head_sha": "bbfb363fda5ef9bd2ea5754dddc40062619826a7",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:44:32Z",
+      "updated_at": "2026-10-20T13:44:33Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39433031944",
+      "display_title": "monitor republish original candidate"
+    },
+    {
+      "id": 39432485196,
+      "head_sha": "320f64e36d2024e5454fa2e0a1cf479e2259ab38",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:40:45Z",
+      "updated_at": "2026-10-20T13:40:47Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432485196",
+      "display_title": "cancel duplicate publication runs"
+    },
     {
       "id": 39432304784,
       "head_sha": "02720861b092146fa5696352d4aeaa19af671e5f",
@@ -55,41 +75,21 @@
     {
       "id": 39430672256,
       "head_sha": "9539a7c0ab665565cd82c0759a401981a9f690b1",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "cancelled",
       "created_at": "2026-10-20T13:28:22Z",
-      "updated_at": "2026-10-20T13:28:27Z",
+      "updated_at": "2026-10-20T13:41:11Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39430672256",
       "display_title": "diagnose republish v1.1.9 progress"
-    },
-    {
-      "id": 39430224316,
-      "head_sha": "e62f878a7d7e5c9a701e643c8bd0409438a4caaf",
-      "status": "in_progress",
-      "conclusion": null,
-      "created_at": "2026-10-20T13:25:12Z",
-      "updated_at": "2026-10-20T13:25:16Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39430224316",
-      "display_title": "monitor republish v1.1.9 status"
-    },
-    {
-      "id": 39429858059,
-      "head_sha": "975e091babaaaa02d1cfa30c15e4c84a51c91dd7",
-      "status": "in_progress",
-      "conclusion": null,
-      "created_at": "2026-10-20T13:22:38Z",
-      "updated_at": "2026-10-20T13:22:48Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429858059",
-      "display_title": "republish v1.1.9 after final open PR merge"
     }
   ],
   "candidate_runs": [
     {
       "id": 39430693156,
-      "status": "pending",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "cancelled",
       "created_at": "2026-10-20T13:28:31Z",
-      "updated_at": "2026-10-20T13:28:33Z",
+      "updated_at": "2026-10-20T13:40:55Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39430693156",
       "display_title": "AgentDock Workbench 6fff01f1a206db9e3b1e96492767a969da45839c"
     },
@@ -107,7 +107,7 @@
       "status": "in_progress",
       "conclusion": null,
       "created_at": "2026-10-20T13:22:52Z",
-      "updated_at": "2026-10-20T13:36:43Z",
+      "updated_at": "2026-10-20T13:42:32Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429892778",
       "display_title": "AgentDock Workbench 6fff01f1a206db9e3b1e96492767a969da45839c"
     }
