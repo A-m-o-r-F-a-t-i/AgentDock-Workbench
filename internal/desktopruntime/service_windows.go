@@ -24,7 +24,7 @@ func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStat
 		return ServiceStatus{}, err
 	}
 	coreBinary := ActiveCoreBinary(runtimeRoot, manifest)
-	running, err := processRunningAtPath(coreBinary)
+	running, err := coreProcessRunning(runtimeRoot, coreBinary)
 	if err != nil {
 		return ServiceStatus{}, err
 	}
@@ -76,6 +76,15 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 	if testHealth(ctx, manifest.HealthURL()) {
 		return nil
 	}
+	// The Tunnel supervisor and one-shot CLI commands share Core's executable.
+	// Only a real Core process should prevent another launch while /healthz warms.
+	running, err := coreProcessRunning(runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest))
+	if err != nil {
+		return fmt.Errorf("识别已启动的 AgentDock Core 失败: %w", err)
+	}
+	if running {
+		return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+	}
 	recoverAbandonedCoreLocks(manifest, runtimeRoot)
 	if manifest.UsesScheduledTask() {
 		if err := StartInteractiveScheduledTask(ctx, runtimeRoot, manifest.AgentDockTaskName); err != nil {
@@ -85,6 +94,25 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 		return err
 	}
 	return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+}
+
+// coreProcessRunning excludes the Tunnel supervisor and same-binary command
+// ancestors. For example, `tunnel start` waits for its child supervisor; neither
+// process is the HTTP Core that should satisfy /healthz.
+func coreProcessRunning(runtimeRoot, coreBinary string) (bool, error) {
+	excluded, err := ancestorProcessIDsAtPath(coreBinary)
+	if err != nil {
+		return false, err
+	}
+	supervisorPID, err := activeTunnelSupervisorPID(runtimeRoot, coreBinary)
+	if err != nil {
+		return false, err
+	}
+	if supervisorPID != 0 {
+		excluded[supervisorPID] = struct{}{}
+	}
+	processes, err := processIDsAtPathExcept(coreBinary, excluded)
+	return len(processes) > 0, err
 }
 
 func stopCore(ctx context.Context, manifest Manifest, runtimeRoot string) error {
