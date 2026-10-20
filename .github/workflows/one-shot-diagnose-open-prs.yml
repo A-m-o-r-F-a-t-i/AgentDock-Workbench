@@ -1,4 +1,4 @@
-name: One-shot diagnose candidate release run
+name: One-shot diagnose PR 171
 
 on:
   push:
@@ -11,85 +11,69 @@ permissions:
 
 jobs:
   diagnose:
-    if: ${{ contains(github.event.head_commit.message, 'diagnose candidate run') && !contains(github.event.head_commit.message, '[diagnostic-results]') }}
+    if: ${{ contains(github.event.head_commit.message, 'diagnose PR 171') && !contains(github.event.head_commit.message, '[diagnostic-results]') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_RUN_ID: '39414861278'
       OPS_BRANCH: ops/diagnose-open-prs-20261020
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ops/diagnose-open-prs-20261020
-      - name: Collect failed candidate jobs and logs
+      - name: Collect failed job logs
         shell: bash
         run: |
-          set -u
-          mkdir -p diagnostics /tmp/candidate-logs
-          jobs=/tmp/candidate-jobs.json
-          out=diagnostics/candidate-run-39414861278.txt
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/jobs?filter=latest&per_page=100" > "$jobs"
-          python3 - "$jobs" /tmp/failed-jobs.txt "$out" <<'PY'
-          import json, sys
-          from pathlib import Path
-          jobs_path, failed_path, out_path = map(Path, sys.argv[1:])
-          payload = json.loads(jobs_path.read_text())
-          jobs = payload.get('jobs', [])
-          failed = [job for job in jobs if job.get('conclusion') not in ('success', 'skipped', 'neutral')]
-          failed_path.write_text('\n'.join(f"{job['id']}\t{job['name']}\t{job.get('conclusion')}" for job in failed) + ('\n' if failed else ''))
-          lines = [f"run_id={payload.get('workflow_run', {}).get('id', '') or ''}", f"total_jobs={payload.get('total_count', len(jobs))}", "", "jobs:"]
-          for job in jobs:
-              lines.append(f"- {job.get('id')} | {job.get('name')} | status={job.get('status')} conclusion={job.get('conclusion')}")
-          lines += ["", "failed_jobs:"]
-          for job in failed:
-              lines.append(f"- {job.get('id')} | {job.get('name')} | {job.get('conclusion')}")
-          out_path.write_text('\n'.join(lines) + '\n')
-          PY
-          while IFS=$'\t' read -r job_id job_name conclusion; do
-            [[ -n "$job_id" ]] || continue
-            raw="/tmp/candidate-logs/${job_id}.raw"
-            log="/tmp/candidate-logs/${job_id}.log"
-            status="$(curl -sS -L -w '%{http_code}' \
+          set -euo pipefail
+          mkdir -p diagnostics /tmp/pr171-logs
+          out=diagnostics/pr-171-installer-failures.txt
+          : > "$out"
+          while IFS=$'\t' read -r job_id job_name; do
+            raw="/tmp/pr171-logs/${job_id}.raw"
+            log="/tmp/pr171-logs/${job_id}.log"
+            http="$(curl -sS -L -w '%{http_code}' \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H 'Accept: application/vnd.github+json' \
               -H 'X-GitHub-Api-Version: 2022-11-28' \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
-              -o "$raw" || true)"
+              -o "$raw")"
             if python3 - "$raw" <<'PY'
           import sys, zipfile
           raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
           PY
             then
-              unzip -p "$raw" > "$log" 2>/dev/null || true
+              unzip -p "$raw" > "$log"
             else
-              cp "$raw" "$log" 2>/dev/null || true
+              cp "$raw" "$log"
             fi
-            python3 - "$job_id" "$job_name" "$conclusion" "$status" "$log" "$out" <<'PY'
+            python3 - "$job_id" "$job_name" "$http" "$log" "$out" <<'PY'
           import re, sys
           from pathlib import Path
-          job_id, job_name, conclusion, status, log_path, out_path = sys.argv[1:]
-          lines = Path(log_path).read_text(errors='replace').splitlines() if Path(log_path).exists() else []
-          pattern = re.compile(r'(?i)(error|fail(?:ed|ure)?|fatal|panic|timed out|timeout|mismatch|missing|Process completed|##\[error\]|conclusion=)')
+          job_id, job_name, http, log_path, out_path = sys.argv[1:]
+          lines = Path(log_path).read_text(errors='replace').splitlines()
+          pattern = re.compile(r'(?i)(error|fail(?:ed|ure)?|fatal|panic|timed out|timeout|mismatch|missing|Process completed|##\[error\])')
           selected = set()
-          for index, line in enumerate(lines):
+          for i, line in enumerate(lines):
               if pattern.search(line):
-                  selected.update(range(max(0, index - 10), min(len(lines), index + 30)))
-          excerpt = '\n'.join(lines[index] for index in sorted(selected)) if selected else '\n'.join(lines[-600:])
-          if len(excerpt) > 120000:
-              excerpt = excerpt[-120000:]
+                  selected.update(range(max(0, i - 12), min(len(lines), i + 35)))
+          excerpt = '\n'.join(lines[i] for i in sorted(selected)) if selected else '\n'.join(lines[-800:])
+          if len(excerpt) > 160000:
+              excerpt = excerpt[-160000:]
           with Path(out_path).open('a') as output:
-              output.write(f"\n\n=== job {job_id}: {job_name} ({conclusion}), log_http={status} ===\n")
+              output.write(f'=== job {job_id}: {job_name}, log_http={http} ===\n')
               output.write(excerpt)
-              output.write('\n')
+              output.write('\n\n')
           PY
-          done < /tmp/failed-jobs.txt
+          done <<'EOF'
+          118602078043	Validate installer on Windows PowerShell 5.1
+          118604844498	Windows Installer gate
+          EOF
       - name: Commit diagnostic
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add diagnostics/candidate-run-39414861278.txt
-          git commit -m 'chore: record candidate release failure [diagnostic-results]'
+          git add diagnostics/pr-171-installer-failures.txt
+          git commit -m 'chore: record PR 171 installer failures [diagnostic-results]'
           git push origin HEAD:"$OPS_BRANCH"
