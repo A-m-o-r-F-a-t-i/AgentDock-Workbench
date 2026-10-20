@@ -17,6 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       MAIN_SHA: 6fff01f1a206db9e3b1e96492767a969da45839c
+      CANDIDATE_RUN_ID: '39429892778'
       OPS_BRANCH: ops/diagnose-open-prs-20261020
     steps:
       - uses: actions/checkout@v5
@@ -30,17 +31,20 @@ jobs:
           repo="$GITHUB_REPOSITORY"
           gh api "repos/$repo/actions/workflows/one-shot-republish-v1.1.9.yml/runs?event=push&branch=$OPS_BRANCH&per_page=30" > /tmp/republish-runs.json
           gh api "repos/$repo/actions/workflows/workbench-release.yml/runs?event=workflow_dispatch&branch=main&per_page=50" > /tmp/candidates.json
+          gh api "repos/$repo/actions/runs/$CANDIDATE_RUN_ID/jobs?filter=latest&per_page=100" > /tmp/candidate-jobs.json
           gh api "repos/$repo/actions/workflows/workbench-publish-existing.yml/runs?event=workflow_dispatch&branch=main&per_page=50" > /tmp/publishers.json
           jq -n \
             --arg main_sha "$MAIN_SHA" \
             --slurpfile republish /tmp/republish-runs.json \
             --slurpfile candidates /tmp/candidates.json \
+            --slurpfile candidate_jobs /tmp/candidate-jobs.json \
             --slurpfile publishers /tmp/publishers.json \
             '{
               checked_at: (now | todate),
               main_sha: $main_sha,
               republish_runs: ([ $republish[0].workflow_runs[] | {id,head_sha,status,conclusion,created_at,updated_at,html_url,display_title} ] | sort_by(.created_at) | reverse | .[:8]),
               candidate_runs: ([ $candidates[0].workflow_runs[] | select(.head_sha == $main_sha) | {id,status,conclusion,created_at,updated_at,html_url,display_title} ] | sort_by(.created_at) | reverse),
+              candidate_jobs: ([ $candidate_jobs[0].jobs[] | {id,name,status,conclusion,started_at,completed_at,html_url} ] | sort_by(.name)),
               publisher_runs: ([ $publishers[0].workflow_runs[] | select(.head_sha == $main_sha) | {id,status,conclusion,created_at,updated_at,html_url,display_title} ] | sort_by(.created_at) | reverse)
             }' > ops/republish-v1.1.9-monitor.json
           cat ops/republish-v1.1.9-monitor.json
