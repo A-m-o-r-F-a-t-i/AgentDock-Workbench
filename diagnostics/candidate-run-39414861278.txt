@@ -1,0 +1,235 @@
+run_id=
+total_jobs=15
+
+jobs:
+- 118601307054 | resolve-source | status=completed conclusion=success
+- 118601450354 | Native darwin arm64 | status=completed conclusion=failure
+- 118601450368 | Native linux amd64 | status=completed conclusion=success
+- 118601450530 | Native linux arm64 | status=completed conclusion=success
+- 118601450568 | Native darwin amd64 | status=completed conclusion=failure
+- 118601451878 | windows / Resolve requested ref once | status=completed conclusion=success
+- 118601516954 | windows / Linux transaction and concurrency regression | status=completed conclusion=success
+- 118601517093 | windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64) | status=completed conclusion=success
+- 118601517140 | windows / native-acceptance / native-windows (windows-latest, amd64, win-x64) | status=completed conclusion=success
+- 118603242294 | windows / Build verified unsigned Windows packages | status=completed conclusion=success
+- 118603991257 | android | status=completed conclusion=skipped
+- 118603991763 | Universal macOS Workbench application | status=completed conclusion=skipped
+- 118608139121 | windows / Publish verified Windows x64 Release | status=completed conclusion=skipped
+- 118608139196 | Native Windows ARM64 install and uninstall | status=completed conclusion=success
+- 118610269201 | Verify complete artifact set and publish selected channel | status=completed conclusion=skipped
+
+failed_jobs:
+- 118601450354 | Native darwin arm64 | failure
+- 118601450568 | Native darwin amd64 | failure
+
+
+=== job 118601450354: Native darwin arm64 (failure), log_http=200 ===
+2026-10-20T11:26:50.5804840Z   token: ***
+2026-10-20T11:26:50.5805090Z   update-environment: true
+2026-10-20T11:26:50.5805310Z   allow-prereleases: false
+2026-10-20T11:26:50.5805590Z   freethreaded: false
+2026-10-20T11:26:50.5805850Z env:
+2026-10-20T11:26:50.5806030Z   GOTOOLCHAIN: local
+2026-10-20T11:26:50.5806280Z ##[endgroup]
+2026-10-20T11:26:50.8811530Z ##[group]Installed versions
+2026-10-20T11:26:50.9006830Z Successfully set up CPython (3.12.10)
+2026-10-20T11:26:50.9031490Z ##[endgroup]
+2026-10-20T11:26:50.9183780Z ##[group]Run set -euo pipefail
+2026-10-20T11:26:50.9186180Z [36;1mset -euo pipefail[0m
+2026-10-20T11:26:50.9187040Z [36;1m# The activity package measures a strict 2s cold projection target.[0m
+2026-10-20T11:26:50.9188110Z [36;1m# Do not share that measurement with unrelated in-test compiler[0m
+2026-10-20T11:26:50.9189170Z [36;1m# processes on small native runners. Every package still runs, and[0m
+2026-10-20T11:26:50.9190240Z [36;1m# the timed contract is repeated three times without relaxing it.[0m
+2026-10-20T11:26:50.9191080Z [36;1mall_packages="$(go list ./...)"[0m
+2026-10-20T11:26:50.9191920Z [36;1mactivity_package="github.com/uvwt/agentdock/internal/activity"[0m
+2026-10-20T11:26:50.9192920Z [36;1mremaining=()[0m
+2026-10-20T11:26:50.9193130Z [36;1mfound=0[0m
+2026-10-20T11:26:50.9193330Z [36;1mwhile IFS= read -r package; do[0m
+2026-10-20T11:26:50.9193620Z [36;1m  if [[ "$package" == "$activity_package" ]]; then[0m
+2026-10-20T11:26:50.9194000Z [36;1m    found=$((found + 1))[0m
+2026-10-20T11:26:50.9194220Z [36;1m  else[0m
+2026-10-20T11:26:50.9194400Z [36;1m    remaining+=("$package")[0m
+2026-10-20T11:26:50.9194630Z [36;1m  fi[0m
+2026-10-20T11:26:50.9194810Z [36;1mdone <<< "$all_packages"[0m
+2026-10-20T11:26:50.9195030Z [36;1mtest "$found" -eq 1[0m
+2026-10-20T11:26:50.9195270Z [36;1mtest "${#remaining[@]}" -gt 0[0m
+2026-10-20T11:26:50.9195560Z [36;1mif [[ "$IGNORE_INTEL_SCALE" == 'true' ]]; then[0m
+2026-10-20T11:26:50.9196120Z [36;1m  echo '::warning::User-authorized candidate exception: macOS Intel TestExecutionProjectionScale100k is ignored, not passed.'[0m
+2026-10-20T11:26:50.9196930Z [36;1m  echo 'macOS Intel 100k scale test: **ignored by explicit candidate request**. The original 2s limit is unchanged.' >> "$GITHUB_STEP_SUMMARY"[0m
+2026-10-20T11:26:50.9197800Z [36;1m  go test -p 1 ./internal/activity -skip '^TestExecutionProjectionScale100k$' -count=1 -timeout=8m[0m
+2026-10-20T11:26:50.9199480Z [36;1melse[0m
+2026-10-20T11:26:50.9200210Z [36;1m  go test -p 1 ./internal/activity -count=1 -timeout=8m[0m
+2026-10-20T11:26:50.9201620Z [36;1m  go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m[0m
+2026-10-20T11:26:50.9202770Z [36;1mfi[0m
+2026-10-20T11:26:50.9203350Z [36;1mgo test -p 2 "${remaining[@]}" -count=1 -timeout=8m[0m
+2026-10-20T11:26:50.9204040Z [36;1mgo vet ./...[0m
+2026-10-20T11:26:50.9504210Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T11:26:50.9504620Z env:
+2026-10-20T11:26:50.9504800Z   GOTOOLCHAIN: local
+2026-10-20T11:26:50.9505100Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:26:50.9505520Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-10-20T11:26:50.9505930Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:26:50.9506310Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:26:50.9506740Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:26:50.9507070Z   IGNORE_INTEL_SCALE: false
+2026-10-20T11:26:50.9507300Z ##[endgroup]
+2026-10-20T11:26:51.9072150Z go: downloading github.com/go-oauth2/oauth2/v4 v4.5.4
+2026-10-20T11:26:52.0550090Z go: downloading github.com/uvwt/agentdock-protocol v0.8.2-0.20261004051622-257c54fb223b
+2026-10-20T11:26:52.1213960Z go: downloading github.com/modelcontextprotocol/go-sdk v1.7.0
+2026-10-20T11:26:52.1252960Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-10-20T11:26:52.1825760Z go: downloading gopkg.in/yaml.v3 v3.0.1
+2026-10-20T11:26:52.2223690Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+2026-10-20T11:26:52.2350600Z go: downloading github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
+2026-10-20T11:26:52.2743480Z go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+2026-10-20T11:26:52.3651110Z go: downloading github.com/chromedp/chromedp v0.14.2
+2026-10-20T11:26:52.3654180Z go: downloading github.com/bmatcuk/doublestar/v4 v4.10.0
+2026-10-20T11:26:52.4033600Z go: downloading github.com/rogpeppe/go-internal v1.15.0
+2026-10-20T11:26:52.4263140Z go: downloading golang.org/x/sys v0.45.0
+2026-10-20T11:26:52.6714630Z go: downloading github.com/google/jsonschema-go v0.4.3
+2026-10-20T11:26:52.6928960Z go: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+2026-10-20T11:26:52.7202570Z go: downloading golang.org/x/oauth2 v0.35.0
+2026-10-20T11:26:52.7214640Z go: downloading golang.org/x/sync v0.20.0
+2026-10-20T11:26:52.7395760Z go: downloading golang.org/x/time v0.15.0
+2026-10-20T11:26:52.7398710Z go: downloading golang.org/x/text v0.14.0
+2026-10-20T11:26:52.7939550Z go: downloading github.com/chromedp/sysutil v1.1.0
+2026-10-20T11:26:52.8144410Z go: downloading github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
+2026-10-20T11:29:23.5441130Z   GOTOOLCHAIN: local
+2026-10-20T11:29:23.5441590Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:29:23.5442180Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-10-20T11:29:23.5442730Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:29:23.5443210Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:29:23.5443700Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-20T11:29:23.5444050Z ##[endgroup]
+2026-10-20T11:29:23.7351470Z macOS i18n check passed: 723 referenced keys, 754 localized entries per locale.
+2026-10-20T11:29:34.1165240Z localization preference tests passed
+2026-10-20T11:29:39.9941660Z installer configuration tests passed
+2026-10-20T11:29:47.7918470Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/Sources/InstallerRunner.swift:348:49: error: cannot find 'ServicePortValidation' in scope
+2026-10-20T11:29:47.7919770Z 346 | 
+2026-10-20T11:29:47.7924570Z 347 |     private func validPort(_ value: String?) -> Int? {
+2026-10-20T11:29:47.7925410Z 348 |         guard let value, let port = Int(value), ServicePortValidation.allowedRange.contains(port) else { return nil }
+2026-10-20T11:29:47.7926390Z     |                                                 `- error: cannot find 'ServicePortValidation' in scope
+2026-10-20T11:29:47.7931420Z 349 |         return port
+2026-10-20T11:29:47.7932320Z 350 |     }
+2026-10-20T11:29:47.8099540Z ##[error]Process completed with exit code 1.
+2026-10-20T11:29:47.8431800Z Post job cleanup.
+2026-10-20T11:29:48.2141860Z [command]/opt/homebrew/bin/git version
+2026-10-20T11:29:48.2389030Z git version 2.55.0
+2026-10-20T11:29:48.2420020Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/021b382a-c96b-4467-ab07-1d8618372dd2/.gitconfig'
+2026-10-20T11:29:48.2426420Z Temporarily overriding HOME='/Users/runner/work/_temp/021b382a-c96b-4467-ab07-1d8618372dd2' before making global git config changes
+2026-10-20T11:29:48.2427480Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T11:29:48.2431290Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-20T11:29:48.2555710Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T11:29:48.2635800Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T11:29:48.3849030Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T11:29:48.3907470Z http.https://github.com/.extraheader
+2026-10-20T11:29:48.3918830Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-20T11:29:48.3996050Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T11:29:48.4952270Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T11:29:48.5249860Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T11:29:48.6370960Z Cleaning up orphan processes
+
+
+=== job 118601450568: Native darwin amd64 (failure), log_http=200 ===
+2026-10-20T11:26:55.9976110Z   token: ***
+2026-10-20T11:26:55.9977250Z   update-environment: true
+2026-10-20T11:26:55.9978020Z   allow-prereleases: false
+2026-10-20T11:26:55.9978710Z   freethreaded: false
+2026-10-20T11:26:55.9979280Z env:
+2026-10-20T11:26:55.9980380Z   GOTOOLCHAIN: local
+2026-10-20T11:26:55.9981390Z ##[endgroup]
+2026-10-20T11:26:56.3056990Z ##[group]Installed versions
+2026-10-20T11:26:56.3697220Z Successfully set up CPython (3.12.10)
+2026-10-20T11:26:56.3800730Z ##[endgroup]
+2026-10-20T11:26:56.4095770Z ##[group]Run set -euo pipefail
+2026-10-20T11:26:56.4097300Z [36;1mset -euo pipefail[0m
+2026-10-20T11:26:56.4098490Z [36;1m# The activity package measures a strict 2s cold projection target.[0m
+2026-10-20T11:26:56.4100060Z [36;1m# Do not share that measurement with unrelated in-test compiler[0m
+2026-10-20T11:26:56.4101610Z [36;1m# processes on small native runners. Every package still runs, and[0m
+2026-10-20T11:26:56.4103180Z [36;1m# the timed contract is repeated three times without relaxing it.[0m
+2026-10-20T11:26:56.4104440Z [36;1mall_packages="$(go list ./...)"[0m
+2026-10-20T11:26:56.4105730Z [36;1mactivity_package="github.com/uvwt/agentdock/internal/activity"[0m
+2026-10-20T11:26:56.4106970Z [36;1mremaining=()[0m
+2026-10-20T11:26:56.4107690Z [36;1mfound=0[0m
+2026-10-20T11:26:56.4108410Z [36;1mwhile IFS= read -r package; do[0m
+2026-10-20T11:26:56.4109490Z [36;1m  if [[ "$package" == "$activity_package" ]]; then[0m
+2026-10-20T11:26:56.4110660Z [36;1m    found=$((found + 1))[0m
+2026-10-20T11:26:56.4111480Z [36;1m  else[0m
+2026-10-20T11:26:56.4112150Z [36;1m    remaining+=("$package")[0m
+2026-10-20T11:26:56.4112950Z [36;1m  fi[0m
+2026-10-20T11:26:56.4113650Z [36;1mdone <<< "$all_packages"[0m
+2026-10-20T11:26:56.4114460Z [36;1mtest "$found" -eq 1[0m
+2026-10-20T11:26:56.4115200Z [36;1mtest "${#remaining[@]}" -gt 0[0m
+2026-10-20T11:26:56.4116060Z [36;1mif [[ "$IGNORE_INTEL_SCALE" == 'true' ]]; then[0m
+2026-10-20T11:26:56.4118430Z [36;1m  echo '::warning::User-authorized candidate exception: macOS Intel TestExecutionProjectionScale100k is ignored, not passed.'[0m
+2026-10-20T11:26:56.4121330Z [36;1m  echo 'macOS Intel 100k scale test: **ignored by explicit candidate request**. The original 2s limit is unchanged.' >> "$GITHUB_STEP_SUMMARY"[0m
+2026-10-20T11:26:56.4124080Z [36;1m  go test -p 1 ./internal/activity -skip '^TestExecutionProjectionScale100k$' -count=1 -timeout=8m[0m
+2026-10-20T11:26:56.4125730Z [36;1melse[0m
+2026-10-20T11:26:56.4127860Z [36;1m  go test -p 1 ./internal/activity -count=1 -timeout=8m[0m
+2026-10-20T11:26:56.4129920Z [36;1m  go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m[0m
+2026-10-20T11:26:56.4174380Z [36;1mfi[0m
+2026-10-20T11:26:56.4175390Z [36;1mgo test -p 2 "${remaining[@]}" -count=1 -timeout=8m[0m
+2026-10-20T11:26:56.4177870Z [36;1mgo vet ./...[0m
+2026-10-20T11:26:56.4348120Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T11:26:56.4349160Z env:
+2026-10-20T11:26:56.4349660Z   GOTOOLCHAIN: local
+2026-10-20T11:26:56.4350580Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:26:56.4352060Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/x64/lib/pkgconfig
+2026-10-20T11:26:56.4353550Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:26:56.4355050Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:26:56.4356340Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:26:56.4357460Z   IGNORE_INTEL_SCALE: false
+2026-10-20T11:26:56.4358000Z ##[endgroup]
+2026-10-20T11:26:57.0606940Z go: downloading github.com/go-oauth2/oauth2/v4 v4.5.4
+2026-10-20T11:26:57.2018920Z go: downloading github.com/modelcontextprotocol/go-sdk v1.7.0
+2026-10-20T11:26:57.3020500Z go: downloading github.com/uvwt/agentdock-protocol v0.8.2-0.20261004051622-257c54fb223b
+2026-10-20T11:26:57.4024100Z go: downloading gopkg.in/yaml.v3 v3.0.1
+2026-10-20T11:26:57.6036100Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-10-20T11:26:57.7033980Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+2026-10-20T11:26:57.7844890Z go: downloading github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
+2026-10-20T11:26:57.8147780Z go: downloading github.com/chromedp/chromedp v0.14.2
+2026-10-20T11:26:57.9014280Z go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+2026-10-20T11:26:57.9205060Z go: downloading github.com/bmatcuk/doublestar/v4 v4.10.0
+2026-10-20T11:26:57.9208230Z go: downloading github.com/rogpeppe/go-internal v1.15.0
+2026-10-20T11:26:58.0211770Z go: downloading golang.org/x/sys v0.45.0
+2026-10-20T11:26:58.1216570Z go: downloading github.com/google/jsonschema-go v0.4.3
+2026-10-20T11:26:58.2104180Z go: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+2026-10-20T11:26:58.3037030Z go: downloading golang.org/x/oauth2 v0.35.0
+2026-10-20T11:26:58.3302950Z go: downloading golang.org/x/sync v0.20.0
+2026-10-20T11:26:58.3696550Z go: downloading golang.org/x/time v0.15.0
+2026-10-20T11:26:58.4701250Z go: downloading github.com/chromedp/sysutil v1.1.0
+2026-10-20T11:26:58.4703920Z go: downloading github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
+2026-10-20T11:26:58.5708360Z go: downloading golang.org/x/text v0.14.0
+2026-10-20T11:31:26.3172090Z   GOTOOLCHAIN: local
+2026-10-20T11:31:26.3173420Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:31:26.3174810Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/x64/lib/pkgconfig
+2026-10-20T11:31:26.3176430Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:31:26.3177710Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:31:26.3178980Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-20T11:31:26.3179950Z ##[endgroup]
+2026-10-20T11:31:26.6672960Z macOS i18n check passed: 723 referenced keys, 754 localized entries per locale.
+2026-10-20T11:31:48.0956750Z localization preference tests passed
+2026-10-20T11:32:01.8113520Z installer configuration tests passed
+2026-10-20T11:32:20.9546710Z /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/desktop/macos/AgentDockApp/Sources/InstallerRunner.swift:348:49: error: cannot find 'ServicePortValidation' in scope
+2026-10-20T11:32:20.9550890Z 346 | 
+2026-10-20T11:32:20.9551770Z 347 |     private func validPort(_ value: String?) -> Int? {
+2026-10-20T11:32:20.9553630Z 348 |         guard let value, let port = Int(value), ServicePortValidation.allowedRange.contains(port) else { return nil }
+2026-10-20T11:32:20.9556140Z     |                                                 `- error: cannot find 'ServicePortValidation' in scope
+2026-10-20T11:32:20.9557480Z 349 |         return port
+2026-10-20T11:32:20.9558230Z 350 |     }
+2026-10-20T11:32:20.9741440Z ##[error]Process completed with exit code 1.
+2026-10-20T11:32:21.0218570Z Post job cleanup.
+2026-10-20T11:32:21.4553900Z [command]/usr/local/bin/git version
+2026-10-20T11:32:21.5342410Z git version 2.55.0
+2026-10-20T11:32:21.7235450Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/0c59f106-8d60-4093-a19b-bfbaf58f23c7/.gitconfig'
+2026-10-20T11:32:21.7416110Z Temporarily overriding HOME='/Users/runner/work/_temp/0c59f106-8d60-4093-a19b-bfbaf58f23c7' before making global git config changes
+2026-10-20T11:32:21.7513160Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T11:32:21.7636540Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-20T11:32:21.9508190Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T11:32:22.0111340Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T11:32:22.1707460Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T11:32:22.2095640Z http.https://github.com/.extraheader
+2026-10-20T11:32:22.3659190Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-20T11:32:22.4897730Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T11:32:22.5068270Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T11:32:22.5364600Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T11:32:22.6481190Z Cleaning up orphan processes
