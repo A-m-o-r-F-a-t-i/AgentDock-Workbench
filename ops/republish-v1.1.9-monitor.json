@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-20T14:02:56Z",
+  "checked_at": "2026-10-20T14:04:29Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
   "original_republish_run": {
     "id": 39429858059,
@@ -12,12 +12,22 @@
   },
   "republish_runs": [
     {
+      "id": 39435936794,
+      "head_sha": "7d0793968ff56b1b210d40bfc70de5f51c167a7f",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T14:04:16Z",
+      "updated_at": "2026-10-20T14:04:23Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39435936794",
+      "display_title": "monitor republish publisher completion"
+    },
+    {
       "id": 39435711810,
       "head_sha": "1520d5612845b269263d538b8af6eeedce48d5fe",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "skipped",
       "created_at": "2026-10-20T14:02:45Z",
-      "updated_at": "2026-10-20T14:02:45Z",
+      "updated_at": "2026-10-20T14:02:54Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39435711810",
       "display_title": "monitor republish publisher run"
     },
@@ -80,16 +90,6 @@
       "updated_at": "2026-10-20T13:50:57Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39433962238",
       "display_title": "monitor republish emulator completion"
-    },
-    {
-      "id": 39433321809,
-      "head_sha": "b7d52d7c72cd38518583e8ffb3ef52304a617d39",
-      "status": "completed",
-      "conclusion": "skipped",
-      "created_at": "2026-10-20T13:46:30Z",
-      "updated_at": "2026-10-20T13:46:31Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39433321809",
-      "display_title": "monitor republish candidate jobs"
     }
   ],
   "candidate_runs": [
@@ -333,10 +333,10 @@
   "publisher_runs": [
     {
       "id": 39435570618,
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "created_at": "2026-10-20T14:01:48Z",
-      "updated_at": "2026-10-20T14:01:53Z",
+      "updated_at": "2026-10-20T14:03:26Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39435570618",
       "display_title": "Publish verified Workbench 1.1.9 from run 39429892778"
     }
