@@ -19,7 +19,7 @@ func (svc *Service) ensureManagedSkillDataDir(skillName string) (string, error) 
 	}
 	dataDir, err := skilldata.Ensure(svc.config(), skillName)
 	if err != nil {
-		return "", toolErrorDetails("SKILL_DATA_DIR_INVALID", "prepare managed Skill data directory", "runtime", map[string]any{
+		return "", toolErrorDetails("SKILL_DATA_DIR_INVALID", "prepare managed Skill data directory: "+err.Error(), "runtime", map[string]any{
 			"skill": skillName, "reason": err.Error(),
 		})
 	}
