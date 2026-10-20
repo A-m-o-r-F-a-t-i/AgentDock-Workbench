@@ -17,6 +17,9 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 	if result == nil {
 		result = map[string]any{}
 	}
+	if hasNativeContent(envelope["content"]) {
+		result = withoutForwardedNativeContent(result)
+	}
 	payload := map[string]any{"result": result, "continuation": mcpModelContinuation(full), "error": nil}
 	if page := full["business_page"]; page != nil {
 		payload["business_page"] = page
@@ -30,6 +33,7 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 		for _, key := range []string{
 			"error", "code", "category", "details", "retryable", "executed", "status",
 			"operation_status", "effect_state", "execution_performed", "retry_safe",
+			"outcome", "counts", "saved",
 			"required_action", "next_required_action", "approval", "approval_id",
 			"origin_call_id", "call_id", "result_call_id", "upstream_failure",
 			"result_projection_error", "result_retained", "projection_budget_exhausted",
@@ -85,6 +89,40 @@ func projectMCPModelEnvelope(name string, envelope map[string]any) map[string]an
 	}
 	out["content"] = content
 	return out
+}
+
+func hasNativeContent(value any) bool {
+	for _, block := range envelopeBlocks(value) {
+		kind, _ := asMap(block)["type"].(string)
+		if kind == "image" || kind == "audio" {
+			return true
+		}
+	}
+	return false
+}
+
+// The SDK content array already transports native blocks. Remove only those
+// duplicate blocks from the model-facing nested dynamic result; the immutable
+// upstream result and retained source remain unchanged.
+func withoutForwardedNativeContent(value any) any {
+	result := maps.Clone(asMap(value))
+	if result == nil {
+		return value
+	}
+	kept := make([]any, 0)
+	for _, block := range envelopeBlocks(result["content"]) {
+		kind, _ := asMap(block)["type"].(string)
+		if kind == "image" || kind == "audio" {
+			continue
+		}
+		kept = append(kept, block)
+	}
+	if len(kept) == 0 {
+		delete(result, "content")
+	} else {
+		result["content"] = kept
+	}
+	return result
 }
 
 func mcpModelContinuation(full map[string]any) map[string]any {
