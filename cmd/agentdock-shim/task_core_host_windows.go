@@ -82,7 +82,7 @@ func runTaskCoreHost(args []string) (int, error) {
 	}
 	command := exec.Command(coreBinary, "service", "launch-core", "--runtime-root", runtimeRoot)
 	command.Dir = runtimeRoot
-	processctl.Configure(command)
+	processctl.ConfigureDetached(command)
 	nullFile, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
 		return 1, fmt.Errorf("open null device for task core host: %w", err)

@@ -24,7 +24,8 @@ type Controller struct {
 }
 
 // Configure 在后台子进程启动前禁用控制台窗口，同时保留调用方已有的创建标志。
-// 标准命令、短生命周期后台 CLI、WSL 文件辅助进程和 stdio MCP 通过该入口启动；ACP 为兼容 Windows sandbox 使用独立启动策略。
+// 标准命令、WSL 文件辅助进程和 stdio MCP 通过该入口启动；PowerShell 依赖
+// CREATE_NO_WINDOW 保持重定向输出。ACP 为兼容 Windows sandbox 使用独立启动策略。
 func Configure(cmd *exec.Cmd) {
 	if cmd == nil {
 		return
@@ -34,6 +35,20 @@ func Configure(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr.HideWindow = true
 	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
+}
+
+// ConfigureDetached 用于不会依赖控制台语义的短生命周期原生后台程序。
+// DETACHED_PROCESS 避免部分 Windows 11 环境为 CREATE_NO_WINDOW 进程创建短命 conhost。
+func ConfigureDetached(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW
+	cmd.SysProcAttr.CreationFlags |= windows.DETACHED_PROCESS
 }
 
 func Attach(cmd *exec.Cmd) (*Controller, error) {

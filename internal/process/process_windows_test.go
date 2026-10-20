@@ -3,6 +3,7 @@
 package process
 
 import (
+	"bytes"
 	"os/exec"
 	"syscall"
 	"testing"
@@ -40,8 +41,52 @@ func TestConfigurePreservesExistingCreationFlags(t *testing.T) {
 	}
 }
 
+func TestConfigureDetachedUsesDetachedProcess(t *testing.T) {
+	cmd := exec.Command("cmd.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW}
+
+	ConfigureDetached(cmd)
+
+	wantFlags := uint32(windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS)
+	if cmd.SysProcAttr.CreationFlags != wantFlags {
+		t.Fatalf("creation flags = %#x, want %#x", cmd.SysProcAttr.CreationFlags, wantFlags)
+	}
+	if !cmd.SysProcAttr.HideWindow {
+		t.Fatal("ConfigureDetached did not hide the child process window")
+	}
+}
+
+func TestConfigureDetachedPreservesNativeRedirectedOutput(t *testing.T) {
+	cmd := exec.Command("cmd.exe", "/d", "/c", "echo ready")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	ConfigureDetached(cmd)
+
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bytes.TrimSpace(stdout.Bytes()); string(got) != "ready" {
+		t.Fatalf("stdout = %q, want ready", stdout.String())
+	}
+}
+
+func TestConfigurePreservesRedirectedOutput(t *testing.T) {
+	cmd := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "[Console]::Write('ready')")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	Configure(cmd)
+
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.String() != "ready" {
+		t.Fatalf("stdout = %q, want ready", stdout.String())
+	}
+}
+
 func TestWindowsJobObjectTerminatesAttachedProcess(t *testing.T) {
 	cmd := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30")
+	Configure(cmd)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}

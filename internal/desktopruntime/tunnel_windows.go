@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	processcontrol "github.com/uvwt/agentdock/internal/process"
 	"golang.org/x/sys/windows"
 )
 
@@ -410,7 +411,7 @@ func cloudflaredCommand(ctx context.Context, runtime tunnelRuntime) (*exec.Cmd, 
 	command := exec.CommandContext(ctx, runtime.manifest.CloudflaredBinary, arguments...)
 	command.Env = environment
 	command.Dir = runtime.root
-	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+	processcontrol.ConfigureDetached(command)
 	return command, nil
 }
 
