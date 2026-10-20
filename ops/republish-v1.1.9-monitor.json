@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-10-20T13:31:34Z",
+  "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
+  "republish_run": {
+    "id": 39430224316,
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-20T13:25:12Z",
+    "updated_at": "2026-10-20T13:25:16Z",
+    "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39430224316",
+    "display_title": "monitor republish v1.1.9 status"
+  },
+  "candidate_run": {
+    "id": 39430693156,
+    "status": "pending",
+    "conclusion": null,
+    "created_at": "2026-10-20T13:28:31Z",
+    "updated_at": "2026-10-20T13:28:33Z",
+    "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39430693156",
+    "display_title": "AgentDock Workbench 6fff01f1a206db9e3b1e96492767a969da45839c"
+  },
+  "publisher_run": null
+}
