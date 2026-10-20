@@ -63,7 +63,7 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
         reviewedPluginName = ""
         confirmedSourceChange = false
     }
-    fun acceptPluginReview(result: JSONObject) {
+    fun acceptPluginReview(result: JSONObject, source: String) {
         val review = result.optJSONObject("review")
         if (review == null) {
             clearPluginReview()
@@ -79,7 +79,7 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
         }
         pluginReview = JSONObject(review.toString())
         pluginReviewToken = token
-        reviewedPluginSource = pluginSource
+        reviewedPluginSource = source
         reviewedPluginName = review.optString("name")
         confirmedSourceChange = false
         model.showNotice("来源验证通过；安装或更新将使用本次验证令牌。")
@@ -127,7 +127,10 @@ fun PluginMcpManagementPage(state: WorkbenchUiState, model: WorkbenchViewModel, 
                     }, multiline = true)
                     ResourceActions {
                         OutlinedButton(onClick = {
-                            prompt.ask({ WorkbenchCommands.plugin("validate", source = pluginSource) }, ::acceptPluginReview)
+                            val candidateSource = pluginSource
+                            prompt.ask({ WorkbenchCommands.plugin("validate", source = candidateSource) }) { result ->
+                                acceptPluginReview(result, candidateSource)
+                            }
                         }, enabled = !resources.actionBusy && pluginSource.isNotBlank()) { Text("验证来源") }
                         Button(onClick = {
                             prompt.ask({
