@@ -51,7 +51,7 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git pull --rebase origin "$OPS_BRANCH"
           git add ops/republish-v1.1.9-monitor.json
           git commit -m 'chore: record republish monitor [monitor-result]'
+          git pull --rebase origin "$OPS_BRANCH"
           git push origin HEAD:"$OPS_BRANCH"
