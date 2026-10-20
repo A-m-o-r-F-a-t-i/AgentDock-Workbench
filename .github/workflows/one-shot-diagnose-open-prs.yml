@@ -1,4 +1,4 @@
-name: One-shot focused branch patches
+name: One-shot diagnose PR 164
 
 on:
   push:
@@ -6,130 +6,71 @@ on:
       - ops/diagnose-open-prs-20261020
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
-  patch_pr164:
-    if: ${{ contains(github.event.head_commit.message, 'patch PR 164 plugin fixture contract') }}
+  diagnose:
+    if: ${{ contains(github.event.head_commit.message, 'diagnose PR 164 latest') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: fix/20261020-macos-workbench-contracts
-      - name: Align plugin fixture with review-token contract
+          ref: ops/diagnose-open-prs-20261020
+      - name: Extract latest failed job logs
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift')
-          text = path.read_text()
-          old = '"review": .object(["source": .string("new.zip")])'
-          new = '"review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])'
-          if text.count(old) != 1:
-              raise SystemExit('plugin validation fixture block not found exactly once')
-          path.write_text(text.replace(old, new))
+          rm -rf diagnostics/latest-pr164
+          mkdir -p diagnostics/latest-pr164
+          while IFS=: read -r job label; do
+            raw="diagnostics/latest-pr164/${job}.raw"
+            log="diagnostics/latest-pr164/${job}.log"
+            out="diagnostics/latest-pr164/${job}.txt"
+            curl -sS -L \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" \
+              -o "$raw"
+            if python3 - "$raw" <<'PY'
+          import sys, zipfile
+          raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
           PY
-          git diff --check
-      - name: Commit fixture fix
+            then
+              unzip -p "$raw" > "$log"
+            else
+              cp "$raw" "$log"
+            fi
+            python3 - "$job" "$label" "$log" "$out" <<'PY'
+          import re, sys
+          from pathlib import Path
+          job, label, log_path, out_path = sys.argv[1:]
+          lines = Path(log_path).read_text(errors='replace').splitlines()
+          pat = re.compile(r'(?i)(error:|fatal:|--- FAIL:|Assertion failed|XCTAssert|Process completed with exit code|test failed|failure)')
+          selected = set()
+          for i, line in enumerate(lines):
+              if pat.search(line):
+                  selected.update(range(max(0, i-8), min(len(lines), i+18)))
+          excerpt = '\n'.join(lines[i] for i in sorted(selected)) if selected else '\n'.join(lines[-400:])
+          if len(excerpt) > 90000:
+              excerpt = excerpt[-90000:]
+          Path(out_path).write_text(f'job={job}\nlabel={label}\n\n{excerpt}\n')
+          PY
+          done <<'EOF'
+          118592016226:arm64
+          118592016130:x86_64
+          EOF
+          rm -f diagnostics/latest-pr164/*.raw diagnostics/latest-pr164/*.log
+      - name: Commit diagnostics
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add desktop/macos/AgentDockApp/RegressionTests/FrontendRegressionTests.swift
-          git commit -m 'test(macos): preserve plugin review token on rebind'
-          git push origin HEAD:fix/20261020-macos-workbench-contracts
-
-  patch_pr169:
-    if: ${{ contains(github.event.head_commit.message, 'patch PR 169 duplicate native attachments') }}
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6
-      - name: Remove exact duplicated nested native attachments
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('internal/mcp/tool_text.go')
-          text = path.read_text()
-          old = '\t"maps"\n\t"strings"'
-          new = '\t"maps"\n\t"reflect"\n\t"strings"'
-          if text.count(old) != 1:
-              raise SystemExit('tool_text import block not found exactly once')
-          text = text.replace(old, new)
-          marker = '\toutput["content"] = kept\n\treturn output\n}\n\nfunc jsonTextMatches(text string, structured any) bool {'
-          replacement = '\n'.join([
-              '\toutput["content"] = kept',
-              '\tif name == "mcp_tool_call" {',
-              '\t\toutput = removeForwardedContentDuplicates(output, kept)',
-              '\t}',
-              '\treturn output',
-              '}',
-              '',
-              '// Dynamic MCP native blocks are already transported in the outer MCP content',
-              '// array. Remove only exact nested duplicates at the final text-presentation',
-              '// boundary; retain unique nested attachments and the immutable upstream result.',
-              'func removeForwardedContentDuplicates(envelope map[string]any, outer []any) map[string]any {',
-              '\tstructured := maps.Clone(asMap(envelope["structuredContent"]))',
-              '\tresult := maps.Clone(asMap(structured["result"]))',
-              '\tif len(result) == 0 {',
-              '\t\treturn envelope',
-              '\t}',
-              '\tnested := envelopeBlocks(result["content"])',
-              '\tif len(nested) == 0 {',
-              '\t\treturn envelope',
-              '\t}',
-              '\tkept := make([]any, 0, len(nested))',
-              '\tremoved := false',
-              '\tfor _, candidate := range nested {',
-              '\t\tkind, _ := asMap(candidate)["type"].(string)',
-              '\t\tif kind != "text" && slicesContainExact(outer, candidate) {',
-              '\t\t\tremoved = true',
-              '\t\t\tcontinue',
-              '\t\t}',
-              '\t\tkept = append(kept, candidate)',
-              '\t}',
-              '\tif !removed {',
-              '\t\treturn envelope',
-              '\t}',
-              '\tif len(kept) == 0 {',
-              '\t\tdelete(result, "content")',
-              '\t} else {',
-              '\t\tresult["content"] = kept',
-              '\t}',
-              '\tstructured["result"] = result',
-              '\tout := maps.Clone(envelope)',
-              '\tout["structuredContent"] = structured',
-              '\treturn out',
-              '}',
-              '',
-              'func slicesContainExact(items []any, candidate any) bool {',
-              '\tfor _, item := range items {',
-              '\t\tif reflect.DeepEqual(item, candidate) {',
-              '\t\t\treturn true',
-              '\t\t}',
-              '\t}',
-              '\treturn false',
-              '}',
-              '',
-              'func jsonTextMatches(text string, structured any) bool {',
-          ])
-          if text.count(marker) != 1:
-              raise SystemExit('tool_text return block not found exactly once')
-          path.write_text(text.replace(marker, replacement))
-          PY
-          gofmt -w internal/mcp/tool_text.go
-          git diff --check
-      - name: Commit projection fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add internal/mcp/tool_text.go
-          git commit -m 'fix(mcp): deduplicate forwarded native attachments'
-          git push origin HEAD:copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6
+          git add diagnostics/latest-pr164
+          git commit -m 'chore: save latest PR 164 failure logs [diagnostic-results]'
+          git push origin HEAD:ops/diagnose-open-prs-20261020
