@@ -53,6 +53,24 @@ class ReleaseGate(unittest.TestCase):
             'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.sig'})
         self.assertTrue(set(names).isdisjoint(release.obsolete_public_installers('1.1.9')))
 
+    def test_public_release_includes_all_built_in_update_payloads(self):
+        update_assets = [
+            'agentdock_linux_amd64.tar.gz','agentdock_linux_amd64.tar.gz.sha256',
+            'agentdock_linux_arm64.tar.gz','agentdock_linux_arm64.tar.gz.sha256',
+            'agentdock_darwin_amd64.tar.gz','agentdock_darwin_amd64.tar.gz.sha256',
+            'agentdock_darwin_arm64.tar.gz','agentdock_darwin_arm64.tar.gz.sha256',
+            'agentdock_windows_amd64.zip','agentdock_windows_amd64.zip.sha256',
+            'agentdock_windows_arm64.zip','agentdock_windows_arm64.zip.sha256',
+            'AgentDock-macos-universal.zip','AgentDock-macos-universal.zip.sha256',
+        ]
+        self.assertEqual(release.public_update_assets(), update_assets)
+        published = release.public_release_assets('1.1.9')
+        installers = release.public_installers('1.1.9')
+        self.assertEqual(published[:len(installers)], installers)
+        self.assertEqual(published[len(installers):], update_assets)
+        self.assertEqual(len(published), 22)
+        self.assertEqual(len(published), len(set(published)))
+
     def test_repository_license_is_preserved(self):
         license_text=(ROOT/'LICENSE').read_text()
         self.assertTrue(license_text.startswith('Apache License'))
@@ -371,7 +389,7 @@ class PublicationGate(unittest.TestCase):
         self.remote_tag_ref=self.commit;self.remote_tag_commit=self.commit;self.pending_tag_commit=None
         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
         self.latest=self.stable
-        for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_installers',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
+        for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_release_assets',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
             mock.start();self.addCleanup(mock.stop)
     def fake_command(self,*args):
         self.commands.append(args)
@@ -438,7 +456,7 @@ class PublicationGate(unittest.TestCase):
     def test_binary_asset_name_is_url_encoded(self):
         path=self.dist/'package name.zip';(self.dist/'package.zip').rename(path)
         self.asset['name']=path.name;self.record['assets']=[]
-        with patch.object(release,'public_installers',return_value=[path.name]):
+        with patch.object(release,'public_release_assets',return_value=[path.name]):
             self.publish()
         urls=[args[4] for args in self.commands if args[:4]==('gh','api','--method','POST') and args[4].startswith('https://uploads.github.com/')]
         self.assertEqual(urls,[f'https://uploads.github.com/repos/{release.REPOSITORY}/releases/123/assets?name=package%20name.zip'])

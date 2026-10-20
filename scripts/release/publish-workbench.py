@@ -106,7 +106,7 @@ def expected_payloads(version: str) -> list[str]:
 
 
 def public_installers(version: str) -> list[str]:
-    """Return user-installable release assets only."""
+    """Return user-installable release assets."""
     macos_dmg,_=macos_asset_names()
     installers = windows_setup_names(version) + [
         macos_dmg,
@@ -118,6 +118,24 @@ def public_installers(version: str) -> list[str]:
     if tuple(map(int,version.split('.'))) >= (1,1,8):
         installers.append(android_public_asset_name(version))
     return installers
+
+
+def public_update_assets() -> list[str]:
+    """Return the immutable archives required by the built-in updater."""
+    _,macos_zip=macos_asset_names()
+    payloads = [
+        f'agentdock_{platform}_{arch}.tar.gz'
+        for platform in ['linux','darwin']
+        for arch in ['amd64','arm64']
+    ] + [
+        f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']
+    ] + [macos_zip]
+    return [item for name in payloads for item in (name,name+'.sha256')]
+
+
+def public_release_assets(version: str) -> list[str]:
+    """Return installers plus the verified archives consumed by self-update."""
+    return public_installers(version) + public_update_assets()
 
 
 def obsolete_public_installers(version: str) -> set[str]:
@@ -373,7 +391,7 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
     previous_latest=latest_before.get('id') if prerelease else None
     notes=ROOT/f'docs/releases/{tag}.md'
     if not notes.is_file():raise RuntimeError('Final release notes are missing')
-    public_names=public_installers(version)
+    public_names=public_release_assets(version)
     files=[]
     for name in public_names:
         path=dist/name
