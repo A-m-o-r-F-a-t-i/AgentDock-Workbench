@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -34,6 +36,30 @@ func Configure(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr.HideWindow = true
 	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
+}
+
+// ConfigureStdio keeps stdio pipes available without allowing a command-script
+// wrapper to create a visible console for its native child. cmd.exe receives a
+// new console hidden from its first frame; direct executables keep no-window mode.
+func ConfigureStdio(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	executable := cmd.Path
+	if executable == "" && len(cmd.Args) > 0 {
+		executable = cmd.Args[0]
+	}
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(executable)))
+	if base != "cmd" && base != "cmd.exe" {
+		Configure(cmd)
+		return
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS
+	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_CONSOLE
 }
 
 func Attach(cmd *exec.Cmd) (*Controller, error) {

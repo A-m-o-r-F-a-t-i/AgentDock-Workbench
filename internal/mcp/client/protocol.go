@@ -126,7 +126,7 @@ func (c *sdkProtocolClient) startStdioTransport() (mcpsdk.Transport, error) {
 	if err != nil {
 		return nil, newError("MCP_START_FAILED", "open MCP stdio stdin", false, map[string]any{"server": c.cfg.Name}, err)
 	}
-	processcontrol.Configure(cmd)
+	processcontrol.ConfigureStdio(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, newError("MCP_START_FAILED", "start MCP stdio server", false, map[string]any{"server": c.cfg.Name, "command": c.cfg.Command}, err)
 	}
