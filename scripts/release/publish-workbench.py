@@ -78,6 +78,25 @@ def public_installers(version: str) -> list[str]:
     return installers
 
 
+def public_update_assets(version: str) -> list[str]:
+    """Return immutable archives required by the built-in updater."""
+    if tuple(map(int,version.split('.'))) < (1,1,8):
+        return []
+    payloads = [
+        f'agentdock_{platform}_{arch}.tar.gz'
+        for platform in ['linux','darwin']
+        for arch in ['amd64','arm64']
+    ] + [
+        f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']
+    ] + ['AgentDock-macos-universal.zip']
+    return [item for name in payloads for item in (name,name+'.sha256')]
+
+
+def public_release_assets(version: str) -> list[str]:
+    """Return installers plus the verified archives consumed by self-update."""
+    return public_installers(version) + public_update_assets(version)
+
+
 def assemble(inputs: Path,dist: Path,version: str,commit: str,prerelease: bool=False) -> dict:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version) or not re.fullmatch(r'[a-f0-9]{40}',commit):
         raise RuntimeError('Invalid release identity')
@@ -239,12 +258,12 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,replace_p
     else:
         subprocess.run(['git','tag',tag,commit],cwd=ROOT,check=True)
         subprocess.run(['git','push','origin',f'refs/tags/{tag}'],cwd=ROOT,check=True)
-    public_names=public_installers(version)
+    public_names=public_release_assets(version)
     files=[]
     for name in public_names:
         path=dist/name
         if not path.is_file() or path.is_symlink():
-            raise RuntimeError(f'Missing public installer: {name}')
+            raise RuntimeError(f'Missing public Release asset: {name}')
         files.append(path)
     expected={path.name:{'size':path.stat().st_size,'digest':'sha256:'+digest(path)} for path in files}
     record=find_release(tag)
