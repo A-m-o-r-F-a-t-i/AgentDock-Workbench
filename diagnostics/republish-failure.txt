@@ -1,0 +1,123 @@
+job=118601241132
+http_status=200
+
+--- extracted log ---
+2026-10-20T11:25:34.1964684Z ##[endgroup]
+2026-10-20T11:25:34.1969131Z [command]/usr/bin/git sparse-checkout disable
+2026-10-20T11:25:34.2039244Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-20T11:25:34.2097425Z ##[group]Checking out the ref
+2026-10-20T11:25:34.2102339Z [command]/usr/bin/git checkout --progress --force -B ops/diagnose-open-prs-20261020 refs/remotes/origin/ops/diagnose-open-prs-20261020
+2026-10-20T11:25:34.3496665Z Switched to a new branch 'ops/diagnose-open-prs-20261020'
+2026-10-20T11:25:34.3504947Z branch 'ops/diagnose-open-prs-20261020' set up to track 'origin/ops/diagnose-open-prs-20261020'.
+2026-10-20T11:25:34.3514707Z ##[endgroup]
+2026-10-20T11:25:34.3571267Z [command]/usr/bin/git log -1 --format=%H
+2026-10-20T11:25:34.3612087Z 000b335f15c812df76b1222cd0b6b62e02f5cf68
+2026-10-20T11:25:34.3890260Z ##[group]Run set -euo pipefail
+2026-10-20T11:25:34.3892161Z [36;1mset -euo pipefail[0m
+2026-10-20T11:25:34.3894234Z [36;1mmain_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"[0m
+2026-10-20T11:25:34.3896462Z [36;1mtest -n "$main_sha"[0m
+2026-10-20T11:25:34.3897820Z [36;1mecho "MAIN_SHA=$main_sha" >> "$GITHUB_ENV"[0m
+2026-10-20T11:25:34.3899348Z [36;1mecho "Final main: $main_sha"[0m
+2026-10-20T11:25:34.4075826Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T11:25:34.4077537Z env:
+2026-10-20T11:25:34.4088514Z   GH_TOKEN: ***
+2026-10-20T11:25:34.4089624Z   VERSION: 1.1.9
+2026-10-20T11:25:34.4090812Z   TAG: v1.1.9
+2026-10-20T11:25:34.4091951Z   OPS_BRANCH: ops/diagnose-open-prs-20261020
+2026-10-20T11:25:34.4093369Z ##[endgroup]
+2026-10-20T11:25:34.8847515Z Final main: eb0ad25ff2789605ca65dee58073b2b931061e84
+2026-10-20T11:25:34.8893835Z ##[group]Run set -euo pipefail
+2026-10-20T11:25:34.8894283Z [36;1mset -euo pipefail[0m
+2026-10-20T11:25:34.8894682Z [36;1mstarted_at="$(date -u -d '-5 seconds' +%Y-%m-%dT%H:%M:%SZ)"[0m
+2026-10-20T11:25:34.8895098Z [36;1mjq -n \[0m
+2026-10-20T11:25:34.8895376Z [36;1m  --arg ref main \[0m
+2026-10-20T11:25:34.8895695Z [36;1m  --arg source_ref "$MAIN_SHA" \[0m
+2026-10-20T11:25:34.8896386Z [36;1m  '{ref:$ref,inputs:{ref:$source_ref,publish:"false",prerelease:"false",installation_tests:"true",ignore_macos_intel_scale:"false"}}' \[0m
+2026-10-20T11:25:34.8897341Z [36;1m  | gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/workbench-release.yml/dispatches" --input -[0m
+2026-10-20T11:25:34.8897972Z [36;1mrun_id=""[0m
+2026-10-20T11:25:34.8898309Z [36;1mfor _ in $(seq 1 480); do[0m
+2026-10-20T11:25:34.8899011Z [36;1m  runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/workbench-release.yml/runs?event=workflow_dispatch&branch=main&per_page=30")"[0m
+2026-10-20T11:25:34.8900182Z [36;1m  run_id="$(jq -r --arg sha "$MAIN_SHA" --arg started "$started_at" '[.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started)] | sort_by(.created_at) | last | .id // empty' <<<"$runs")"[0m
+2026-10-20T11:25:34.8901500Z [36;1m  if [[ -n "$run_id" ]]; then[0m
+2026-10-20T11:25:34.8901945Z [36;1m    state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"[0m
+2026-10-20T11:25:34.8902424Z [36;1m    status="$(jq -r '.status' <<<"$state")"[0m
+2026-10-20T11:25:34.8902851Z [36;1m    conclusion="$(jq -r '.conclusion // ""' <<<"$state")"[0m
+2026-10-20T11:25:34.8903386Z [36;1m    echo "candidate run=$run_id status=$status conclusion=$conclusion"[0m
+2026-10-20T11:25:34.8903868Z [36;1m    if [[ "$status" == completed ]]; then[0m
+2026-10-20T11:25:34.8904239Z [36;1m      [[ "$conclusion" == success ]][0m
+2026-10-20T11:25:34.8904644Z [36;1m      echo "CANDIDATE_RUN_ID=$run_id" >> "$GITHUB_ENV"[0m
+2026-10-20T11:25:34.8905022Z [36;1m      exit 0[0m
+2026-10-20T11:25:34.8905282Z [36;1m    fi[0m
+2026-10-20T11:25:34.8905525Z [36;1m  fi[0m
+2026-10-20T11:25:34.8905773Z [36;1m  sleep 30[0m
+2026-10-20T11:25:34.8906034Z [36;1mdone[0m
+2026-10-20T11:25:34.8906374Z [36;1mecho "Timed out waiting for candidate release build" >&2[0m
+2026-10-20T11:25:34.8906765Z [36;1mexit 1[0m
+2026-10-20T11:25:34.8960572Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T11:25:34.8961171Z env:
+2026-10-20T11:25:34.8963896Z   GH_TOKEN: ***
+2026-10-20T11:25:34.8964167Z   VERSION: 1.1.9
+2026-10-20T11:25:34.8964419Z   TAG: v1.1.9
+2026-10-20T11:25:34.8964721Z   OPS_BRANCH: ops/diagnose-open-prs-20261020
+2026-10-20T11:25:34.8965127Z   MAIN_SHA: eb0ad25ff2789605ca65dee58073b2b931061e84
+2026-10-20T11:25:34.8965774Z ##[endgroup]
+2026-10-20T11:26:09.2872581Z candidate run=39414861278 status=queued conclusion=
+2026-10-20T11:26:41.0102428Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:27:12.3907658Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:27:43.7685660Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:28:15.2415190Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:28:46.6247201Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:29:18.0499448Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:29:49.4541541Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:30:20.8933112Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:30:52.3121941Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:31:24.0521944Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:31:55.4262907Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:32:27.2809574Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:32:58.7281561Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:33:30.2530137Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:34:01.7946040Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:34:33.2322295Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:35:04.6754150Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:35:36.1110040Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:36:07.7184236Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:36:39.4893771Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:37:11.0523180Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:37:42.5355914Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:38:14.1853245Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:38:45.6357001Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:39:17.2181269Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:39:48.7830494Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:40:20.2933429Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:40:51.6965008Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:41:23.0969268Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:41:54.8428484Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:42:26.2854848Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:42:57.6502176Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:43:29.0563063Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:44:00.9649625Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:44:32.3463151Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:45:03.9717816Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:45:35.8267322Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:46:07.7710522Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:46:39.1502885Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:47:10.6895864Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:47:42.5107150Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:48:14.4448472Z candidate run=39414861278 status=in_progress conclusion=
+2026-10-20T11:48:45.7768979Z candidate run=39414861278 status=completed conclusion=failure
+2026-10-20T11:48:45.7787940Z ##[error]Process completed with exit code 1.
+2026-10-20T11:48:45.7948611Z Post job cleanup.
+2026-10-20T11:48:45.8897616Z [command]/usr/bin/git version
+2026-10-20T11:48:45.8951580Z git version 2.55.0
+2026-10-20T11:48:45.8994616Z Temporarily overriding HOME='/home/runner/work/_temp/e752a90a-1181-49ea-9c4a-9897cc7a9af7' before making global git config changes
+2026-10-20T11:48:45.8996492Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T11:48:45.9000494Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-20T11:48:45.9054224Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T11:48:45.9098934Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T11:48:45.9387263Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T11:48:45.9424132Z http.https://github.com/.extraheader
+2026-10-20T11:48:45.9436867Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-20T11:48:45.9483071Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T11:48:45.9799361Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T11:48:45.9852645Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T11:48:46.0396918Z Cleaning up orphan processes
