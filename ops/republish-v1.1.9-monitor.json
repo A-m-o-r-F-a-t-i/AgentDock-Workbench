@@ -1,7 +1,17 @@
 {
-  "checked_at": "2026-10-20T13:46:44Z",
+  "checked_at": "2026-10-20T13:51:07Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
   "republish_runs": [
+    {
+      "id": 39433962238,
+      "head_sha": "a7d63616cb4cd923748a3b632876db45a62b7824",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:50:55Z",
+      "updated_at": "2026-10-20T13:50:57Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39433962238",
+      "display_title": "monitor republish emulator completion"
+    },
     {
       "id": 39433321809,
       "head_sha": "b7d52d7c72cd38518583e8ffb3ef52304a617d39",
@@ -71,16 +81,6 @@
       "updated_at": "2026-10-20T13:34:28Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39431570555",
       "display_title": "monitor republish after candidate queue"
-    },
-    {
-      "id": 39431112505,
-      "head_sha": "8d28404a165e0eb16248554996295b800295aeae",
-      "status": "completed",
-      "conclusion": "skipped",
-      "created_at": "2026-10-20T13:31:23Z",
-      "updated_at": "2026-10-20T13:31:24Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39431112505",
-      "display_title": "monitor republish workflow state"
     }
   ],
   "candidate_runs": [
@@ -179,10 +179,10 @@
     {
       "id": 118661679736,
       "name": "android / Emulator API 26",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "started_at": "2026-10-20T13:42:32Z",
-      "completed_at": null,
+      "completed_at": "2026-10-20T13:49:26Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429892778/job/118661679736"
     },
     {
@@ -197,19 +197,19 @@
     {
       "id": 118661679902,
       "name": "android / Emulator API 34",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "started_at": "2026-10-20T13:42:32Z",
-      "completed_at": null,
+      "completed_at": "2026-10-20T13:50:37Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429892778/job/118661679902"
     },
     {
       "id": 118661679832,
       "name": "android / Emulator API 35",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "started_at": "2026-10-20T13:42:31Z",
-      "completed_at": null,
+      "completed_at": "2026-10-20T13:48:47Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39429892778/job/118661679832"
     },
     {
