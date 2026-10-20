@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       MAIN_SHA: 6fff01f1a206db9e3b1e96492767a969da45839c
-      TRIGGER_SHA: 975e091babaaaa02d1cfa30c15e4c84a51c91dd7
+      REPUBLISH_RUN_ID: '39430224316'
       OPS_BRANCH: ops/diagnose-open-prs-20261020
     steps:
       - uses: actions/checkout@v5
@@ -29,22 +29,20 @@ jobs:
           set -euo pipefail
           mkdir -p ops
           repo="$GITHUB_REPOSITORY"
-          one_shot="$(gh api "repos/$repo/actions/workflows/one-shot-republish-v1.1.9.yml/runs?event=push&branch=$OPS_BRANCH&per_page=20")"
-          candidate="$(gh api "repos/$repo/actions/workflows/workbench-release.yml/runs?event=workflow_dispatch&branch=main&per_page=30")"
-          publisher="$(gh api "repos/$repo/actions/workflows/workbench-publish-existing.yml/runs?event=workflow_dispatch&branch=main&per_page=30")"
+          gh api "repos/$repo/actions/runs/$REPUBLISH_RUN_ID" > /tmp/republish.json
+          gh api "repos/$repo/actions/workflows/workbench-release.yml/runs?event=workflow_dispatch&branch=main&per_page=30" > /tmp/candidates.json
+          gh api "repos/$repo/actions/workflows/workbench-publish-existing.yml/runs?event=workflow_dispatch&branch=main&per_page=30" > /tmp/publishers.json
           jq -n \
             --arg main_sha "$MAIN_SHA" \
-            --arg trigger_sha "$TRIGGER_SHA" \
-            --argjson one_shot "$one_shot" \
-            --argjson candidate "$candidate" \
-            --argjson publisher "$publisher" \
+            --slurpfile republish /tmp/republish.json \
+            --slurpfile candidates /tmp/candidates.json \
+            --slurpfile publishers /tmp/publishers.json \
             '{
               checked_at: (now | todate),
               main_sha: $main_sha,
-              trigger_sha: $trigger_sha,
-              republish_run: ([ $one_shot.workflow_runs[] | select(.head_sha == $trigger_sha) ] | sort_by(.created_at) | last | {id,status,conclusion,created_at,updated_at,html_url,display_title}),
-              candidate_run: ([ $candidate.workflow_runs[] | select(.head_sha == $main_sha) ] | sort_by(.created_at) | last | {id,status,conclusion,created_at,updated_at,html_url,display_title}),
-              publisher_run: ([ $publisher.workflow_runs[] | select(.head_sha == $main_sha) ] | sort_by(.created_at) | last | {id,status,conclusion,created_at,updated_at,html_url,display_title})
+              republish_run: ($republish[0] | {id,status,conclusion,created_at,updated_at,html_url,display_title}),
+              candidate_run: ([ $candidates[0].workflow_runs[] | select(.head_sha == $main_sha) ] | sort_by(.created_at) | last // null | if . == null then null else {id,status,conclusion,created_at,updated_at,html_url,display_title} end),
+              publisher_run: ([ $publishers[0].workflow_runs[] | select(.head_sha == $main_sha) ] | sort_by(.created_at) | last // null | if . == null then null else {id,status,conclusion,created_at,updated_at,html_url,display_title} end)
             }' > ops/republish-v1.1.9-monitor.json
           cat ops/republish-v1.1.9-monitor.json
       - name: Commit monitor result
