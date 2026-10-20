@@ -24,7 +24,7 @@ func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStat
 		return ServiceStatus{}, err
 	}
 	coreBinary := ActiveCoreBinary(runtimeRoot, manifest)
-	running, err := processRunningAtPath(coreBinary)
+	running, err := coreProcessRunning(runtimeRoot, coreBinary)
 	if err != nil {
 		return ServiceStatus{}, err
 	}
@@ -76,6 +76,15 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 	if testHealth(ctx, manifest.HealthURL()) {
 		return nil
 	}
+	// The Tunnel supervisor shares Core's executable, so only a real Core
+	// should prevent another launch while the HTTP health endpoint warms up.
+	running, err := coreProcessRunning(runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest))
+	if err != nil {
+		return fmt.Errorf("识别已启动的 AgentDock Core 失败: %w", err)
+	}
+	if running {
+		return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+	}
 	recoverAbandonedCoreLocks(manifest, runtimeRoot)
 	if manifest.UsesScheduledTask() {
 		if err := StartInteractiveScheduledTask(ctx, runtimeRoot, manifest.AgentDockTaskName); err != nil {
@@ -85,6 +94,20 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 		return err
 	}
 	return waitForHealth(ctx, manifest.HealthURL(), windowsCoreStartTimeout)
+}
+
+// coreProcessRunning excludes the Tunnel supervisor, which shares Core's binary.
+func coreProcessRunning(runtimeRoot, coreBinary string) (bool, error) {
+	supervisorPID, err := activeTunnelSupervisorPID(runtimeRoot, coreBinary)
+	if err != nil {
+		return false, err
+	}
+	excluded := map[uint32]struct{}{}
+	if supervisorPID != 0 {
+		excluded[supervisorPID] = struct{}{}
+	}
+	processes, err := processIDsAtPathExcept(coreBinary, excluded)
+	return len(processes) > 0, err
 }
 
 func stopCore(ctx context.Context, manifest Manifest, runtimeRoot string) error {

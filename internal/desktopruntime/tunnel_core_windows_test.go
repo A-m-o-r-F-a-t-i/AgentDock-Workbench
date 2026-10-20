@@ -29,7 +29,7 @@ func TestTunnelCanceledCoreReloadStillInitiatesRecovery(t *testing.T) {
 			t.Fatal("recovery inherited the stop cancellation")
 		}
 		deadline, exists := callContext.Deadline()
-		if !exists || time.Until(deadline) > 3*time.Second {
+		if !exists || time.Until(deadline) > 30*time.Second {
 			t.Fatal("unbounded Core recovery")
 		}
 		return nil

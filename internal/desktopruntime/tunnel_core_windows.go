@@ -25,7 +25,7 @@ func restartTunnelCoreUsing(ctx context.Context, root string, action func(contex
 	if err == nil || ctx.Err() == nil {
 		return err
 	}
-	recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	if recoveryErr := action(recovery, root, "start"); recoveryErr != nil {
 		return errors.Join(err, fmt.Errorf("restore Core after canceled Tunnel reload: %w", recoveryErr))
