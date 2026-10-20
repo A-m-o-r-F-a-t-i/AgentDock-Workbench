@@ -281,9 +281,12 @@ func TestContextRevalidationRefreshesDeliveredContext(t *testing.T) {
 					t.Fatal("Context refresh did not rebuild content and its revision")
 				}
 				trackers[component].clock.Add(1)
-				unchanged, current := readComplete()
-				if unchanged["context_revision"] != next["context_revision"] || !strings.Contains(fmt.Sprint(current[field]), after) {
-					t.Fatal("clock-only revalidation changed the immutable Context content identity")
+				unchanged, _ := readComplete()
+				if unchanged["context_revision"] != next["context_revision"] {
+					t.Fatalf("clock-only revalidation changed the immutable Context content identity: before=%v after=%v", next["context_revision"], unchanged["context_revision"])
+				}
+				if unchanged["unchanged"] != true || modelObject(unchanged["projection"])["mode"] != "reference" || unchanged["context_ready"] != true {
+					t.Fatalf("clock-only revalidation did not reuse the delivered Context revision: %#v", unchanged)
 				}
 			})
 		}
