@@ -1,4 +1,4 @@
-name: One-shot patch PR 164 request body tests
+name: One-shot diagnose republish failure
 
 on:
   push:
@@ -6,64 +6,60 @@ on:
       - ops/diagnose-open-prs-20261020
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
-  patch:
-    if: ${{ contains(github.event.head_commit.message, 'patch PR164 request body stream') }}
+  diagnose:
+    if: ${{ contains(github.event.head_commit.message, 'diagnose republish failure') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FAILED_JOB_ID: '118601241132'
+      OPS_BRANCH: ops/diagnose-open-prs-20261020
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: fix/20261020-macos-workbench-contracts
-      - name: Read streamed URL request bodies in transport fixtures
+          ref: ops/diagnose-open-prs-20261020
+      - name: Extract failure log
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift')
-          text = path.read_text()
-          marker = '''    private func answer(_ value: WorkbenchJSON, status: Int = 200, delay: Double = 0) throws -> (Int, String, Data, Double) {
-        (status, "application/json", try value.encodedData(), delay)
-    }
-'''
-          helper = marker + '''    private func requestBody(_ request: URLRequest) throws -> Data {
-        if let body = request.httpBody { return body }
-        guard let stream = request.httpBodyStream else {
-            throw URLError(.cannotDecodeContentData)
-        }
-        stream.open()
-        defer { stream.close() }
-        let capacity = 4096
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
-        defer { buffer.deallocate() }
-        var data = Data()
-        while true {
-            let count = stream.read(buffer, maxLength: capacity)
-            if count < 0 { throw stream.streamError ?? URLError(.cannotDecodeContentData) }
-            if count == 0 { break }
-            data.append(buffer, count: count)
-        }
-        return data
-    }
-'''
-          if text.count(marker) != 1:
-              raise SystemExit('answer helper marker not found exactly once')
-          text = text.replace(marker, helper)
-          old = 'let body = try WorkbenchJSON.decode(try XCTUnwrap(request.httpBody))'
-          if text.count(old) != 2:
-              raise SystemExit(f'expected two direct httpBody decodes, found {text.count(old)}')
-          text = text.replace(old, 'let body = try WorkbenchJSON.decode(try self.requestBody(request))')
-          path.write_text(text)
+          mkdir -p diagnostics
+          raw=/tmp/republish-failure.raw
+          log=/tmp/republish-failure.log
+          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${FAILED_JOB_ID}/logs" > "$raw"
+          if python3 - "$raw" <<'PY'
+          import sys, zipfile
+          raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
           PY
-          git diff --check
-      - name: Commit focused fixture fix
+          then
+            unzip -p "$raw" > "$log"
+          else
+            cp "$raw" "$log"
+          fi
+          python3 - "$log" diagnostics/republish-failure.txt <<'PY'
+          import re, sys
+          from pathlib import Path
+          source, destination = map(Path, sys.argv[1:])
+          lines = source.read_text(errors='replace').splitlines()
+          pattern = re.compile(r'(?i)(error|fail(?:ed|ure)?|fatal|timed out|mismatch|missing|conclusion=|candidate run=|publisher run=|MAIN_SHA|CANDIDATE_RUN_ID|PUBLISH_RUN_ID)')
+          selected = set()
+          for index, line in enumerate(lines):
+              if pattern.search(line):
+                  selected.update(range(max(0, index - 8), min(len(lines), index + 20)))
+          excerpt = '\n'.join(lines[index] for index in sorted(selected)) if selected else '\n'.join(lines[-500:])
+          if len(excerpt) > 120000:
+              excerpt = excerpt[-120000:]
+          destination.write_text(excerpt + '\n')
+          PY
+      - name: Commit diagnostic
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add desktop/macos/AgentDockApp/RegressionTests/TransportTests.swift
-          git commit -m 'test(macos): read streamed plugin request bodies'
-          git push origin HEAD:fix/20261020-macos-workbench-contracts
+          git add diagnostics/republish-failure.txt
+          git commit -m 'chore: record republish failure [diagnostic-results]'
+          git push origin HEAD:"$OPS_BRANCH"
