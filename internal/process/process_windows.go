@@ -38,6 +38,20 @@ func Configure(cmd *exec.Cmd) {
 	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
 }
 
+// ConfigureConsoleTree creates one hidden console for a console-process tree.
+// Descendant console helpers inherit it instead of allocating visible consoles.
+func ConfigureConsoleTree(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS
+	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_CONSOLE
+}
+
 // ConfigureStdio keeps stdio pipes available without allowing a command-script
 // wrapper to create a visible console for its native child. cmd.exe receives a
 // new console hidden from its first frame; direct executables keep no-window mode.
@@ -54,12 +68,7 @@ func ConfigureStdio(cmd *exec.Cmd) {
 		Configure(cmd)
 		return
 	}
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.HideWindow = true
-	cmd.SysProcAttr.CreationFlags &^= windows.CREATE_NO_WINDOW | windows.DETACHED_PROCESS
-	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_CONSOLE
+	ConfigureConsoleTree(cmd)
 }
 
 func Attach(cmd *exec.Cmd) (*Controller, error) {

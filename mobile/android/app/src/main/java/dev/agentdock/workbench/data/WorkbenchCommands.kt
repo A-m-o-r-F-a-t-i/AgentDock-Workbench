@@ -55,21 +55,39 @@ object WorkbenchCommands {
         require(body.toString().toByteArray(Charsets.UTF_8).size <= 64 * 1024)
         return CoreCommand(title, PREFIX + path, body.toString(), consequence)
     }
-    fun workspace(name: String, root: String, project: String, create: Boolean, id: String = "", revision: Long = 0,
-                  artifactRoot: String = "", scratchRoot: String = "", cacheRoot: String = ""): CoreCommand {
-        require(name.isNotBlank() && name.length <= 256 && root.startsWith('/') && root.length <= 4096)
-        require(project.length <= 256)
+    fun workspace(
+        name: String,
+        root: String,
+        project: String,
+        create: Boolean,
+        id: String = "",
+        revision: Long = 0,
+        artifactRoot: String = "",
+        scratchRoot: String = "",
+        cacheRoot: String = "",
+        runtime: String = "unix",
+        wslDistribution: String = ""
+    ): CoreCommand {
+        require(name.isNotBlank() && name.length <= 256)
+        require(root.isNotBlank() && root.length <= 4096 && root.none { it.code < 32 })
+        require(project.length <= 256 && runtime in setOf("windows", "unix", "wsl"))
+        require(runtime != "wsl" || wslDistribution.isNotBlank())
+        require(wslDistribution.length <= 256 && wslDistribution.none { it.code < 32 })
         val body = JSONObject().put("action", "register").put("name", name).put("root", root)
-            .put("project", project).put("runtime", "unix").put("kind", "directory").put("create_root", create)
+            .put("project", project).put("runtime", runtime).put("kind", "directory").put("create_root", create)
+        if (runtime == "wsl") body.put("wsl_distribution", wslDistribution)
         if (id.isNotEmpty()) {
             require(revision > 0)
             body.put("workspace_id", ManagementContract.id(id)).put("expected_revision", revision)
         }
         for ((key, value) in mapOf("artifact_root" to artifactRoot, "scratch_root" to scratchRoot, "cache_root" to cacheRoot)) {
-            if (value.isNotBlank()) { require(value.startsWith('/') && value.length <= 4096); body.put(key, value) }
+            if (value.isNotBlank()) {
+                require(value.length <= 4096 && value.none { it.code < 32 })
+                body.put(key, value)
+            }
         }
         return command(if (id.isEmpty()) "登记工作区" else "更新工作区", "/workspaces", body,
-            if (create) "Core 将创建明确指定的目录并登记工作区。不会改变其他运行会话的绑定。" else "仅登记或按修订号更新该路径。已有会话和工程文件保持原有归属。")
+            if (create) "Core 将按所选运行时校验并创建明确指定的目录。不会改变其他运行会话的绑定。" else "仅登记或按修订号更新该运行时路径。已有会话和工程文件保持原有归属。")
     }
     fun workspaceResolve(id: String, path: String): CoreCommand {
         require(path.length <= 4096)
@@ -223,7 +241,15 @@ object WorkbenchCommands {
         require(reference.isNotBlank() && reference.length <= 2048 && reference.none { it.code < 32 })
         return command(if (enable) "启用 Skill" else "停用 Skill", "/skills", JSONObject().put("action", if (enable) "enable" else "disable").put("skill", reference), "改变此精确 Skill 的启用状态，不编辑源文件。")
     }
-    fun plugin(action: String, name: String = "", source: String = "", memberType: String = "", member: String = ""): CoreCommand {
+    fun plugin(
+        action: String,
+        name: String = "",
+        source: String = "",
+        memberType: String = "",
+        member: String = "",
+        reviewToken: String = "",
+        confirmedSourceChange: Boolean = false
+    ): CoreCommand {
         require(action in setOf("validate", "install", "update", "remove", "enable", "disable", "heavy_enable", "heavy_disable", "member_enable", "member_disable"))
         val body = JSONObject().put("action", action)
         if (name.isNotBlank()) { require(name.length <= 256 && name.none { it.code < 32 }); body.put("name", name) }
@@ -231,11 +257,16 @@ object WorkbenchCommands {
             require(source.isNotBlank() && source.length <= 4096 && source.none { it.code < 32 })
             body.put("source", source)
         }
+        if (action in setOf("install", "update")) {
+            require(reviewToken.isNotBlank() && reviewToken.length <= 4096 && reviewToken.none { it.code < 32 })
+            body.put("review_token", reviewToken)
+            if (action == "update" && confirmedSourceChange) body.put("confirmed_source_change", true)
+        }
         if (action.startsWith("member_")) {
             require(memberType in setOf("skill", "mcp_server") && member.isNotBlank())
             body.put("member_type", memberType).put("member", member)
         }
-        return command("插件 $action", "/plugins", body, "由 Core 的插件管理服务执行。安装或更新前须先验证来源并核对回执；移除不删除用户工程。")
+        return command("插件 $action", "/plugins", body, "由 Core 的插件管理服务执行。安装或更新使用当前来源验证回执；来源变化只有在本次明确确认后才会提交。")
     }
     fun mcp(action: String, name: String, transport: String = "", url: String = "", executable: String = "", args: List<String> = emptyList(), cwd: String = "", timeout: Int = 30000): CoreCommand {
         require(action in setOf("add", "remove", "enable", "disable", "refresh", "env_list"))
@@ -252,7 +283,7 @@ object WorkbenchCommands {
             } else {
                 require(executable.isNotBlank() && executable.length <= 4096 && args.size <= 64 && args.all { it.length <= 4096 })
                 body.put("command", executable).put("args", JSONArray(args))
-                if (cwd.isNotBlank()) { require(cwd.startsWith('/')); body.put("cwd", cwd) }
+                if (cwd.isNotBlank()) { require(cwd.length <= 4096 && cwd.none { it.code < 32 }); body.put("cwd", cwd) }
             }
         }
         return command("MCP $action", "/mcp", body, "只修改选定 MCP 的已声明配置。不会将请求头秘密保存到普通配置；环境秘密通过独立受控输入管理。")

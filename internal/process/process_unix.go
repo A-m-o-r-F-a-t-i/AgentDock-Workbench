@@ -25,6 +25,11 @@ func Configure(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
+// ConfigureConsoleTree gives console-process trees the normal bounded process group on Unix.
+func ConfigureConsoleTree(cmd *exec.Cmd) {
+	Configure(cmd)
+}
+
 // ConfigureStdio gives stdio servers the same bounded process group on Unix.
 func ConfigureStdio(cmd *exec.Cmd) {
 	Configure(cmd)

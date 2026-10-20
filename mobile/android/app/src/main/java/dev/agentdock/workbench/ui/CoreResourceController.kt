@@ -2,6 +2,7 @@ package dev.agentdock.workbench.ui
 
 import dev.agentdock.workbench.data.CoreClient
 import dev.agentdock.workbench.data.CoreCommand
+import dev.agentdock.workbench.data.CoreRequestException
 import dev.agentdock.workbench.data.ManagementContract
 import dev.agentdock.workbench.model.WorkbenchSnapshot
 import kotlinx.coroutines.*
@@ -54,6 +55,11 @@ class CoreResourceController(
 
     fun execute(command: CoreCommand, onAccepted: (JSONObject) -> Unit = {}) {
         if (fixture()) { notify("Fixture 模式禁止实际写入与设备操作"); return }
+        val authority = snapshot()
+        if (!authority.managementCompatible) {
+            notify(authority.managementCompatibilityMessage.ifBlank { "Runtime API 合同未确认，管理写入已阻止。" })
+            return
+        }
         if (mutable.value.actionBusy) return
         val frozenBody = command.body()
         val connectionEpoch = epoch
@@ -75,7 +81,13 @@ class CoreResourceController(
             } catch (error: CancellationException) {
                 if (connectionEpoch == epoch) notify("请求已取消；已发送写入可能已经提交，请先回读，不自动重发。")
                 throw error
-            } catch (error: Exception) { if (connectionEpoch == epoch) notify(ManagementContract.failure(error))
+            } catch (error: Exception) {
+                if (connectionEpoch == epoch) {
+                    if (error is CoreRequestException && error.serverValue != null) {
+                        mutable.update { it.copy(actionResult = error.serverValue) }
+                    }
+                    notify(ManagementContract.failure(error))
+                }
             } finally { if (connectionEpoch == epoch) mutable.update { it.copy(actionBusy = false) } }
         }
     }
@@ -123,10 +135,17 @@ class CoreResourceController(
             "connection" -> JSONObject().put("public_reachability", "not_checked").put("source", "explicit CI fixture")
                 .put("state", "authorized").put("summary", "Fixture 客户端已授权").put("detail", "固定测试数据，不建立真实连接")
             "connection-status" -> JSONObject().put("ok", true).put("source", "agentdock-api").put("service", "AgentDock")
-                .put("version", "1.1.7").put("auth_enabled", true).put("nexus_enabled", false)
-                .put("browser_enabled", true).put("memory_enabled", false).put("tool_count", source.skills.size + source.plugins.size)
-            "connection-capabilities" -> JSONObject().put("source", "agentdock-api").put("fixture", true)
-                .put("summary", "Fixture 能力清单；不探测真实设备")
+                .put("version", "1.1.9").put("runtime_api", "workbench/v1")
+                .put("runtime_contract_revision", 3).put("minimum_client_revision", 3)
+                .put("auth_enabled", true).put("nexus_enabled", false)
+                .put("browser_enabled", false).put("memory_enabled", false)
+                .put("agentdock_default_dir", "/data/data/com.termux/files/home")
+                .put("path_model", "unix").put("tool_count", source.skills.size + source.plugins.size)
+                .put("external_agent_access", JSONObject()
+                    .put("schema_version", 1).put("protocol", "mcp")
+                    .put("local_endpoint", "http://127.0.0.1:8765/mcp")
+                    .put("auth_mode", "bearer").put("credentials_included", false))
+                .put("android_executor", JSONObject().put("connected", true).put("protocol", 1).put("node_id", "fixture").put("inflight", 0))
             "oauth-metadata" -> JSONObject().put("issuer", "http://127.0.0.1:8765")
                 .put("authorization_endpoint", "http://127.0.0.1:8765/oauth/authorize")
                 .put("token_endpoint", "http://127.0.0.1:8765/oauth/token")
@@ -155,7 +174,7 @@ class CoreResourceController(
             "workspaces", "workspace-detail", "calls", "call-detail", "call-events", "children", "activity",
             "approvals", "approval-detail", "permission", "skills", "skill-detail", "skill-files", "skill-file",
             "plugins", "plugin-detail", "mcp", "mcp-detail", "display", "connection", "task-detail", "conversations",
-            "task-threads", "task-thread-detail", "task-thread-activity", "connection-status", "connection-capabilities",
+            "task-threads", "task-thread-detail", "task-thread-activity", "connection-status",
             "oauth-metadata", "oauth-resource"
         )
     }

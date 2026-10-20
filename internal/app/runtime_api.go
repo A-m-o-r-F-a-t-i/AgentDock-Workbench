@@ -17,7 +17,12 @@ import (
 	hostworkspace "github.com/uvwt/agentdock/internal/workspace"
 )
 
-const runtimeAPISource = "agentdock-api"
+const (
+	runtimeAPISource                = "agentdock-api"
+	runtimeAPIName                  = "workbench/v1"
+	runtimeAPIContractRevision      = 3
+	runtimeAPIMinimumClientRevision = 3
+)
 
 func (r *Runtime) RuntimeStatus() Result {
 	tools := r.ToolNames()
@@ -36,21 +41,24 @@ func (r *Runtime) RuntimeStatus() Result {
 		externalagent.AuthModeForRuntime(r.cfg.OAuthEnabled, r.cfg.AuthRequired()),
 	)
 	return Result{
-		"android_executor":      android,
-		"external_agent_access": externalAgentAccess,
-		"ok":                    true,
-		"source":                runtimeAPISource,
-		"service":               config.ServerName,
-		"version":               buildinfo.Version,
-		"agentdock_home":        r.cfg.AgentDockHome,
-		"agentdock_default_dir": r.cfg.AgentDockDefaultDir,
-		"path_model":            config.PathModel,
-		"auth_enabled":          r.cfg.AuthRequired(),
-		"browser_enabled":       r.cfg.BrowserEnabled,
-		"memory_enabled":        r.cfg.NexusEndpoint != "",
-		"nexus_enabled":         strings.TrimSpace(r.cfg.NexusEndpoint) != "",
-		"tool_count":            len(tools),
-		"tools":                 tools,
+		"runtime_api":               runtimeAPIName,
+		"runtime_contract_revision": runtimeAPIContractRevision,
+		"minimum_client_revision":   runtimeAPIMinimumClientRevision,
+		"android_executor":          android,
+		"external_agent_access":     externalAgentAccess,
+		"ok":                        true,
+		"source":                    runtimeAPISource,
+		"service":                   config.ServerName,
+		"version":                   buildinfo.Version,
+		"agentdock_home":            r.cfg.AgentDockHome,
+		"agentdock_default_dir":     r.cfg.AgentDockDefaultDir,
+		"path_model":                config.PathModel,
+		"auth_enabled":              r.cfg.AuthRequired(),
+		"browser_enabled":           r.cfg.BrowserEnabled,
+		"memory_enabled":            r.cfg.NexusEndpoint != "",
+		"nexus_enabled":             strings.TrimSpace(r.cfg.NexusEndpoint) != "",
+		"tool_count":                len(tools),
+		"tools":                     tools,
 	}
 }
 

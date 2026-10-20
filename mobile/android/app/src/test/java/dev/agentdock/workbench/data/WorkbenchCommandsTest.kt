@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
 
 class WorkbenchCommandsTest {
     @Test
@@ -89,5 +90,69 @@ class WorkbenchCommandsTest {
         )).body()
         assertFalse(conversation.has("settings"))
         assertEquals("readonly", conversation.getString("mode"))
+    }
+
+    @Test
+    fun workspaceAndStdioMcpPreserveRemoteNativePaths() {
+        val windows = WorkbenchCommands.workspace(
+            name = "Windows workspace",
+            root = "C:\\Projects\\AgentDock",
+            project = "agentdock",
+            create = false,
+            runtime = "windows"
+        ).body()
+        assertEquals("windows", windows.getString("runtime"))
+        assertEquals("C:\\Projects\\AgentDock", windows.getString("root"))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            WorkbenchCommands.workspace("WSL", "/workspaces/agentdock", "agentdock", false, runtime = "wsl")
+        }
+        val wsl = WorkbenchCommands.workspace(
+            "WSL", "/workspaces/agentdock", "agentdock", false,
+            runtime = "wsl", wslDistribution = "Ubuntu-24.04"
+        ).body()
+        assertEquals("Ubuntu-24.04", wsl.getString("wsl_distribution"))
+
+        val mcp = WorkbenchCommands.mcp(
+            action = "add",
+            name = "windows-mcp",
+            transport = "stdio",
+            executable = "cmd.exe",
+            args = listOf("/c", "server.cmd"),
+            cwd = "D:\\MCP"
+        ).body()
+        assertEquals("D:\\MCP", mcp.getString("cwd"))
+    }
+
+    @Test
+    fun pluginInstallAndUpdateRequireCurrentReviewToken() {
+        assertThrows(IllegalArgumentException::class.java) {
+            WorkbenchCommands.plugin("install", source = "/tmp/plugin.zip")
+        }
+        val install = WorkbenchCommands.plugin(
+            "install", source = "/tmp/plugin.zip", reviewToken = "review-v1:sha256:test"
+        ).body()
+        assertEquals("review-v1:sha256:test", install.getString("review_token"))
+
+        val update = WorkbenchCommands.plugin(
+            "update", name = "easyeda", source = "/tmp/plugin.zip",
+            reviewToken = "review-v1:sha256:test", confirmedSourceChange = true
+        ).body()
+        assertTrue(update.getBoolean("confirmed_source_change"))
+    }
+
+    @Test
+    fun runtimeContractGatesManagementWrites() {
+        val current = ManagementContract.runtimeContract(JSONObject()
+            .put("runtime_api", "workbench/v1")
+            .put("runtime_contract_revision", 3)
+            .put("minimum_client_revision", 3))
+        assertTrue(current.compatible)
+
+        assertFalse(ManagementContract.runtimeContract(JSONObject()).compatible)
+        assertFalse(ManagementContract.runtimeContract(JSONObject()
+            .put("runtime_api", "workbench/v1")
+            .put("runtime_contract_revision", 4)
+            .put("minimum_client_revision", 4)).compatible)
     }
 }

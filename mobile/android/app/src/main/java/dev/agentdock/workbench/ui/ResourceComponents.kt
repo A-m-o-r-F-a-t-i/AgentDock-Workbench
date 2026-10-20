@@ -99,7 +99,24 @@ fun ResourceObject(value: JSONObject, keys: List<String> = listOf("title", "name
 fun ResourceReceipt(value: JSONObject?) {
     if (value == null) return
     ResourceSection("最近操作结果") {
-        ResourceObject(value, listOf("status", "message", "ok", "succeeded", "skipped", "failed", "has_remaining_activity", "revision"))
+        ResourceObject(value, listOf(
+            "status", "message", "ok", "succeeded", "skipped", "failed", "has_remaining_activity", "revision",
+            "code", "error", "error_kind", "operation_status", "failure_class", "execution_performed",
+            "effect_state", "retryable", "retry_safe"
+        ))
+        value.optJSONObject("required_action")?.let { action ->
+            TechnicalDetails("服务端要求的下一动作") {
+                ResourceObject(action, listOf("action", "category", "reason_code", "method", "message"))
+            }
+        }
+        value.optJSONObject("details")?.let { details ->
+            TechnicalDetails("错误详情") {
+                ResourceObject(details, listOf(
+                    "operation_status", "failure_class", "execution_performed", "effect_state", "retry_safe",
+                    "current_revision", "expected_revision", "minimum", "maximum", "limit"
+                ))
+            }
+        }
         value.optJSONArray("warnings")?.let { warnings ->
             for (index in 0 until minOf(warnings.length(), 100)) Text(warnings.optString(index).take(2048))
         }

@@ -117,6 +117,9 @@ data class WorkbenchItem(
 data class WorkbenchSnapshot(
     val coreHealth: NodeHealth = NodeHealth.Unknown,
     val coreVersion: String = "",
+    val runtimeContractRevision: Int = 0,
+    val managementCompatible: Boolean = false,
+    val managementCompatibilityMessage: String = "尚未读取 Runtime API 合同",
     val connectionMessage: String = "尚未连接 Core",
     val workspaces: List<WorkbenchItem> = emptyList(),
     val conversations: List<WorkbenchItem> = emptyList(),
@@ -147,7 +150,10 @@ data class ActionOutcome(
 object FixtureData {
     fun snapshot(now: Long = System.currentTimeMillis()) = WorkbenchSnapshot(
         coreHealth = NodeHealth.Healthy,
-        coreVersion = "1.1.7",
+        coreVersion = "1.1.9",
+        runtimeContractRevision = 3,
+        managementCompatible = true,
+        managementCompatibilityMessage = "Runtime API 合同 workbench/v1 · revision 3",
         connectionMessage = "CI fixture · Core authority simulated explicitly",
         workspaces = listOf(WorkbenchItem("wsp_mobile", "Android 产品化", "/workspace/android", "active", "2 个活动对话")),
         conversations = listOf(
@@ -161,7 +167,19 @@ object FixtureData {
         ),
         activity = listOf(WorkbenchItem("evt_1", "读取 Core 快照", "GET /internal/runtime/execution", "succeeded", "128 ms")),
         approvals = listOf(WorkbenchItem("apr_1", "安装 GitHub 插件", "工作区一次性授权", "pending", "用户审批")),
-        insertions = listOf(WorkbenchItem("ins_1", "补充：保持现有手机节点", "等待 Core 回执", "attached", "30 秒回执窗")),
+        insertions = listOf(WorkbenchItem(
+            "ins_1",
+            "补充：保持现有手机节点",
+            "等待 Core 回执",
+            "attached",
+            "30 秒回执窗",
+            JSONObject()
+                .put("manual_retry_available", true)
+                .put("cancel_available", true)
+                .put("receipt_type", "none")
+                .put("automatic_attempts_remaining", 2)
+                .put("total_attempts_remaining", 5)
+        )),
         skills = listOf(WorkbenchItem("skill_1", "easyeda-pcb-layout-routing", "布局与布线", "enabled")),
         plugins = listOf(WorkbenchItem("plugin_1", "github", "Actions 与代码托管", "enabled")),
         mcpServers = listOf(WorkbenchItem("mcp_1", "AgentDock-OPPO", "21 tools", "connected")),

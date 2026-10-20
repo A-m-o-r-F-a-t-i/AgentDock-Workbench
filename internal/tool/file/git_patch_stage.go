@@ -195,7 +195,7 @@ func gitPatchCommand(ctx context.Context, dir, patch string, options ...string) 
 		cmd.Env = append(cmd.Env, variable)
 	}
 	cmd.Env = append(cmd.Env, "GIT_CEILING_DIRECTORIES="+filepath.Dir(dir))
-	processcontrol.Configure(cmd)
+	processcontrol.ConfigureConsoleTree(cmd)
 	output, total, truncated, err := runBoundedCombinedOutput(cmd, 1<<20)
 	if err != nil || truncated {
 		if err == nil {
