@@ -9,6 +9,7 @@ import (
 	"github.com/uvwt/agentdock/internal/envstore"
 	skills "github.com/uvwt/agentdock/internal/skill"
 	skillstate "github.com/uvwt/agentdock/internal/skill/state"
+	"github.com/uvwt/agentdock/internal/skilldata"
 	"github.com/uvwt/agentdock/internal/workspace"
 )
 
@@ -30,6 +31,7 @@ type PluginSkillsLookup func() ([]PluginSkill, error)
 type PluginSkillAcquire func(context.Context, string, string) (PluginSkill, func(), error)
 
 type Service struct {
+	cfg               config.Config
 	workspaceMu       sync.RWMutex
 	workspaceByID     map[string]string
 	workspaceIDByRoot map[string]string
@@ -46,6 +48,9 @@ type Service struct {
 }
 
 func New(cfg config.Config, ws *workspace.Workspace, envs *envstore.Store) (*Service, error) {
+	if err := skilldata.MigrateLegacyRoot(cfg); err != nil {
+		return nil, err
+	}
 	stateDir, err := config.SkillStateDir(cfg)
 	if err != nil {
 		return nil, err
@@ -58,7 +63,7 @@ func New(cfg config.Config, ws *workspace.Workspace, envs *envstore.Store) (*Ser
 	if err != nil {
 		return nil, err
 	}
-	return &Service{manager: manager, state: state, ws: ws, envs: envs, workspaceByID: map[string]string{}, workspaceIDByRoot: map[string]string{}, workspaceIssued: map[string]map[string]struct{}{}}, nil
+	return &Service{cfg: cfg, manager: manager, state: state, ws: ws, envs: envs, workspaceByID: map[string]string{}, workspaceIDByRoot: map[string]string{}, workspaceIssued: map[string]map[string]struct{}{}}, nil
 }
 
 func (s *Service) SetPluginMembershipLookup(lookup PluginMembershipLookup) {

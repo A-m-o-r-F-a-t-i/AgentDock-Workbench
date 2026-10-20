@@ -51,7 +51,7 @@ func TestBuildWSLProcessEnvForwardsValuesWithoutPuttingThemInArgs(t *testing.T) 
 }
 
 func TestBuildWSLProcessEnvForwardsConvertedSkillDataDir(t *testing.T) {
-	converted, ok := windowsPathToWSL(`C:\Users\a\.agentdock\data\skills\demo-skill`)
+	converted, ok := windowsPathToWSL(`C:\Users\a\.agentdock\skill-data\demo-skill`)
 	if !ok {
 		t.Fatal("Skill data Host path did not convert to WSL")
 	}
@@ -61,7 +61,7 @@ func TestBuildWSLProcessEnvForwardsConvertedSkillDataDir(t *testing.T) {
 	)
 	want := []string{
 		"PATH=C:\\Windows\\System32",
-		"SKILL_DATA_DIR=/mnt/c/Users/a/.agentdock/data/skills/demo-skill",
+		"SKILL_DATA_DIR=/mnt/c/Users/a/.agentdock/skill-data/demo-skill",
 		"WSLENV=SKILL_DATA_DIR",
 	}
 	if !reflect.DeepEqual(env, want) {

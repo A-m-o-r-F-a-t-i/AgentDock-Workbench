@@ -218,7 +218,7 @@ func TestSkillDirUsesAgentDockHome(t *testing.T) {
 	}
 	want := filepath.Join(cfg.AgentDockHome, "skills")
 	if got != want {
-		t.Fatalf("SkillDir() = %q, want %q", got, want)
+		t.Fatalf("SkillStateDir() = %q, want %q", got, want)
 	}
 }
 
@@ -229,9 +229,22 @@ func TestSkillDataDirUsesManagedPrivateRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(cfg.AgentDockHome, "data", "skills", "demo-skill")
+	want := filepath.Join(cfg.AgentDockHome, "skill-data", "demo-skill")
 	if got != want {
 		t.Fatalf("SkillDataDir() = %q, want %q", got, want)
+	}
+}
+
+func TestLegacySkillDataDirUsesMigrationOnlyRoot(t *testing.T) {
+	home := t.TempDir()
+	cfg := Config{AgentDockHome: filepath.Join(home, ".agentdock")}
+	got, err := LegacySkillDataDir(cfg, "demo-skill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(cfg.AgentDockHome, "data", "skills", "demo-skill")
+	if got != want {
+		t.Fatalf("LegacySkillDataDir() = %q, want %q", got, want)
 	}
 }
 

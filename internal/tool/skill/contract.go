@@ -7,15 +7,16 @@ const ToolPackage = "skill_package"
 func PackageInputSchema() map[string]any {
 	stringProp := toolcontract.String
 	return toolcontract.InputObject(map[string]any{
-		"action":    map[string]any{"type": "string", "description": "Skill package, availability, or isolated environment action.", "enum": []string{"validate", "install", "uninstall", "activate", "enable", "disable", "rollback", "env_set", "env_unset", "env_list"}},
-		"skill":     stringProp("Skill name for uninstall, activate, enable, disable, rollback, or environment management."),
-		"version":   stringProp("Installed Skill version for uninstall or activate. Omit for uninstall to remove the whole Skill."),
-		"key":       stringProp("Environment variable name for env_set/env_unset."),
-		"value":     stringProp("Environment variable value for env_set. Secret values are never returned."),
-		"source":    stringProp("Host path or HTTP(S) URL for validate/install."),
-		"digest":    stringProp("Optional expected SHA-256 digest for validate/install."),
-		"activate":  toolcontract.Boolean("Activate the installed version. Defaults to true."),
-		"max_bytes": toolcontract.Integer("Maximum validate/install package bytes."),
+		"action":     map[string]any{"type": "string", "description": "Skill package, availability, or isolated environment action.", "enum": []string{"validate", "install", "uninstall", "activate", "enable", "disable", "rollback", "env_set", "env_unset", "env_list"}},
+		"skill":      stringProp("Skill name for uninstall, activate, enable, disable, rollback, or environment management."),
+		"version":    stringProp("Installed Skill version for uninstall or activate. Omit for uninstall to remove the whole Skill."),
+		"key":        stringProp("Environment variable name for env_set/env_unset."),
+		"value":      stringProp("Environment variable value for env_set. Secret values are never returned."),
+		"source":     stringProp("Host path or HTTP(S) URL for validate/install."),
+		"digest":     stringProp("Optional expected SHA-256 digest for validate/install."),
+		"activate":   toolcontract.Boolean("Activate the installed version. Defaults to true."),
+		"purge_data": toolcontract.Boolean("Delete non-empty private runtime data when uninstalling the whole Skill. Empty data directories are removed automatically."),
+		"max_bytes":  toolcontract.Integer("Maximum validate/install package bytes."),
 	}, "action")
 }
 
