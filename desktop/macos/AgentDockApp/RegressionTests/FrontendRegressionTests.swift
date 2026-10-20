@@ -102,7 +102,7 @@ private final class FrontendFixture: @unchecked Sendable {
             if path.hasSuffix("/plugins") {
                 if body.text("action") == "validate" {
                     return try json(.object(["valid": .bool(state.pluginValid), "plugin": .object(["name": .string("fixture")]),
-                        "review": .object(["source": .string("new.zip")])]))
+                        "review": .object(["source": .string("new.zip"), "review_token": .string("review_fixture")])]))
                 }
                 state.pluginUpdates.append(body)
                 if state.pluginFailure == "NETWORK" { throw URLError(.networkConnectionLost) }
