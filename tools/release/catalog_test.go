@@ -9,7 +9,7 @@ import (
 	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
-func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
+func TestReleaseCatalogPublishesInstallersAndUpdaterPayloads(t *testing.T) {
 	catalog := ReleaseCatalog()
 	expected := map[string]bool{
 		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":   false,
@@ -21,21 +21,34 @@ func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
 		"AgentDock-Workbench-Setup-amd64.exe":                         false,
 		"AgentDock-Workbench-Setup-arm64.exe":                         false,
 	}
+	updatePayloads := []string{
+		"agentdock_linux_amd64.tar.gz",
+		"agentdock_linux_arm64.tar.gz",
+		"agentdock_darwin_amd64.tar.gz",
+		"agentdock_darwin_arm64.tar.gz",
+		"agentdock_windows_amd64.zip",
+		"agentdock_windows_arm64.zip",
+		"AgentDock-macos-universal.zip",
+	}
+	for _, name := range updatePayloads {
+		expected[name] = false
+		expected[name+".sha256"] = false
+	}
 	for _, artifact := range catalog {
 		if !artifact.PublicContract {
 			continue
 		}
-		if strings.HasSuffix(artifact.Name, ".sha256") || artifact.Kind == "checksum" || artifact.Kind == "bootstrap" || artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update" {
-			t.Fatalf("internal-only artifact exposed as public Release contract: %+v", artifact)
+		if artifact.Kind == "bootstrap" {
+			t.Fatalf("bootstrap script exposed as public Release contract: %+v", artifact)
 		}
 		if _, ok := expected[artifact.Name]; !ok {
-			t.Fatalf("unexpected public Release installer: %s", artifact.Name)
+			t.Fatalf("unexpected public Release asset: %s", artifact.Name)
 		}
 		expected[artifact.Name] = true
 	}
 	for name, seen := range expected {
 		if !seen {
-			t.Fatalf("public Release installer missing: %s", name)
+			t.Fatalf("public Release asset missing: %s", name)
 		}
 	}
 }
