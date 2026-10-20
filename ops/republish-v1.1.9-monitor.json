@@ -1,7 +1,17 @@
 {
-  "checked_at": "2026-10-20T13:56:27Z",
+  "checked_at": "2026-10-20T13:58:20Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
   "republish_runs": [
+    {
+      "id": 39435024328,
+      "head_sha": "a8481f7fcf6d7ec9187ac940b907ab5a609a6694",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:58:09Z",
+      "updated_at": "2026-10-20T13:58:10Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39435024328",
+      "display_title": "monitor republish publisher after candidate success"
+    },
     {
       "id": 39434741856,
       "head_sha": "3351ab6ff4a20e32036c234b1f8dab21545500ff",
@@ -71,16 +81,6 @@
       "updated_at": "2026-10-20T13:39:35Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432304784",
       "display_title": "monitor republish run inventory"
-    },
-    {
-      "id": 39432085335,
-      "head_sha": "7df3b927ae2582eec1cc5892674b71501496d4fa",
-      "status": "completed",
-      "conclusion": "skipped",
-      "created_at": "2026-10-20T13:38:01Z",
-      "updated_at": "2026-10-20T13:38:02Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432085335",
-      "display_title": "monitor republish candidate state"
     }
   ],
   "candidate_runs": [
