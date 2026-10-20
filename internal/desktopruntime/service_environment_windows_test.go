@@ -21,7 +21,7 @@ func TestPrepareCoreEnvironmentKeepsMissingOptionalAgent(t *testing.T) {
 		SchemaVersion: SchemaVersion, InstallRoot: root,
 		AgentDockHome: filepath.Join(root, "data"), AgentDockDefaultDir: root,
 		AgentDockBinary: filepath.Join(root, "bin", "agentdock.exe"),
-		Host: "127.0.0.1", Port: 18765, LocalMCPURL: "http://127.0.0.1:18765/mcp",
+		Host:            "127.0.0.1", Port: 18765, LocalMCPURL: "http://127.0.0.1:18765/mcp",
 		TunnelMode: "none", InstallChannel: "test",
 	}
 	if err := Save(filepath.Join(root, "runtime.json"), manifest); err != nil {
@@ -30,7 +30,7 @@ func TestPrepareCoreEnvironmentKeepsMissingOptionalAgent(t *testing.T) {
 	command := filepath.Join(root, "removed-agent.exe")
 	settings, err := json.Marshal(controlPanelSettings{
 		Port: 18765, LogLevel: "info", ACPEnabled: true,
-		ACPProfiles: []agentconfig.ACPProfile{{ID: "helper", Kind: "custom", Command: command, Enabled: true}},
+		ACPProfiles:       []agentconfig.ACPProfile{{ID: "helper", Kind: "custom", Command: command, Enabled: true}},
 		ACPDefaultProfile: "helper",
 	})
 	if err != nil {
