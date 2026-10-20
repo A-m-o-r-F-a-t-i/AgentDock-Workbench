@@ -1,0 +1,54 @@
+name: One-shot validate PR 164 macOS
+
+on:
+  push:
+    branches:
+      - ops/diagnose-open-prs-20261020
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  validate:
+    if: ${{ contains(github.event.head_commit.message, 'validate PR 164 macOS') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_BRANCH: fix/20261020-macos-workbench-contracts
+    steps:
+      - name: Dispatch exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha="$(git ls-remote "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          test -n "$head_sha"
+          echo "HEAD_SHA=$head_sha" >> "$GITHUB_ENV"
+          echo "STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/macos-frontend-regression.yml/dispatches" \
+            -f ref="$TARGET_BRANCH"
+      - name: Wait for native matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=""
+          for _ in $(seq 1 180); do
+            runs="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/macos-frontend-regression.yml/runs" \
+              -f branch="$TARGET_BRANCH" -f event=workflow_dispatch -F per_page=20)"
+            run_id="$(jq -r --arg sha "$HEAD_SHA" --arg started "$STARTED_AT" \
+              '[.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started)] | sort_by(.created_at) | last | .id // empty' <<<"$runs")"
+            if [[ -n "$run_id" ]]; then
+              status="$(jq -r --argjson id "$run_id" '.workflow_runs[] | select(.id == $id) | .status' <<<"$runs")"
+              conclusion="$(jq -r --argjson id "$run_id" '.workflow_runs[] | select(.id == $id) | .conclusion // ""' <<<"$runs")"
+              echo "run_id=$run_id status=$status conclusion=$conclusion"
+              if [[ "$status" == completed ]]; then
+                [[ "$conclusion" == success ]]
+                exit
+              fi
+            fi
+            sleep 15
+          done
+          echo "Timed out waiting for macOS regression run" >&2
+          exit 1
