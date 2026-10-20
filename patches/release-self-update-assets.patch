@@ -1,0 +1,201 @@
+diff --git a/scripts/release/publish-workbench.py b/scripts/release/publish-workbench.py
+index e8d8d1d..8806ad2 100644
+--- a/scripts/release/publish-workbench.py
++++ b/scripts/release/publish-workbench.py
+@@ -106,7 +106,7 @@ def expected_payloads(version: str) -> list[str]:
+ 
+ 
+ def public_installers(version: str) -> list[str]:
+-    """Return user-installable release assets only."""
++    """Return user-installable release assets."""
+     macos_dmg,_=macos_asset_names()
+     installers = windows_setup_names(version) + [
+         macos_dmg,
+@@ -120,6 +120,24 @@ def public_installers(version: str) -> list[str]:
+     return installers
+ 
+ 
++def public_update_assets() -> list[str]:
++    """Return the immutable archives required by the built-in updater."""
++    _,macos_zip=macos_asset_names()
++    payloads = [
++        f'agentdock_{platform}_{arch}.tar.gz'
++        for platform in ['linux','darwin']
++        for arch in ['amd64','arm64']
++    ] + [
++        f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']
++    ] + [macos_zip]
++    return [item for name in payloads for item in (name,name+'.sha256')]
++
++
++def public_release_assets(version: str) -> list[str]:
++    """Return installers plus the verified archives consumed by self-update."""
++    return public_installers(version) + public_update_assets()
++
++
+ def obsolete_public_installers(version: str) -> set[str]:
+     """Return historical public names that an explicit replacement may remove."""
+     obsolete: set[str] = set()
+@@ -373,7 +391,7 @@ def publish(dist: Path,version: str,commit: str,prerelease: bool=False,
+     previous_latest=latest_before.get('id') if prerelease else None
+     notes=ROOT/f'docs/releases/{tag}.md'
+     if not notes.is_file():raise RuntimeError('Final release notes are missing')
+-    public_names=public_installers(version)
++    public_names=public_release_assets(version)
+     files=[]
+     for name in public_names:
+         path=dist/name
+diff --git a/scripts/test/test-workbench-release.py b/scripts/test/test-workbench-release.py
+index 1c0c57e..997c930 100644
+--- a/scripts/test/test-workbench-release.py
++++ b/scripts/test/test-workbench-release.py
+@@ -53,6 +53,24 @@ class ReleaseGate(unittest.TestCase):
+             'AgentDock-Workbench-1.1.9-Android-Core-arm64.manifest.sig'})
+         self.assertTrue(set(names).isdisjoint(release.obsolete_public_installers('1.1.9')))
+ 
++    def test_public_release_includes_all_built_in_update_payloads(self):
++        update_assets = [
++            'agentdock_linux_amd64.tar.gz','agentdock_linux_amd64.tar.gz.sha256',
++            'agentdock_linux_arm64.tar.gz','agentdock_linux_arm64.tar.gz.sha256',
++            'agentdock_darwin_amd64.tar.gz','agentdock_darwin_amd64.tar.gz.sha256',
++            'agentdock_darwin_arm64.tar.gz','agentdock_darwin_arm64.tar.gz.sha256',
++            'agentdock_windows_amd64.zip','agentdock_windows_amd64.zip.sha256',
++            'agentdock_windows_arm64.zip','agentdock_windows_arm64.zip.sha256',
++            'AgentDock-macos-universal.zip','AgentDock-macos-universal.zip.sha256',
++        ]
++        self.assertEqual(release.public_update_assets(), update_assets)
++        published = release.public_release_assets('1.1.9')
++        installers = release.public_installers('1.1.9')
++        self.assertEqual(published[:len(installers)], installers)
++        self.assertEqual(published[len(installers):], update_assets)
++        self.assertEqual(len(published), 22)
++        self.assertEqual(len(published), len(set(published)))
++
+     def test_repository_license_is_preserved(self):
+         license_text=(ROOT/'LICENSE').read_text()
+         self.assertTrue(license_text.startswith('Apache License'))
+@@ -371,7 +389,7 @@ class PublicationGate(unittest.TestCase):
+         self.remote_tag_ref=self.commit;self.remote_tag_commit=self.commit;self.pending_tag_commit=None
+         self.stable=dict(self.record,id=99,tag_name='v1.1.6',draft=False)
+         self.latest=self.stable
+-        for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_installers',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
++        for mock in [patch.object(release,'ROOT',self.root),patch.object(release,'public_release_assets',return_value=['package.zip']),patch.dict(os.environ,{'GITHUB_REPOSITORY':release.REPOSITORY,'GITHUB_STEP_SUMMARY':''}),patch.object(release,'run',side_effect=self.fake_command)]:
+             mock.start();self.addCleanup(mock.stop)
+     def fake_command(self,*args):
+         self.commands.append(args)
+@@ -438,7 +456,7 @@ class PublicationGate(unittest.TestCase):
+     def test_binary_asset_name_is_url_encoded(self):
+         path=self.dist/'package name.zip';(self.dist/'package.zip').rename(path)
+         self.asset['name']=path.name;self.record['assets']=[]
+-        with patch.object(release,'public_installers',return_value=[path.name]):
++        with patch.object(release,'public_release_assets',return_value=[path.name]):
+             self.publish()
+         urls=[args[4] for args in self.commands if args[:4]==('gh','api','--method','POST') and args[4].startswith('https://uploads.github.com/')]
+         self.assertEqual(urls,[f'https://uploads.github.com/repos/{release.REPOSITORY}/releases/123/assets?name=package%20name.zip'])
+diff --git a/tools/release/catalog.go b/tools/release/catalog.go
+index 1007378..320e799 100644
+--- a/tools/release/catalog.go
++++ b/tools/release/catalog.go
+@@ -9,8 +9,8 @@ import (
+ 	"github.com/uvwt/agentdock/internal/buildinfo"
+ )
+ 
+-// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 中的安装包；
+-// 内部归档、安装脚本和 checksum 仅用于构建与验收。
++// Artifact 描述完整验证目录中的跨平台资产。PublicContract 标记公开 Release 资产；
++// 除用户安装包外，内置更新器依赖的不可变归档及其 checksum 也必须公开。
+ type Artifact struct {
+ 	Name           string `json:"name"`
+ 	Kind           string `json:"kind"`
+@@ -56,14 +56,14 @@ func verifyDist(dir string, stdout io.Writer) error {
+ func ReleaseCatalog() []Artifact {
+ 	payloads := []Artifact{
+ 		{Name: "AgentDock-Workbench-" + buildinfo.Version + "-Android.apk", Kind: "android-package", Platform: "android", Arch: "arm64", Required: true, PublicContract: true},
+-		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true},
+-		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true},
+-		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true},
+-		{Name: "agentdock_darwin_arm64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "arm64", Required: true},
+-		{Name: "agentdock_windows_amd64.zip", Kind: "binary-archive", Platform: "windows", Arch: "amd64", Required: true},
+-		{Name: "agentdock_windows_arm64.zip", Kind: "binary-archive", Platform: "windows", Arch: "arm64", Required: true},
++		{Name: "agentdock_linux_amd64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
++		{Name: "agentdock_linux_arm64.tar.gz", Kind: "binary-archive", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
++		{Name: "agentdock_darwin_amd64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "amd64", Required: true, PublicContract: true},
++		{Name: "agentdock_darwin_arm64.tar.gz", Kind: "binary-archive", Platform: "darwin", Arch: "arm64", Required: true, PublicContract: true},
++		{Name: "agentdock_windows_amd64.zip", Kind: "binary-archive", Platform: "windows", Arch: "amd64", Required: true, PublicContract: true},
++		{Name: "agentdock_windows_arm64.zip", Kind: "binary-archive", Platform: "windows", Arch: "arm64", Required: true, PublicContract: true},
+ 		{Name: "AgentDock-macos-universal.dmg", Kind: "disk-image", Platform: "darwin", Arch: "universal", Required: true, PublicContract: true},
+-		{Name: "AgentDock-macos-universal.zip", Kind: "desktop-update", Platform: "darwin", Arch: "universal", Required: true},
++		{Name: "AgentDock-macos-universal.zip", Kind: "desktop-update", Platform: "darwin", Arch: "universal", Required: true, PublicContract: true},
+ 		{Name: "agentdock-workbench_" + buildinfo.Version + "_amd64.deb", Kind: "debian-package", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
+ 		{Name: "agentdock-workbench_" + buildinfo.Version + "_arm64.deb", Kind: "debian-package", Platform: "linux", Arch: "arm64", Required: true, PublicContract: true},
+ 		{Name: "agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm", Kind: "rpm-package", Platform: "linux", Arch: "amd64", Required: true, PublicContract: true},
+@@ -79,11 +79,12 @@ func ReleaseCatalog() []Artifact {
+ 	catalog = append(catalog, payloads...)
+ 	for _, artifact := range payloads {
+ 		catalog = append(catalog, Artifact{
+-			Name:     artifact.Name + ".sha256",
+-			Kind:     "checksum",
+-			Platform: artifact.Platform,
+-			Arch:     artifact.Arch,
+-			Required: artifact.Required,
++			Name:           artifact.Name + ".sha256",
++			Kind:           "checksum",
++			Platform:       artifact.Platform,
++			Arch:           artifact.Arch,
++			Required:       artifact.Required,
++			PublicContract: artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update",
+ 		})
+ 	}
+ 	catalog = append(catalog, scripts...)
+diff --git a/tools/release/catalog_test.go b/tools/release/catalog_test.go
+index 879c150..8c26123 100644
+--- a/tools/release/catalog_test.go
++++ b/tools/release/catalog_test.go
+@@ -9,7 +9,7 @@ import (
+ 	"github.com/uvwt/agentdock/internal/buildinfo"
+ )
+ 
+-func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
++func TestReleaseCatalogPublishesInstallersAndUpdaterPayloads(t *testing.T) {
+ 	catalog := ReleaseCatalog()
+ 	expected := map[string]bool{
+ 		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":   false,
+@@ -21,21 +21,34 @@ func TestReleaseCatalogPublishesOnlyInstallers(t *testing.T) {
+ 		"AgentDock-Workbench-Setup-amd64.exe":                         false,
+ 		"AgentDock-Workbench-Setup-arm64.exe":                         false,
+ 	}
++	updatePayloads := []string{
++		"agentdock_linux_amd64.tar.gz",
++		"agentdock_linux_arm64.tar.gz",
++		"agentdock_darwin_amd64.tar.gz",
++		"agentdock_darwin_arm64.tar.gz",
++		"agentdock_windows_amd64.zip",
++		"agentdock_windows_arm64.zip",
++		"AgentDock-macos-universal.zip",
++	}
++	for _, name := range updatePayloads {
++		expected[name] = false
++		expected[name+".sha256"] = false
++	}
+ 	for _, artifact := range catalog {
+ 		if !artifact.PublicContract {
+ 			continue
+ 		}
+-		if strings.HasSuffix(artifact.Name, ".sha256") || artifact.Kind == "checksum" || artifact.Kind == "bootstrap" || artifact.Kind == "binary-archive" || artifact.Kind == "desktop-update" {
+-			t.Fatalf("internal-only artifact exposed as public Release contract: %+v", artifact)
++		if artifact.Kind == "bootstrap" {
++			t.Fatalf("bootstrap script exposed as public Release contract: %+v", artifact)
+ 		}
+ 		if _, ok := expected[artifact.Name]; !ok {
+-			t.Fatalf("unexpected public Release installer: %s", artifact.Name)
++			t.Fatalf("unexpected public Release asset: %s", artifact.Name)
+ 		}
+ 		expected[artifact.Name] = true
+ 	}
+ 	for name, seen := range expected {
+ 		if !seen {
+-			t.Fatalf("public Release installer missing: %s", name)
++			t.Fatalf("public Release asset missing: %s", name)
+ 		}
+ 	}
+ }

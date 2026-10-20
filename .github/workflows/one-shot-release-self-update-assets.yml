@@ -1,0 +1,52 @@
+name: Apply release self-update asset fix
+
+on:
+  push:
+    branches:
+      - fix/release-self-update-assets-20261020
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Apply reviewed patch and run focused checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --index patches/release-self-update-assets.patch
+          git rm patches/release-self-update-assets.patch .github/workflows/one-shot-release-self-update-assets.yml
+          gofmt -w tools/release/catalog.go tools/release/catalog_test.go
+          git add scripts/release/publish-workbench.py scripts/test/test-workbench-release.py tools/release/catalog.go tools/release/catalog_test.go
+          python3 -m py_compile scripts/release/publish-workbench.py scripts/test/test-workbench-release.py
+          python3 scripts/test/test-workbench-release.py \
+            ReleaseGate.test_public_release_contains_only_installers \
+            ReleaseGate.test_119_public_release_contains_single_android_installer \
+            ReleaseGate.test_public_release_includes_all_built_in_update_payloads \
+            PublicationGate.test_partial_upload_only_supplies_missing_files \
+            PublicationGate.test_existing_complete_draft_uses_id_without_reupload
+          go test ./tools/release -run 'TestReleaseCatalog(PublishesInstallersAndUpdaterPayloads|UsesSingleStableAndroidInstaller)$' -count=1
+          git diff --cached --check
+      - name: Commit final source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Fix published self-update asset contract'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
