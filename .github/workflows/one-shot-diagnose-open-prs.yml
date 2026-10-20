@@ -23,11 +23,19 @@ jobs:
           set -euo pipefail
           mkdir -p diagnostics
           while IFS=: read -r pr job label; do
-            zip="diagnostics/${pr}-${job}.zip"
+            raw="diagnostics/${pr}-${job}.raw"
             log="diagnostics/${pr}-${job}.log"
             body="diagnostics/${pr}-${job}.md"
-            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" > "$zip"
-            unzip -p "$zip" > "$log"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" > "$raw"
+            if python3 - "$raw" <<'PY'
+          import sys, zipfile
+          raise SystemExit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)
+          PY
+            then
+              unzip -p "$raw" > "$log"
+            else
+              cp "$raw" "$log"
+            fi
             python3 - "$pr" "$job" "$label" "$log" "$body" <<'PY'
           import re, sys
           from pathlib import Path
