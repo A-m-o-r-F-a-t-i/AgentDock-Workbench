@@ -133,6 +133,6 @@ func newGitSnapshotCommand(ctx context.Context, root string, args ...string) *ex
 	// Optional index/cache writes are disabled; this observer never fetches,
 	// changes branches, rewrites user config or requests credentials.
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
-	processcontrol.Configure(cmd)
+	processcontrol.ConfigureConsoleTree(cmd)
 	return cmd
 }

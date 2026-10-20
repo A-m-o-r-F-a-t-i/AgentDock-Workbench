@@ -30,9 +30,18 @@ data class ResourcePage(
     val hasMore: Boolean = false
 )
 
+data class RuntimeContractStatus(
+    val compatible: Boolean,
+    val revision: Int,
+    val minimumClientRevision: Int,
+    val message: String
+)
+
 object ManagementContract {
     const val PAGE_SIZE = 100
     const val MAX_BATCH = 200
+    const val RUNTIME_API = "workbench/v1"
+    const val RUNTIME_CONTRACT_REVISION = 3
     val actions = setOf("pin", "unpin", "tags", "rename", "archive", "unarchive", "trash", "restore", "delete")
 
     fun id(value: String): String {
@@ -117,10 +126,36 @@ object ManagementContract {
         return ActionOutcome(accepted, status, text(value, "message").ifBlank { "Core 返回：$status" }, value)
     }
 
+    fun runtimeContract(value: JSONObject): RuntimeContractStatus {
+        val api = value.optString("runtime_api")
+        val revision = value.optInt("runtime_contract_revision", 0)
+        val minimum = value.optInt("minimum_client_revision", revision)
+        val message = when {
+            api != RUNTIME_API -> "Core 未声明兼容的 $RUNTIME_API 管理合同。"
+            revision < RUNTIME_CONTRACT_REVISION -> "Core 管理合同版本 $revision 低于客户端需要的 $RUNTIME_CONTRACT_REVISION。"
+            minimum > RUNTIME_CONTRACT_REVISION -> "Core 要求客户端合同版本至少为 $minimum，当前客户端为 $RUNTIME_CONTRACT_REVISION。"
+            else -> "Runtime API 合同 $api · revision $revision"
+        }
+        return RuntimeContractStatus(
+            compatible = api == RUNTIME_API && revision >= RUNTIME_CONTRACT_REVISION && minimum <= RUNTIME_CONTRACT_REVISION,
+            revision = revision,
+            minimumClientRevision = minimum,
+            message = message
+        )
+    }
+
     fun text(value: JSONObject, key: String): String = if (value.isNull(key)) "" else value.optString(key, "")
 
     fun failure(error: Throwable): String {
         if (error is CancellationException) throw error
-        return if (error is CoreRequestException) "${error.errorCode} (HTTP ${error.statusCode})：${error.message}" else error.message.orEmpty().take(1024)
+        if (error !is CoreRequestException) return error.message.orEmpty().take(1024)
+        val facts = buildList {
+            add("${error.errorCode} (HTTP ${error.statusCode})：${error.message}")
+            if (error.effectState.isNotBlank()) add("影响状态 ${error.effectState}")
+            if (error.executionPerformed == true) add("请求可能已执行，先回读状态")
+            if (error.retrySafe == false) add("不要自动重试")
+            error.requiredAction?.optString("action")?.takeIf(String::isNotBlank)?.let { add("下一步 $it") }
+        }
+        return facts.joinToString("；").take(2048)
     }
 }

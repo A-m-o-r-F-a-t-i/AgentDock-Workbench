@@ -20,7 +20,17 @@ import kotlin.coroutines.coroutineContext
 class CoreRequestException(
     val statusCode: Int,
     val errorCode: String,
-    override val message: String
+    override val message: String,
+    val errorKind: String = "",
+    val retryable: Boolean = false,
+    val details: JSONObject? = null,
+    val requiredAction: JSONObject? = null,
+    val operationStatus: String = "",
+    val failureClass: String = "",
+    val executionPerformed: Boolean? = null,
+    val effectState: String = "",
+    val retrySafe: Boolean? = null,
+    val serverValue: JSONObject? = null
 ) : IOException(message)
 
 data class CoreEndpoint(val origin: URI, val bearerToken: String)
@@ -59,7 +69,12 @@ class CoreClient(private val endpoint: CoreEndpoint) {
     } catch (error: CancellationException) {
         throw error
     } catch (error: Exception) {
-        ActionOutcome(false, if (error is CoreRequestException) error.errorCode else "transport_error", ManagementContract.failure(error))
+        ActionOutcome(
+            false,
+            if (error is CoreRequestException) error.errorCode else "transport_error",
+            ManagementContract.failure(error),
+            if (error is CoreRequestException) error.serverValue else null
+        )
     }
 
     private suspend fun request(method: String, path: String, body: JSONObject?): JSONObject = withContext(Dispatchers.IO) {
@@ -93,13 +108,29 @@ class CoreClient(private val endpoint: CoreEndpoint) {
             if (status !in 200..299) {
                 val parsed = runCatching { JSONObject(text) }.getOrNull()
                 val error = parsed?.optJSONObject("error")
+                val details = parsed?.optJSONObject("details") ?: error?.optJSONObject("details")
+                val requiredAction = parsed?.optJSONObject("required_action")
+                    ?: details?.optJSONObject("required_action")
+                    ?: error?.optJSONObject("required_action")
                 throw CoreRequestException(
-                    status,
-                    error?.optString("code")?.takeIf { it.isNotBlank() } ?: parsed?.optString("code")?.takeIf { it.isNotBlank() } ?: "HTTP_$status",
-                    error?.optString("message")?.takeIf { it.isNotBlank() }
+                    statusCode = status,
+                    errorCode = error?.optString("code")?.takeIf { it.isNotBlank() }
+                        ?: parsed?.optString("code")?.takeIf { it.isNotBlank() }
+                        ?: "HTTP_$status",
+                    message = error?.optString("message")?.takeIf { it.isNotBlank() }
                         ?: parsed?.optString("message")?.takeIf { it.isNotBlank() }
                         ?: (parsed?.opt("error") as? String)?.takeIf { it.isNotBlank() }
-                        ?: "Core 请求失败（HTTP $status）"
+                        ?: "Core 请求失败（HTTP $status）",
+                    errorKind = parsed?.optString("error_kind").orEmpty().ifBlank { error?.optString("error_kind").orEmpty() },
+                    retryable = parsed?.optBoolean("retryable", error?.optBoolean("retryable", false) ?: false) ?: false,
+                    details = details?.let { JSONObject(it.toString()) },
+                    requiredAction = requiredAction?.let { JSONObject(it.toString()) },
+                    operationStatus = parsed?.optString("operation_status").orEmpty().ifBlank { details?.optString("operation_status").orEmpty() },
+                    failureClass = parsed?.optString("failure_class").orEmpty().ifBlank { details?.optString("failure_class").orEmpty() },
+                    executionPerformed = parsed?.nullableBoolean("execution_performed") ?: details?.nullableBoolean("execution_performed"),
+                    effectState = parsed?.optString("effect_state").orEmpty().ifBlank { details?.optString("effect_state").orEmpty() },
+                    retrySafe = parsed?.nullableBoolean("retry_safe") ?: details?.nullableBoolean("retry_safe"),
+                    serverValue = parsed?.let { JSONObject(it.toString()) }
                 )
             }
             coroutineContext.ensureActive()
@@ -166,6 +197,9 @@ class CoreClient(private val endpoint: CoreEndpoint) {
 
     private fun open(url: URL): HttpURLConnection =
         (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply { useCaches = false }
+
+    private fun JSONObject.nullableBoolean(key: String): Boolean? =
+        if (!has(key) || isNull(key)) null else opt(key) as? Boolean
 
     companion object {
         const val MAX_RESPONSE_BYTES = 8 * 1024 * 1024

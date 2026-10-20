@@ -17,6 +17,9 @@ func TestRuntimeStatusDescribesExternalAgentAccess(t *testing.T) {
 		OAuthServerURL: "https://agentdock.example.com",
 	}}
 	result := runtime.RuntimeStatus()
+	if result["runtime_api"] != runtimeAPIName || result["runtime_contract_revision"] != runtimeAPIContractRevision || result["minimum_client_revision"] != runtimeAPIMinimumClientRevision {
+		t.Fatalf("runtime API contract fields missing: %#v", result)
+	}
 
 	access, ok := result["external_agent_access"].(externalagent.Status)
 	if !ok {

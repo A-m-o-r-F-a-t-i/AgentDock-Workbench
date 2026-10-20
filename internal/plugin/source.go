@@ -299,7 +299,7 @@ func preparePluginGitCommand(command *exec.Cmd) {
 	}
 	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_LFS_SKIP_SMUDGE=1", "GIT_OPTIONAL_LOCKS=0")
 	command.WaitDelay = 2 * time.Second
-	processcontrol.Configure(command)
+	processcontrol.ConfigureConsoleTree(command)
 }
 
 // A capped diagnostic prefix still drains all writes; it cannot block a noisy child.

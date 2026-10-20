@@ -14,7 +14,7 @@ func TestPublicViewsExposeServerOwnedRetryFactsWithoutSecrets(t *testing.T) {
 	if err != nil || len(views) != 1 {
 		t.Fatal(err)
 	}
-	if views[0].ReceiptType != "none" || views[0].AutomaticAttemptsRemaining != MaxAutomaticDeliveries || views[0].TotalAttemptsRemaining != MaxTotalDeliveries || views[0].ManualRetryAvailable || views[0].NextRetryAt != nil {
+	if views[0].ReceiptType != "none" || views[0].AutomaticAttemptsRemaining != MaxAutomaticDeliveries || views[0].TotalAttemptsRemaining != MaxTotalDeliveries || views[0].ManualRetryAvailable || !views[0].CancelAvailable || views[0].NextRetryAt != nil {
 		t.Fatalf("bad queued view: %+v", views[0])
 	}
 	*now = now.Add(time.Second)
@@ -28,7 +28,7 @@ func TestPublicViewsExposeServerOwnedRetryFactsWithoutSecrets(t *testing.T) {
 	}
 	views, err = s.Views(context.Background(), target.Owner, target.Conversation)
 	view := views[0]
-	if err != nil || view.Status != "inner_appended" || view.DeliveryReason != "awaiting_receiver_receipt" || view.ReceiptType != "none" || view.AutomaticAttemptsRemaining != 2 || view.TotalAttemptsRemaining != 5 || !view.ManualRetryAvailable {
+	if err != nil || view.Status != "inner_appended" || view.DeliveryReason != "awaiting_receiver_receipt" || view.ReceiptType != "none" || view.AutomaticAttemptsRemaining != 2 || view.TotalAttemptsRemaining != 5 || !view.ManualRetryAvailable || !view.CancelAvailable {
 		t.Fatalf("bad attached view: %+v %v", view, err)
 	}
 	if view.NextRetryAt == nil || !view.NextRetryAt.Equal(now.Add(ReceiptWait)) || view.Owner != "" || view.RunID != "" || view.ReceiptToken != "" {
@@ -43,7 +43,7 @@ func TestPublicViewsExposeServerOwnedRetryFactsWithoutSecrets(t *testing.T) {
 	if err = json.Unmarshal(encoded, &payload); err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"receipt_type", "next_retry_at", "automatic_attempts_remaining", "total_attempts_remaining", "manual_retry_available", "delivery_reason"} {
+	for _, field := range []string{"receipt_type", "next_retry_at", "automatic_attempts_remaining", "total_attempts_remaining", "manual_retry_available", "cancel_available", "delivery_reason"} {
 		if _, ok := payload[field]; !ok {
 			t.Fatalf("public delivery contract omitted %s: %s", field, encoded)
 		}
@@ -76,7 +76,7 @@ func TestPublicViewsExposeServerOwnedRetryFactsWithoutSecrets(t *testing.T) {
 	}
 	views, err = s.Views(context.Background(), target.Owner, target.Conversation)
 	view = views[0]
-	if err != nil || view.Status != "acknowledged" || view.ReceiptType != "receiver_receipt" || view.AutomaticAttemptsRemaining != 0 || view.TotalAttemptsRemaining != 0 || view.ManualRetryAvailable || view.NextRetryAt != nil || view.RetryRequested {
+	if err != nil || view.Status != "acknowledged" || view.ReceiptType != "receiver_receipt" || view.AutomaticAttemptsRemaining != 0 || view.TotalAttemptsRemaining != 0 || view.ManualRetryAvailable || view.CancelAvailable || view.NextRetryAt != nil || view.RetryRequested {
 		t.Fatalf("terminal view retained retry state: %+v %v", view, err)
 	}
 }
@@ -89,7 +89,7 @@ func TestPublicViewExpiresBudgetsAtOriginalDeadline(t *testing.T) {
 	_, _ = s.Finish(context.Background(), "call_deadline", true)
 	*now = original.ExpiresAt
 	views, err := s.Views(context.Background(), target.Owner, target.Conversation)
-	if err != nil || views[0].Status != "delivery_unknown" || views[0].AutomaticAttemptsRemaining != 0 || views[0].TotalAttemptsRemaining != 0 || views[0].ManualRetryAvailable || views[0].NextRetryAt != nil {
+	if err != nil || views[0].Status != "delivery_unknown" || views[0].AutomaticAttemptsRemaining != 0 || views[0].TotalAttemptsRemaining != 0 || views[0].ManualRetryAvailable || !views[0].CancelAvailable || views[0].NextRetryAt != nil {
 		t.Fatalf("expired budget remained active: %+v %v", views, err)
 	}
 }
