@@ -1,7 +1,17 @@
 {
-  "checked_at": "2026-10-20T13:54:14Z",
+  "checked_at": "2026-10-20T13:56:27Z",
   "main_sha": "6fff01f1a206db9e3b1e96492767a969da45839c",
   "republish_runs": [
+    {
+      "id": 39434741856,
+      "head_sha": "3351ab6ff4a20e32036c234b1f8dab21545500ff",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-20T13:56:15Z",
+      "updated_at": "2026-10-20T13:56:22Z",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39434741856",
+      "display_title": "monitor republish publisher dispatch"
+    },
     {
       "id": 39434418568,
       "head_sha": "e2543394fc238ff609fc2d0a2e517d579a8a6fe0",
@@ -71,16 +81,6 @@
       "updated_at": "2026-10-20T13:38:02Z",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39432085335",
       "display_title": "monitor republish candidate state"
-    },
-    {
-      "id": 39431946794,
-      "head_sha": "c07bf064a447afd1d4e94845b340292f15d38a69",
-      "status": "completed",
-      "conclusion": "skipped",
-      "created_at": "2026-10-20T13:37:02Z",
-      "updated_at": "2026-10-20T13:37:03Z",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39431946794",
-      "display_title": "diagnose republish monitor failure"
     }
   ],
   "candidate_runs": [
