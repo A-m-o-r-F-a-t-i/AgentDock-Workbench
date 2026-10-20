@@ -1,0 +1,30 @@
+name: One-shot cancel duplicate publication runs
+
+on:
+  push:
+    branches:
+      - ops/diagnose-open-prs-20261020
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    if: ${{ contains(github.event.head_commit.message, 'cancel duplicate publication runs') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Keep original publication and cancel duplicates
+        shell: bash
+        run: |
+          set -euo pipefail
+          for run_id in 39430224316 39430672256 39430693156; do
+            status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status' 2>/dev/null || true)"
+            echo "run=${run_id} status=${status:-missing}"
+            if [[ "$status" == queued || "$status" == pending || "$status" == in_progress || "$status" == waiting || "$status" == requested ]]; then
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" || true
+            fi
+          done
