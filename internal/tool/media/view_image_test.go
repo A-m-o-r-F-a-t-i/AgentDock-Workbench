@@ -82,7 +82,7 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 	rt, root := newMediaTestService(t)
 	imagePath := filepath.Join(root, "large-noise.png")
 	writeNoisePNG(t, imagePath, 1000, 800)
-	maxBytes, maxWidth, maxHeight, quality, autoResize := 200000, 1000, 800, 35, true
+	maxBytes, maxWidth, maxHeight, quality, autoResize := 750000, 1000, 800, 35, true
 
 	result, err := rt.ViewImage(context.Background(), ViewImageRequest{
 		Path: "large-noise.png", Format: "jpeg", MaxBytes: &maxBytes,
@@ -92,7 +92,7 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := assertMCPImagePayload(t, result, "image/jpeg")
-	if len(data) > modelVisibleViewImageBytes {
+	if len(data) > modelVisibleViewImageBytes || len(data) <= 4096 {
 		t.Fatalf("processed bytes=%d, budget=%d", len(data), modelVisibleViewImageBytes)
 	}
 	if result["requested_max_bytes"] != maxBytes || result["effective_max_bytes"] != modelVisibleViewImageBytes {
@@ -101,6 +101,11 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 	metadata, ok := result["image"].(map[string]any)
 	if !ok || metadata["size_bytes"] != len(data) {
 		t.Fatalf("image metadata = %#v", result["image"])
+	}
+	width, _ := metadata["width"].(int)
+	height, _ := metadata["height"].(int)
+	if width <= 242 || height <= 121 {
+		t.Fatalf("processed image is still an unusable thumbnail: %dx%d", width, height)
 	}
 }
 

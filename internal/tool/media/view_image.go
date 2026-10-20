@@ -43,7 +43,7 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 		original = map[string]any{"size_bytes": len(loaded.Data), "width": info.Width, "height": info.Height, "mime_type": info.MIME}
 	}
 	if requestedMaxBytes > effectiveMaxBytes {
-		warnings = append(warnings, "effective max_bytes lowered to the final model-response attachment budget")
+		warnings = append(warnings, "effective max_bytes lowered to the native attachment budget")
 	}
 	if !ok || len(prepared) > effectiveMaxBytes || preparedInfo.Width > maxWidth || preparedInfo.Height > maxHeight {
 		return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds the effective processing limits", "validation", imageLimitDetails(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight, len(prepared), preparedInfo, autoResize, warnings))
@@ -68,7 +68,7 @@ func imageLimitKind(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight in
 		return "max_dimensions"
 	}
 	if effectiveMaxBytes < requestedMaxBytes {
-		return "model_response_attachment_budget"
+		return "native_attachment_budget"
 	}
 	return "requested_max_bytes"
 }
