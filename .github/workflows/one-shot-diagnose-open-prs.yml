@@ -1,0 +1,61 @@
+name: One-shot diagnose open PRs
+
+on:
+  push:
+    branches:
+      - ops/diagnose-open-prs-20261020
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Extract failed job evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics
+          while IFS=: read -r pr job label; do
+            zip="diagnostics/${pr}-${job}.zip"
+            log="diagnostics/${pr}-${job}.log"
+            body="diagnostics/${pr}-${job}.md"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" > "$zip"
+            unzip -p "$zip" > "$log"
+            python3 - "$pr" "$job" "$label" "$log" "$body" <<'PY'
+          import re, sys
+          from pathlib import Path
+          pr, job, label, log_path, body_path = sys.argv[1:]
+          text = Path(log_path).read_text(errors='replace')
+          lines = text.splitlines()
+          pattern = re.compile(r'(?i)(^|[\s:])(fail(?:ed|ure)?|error|panic|fatal|undefined|not found|cannot|mismatch|timeout)([\s:]|$)')
+          selected = set()
+          for i, line in enumerate(lines):
+              if pattern.search(line):
+                  selected.update(range(max(0, i - 5), min(len(lines), i + 8)))
+          if selected:
+              excerpt = '\n'.join(lines[i] for i in sorted(selected))
+          else:
+              excerpt = '\n'.join(lines[-240:])
+          if len(excerpt) > 48000:
+              excerpt = excerpt[-48000:]
+          body = (
+              f'### 自动提取失败日志：{label}\n\n'
+              f'- Job ID: `{job}`\n'
+              f'- 来源：PR #{pr} 当前失败检查\n\n'
+              '```text\n' + excerpt + '\n```\n'
+          )
+          Path(body_path).write_text(body)
+          PY
+            gh pr comment "$pr" --body-file "$body"
+          done <<'EOF'
+          164:118579645580:Native frontend regression arm64
+          167:118579745227:Go check ubuntu
+          169:118579789057:Go check ubuntu
+          EOF
