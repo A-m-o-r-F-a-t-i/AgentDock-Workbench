@@ -1,0 +1,220 @@
+2026-10-21T05:53:41.0579700Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T05:53:41.0603640Z ##[endgroup]
+2026-10-21T05:53:41.0612860Z ##[group]Fetching the repository
+2026-10-21T05:53:41.0625260Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:53:42.3672790Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:53:42.3678130Z  * branch            26c4a8b71a6dbeff7486c84f516c75828c8acf3b -> FETCH_HEAD
+2026-10-21T05:53:42.3695900Z ##[endgroup]
+2026-10-21T05:53:42.3699120Z ##[group]Determining the checkout info
+2026-10-21T05:53:42.3702680Z ##[endgroup]
+2026-10-21T05:53:42.3713510Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-21T05:53:42.3960250Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T05:53:42.4217170Z ##[group]Checking out the ref
+2026-10-21T05:53:42.4227910Z [command]/usr/local/bin/git checkout --progress --force 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:53:43.5644310Z Updating files:  82% (1635/1985)
+2026-10-21T05:53:43.5760300Z Updating files:  83% (1648/1985)
+2026-10-21T05:53:43.5872500Z Updating files:  84% (1668/1985)
+2026-10-21T05:53:43.6055310Z Updating files:  85% (1688/1985)
+2026-10-21T05:53:43.6936380Z Updating files:  86% (1708/1985)
+2026-10-21T05:53:43.7081800Z Updating files:  87% (1727/1985)
+2026-10-21T05:53:43.7205470Z Updating files:  88% (1747/1985)
+2026-10-21T05:53:43.7351570Z Updating files:  89% (1767/1985)
+2026-10-21T05:53:43.7471510Z Updating files:  90% (1787/1985)
+2026-10-21T05:53:43.7601140Z Updating files:  91% (1807/1985)
+2026-10-21T05:53:43.7722240Z Updating files:  92% (1827/1985)
+2026-10-21T05:53:43.7875970Z Updating files:  93% (1847/1985)
+2026-10-21T05:53:43.8013560Z Updating files:  94% (1866/1985)
+2026-10-21T05:53:43.8162000Z Updating files:  95% (1886/1985)
+2026-10-21T05:53:43.8279940Z Updating files:  96% (1906/1985)
+2026-10-21T05:53:43.8405140Z Updating files:  97% (1926/1985)
+2026-10-21T05:53:43.8510800Z Updating files:  98% (1946/1985)
+2026-10-21T05:53:43.8631750Z Updating files:  99% (1966/1985)
+2026-10-21T05:53:43.8634240Z Updating files: 100% (1985/1985)
+2026-10-21T05:53:43.8636300Z Updating files: 100% (1985/1985), done.
+2026-10-21T05:53:43.8772310Z HEAD is now at 26c4a8b fix(installer): stop polling trays before Core and retry late processes (#176)
+2026-10-21T05:53:43.8812690Z ##[endgroup]
+2026-10-21T05:53:43.9051590Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-21T05:53:43.9250100Z 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:53:44.0032860Z ##[group]Run actions/setup-go@v6
+2026-10-21T05:53:44.0034910Z with:
+2026-10-21T05:53:44.0036380Z   go-version-file: go.mod
+2026-10-21T05:53:44.0038010Z   cache: true
+2026-10-21T05:53:44.0039490Z   check-latest: false
+2026-10-21T05:53:44.0049250Z   token: ***
+2026-10-21T05:53:44.0050280Z ##[endgroup]
+2026-10-21T05:53:44.5146110Z Setup go version spec 1.26.5
+2026-10-21T05:53:44.6101650Z Attempting to download 1.26.5...
+2026-10-21T05:53:45.6206740Z matching 1.26.5...
+2026-10-21T05:53:45.7051970Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-darwin-x64.tar.gz
+2026-10-21T05:53:48.0211080Z Extracting Go...
+2026-10-21T05:53:48.1031830Z [command]/usr/bin/tar xz -C /Users/runner/work/_temp/e7b211bf-0aa6-4b39-be74-4b4a6308a1e8 -f /Users/runner/work/_temp/c50dacd7-e218-4b8b-b502-0bf902e26132
+2026-10-21T05:54:06.1237750Z Successfully extracted go to /Users/runner/work/_temp/e7b211bf-0aa6-4b39-be74-4b4a6308a1e8
+2026-10-21T05:54:06.1326720Z Adding to the cache ...
+2026-10-21T05:54:46.9398130Z Successfully cached go to /Users/runner/hostedtoolcache/go/1.26.5/x64
+2026-10-21T05:54:46.9415840Z Added go to the path
+2026-10-21T05:54:46.9419840Z Successfully set up Go version 1.26.5
+2026-10-21T05:54:47.1228880Z [command]/Users/runner/hostedtoolcache/go/1.26.5/x64/bin/go env GOMODCACHE
+2026-10-21T05:54:47.1254110Z [command]/Users/runner/hostedtoolcache/go/1.26.5/x64/bin/go env GOCACHE
+2026-10-21T05:54:47.1485740Z /Users/runner/go/pkg/mod
+2026-10-21T05:54:47.1507870Z /Users/runner/Library/Caches/go-build
+2026-10-21T05:54:47.6033540Z Cache hit for: setup-go-macOS-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-21T05:54:48.8245940Z Received 0 of 16426568 (0.0%), 0.0 MBs/sec
+2026-10-21T05:54:49.4897490Z Received 16426568 of 16426568 (100.0%), 9.4 MBs/sec
+2026-10-21T05:54:49.5554580Z Cache Size: ~16 MB (16426568 B)
+2026-10-21T05:54:49.5630350Z [command]/usr/local/bin/gtar -xf /Users/runner/work/_temp/b5b15f37-9441-4b5f-be7a-6b17df617a6e/cache.tzst -P -C /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench --delay-directory-restore --use-compress-program unzstd
+2026-10-21T05:54:51.1159490Z Cache restored successfully
+2026-10-21T05:54:51.1203890Z Cache restored from key: setup-go-macOS-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-21T05:54:51.1294760Z go version go1.26.5 darwin/amd64
+2026-10-21T05:54:51.1295800Z 
+2026-10-21T05:54:51.1298190Z ##[group]go env
+2026-10-21T05:54:55.7159460Z AR='ar'
+2026-10-21T05:54:55.7163100Z CC='clang'
+2026-10-21T05:54:55.7164160Z CGO_CFLAGS='-O2 -g'
+2026-10-21T05:54:55.7165230Z CGO_CPPFLAGS=''
+2026-10-21T05:54:55.7166280Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T05:54:55.7167290Z CGO_ENABLED='1'
+2026-10-21T05:54:55.7171160Z CGO_FFLAGS='-O2 -g'
+2026-10-21T05:54:55.7172970Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T05:54:55.7174120Z CXX='clang++'
+2026-10-21T05:54:55.7175080Z GCCGO='gccgo'
+2026-10-21T05:54:55.7176350Z GO111MODULE=''
+2026-10-21T05:54:55.7177300Z GOAMD64='v1'
+2026-10-21T05:54:55.7178170Z GOARCH='amd64'
+2026-10-21T05:54:55.7179080Z GOAUTH='netrc'
+2026-10-21T05:54:55.7180510Z GOBIN=''
+2026-10-21T05:54:55.7181590Z GOCACHE='/Users/runner/Library/Caches/go-build'
+2026-10-21T05:54:55.7182960Z GOCACHEPROG=''
+2026-10-21T05:54:55.7183860Z GODEBUG=''
+2026-10-21T05:54:55.7185130Z GOENV='/Users/runner/Library/Application Support/go/env'
+2026-10-21T05:54:55.7186610Z GOEXE=''
+2026-10-21T05:54:55.7187670Z GOEXPERIMENT=''
+2026-10-21T05:54:55.7188780Z GOFIPS140='off'
+2026-10-21T05:54:55.7189720Z GOFLAGS=''
+2026-10-21T05:54:55.7194160Z GOGCCFLAGS='-fPIC -arch x86_64 -m64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/20/jp1_0n3n7kndh6rnbqb5344m0000gn/T/go-build2186161139=/tmp/go-build -gno-record-gcc-switches -fno-common'
+2026-10-21T05:54:55.7199140Z GOHOSTARCH='amd64'
+2026-10-21T05:54:55.7200190Z GOHOSTOS='darwin'
+2026-10-21T05:54:55.7201160Z GOINSECURE=''
+2026-10-21T05:54:55.7205720Z GOMOD='/Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/go.mod'
+2026-10-21T05:54:55.7208200Z GOMODCACHE='/Users/runner/go/pkg/mod'
+2026-10-21T05:54:55.7209460Z GONOPROXY=''
+2026-10-21T05:54:55.7210320Z GONOSUMDB=''
+2026-10-21T05:54:55.7211240Z GOOS='darwin'
+2026-10-21T05:54:55.7212220Z GOPATH='/Users/runner/go'
+2026-10-21T05:54:55.7213340Z GOPRIVATE=''
+2026-10-21T05:54:55.7214640Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T05:54:55.7216380Z GOROOT='/Users/runner/hostedtoolcache/go/1.26.5/x64'
+2026-10-21T05:54:55.7217870Z GOSUMDB='sum.golang.org'
+2026-10-21T05:54:55.7219750Z GOTELEMETRY='local'
+2026-10-21T05:54:55.7221390Z GOTELEMETRYDIR='/Users/runner/Library/Application Support/go/telemetry'
+2026-10-21T05:54:55.7223440Z GOTMPDIR=''
+2026-10-21T05:54:55.7224560Z GOTOOLCHAIN='local'
+2026-10-21T05:54:55.7228150Z GOTOOLDIR='/Users/runner/hostedtoolcache/go/1.26.5/x64/pkg/tool/darwin_amd64'
+2026-10-21T05:54:55.7229760Z GOVCS=''
+2026-10-21T05:54:55.7230570Z GOVERSION='go1.26.5'
+2026-10-21T05:54:55.7231450Z GOWORK=''
+2026-10-21T05:54:55.7233000Z PKG_CONFIG='pkg-config'
+2026-10-21T05:54:55.7233650Z 
+2026-10-21T05:54:55.7234970Z ##[endgroup]
+2026-10-21T05:54:55.7724240Z ##[group]Run actions/setup-python@v6
+2026-10-21T05:54:55.7725020Z with:
+2026-10-21T05:54:55.7725510Z   python-version: 3.12
+2026-10-21T05:54:55.7726100Z   check-latest: false
+2026-10-21T05:54:55.7735250Z   token: ***
+2026-10-21T05:54:55.7736260Z   update-environment: true
+2026-10-21T05:54:55.7737310Z   allow-prereleases: false
+2026-10-21T05:54:55.7738170Z   freethreaded: false
+2026-10-21T05:54:55.7739140Z env:
+2026-10-21T05:54:55.7739790Z   GOTOOLCHAIN: local
+2026-10-21T05:54:55.7740470Z ##[endgroup]
+2026-10-21T05:54:56.1728980Z ##[group]Installed versions
+2026-10-21T05:54:56.1934480Z Successfully set up CPython (3.12.10)
+2026-10-21T05:54:56.1954730Z ##[endgroup]
+2026-10-21T05:54:56.2267610Z ##[group]Run set -euo pipefail
+2026-10-21T05:54:56.2269080Z set -euo pipefail
+2026-10-21T05:54:56.2270830Z # The activity package measures a strict 2s cold projection target.
+2026-10-21T05:54:56.2272660Z # Do not share that measurement with unrelated in-test compiler
+2026-10-21T05:54:56.2274650Z # processes on small native runners. Every package still runs, and
+2026-10-21T05:54:56.2276610Z # the timed contract is repeated three times without relaxing it.
+2026-10-21T05:54:56.2278280Z all_packages="$(go list ./...)"
+2026-10-21T05:54:56.2279840Z activity_package="github.com/uvwt/agentdock/internal/activity"
+2026-10-21T05:54:56.2281240Z remaining=()
+2026-10-21T05:54:56.2283250Z found=0
+2026-10-21T05:54:56.2284190Z while IFS= read -r package; do
+2026-10-21T05:54:56.2285470Z   if [[ "$package" == "$activity_package" ]]; then
+2026-10-21T05:54:56.2286910Z     found=$((found + 1))
+2026-10-21T05:54:56.2287990Z   else
+2026-10-21T05:54:56.2288900Z     remaining+=("$package")
+2026-10-21T05:54:56.2290020Z   fi
+2026-10-21T05:54:56.2290860Z done <<< "$all_packages"
+2026-10-21T05:54:56.2291960Z test "$found" -eq 1
+2026-10-21T05:54:56.2292990Z test "${#remaining[@]}" -gt 0
+2026-10-21T05:54:56.2294250Z if [[ "$IGNORE_INTEL_SCALE" == 'true' ]]; then
+2026-10-21T05:54:56.2296660Z   echo '::warning::User-authorized candidate exception: macOS Intel TestExecutionProjectionScale100k is ignored, not passed.'
+2026-10-21T05:54:56.2300550Z   echo 'macOS Intel 100k scale test: **ignored by explicit candidate request**. The original 2s limit is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+2026-10-21T05:54:56.2303920Z   go test -p 1 ./internal/activity -skip '^TestExecutionProjectionScale100k$' -count=1 -timeout=8m
+2026-10-21T05:54:56.2305820Z else
+2026-10-21T05:54:56.2306940Z   go test -p 1 ./internal/activity -count=1 -timeout=8m
+2026-10-21T05:54:56.2309170Z   go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m
+2026-10-21T05:54:56.2311650Z fi
+2026-10-21T05:54:56.2312790Z go test -p 2 "${remaining[@]}" -count=1 -timeout=8m
+2026-10-21T05:54:56.2314090Z go vet ./...
+2026-10-21T05:54:56.2477410Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T05:54:56.2478390Z env:
+2026-10-21T05:54:56.2479020Z   GOTOOLCHAIN: local
+2026-10-21T05:54:56.2480010Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-21T05:54:56.2481540Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/x64/lib/pkgconfig
+2026-10-21T05:54:56.2483100Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-21T05:54:56.2484440Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-21T05:54:56.2485880Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+2026-10-21T05:54:56.2486970Z   IGNORE_INTEL_SCALE: false
+2026-10-21T05:54:56.2487670Z ##[endgroup]
+2026-10-21T05:54:57.0442070Z go: downloading github.com/go-oauth2/oauth2/v4 v4.5.4
+2026-10-21T05:54:57.2684180Z go: downloading github.com/uvwt/agentdock-protocol v0.8.2-0.20261004051622-257c54fb223b
+2026-10-21T05:54:57.3689330Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-10-21T05:54:57.4708340Z go: downloading github.com/modelcontextprotocol/go-sdk v1.7.0
+2026-10-21T05:54:57.5347130Z go: downloading gopkg.in/yaml.v3 v3.0.1
+2026-10-21T05:54:57.5381890Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+2026-10-21T05:54:57.5462540Z go: downloading github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
+2026-10-21T05:54:57.8961160Z go: downloading github.com/chromedp/chromedp v0.14.2
+2026-10-21T05:54:57.9967050Z go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+2026-10-21T05:54:58.0971830Z go: downloading github.com/bmatcuk/doublestar/v4 v4.10.0
+2026-10-21T05:54:58.1739000Z go: downloading github.com/rogpeppe/go-internal v1.15.0
+2026-10-21T05:54:58.2851070Z go: downloading golang.org/x/sys v0.45.0
+2026-10-21T05:54:58.4859750Z go: downloading github.com/google/jsonschema-go v0.4.3
+2026-10-21T05:54:58.5865510Z go: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+2026-10-21T05:54:58.6870850Z go: downloading golang.org/x/oauth2 v0.35.0
+2026-10-21T05:54:58.7964780Z go: downloading golang.org/x/sync v0.20.0
+2026-10-21T05:54:58.8969470Z go: downloading golang.org/x/time v0.15.0
+2026-10-21T05:54:59.0000080Z go: downloading github.com/chromedp/sysutil v1.1.0
+2026-10-21T05:54:59.1023090Z go: downloading github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
+2026-10-21T05:54:59.2026200Z go: downloading golang.org/x/text v0.14.0
+2026-10-21T05:54:59.5053170Z go: downloading github.com/gobwas/ws v1.4.0
+2026-10-21T05:55:00.1517560Z go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+2026-10-21T05:55:00.2517450Z go: downloading github.com/google/uuid v1.1.1
+2026-10-21T05:55:00.3524280Z go: downloading github.com/segmentio/encoding v0.5.4
+2026-10-21T05:55:00.4527400Z go: downloading github.com/gobwas/httphead v0.1.0
+2026-10-21T05:55:00.6534930Z go: downloading github.com/gobwas/pool v0.2.1
+2026-10-21T05:55:01.0424740Z go: downloading github.com/segmentio/asm v1.1.3
+2026-10-21T05:55:15.1403080Z --- FAIL: TestExecutionProjectionScale100k (3.17s)
+2026-10-21T05:55:15.1429320Z     scale_test.go:103: scale: events=100000 calls=20000 conversations=1000 task_ids=1000 cold_query_ms=2183.512 warm_task_query_ms=6.300 append_to_query_ms=27.778 process_heap_mib=38.43
+2026-10-21T05:55:15.1454070Z     scale_test.go:112: cold execution query exceeded the 2s target: 2.183512462s
+2026-10-21T05:55:15.1456580Z FAIL
+2026-10-21T05:55:15.1475110Z FAIL	github.com/uvwt/agentdock/internal/activity	8.722s
+2026-10-21T05:55:15.1480900Z FAIL
+2026-10-21T05:55:15.1531940Z ##[error]Process completed with exit code 1.
+2026-10-21T05:55:15.2303810Z Post job cleanup.
+2026-10-21T05:55:15.6220050Z [command]/usr/local/bin/git version
+2026-10-21T05:55:15.6465620Z git version 2.55.0
+2026-10-21T05:55:15.6757450Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/18b03994-cd2a-4a31-b22b-5e27ddff2d6d/.gitconfig'
+2026-10-21T05:55:15.6828320Z Temporarily overriding HOME='/Users/runner/work/_temp/18b03994-cd2a-4a31-b22b-5e27ddff2d6d' before making global git config changes
+2026-10-21T05:55:15.6865190Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T05:55:15.6894450Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T05:55:15.7083200Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T05:55:15.7194730Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T05:55:16.0781340Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T05:55:16.0996800Z http.https://github.com/.extraheader
+2026-10-21T05:55:16.2615060Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-21T05:55:16.3052900Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T05:55:16.5273480Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T05:55:16.5522660Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T05:55:16.9639480Z Cleaning up orphan processes
