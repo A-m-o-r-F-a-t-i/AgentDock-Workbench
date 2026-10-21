@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T06:08:08.719393+00:00",
+  "captured_at": "2026-10-21T06:12:17.625193+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39553536907,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907",
     "pull_requests": [],
     "created_at": "2026-10-21T06:07:46Z",
-    "updated_at": "2026-10-21T06:07:51Z",
+    "updated_at": "2026-10-21T06:08:22Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -245,9 +245,57 @@
   "candidate_jobs": [
     {
       "name": "resolve-source",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119067905298"
+    },
+    {
+      "name": "Native linux amd64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015417"
+    },
+    {
+      "name": "Native darwin arm64",
       "status": "in_progress",
       "conclusion": null,
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119067905298"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015482"
+    },
+    {
+      "name": "Native darwin amd64",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015483"
+    },
+    {
+      "name": "Native linux arm64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015516"
+    },
+    {
+      "name": "windows / Resolve requested ref once",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068016012"
+    },
+    {
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067572"
+    },
+    {
+      "name": "windows / Linux transaction and concurrency regression",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067590"
+    },
+    {
+      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067649"
     }
   ]
 }
