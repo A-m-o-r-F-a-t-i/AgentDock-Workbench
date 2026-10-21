@@ -355,7 +355,7 @@ func (r *Runtime) authorizeStructuredSnapshot(ctx context.Context, original, cur
 		ownerScopedUnattributed := original.ConversationID == "" && current.WorkspaceID == "" &&
 			original.SourceOwnerKey != "" && original.SourceOwnerKey == activity.SourceOwnerKey(ctx)
 		if !ownerScopedUnattributed {
-			return toolError("OUTPUT_WORKSPACE_MISMATCH", "Select the original workspace before reading this retained structured result.", "permission")
+			return r.retainedWorkspaceMismatch(ctx, original.WorkspaceID, current.WorkspaceID, original.SourceOwnerKey != "" && original.SourceOwnerKey == activity.SourceOwnerKey(ctx))
 		}
 	}
 	return nil
