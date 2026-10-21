@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -10,6 +11,7 @@ import (
 	"github.com/uvwt/agentdock/internal/activity"
 	"github.com/uvwt/agentdock/internal/config"
 	toolfile "github.com/uvwt/agentdock/internal/tool/file"
+	"github.com/uvwt/agentdock/internal/workspace"
 )
 
 type outputPolicyContextKey struct{}
@@ -50,7 +52,7 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 			}
 		}
 		if call.WorkspaceID != "" && bound.WorkspaceID != call.WorkspaceID && !r.ownsSelectedContextSource(request.Path, bound) {
-			return nil, toolError("OUTPUT_WORKSPACE_MISMATCH", "Select the original workspace before reading this retained output.", "permission")
+			return nil, r.retainedWorkspaceMismatch(ctx, call.WorkspaceID, bound.WorkspaceID, true)
 		}
 	}
 	if parts[2] == "" && (call.OutputSource == nil || call.OutputSource.Ref == "") {
@@ -105,4 +107,40 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 		return nil, err
 	}
 	return result, nil
+}
+
+// retainedWorkspaceMismatch is reached only after owner and conversation checks.
+// Do not weaken workspace isolation or switch the caller's binding implicitly.
+// The source directory is disclosed only for an authenticated owning source.
+func (r *Runtime) retainedWorkspaceMismatch(ctx context.Context, sourceID, currentID string, disclose bool) error {
+	details := map[string]any{
+		"current_workspace_id": currentID,
+		"execution_performed": false,
+		"effect_state": "none",
+		"retry_safe": true,
+	}
+	action := map[string]any{
+		"action": "select_workspace",
+		"tool": "agentdock_context",
+		"category": "protocol",
+		"required": true,
+		"reason_code": "retained_output_workspace",
+		"text": "Select the original workspace once, then retry the retained source or cursor unchanged. No output was read.",
+	}
+	if disclose {
+		details["source_workspace_id"] = sourceID
+		if r.workspaceRegistry != nil {
+			record, err := r.workspaceRegistry.Select(ctx, sourceID, "")
+			if err == nil && record.Runtime == workspace.HostRuntime() {
+				workdir := filepath.Join(record.Root, record.DefaultWorkdir)
+				if filepath.IsAbs(workdir) {
+					details["source_workdir"] = workdir
+					action["arguments"] = map[string]any{"workdir": workdir}
+				}
+			}
+		}
+	}
+	details["required_action"] = action
+	return toolErrorDetails("OUTPUT_WORKSPACE_MISMATCH",
+		"Select the original workspace before reading this retained output.", "conflict", details)
 }
