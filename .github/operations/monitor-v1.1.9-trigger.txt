@@ -1,1 +1,1 @@
-Refresh v1.1.9 complete candidate run 39547227739 attempt 4 status.
+Refresh v1.1.9 complete candidate run 39547227739 attempt 4 status sequence 2.
