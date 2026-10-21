@@ -4,12 +4,16 @@ package desktopruntime
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/uvwt/agentdock/internal/fs/processlock"
 )
 
 func TestHealthVersionRejectsAnotherCoreVersion(t *testing.T) {
@@ -42,5 +46,32 @@ func TestCoreListenAddressPreflightRejectsOccupiedPort(t *testing.T) {
 	err = ensureCoreListenAddressAvailable(Manifest{Host: "127.0.0.1", Port: port})
 	if err == nil || !strings.Contains(err.Error(), listener.Addr().String()) {
 		t.Fatalf("occupied address error = %v", err)
+	}
+}
+
+func TestCoreServiceLockSerializesLifecycleActions(t *testing.T) {
+	root := t.TempDir()
+	held, acquired, err := processlock.TryAcquire(coreServiceLockPath(root))
+	if err != nil || !acquired {
+		t.Fatalf("hold lifecycle lock: lock=%v acquired=%v err=%v", held, acquired, err)
+	}
+	called := false
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = withCoreServiceLock(ctx, root, func() error {
+		called = true
+		return nil
+	})
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) || called {
+		t.Fatalf("contended lifecycle action: called=%v err=%v", called, err)
+	}
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := withCoreServiceLock(context.Background(), root, func() error {
+		called = true
+		return nil
+	}); err != nil || !called {
+		t.Fatalf("released lifecycle action: called=%v err=%v", called, err)
 	}
 }

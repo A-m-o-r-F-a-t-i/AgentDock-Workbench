@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/buildinfo"
+	"github.com/uvwt/agentdock/internal/fs/processlock"
 	"golang.org/x/sys/windows"
 )
 
@@ -47,20 +48,40 @@ func platformServiceAction(ctx context.Context, runtimeRoot, action string) erro
 	if err != nil {
 		return err
 	}
-
-	switch action {
-	case "start":
-		return startCore(ctx, manifest, root)
-	case "stop":
-		return stopCore(ctx, manifest, root)
-	case "restart":
-		if err := stopCore(ctx, manifest, root); err != nil {
-			return err
-		}
-		return startCore(ctx, manifest, root)
-	default:
+	if action != "start" && action != "stop" && action != "restart" {
 		return fmt.Errorf("不支持的 Windows 服务操作：%s", action)
 	}
+
+	return withCoreServiceLock(ctx, root, func() error {
+		switch action {
+		case "start":
+			return startCore(ctx, manifest, root)
+		case "stop":
+			return stopCore(ctx, manifest, root)
+		default:
+			if err := stopCore(ctx, manifest, root); err != nil {
+				return err
+			}
+			return startCore(ctx, manifest, root)
+		}
+	})
+}
+
+func coreServiceLockPath(runtimeRoot string) string {
+	return filepath.Join(runtimeRoot, "locks", "core-service.lock")
+}
+
+func withCoreServiceLock(ctx context.Context, runtimeRoot string, action func() error) (actionErr error) {
+	lock, err := processlock.Acquire(ctx, coreServiceLockPath(runtimeRoot))
+	if err != nil {
+		return fmt.Errorf("等待 AgentDock Core 生命周期锁失败: %w", err)
+	}
+	defer func() {
+		if releaseErr := lock.Release(); releaseErr != nil {
+			actionErr = errors.Join(actionErr, fmt.Errorf("释放 AgentDock Core 生命周期锁失败: %w", releaseErr))
+		}
+	}()
+	return action()
 }
 
 func loadDesktopManifest(runtimeRoot string) (Manifest, string, error) {
@@ -93,8 +114,18 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 		}
 		return waitForCoreHealth(ctx, manifest, runtimeRoot, buildinfo.Version, windowsCoreStartTimeout, true)
 	}
-	if err := ensureCoreListenAddressAvailable(manifest); err != nil {
-		return err
+	if listenErr := ensureCoreListenAddressAvailable(manifest); listenErr != nil {
+		// Another start path can create the managed Core after the first process
+		// snapshot but before this port probe. Re-check ownership before reporting
+		// a foreign listener so a concurrent valid launch can finish normally.
+		running, processErr := coreProcessRunning(runtimeRoot, coreBinary)
+		if processErr != nil {
+			return errors.Join(listenErr, fmt.Errorf("重新识别 AgentDock Core 监听进程失败: %w", processErr))
+		}
+		if running {
+			return waitForCoreHealth(ctx, manifest, runtimeRoot, buildinfo.Version, windowsCoreStartTimeout, true)
+		}
+		return listenErr
 	}
 	recoverAbandonedCoreLocks(manifest, runtimeRoot)
 	if manifest.UsesScheduledTask() {
