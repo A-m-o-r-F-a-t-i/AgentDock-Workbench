@@ -1,0 +1,35 @@
+name: PR 183 CI diagnostics
+
+on:
+  push:
+    branches: [ops/pr183-ci-diagnostics-20261021]
+    paths:
+      - '.github/diagnostics/pr183.trigger'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Collect failed job logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          mkdir -p ci-diagnostics/pr183
+          gh run view 39556156217 --job 119076322461 --log > ci-diagnostics/pr183/go-check-ubuntu.log 2>&1 || true
+          gh run view 39556156249 --job 119076497514 --log > ci-diagnostics/pr183/failure-audit-ubuntu.log 2>&1 || true
+          gh run view 39556156221 --job 119076422698 --log > ci-diagnostics/pr183/permission-regression-ubuntu.log 2>&1 || true
+      - name: Commit diagnostics
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ci-diagnostics/pr183
+          git commit -m 'chore: record PR 183 failed CI logs'
+          git push
