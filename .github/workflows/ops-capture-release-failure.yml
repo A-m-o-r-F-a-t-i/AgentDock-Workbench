@@ -17,24 +17,28 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: '39591809575'
+      RELEASE_RUN_ID: '39591809575'
       DARWIN_AMD64_JOB: '119194535797'
       DARWIN_ARM64_JOB: '119194535841'
+      WINDOWS_PR_RUN_ID: '39595266170'
+      WINDOWS_GO_JOB: '119205953548'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.ref_name }}
-      - name: Capture completed macOS failure logs
+      - name: Capture completed failure logs
         shell: bash
         run: |
           set -euo pipefail
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url,headSha,jobs > ops-release-failure-jobs.json
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_AMD64_JOB" --log > ops-release-darwin-amd64.log
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_ARM64_JOB" --log > ops-release-darwin-arm64.log
+          gh run view "$RELEASE_RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url,headSha,jobs > ops-release-failure-jobs.json
+          gh run view "$RELEASE_RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_AMD64_JOB" --log > ops-release-darwin-amd64.log
+          gh run view "$RELEASE_RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_ARM64_JOB" --log > ops-release-darwin-arm64.log
+          gh run view "$WINDOWS_PR_RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$WINDOWS_GO_JOB" --log > ops-pr-windows-go.log
           test -s ops-release-darwin-amd64.log
           test -s ops-release-darwin-arm64.log
+          test -s ops-pr-windows-go.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ops-release-failure-jobs.json ops-release-darwin-amd64.log ops-release-darwin-arm64.log
-          git commit -m 'chore: record macOS release failure diagnostics'
+          git add ops-release-failure-jobs.json ops-release-darwin-amd64.log ops-release-darwin-arm64.log ops-pr-windows-go.log
+          git commit -m 'chore: record release and Windows PR failure diagnostics'
           git push origin "HEAD:$GITHUB_REF_NAME"
