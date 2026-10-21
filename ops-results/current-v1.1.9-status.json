@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T05:18:24.971705+00:00",
+  "captured_at": "2026-10-21T05:23:06.693211+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39547227739,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
     "pull_requests": [],
     "created_at": "2026-10-21T05:01:29Z",
-    "updated_at": "2026-10-21T05:13:54Z",
+    "updated_at": "2026-10-21T05:21:56Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -245,8 +245,8 @@
   "candidate_jobs": [
     {
       "name": "Native darwin amd64",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051636980"
     },
     {
@@ -302,6 +302,30 @@
       "status": "completed",
       "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051640040"
+    },
+    {
+      "name": "Universal macOS Workbench application",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053866829"
+    },
+    {
+      "name": "android / Source and bridge contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053867112"
+    },
+    {
+      "name": "android / Prepare APK-bundled ARM64 Core",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053967230"
+    },
+    {
+      "name": "android / Android lint, unit tests and APKs",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119054026568"
     }
   ]
 }
