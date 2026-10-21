@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import ServiceManagement
 
@@ -61,6 +62,8 @@ struct ServiceControllerValidationTests {
         try testLegacyRuntimeMigrationTransactions(root: root, appBundle: appBundle)
         testQuickTunnelBootstrap()
         testServiceRegistrationStatusClassification()
+        testHealthVersionAndLaunchdIdentity()
+        try testServicePortProbe()
         try testNexusConnectionStateResolution(root: root)
         try testDesktopUpdateCheckDecoding()
         testStatusItemVisibilityPolicy()
@@ -175,6 +178,57 @@ struct ServiceControllerValidationTests {
         precondition(ServiceController.isUnregistered(.notFound))
         precondition(!ServiceController.isUnregistered(.enabled))
         precondition(!ServiceController.isUnregistered(.requiresApproval))
+    }
+
+    private static func testHealthVersionAndLaunchdIdentity() {
+        precondition(HealthPayload(ok: true, version: "1.1.9").matches(expectedVersion: "v1.1.9"))
+        precondition(!HealthPayload(ok: true, version: "1.1.8").matches(expectedVersion: "v1.1.9"))
+        precondition(!HealthPayload(ok: false, version: "1.1.9").matches(expectedVersion: "v1.1.9"))
+
+        let launchd = """
+        gui/501/com.uvwt.agentdock.core = {
+            active count = 1
+            pid = 4321
+        }
+        """
+        precondition(ServiceController.launchdPID(from: launchd) == 4321)
+        precondition(ServiceController.launchdPID(from: "state = waiting") == nil)
+        precondition(ServiceController.launchdPID(from: "pid = 1") == nil)
+    }
+
+    private static func testServicePortProbe() throws {
+        var descriptor = Darwin.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        precondition(descriptor >= 0)
+        defer {
+            if descriptor >= 0 { Darwin.close(descriptor) }
+        }
+
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = 0
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        let bound = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { addressPointer in
+                Darwin.bind(descriptor, addressPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        precondition(bound == 0)
+        precondition(Darwin.listen(descriptor, SOMAXCONN) == 0)
+
+        var addressLength = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let named = withUnsafeMutablePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { addressPointer in
+                Darwin.getsockname(descriptor, addressPointer, &addressLength)
+            }
+        }
+        precondition(named == 0)
+        let port = Int(UInt16(bigEndian: address.sin_port))
+        precondition(!ServiceController.canBindServicePort(host: "127.0.0.1", port: port))
+
+        Darwin.close(descriptor)
+        descriptor = -1
+        precondition(ServiceController.canBindServicePort(host: "127.0.0.1", port: port))
     }
 
     private static func testNexusConnectionStateResolution(root: URL) throws {
