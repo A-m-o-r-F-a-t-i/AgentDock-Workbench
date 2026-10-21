@@ -1,0 +1,61 @@
+name: Diagnose v1.1.9 Android aggregate failure
+
+on:
+  push:
+    branches:
+      - ops/monitor-v1.1.9-20261021
+    paths:
+      - .github/workflows/ops-diagnose-v1.1.9-android-aggregate.yml
+      - .github/operations/diagnose-v1.1.9-android-aggregate-trigger.txt
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download failed Android aggregation log
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/jobs/119062647937/logs" \
+            --output "$RUNNER_TEMP/job.log"
+      - name: Extract bounded redacted context
+        shell: python
+        run: |
+          import os, pathlib, re
+          raw=pathlib.Path(os.environ['RUNNER_TEMP'],'job.log').read_text(encoding='utf-8',errors='replace')
+          raw=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',raw)
+          raw=re.sub(r'gh[opsu]_[A-Za-z0-9_]{20,}','[REDACTED_GITHUB_TOKEN]',raw)
+          lines=raw.splitlines()
+          marker=re.compile(r'(?i)(--- FAIL:|\bFAIL\b|panic:|fatal:|error:|timed out|timeout|process completed with exit code|exit status|unexpected|assertion|unable to|cannot |artifact|evidence|aggregate|api 33)')
+          selected=set(range(max(0,len(lines)-260),len(lines)))
+          for i,line in enumerate(lines):
+              if marker.search(line): selected.update(range(max(0,i-20),min(len(lines),i+50)))
+          ordered=sorted(selected)
+          if len(ordered)>1200: ordered=ordered[-1200:]
+          out=[];previous=None
+          for i in ordered:
+              if previous is not None and i>previous+1:out.append('... omitted ...')
+              out.append(lines[i][:2800]);previous=i
+          path=pathlib.Path('ops-results/android-aggregate-failure.txt');path.parent.mkdir(exist_ok=True)
+          path.write_text('\n'.join(out)+'\n',encoding='utf-8')
+      - name: Commit diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ops-results/android-aggregate-failure.txt
+          git commit -m 'chore(release): retain Android aggregate failure diagnostic [skip ci]'
+          git push
