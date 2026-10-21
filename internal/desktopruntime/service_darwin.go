@@ -25,9 +25,36 @@ func launchctlBinary() string {
 
 func launchdTarget(label string) string { return launchdDomain() + "/" + label }
 
+func launchdDescription(ctx context.Context, label string) (string, bool) {
+	output, err := runCommand(ctx, launchctlBinary(), "print", launchdTarget(label))
+	return output, err == nil
+}
+
 func launchdLoaded(ctx context.Context, label string) bool {
-	_, err := runCommand(ctx, launchctlBinary(), "print", launchdTarget(label))
-	return err == nil
+	_, loaded := launchdDescription(ctx, label)
+	return loaded
+}
+
+func launchdPIDFromDescription(description string) int {
+	for _, rawLine := range strings.Split(description, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if !strings.HasPrefix(line, "pid = ") {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "pid = ")))
+		if err == nil && pid > 1 {
+			return pid
+		}
+	}
+	return 0
+}
+
+func launchdPID(ctx context.Context, label string) int {
+	description, loaded := launchdDescription(ctx, label)
+	if !loaded {
+		return 0
+	}
+	return launchdPIDFromDescription(description)
 }
 
 func kickstartRegisteredLaunchAgent(ctx context.Context, label, manager string) error {
@@ -47,9 +74,10 @@ func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStat
 		return ServiceStatus{}, err
 	}
 	loaded := launchdLoaded(ctx, manifest.ServiceName)
+	running := loaded && launchdPID(ctx, manifest.ServiceName) > 1
 	return ServiceStatus{
-		Running:        loaded,
-		Healthy:        loaded && healthyVersion(ctx, values, buildinfo.Version),
+		Running:        running,
+		Healthy:        running && healthyVersion(ctx, values, buildinfo.Version),
 		StartupEnabled: loaded,
 	}, nil
 }
