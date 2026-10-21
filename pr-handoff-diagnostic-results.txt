@@ -1,0 +1,6 @@
+go test failed; selected package/test/compiler identifiers only
+--- FAIL: TestAuditBuiltinSearchNeverInitializesDynamicServers (0.04s)
+--- FAIL: TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification (0.03s)
+FAIL
+FAIL	github.com/uvwt/agentdock/internal/app	27.947s
+FAIL
