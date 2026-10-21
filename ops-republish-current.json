@@ -73,7 +73,7 @@
       "conclusion": "",
       "completedAt": "0001-01-01T00:00:00Z",
       "active_steps": [
-        "Build Windows ZIP and offline Setup for each architecture"
+        "Upload verified Windows package"
       ]
     },
     {
@@ -149,6 +149,6 @@
   ],
   "source_sha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
   "version": "1.1.9",
-  "recorded_at": "2026-10-21T14:53:52Z",
-  "probe_sequence": "9"
+  "recorded_at": "2026-10-21T14:55:56Z",
+  "probe_sequence": "10"
 }
