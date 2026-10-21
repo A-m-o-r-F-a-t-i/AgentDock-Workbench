@@ -1,0 +1,1 @@
+Cancel obsolete candidate run 39547227739, build a coherent candidate from 26c4a8b71a6dbeff7486c84f516c75828c8acf3b with the repository's explicit non-publishing macOS Intel scale exception, then replace stable 1.1.9 after all remaining checks pass.
