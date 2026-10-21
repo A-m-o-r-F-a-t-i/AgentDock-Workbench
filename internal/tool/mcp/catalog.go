@@ -122,7 +122,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 	}
 	builtins = sortedBuiltinTools(builtins)
 	if len(builtins) > 0 && len(selected) == 0 && len(invalid) == 0 {
-		return nil, s.rejectBuiltinDiscovery(ctx, builtins)
+		return s.resolveBuiltinDiscovery(ctx, builtins)
 	}
 	type serverResult struct {
 		catalog mcpclient.Catalog
@@ -275,15 +275,14 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (Result, 
 		}
 	}
 	if len(builtins) > 0 {
-		routeError := s.rejectBuiltinDiscovery(ctx, builtins)
-		var typed *ToolError
-		if !errors.As(routeError, &typed) {
-			return nil, routeError
+		route, routeErr := s.resolveBuiltinDiscovery(ctx, builtins)
+		if routeErr != nil {
+			return nil, routeErr
 		}
 		for _, item := range builtins {
 			problems = append(problems, map[string]any{
-				"selector": item.Name, "code": typed.Code, "status": "host_builtin",
-				"message": typed.Message, "retryable": false,
+				"selector": item.Name, "code": route["route_code"], "status": "host_builtin",
+				"message": "Call this AgentDock built-in directly from the caller tools/list; no business action ran.", "retryable": false,
 				"required_host_tool": item.Name, "invoke_via": InvokeDirect,
 				"scope": ScopeAgentDockBuiltin, "origin": ScopeAgentDockBuiltin,
 				"requested_scope": ScopeAgentDockMCP, "resolution_status": "wrong_scope", "wrong_scope": true,

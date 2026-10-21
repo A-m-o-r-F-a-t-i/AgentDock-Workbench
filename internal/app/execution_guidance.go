@@ -133,7 +133,7 @@ func (r *Runtime) hostBuiltinHandoff(name string, result Result) []map[string]an
 		steps = append(steps, map[string]any{
 			"action": "call_host_tool", "tool": summary.Name, "invoke_via": toolmcp.InvokeDirect,
 			"scope": toolmcp.ScopeAgentDockBuiltin, "origin": toolmcp.ScopeAgentDockBuiltin,
-			"text": "Call this AgentDock device built-in directly from the caller tools/list namespace. Stop dynamic MCP search and inspect. No business action ran.",
+			"text": "Call this AgentDock built-in from the caller's current tools/list if available; otherwise refresh the host tool directory. Do not search nested MCP again. No business action ran.",
 		})
 	}
 	return steps

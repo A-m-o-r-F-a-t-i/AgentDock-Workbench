@@ -121,12 +121,11 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	limit := boundedInt(intValue(request.Limit, 5), 5, 1, 100)
 	if server == "" {
 		if match, available := s.resolveBuiltinRoute(query); available {
-			err := s.rejectBuiltinDiscovery(ctx, []BuiltinToolSummary{match.Tool})
-			var routeErr *ToolError
-			if match.Alias != "" && errors.As(err, &routeErr) {
-				routeErr.Details["matched_alias"] = match.Alias
+			route, err := s.resolveBuiltinDiscovery(ctx, []BuiltinToolSummary{match.Tool})
+			if match.Alias != "" && route != nil {
+				route["matched_alias"] = match.Alias
 			}
-			return nil, err
+			return route, err
 		}
 	}
 	query, server, normalizeErr = s.mcpClients.ResolveSearchSelector(ctx, query, server)
@@ -194,7 +193,18 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 		schema, _ := found.Selected["input_schema"].(map[string]any)
 		required := schema["required"]
 		complete := found.ArgumentsComplete
-		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
+		call := map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
+		result["next_call"] = call
+		// Discovery returns the next tool, never executes it or invents required
+		// business arguments. The caller must supply every required field.
+		result["required_action"] = map[string]any{
+			"category": "protocol", "action": "call_dynamic_mcp_tool",
+			"tool": "mcp_tool_call", "arguments": call["arguments"],
+			"required_arguments": required, "arguments_complete": complete,
+			"required": complete, "execution_performed": false,
+			"reason_code": "dynamic_mcp_tool_resolved",
+		}
+		result["terminal"] = true
 		result["catalog_state"] = found.Selected["catalog_state"]
 		result["managed_target"] = managedTarget(ctx, stringValue(found.Selected["server"]), stringValue(found.Selected["catalog_revision"]), "registered_selection")
 		// A resolved unique tool is a terminal routing result. Keep its full
