@@ -113,9 +113,9 @@
     },
     {
       "name": "android / Emulator API 37",
-      "status": "in_progress",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:51:38Z",
       "active_steps": []
     },
     {
@@ -134,16 +134,21 @@
     },
     {
       "name": "android / Emulator API 33",
-      "status": "in_progress",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
-      "active_steps": [
-        "Run navigation and screenshot tests"
-      ]
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:53:05Z",
+      "active_steps": []
+    },
+    {
+      "name": "android / Aggregate candidate evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:53:21Z",
+      "active_steps": []
     }
   ],
   "source_sha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
   "version": "1.1.9",
-  "recorded_at": "2026-10-21T14:51:39Z",
-  "probe_sequence": "8"
+  "recorded_at": "2026-10-21T14:53:52Z",
+  "probe_sequence": "9"
 }
