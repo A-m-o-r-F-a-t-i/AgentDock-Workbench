@@ -1,0 +1,103 @@
+name: Temporary AgentDock 1.1.9 replacement
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-c9094a0c-20261021
+    paths:
+      - .github/workflows/ops-republish-v1.1.9.yml
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  dispatch-and-monitor:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+      TARGET_WORKFLOW: workbench-release.yml
+      STATUS_FILE: ops-republish-status.json
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Verify final main source
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          test "$actual" = "$SOURCE_SHA"
+
+      - name: Dispatch complete 1.1.9 replacement
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run "$TARGET_WORKFLOW" \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f ref="$SOURCE_SHA" \
+            -f publish=true \
+            -f prerelease=false \
+            -f installation_tests=true \
+            -f ignore_macos_intel_scale=false
+
+          run_id=""
+          for attempt in $(seq 1 30); do
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow "$TARGET_WORKFLOW" \
+              --event workflow_dispatch \
+              --branch main \
+              --limit 20 \
+              --json databaseId,headSha,createdAt \
+              --jq ".[] | select(.headSha == \"$SOURCE_SHA\") | .databaseId" | head -n 1)"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 5
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Monitor release and record result
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          completed=false
+          for attempt in $(seq 1 110); do
+            status="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status --jq .status)"
+            if [ "$status" = completed ]; then
+              completed=true
+              break
+            fi
+            sleep 60
+          done
+          test "$completed" = true
+
+          temporary="$RUNNER_TEMP/republish-status.json"
+          gh run view "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json status,conclusion,url,headSha,jobs > "$temporary"
+          jq \
+            --arg source_sha "$SOURCE_SHA" \
+            --arg version "1.1.9" \
+            --arg recorded_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '. + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at}' \
+            "$temporary" > "$STATUS_FILE"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$STATUS_FILE"
+          git commit -m 'chore: record v1.1.9 replacement result'
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+          conclusion="$(jq -r .conclusion "$STATUS_FILE")"
+          test "$conclusion" = success
