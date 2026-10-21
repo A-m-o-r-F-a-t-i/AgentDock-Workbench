@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T05:28:45.139295+00:00",
+  "captured_at": "2026-10-21T05:33:09.849428+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39547227739,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
     "pull_requests": [],
     "created_at": "2026-10-21T05:01:29Z",
-    "updated_at": "2026-10-21T05:25:35Z",
+    "updated_at": "2026-10-21T05:29:39Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -287,8 +287,8 @@
     },
     {
       "name": "windows / Build verified unsigned Windows packages",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638971"
     },
     {
@@ -347,8 +347,8 @@
     },
     {
       "name": "android / Emulator API 26",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135316"
     },
     {
@@ -356,6 +356,18 @@
       "status": "in_progress",
       "conclusion": null,
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135420"
+    },
+    {
+      "name": "Native Windows ARM64 install and uninstall",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119056327914"
+    },
+    {
+      "name": "windows / Publish verified Windows x64 Release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119056328830"
     }
   ]
 }
