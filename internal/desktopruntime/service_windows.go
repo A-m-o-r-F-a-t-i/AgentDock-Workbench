@@ -4,16 +4,21 @@ package desktopruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/uvwt/agentdock/internal/buildinfo"
 	"golang.org/x/sys/windows"
 )
 
@@ -29,7 +34,7 @@ func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStat
 	if err != nil {
 		return ServiceStatus{}, err
 	}
-	healthy := testHealth(ctx, manifest.HealthURL())
+	healthy := running && testHealthVersion(ctx, manifest.HealthURL(), buildinfo.Version)
 	startupEnabled, err := coreAutostartEnabled(ctx, manifest)
 	if err != nil {
 		return ServiceStatus{}, fmt.Errorf("读取 AgentDock 开机启动状态失败: %w", err)
@@ -71,20 +76,25 @@ func loadDesktopManifest(runtimeRoot string) (Manifest, string, error) {
 }
 
 func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error {
-	if err := CheckExecutionCompatibility(ctx, runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest)); err != nil {
+	coreBinary := ActiveCoreBinary(runtimeRoot, manifest)
+	if err := CheckExecutionCompatibility(ctx, runtimeRoot, coreBinary); err != nil {
 		return err
 	}
-	if testHealth(ctx, manifest.HealthURL()) {
-		return nil
-	}
-	// The Tunnel supervisor and one-shot CLI commands share Core's executable.
-	// Only a real Core process should prevent another launch while /healthz warms.
-	running, err := coreProcessRunning(runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest))
+	// Health alone is insufficient during an upgrade: an older Core or another
+	// installation can own the same port. Require the active generation process
+	// and the exact build version before treating the service as already ready.
+	running, err := coreProcessRunning(runtimeRoot, coreBinary)
 	if err != nil {
 		return fmt.Errorf("识别已启动的 AgentDock Core 失败: %w", err)
 	}
 	if running {
-		return waitForCoreHealth(ctx, manifest, runtimeRoot, windowsCoreStartTimeout, true)
+		if testHealthVersion(ctx, manifest.HealthURL(), buildinfo.Version) {
+			return nil
+		}
+		return waitForCoreHealth(ctx, manifest, runtimeRoot, buildinfo.Version, windowsCoreStartTimeout, true)
+	}
+	if err := ensureCoreListenAddressAvailable(manifest); err != nil {
+		return err
 	}
 	recoverAbandonedCoreLocks(manifest, runtimeRoot)
 	if manifest.UsesScheduledTask() {
@@ -94,7 +104,19 @@ func startCore(ctx context.Context, manifest Manifest, runtimeRoot string) error
 	} else if err := startDetachedCore(manifest, runtimeRoot); err != nil {
 		return err
 	}
-	return waitForCoreHealth(ctx, manifest, runtimeRoot, windowsCoreStartTimeout, !manifest.UsesScheduledTask())
+	return waitForCoreHealth(ctx, manifest, runtimeRoot, buildinfo.Version, windowsCoreStartTimeout, !manifest.UsesScheduledTask())
+}
+
+func ensureCoreListenAddressAvailable(manifest Manifest) error {
+	address := net.JoinHostPort(manifest.Host, strconv.Itoa(manifest.Port))
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return fmt.Errorf("AgentDock Core 无法使用监听地址 %s；该地址已被其他进程占用: %w", address, err)
+	}
+	if err := listener.Close(); err != nil {
+		return fmt.Errorf("释放 AgentDock Core 监听地址探针 %s 失败: %w", address, err)
+	}
+	return nil
 }
 
 // coreProcessRunning requires a server entry point, in addition to excluding
@@ -208,11 +230,11 @@ func defaultWindowsWorkDir() string {
 	return workDir
 }
 
-func waitForCoreHealth(ctx context.Context, manifest Manifest, runtimeRoot string, timeout time.Duration, observedCore bool) error {
+func waitForCoreHealth(ctx context.Context, manifest Manifest, runtimeRoot, expectedVersion string, timeout time.Duration, observedCore bool) error {
 	url := manifest.HealthURL()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if testHealth(ctx, url) {
+		if testHealthVersion(ctx, url, expectedVersion) {
 			return nil
 		}
 		running, err := coreProcessRunning(runtimeRoot, ActiveCoreBinary(runtimeRoot, manifest))
@@ -241,17 +263,47 @@ func coreStartFailure(runtimeRoot string, cause error) error {
 	return fmt.Errorf("%w; Core 最近日志 (%s): %s", cause, logPath, tail)
 }
 
-func testHealth(ctx context.Context, url string) bool {
+type coreHealthResponse struct {
+	OK      bool   `json:"ok"`
+	Version string `json:"version"`
+}
+
+func readCoreHealth(ctx context.Context, url string) (coreHealthResponse, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, url, nil)
 	if err != nil {
-		return false
+		return coreHealthResponse{}, err
 	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return false
+		return coreHealthResponse{}, err
 	}
 	defer response.Body.Close()
-	return response.StatusCode >= 200 && response.StatusCode < 300
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return coreHealthResponse{}, fmt.Errorf("%s returned HTTP %d", url, response.StatusCode)
+	}
+	var health coreHealthResponse
+	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&health); err != nil {
+		return coreHealthResponse{}, err
+	}
+	if !health.OK {
+		return coreHealthResponse{}, fmt.Errorf("%s returned ok=false", url)
+	}
+	return health, nil
+}
+
+func testHealth(ctx context.Context, url string) bool {
+	_, err := readCoreHealth(ctx, url)
+	return err == nil
+}
+
+func testHealthVersion(ctx context.Context, url, expectedVersion string) bool {
+	health, err := readCoreHealth(ctx, url)
+	if err != nil {
+		return false
+	}
+	expected := strings.TrimPrefix(strings.TrimSpace(expectedVersion), "v")
+	actual := strings.TrimPrefix(strings.TrimSpace(health.Version), "v")
+	return expected != "" && actual == expected
 }

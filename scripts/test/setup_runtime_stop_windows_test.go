@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,61 @@ import (
 	"github.com/uvwt/agentdock/internal/process"
 	"golang.org/x/sys/windows"
 )
+
+func TestSetupPortPreflightRejectsOccupiedPort(t *testing.T) {
+	powershell, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		t.Fatal("Windows PowerShell is required to verify Setup port preflight")
+	}
+	script := os.Getenv("AGENTDOCK_TEST_INSTALLER_SCRIPT")
+	if script == "" {
+		script = filepath.Join("..", "install", "install.ps1")
+	}
+	script, err = filepath.Abs(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
+	program := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
+. %s -LibraryOnly
+try {
+    Assert-AgentDockPortAvailable -Port %d -TimeoutMilliseconds 200
+    throw 'occupied port was accepted'
+} catch {
+    if ($_.Exception.Message -eq 'occupied port was accepted') { throw }
+    $_.Exception.Message
+}
+`, quote(script), port)
+	command := exec.Command(powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", program)
+	process.Configure(command)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		_ = listener.Close()
+		t.Fatalf("occupied port preflight: %v\n%s", err, output)
+	}
+	message := string(output)
+	if !strings.Contains(message, strconv.Itoa(port)) || !strings.Contains(message, "PID=") {
+		_ = listener.Close()
+		t.Fatalf("occupied port diagnostics = %q", message)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	program = fmt.Sprintf(`$ErrorActionPreference = 'Stop'
+. %s -LibraryOnly
+Assert-AgentDockPortAvailable -Port %d -TimeoutMilliseconds 200
+`, quote(script), port)
+	command = exec.Command(powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", program)
+	process.Configure(command)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("released port preflight: %v\n%s", err, output)
+	}
+}
 
 func TestSetupRuntimeStopWaitsForLauncherChildren(t *testing.T) {
 	powershell, err := exec.LookPath("powershell.exe")
@@ -173,6 +229,11 @@ function Get-ProcessesByPath {
 }
 $destinationBinary = %s
 $destinationTrayBinary = %s
+$versionsDir = Split-Path -Parent %s
+$portProbe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+$portProbe.Start()
+$Port = ([Net.IPEndPoint] $portProbe.LocalEndpoint).Port
+$portProbe.Stop()
 $existingGenerationDirectory = %s
 $existingGenerationCore = %s
 $existingGenerationTray = %s
@@ -200,7 +261,7 @@ try {
     $childReady.Dispose()
 }
 `, quote(script), quote(script), quote(prefix+"-launch"), quote(prefix+"-child-ready"), quote(triggerPath), triggerCount, parent.Process.Pid,
-				quote(corePath), quote(trayPath), quote(generation), quote(generationCore), quote(generationTray),
+				quote(corePath), quote(trayPath), quote(generation), quote(generation), quote(generationCore), quote(generationTray),
 				quote(filepath.Join(root, "core.backup")), quote(filepath.Join(root, "tray.backup")))
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()

@@ -5,9 +5,7 @@ package installer
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +21,8 @@ import (
 )
 
 // This exercises the real Core and shim without installing Setup, registering a
-// task, launching a Core server, or touching the user's runtime or credentials.
+// task, or touching the user's runtime or credentials. The Core uses a temporary
+// runtime and an ephemeral loopback port.
 func TestWindowsInstallerControlsTrialThroughGenerationCore(t *testing.T) {
 	root := t.TempDir()
 	layout, err := updateengine.NewWindowsLayout(root)
@@ -49,12 +48,12 @@ func TestWindowsInstallerControlsTrialThroughGenerationCore(t *testing.T) {
 		}
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "version": "1.1.6"})
-	}))
-	defer server.Close()
-	port, err := strconv.Atoi(strings.Split(server.Listener.Addr().String(), ":")[1])
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(root, "home")
@@ -65,7 +64,7 @@ func TestWindowsInstallerControlsTrialThroughGenerationCore(t *testing.T) {
 		SchemaVersion: desktopruntime.SchemaVersion, InstallRoot: root,
 		AgentDockHome: home, AgentDockDefaultDir: root, AgentDockBinary: layout.CoreShim(),
 		PrivilegeMode: "standard", StartupValueName: "AgentDock-Installer-Regression",
-		Host: "127.0.0.1", Port: port, LocalMCPURL: server.URL + "/mcp",
+		Host: "127.0.0.1", Port: port, LocalMCPURL: "http://127.0.0.1:" + strconv.Itoa(port) + "/mcp",
 		TunnelMode: "none", InstallChannel: "setup",
 	}
 	if err := desktopruntime.Save(filepath.Join(root, "runtime.json"), manifest); err != nil {

@@ -222,8 +222,10 @@ func TestInstallWindowsUsesChecksumsDPAPIAndCurrentUserStartup(t *testing.T) {
 		!strings.Contains(script, "Get-AgentDockProcesses -BinaryPath $destinationBinary") {
 		t.Fatal("generation retries must probe both source generation and legacy stable Core paths")
 	}
-	if !strings.Contains(script, "$stopGenerationDirectories += $existingGenerationDirectory") ||
-		!strings.Contains(script, "$rollbackGenerationDirectories = @($generationBootstrapDirectory, $existingGenerationDirectory)") ||
+	if !strings.Contains(script, "$stopGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)") ||
+		!strings.Contains(script, "$stopGenerationDirectories += $existingGenerationDirectory") ||
+		!strings.Contains(script, "$rollbackGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)") ||
+		!strings.Contains(script, "$rollbackGenerationDirectories += @($generationBootstrapDirectory, $existingGenerationDirectory)") ||
 		strings.Count(script, "Stop-AgentDockRuntimeForUpgrade -StableCorePath") != 2 {
 		t.Fatal("publication and rollback must stop stable launchers and their exact source/target generations through the same owner")
 	}
