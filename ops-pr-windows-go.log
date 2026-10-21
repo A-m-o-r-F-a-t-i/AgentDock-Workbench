@@ -1,0 +1,364 @@
+Go check (windows-latest)	UNKNOWN STEP	﻿2026-10-21T11:53:14.8493412Z Current runner version: '2.338.0'
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8524684Z ##[group]Runner Image Provisioner
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8525593Z Hosted Compute Agent
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8526041Z Version: 20261015.610
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8526517Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8527078Z Build Date: 2026-10-14T17:06:54Z
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8527585Z Worker ID: {69bd1caa-4e56-47c6-8943-f0f383dff5c9}
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8528128Z Region: eastus
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8528531Z Cloud: Azure
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8528960Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8530414Z ##[group]Operating System
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8531273Z Microsoft Windows Server 2025
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8531927Z 10.0.26100
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8532320Z Datacenter
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8532699Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8533128Z ##[group]Runner Image
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8533571Z Image: windows-2025-vs2026
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8534012Z Version: 20261018.275.1
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8535342Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261018.275/images/windows/Windows2025-VS2026-Readme.md
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8536819Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261018.275
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8537786Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8538694Z ##[group]GITHUB_TOKEN Permissions
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8540551Z Contents: read
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8541049Z Metadata: read
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8541477Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8543295Z Secret source: Actions
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8544101Z Cache mode: write
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8544781Z Prepare workflow directory
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8847022Z Prepare all required actions
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:14.8892116Z Getting action download info
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:15.0726985Z Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:15.2744166Z Download action repository 'actions/setup-go@v6' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:15.4809128Z Download action repository 'actions/setup-dotnet@v5' (SHA:26b0ec14cb23fa6904739307f278c14f94c95bf1)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:15.9317025Z Complete job name: Go check (windows-latest)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1262773Z ##[group]Run actions/checkout@v5
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1264855Z with:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1265332Z   ref: 809b4b63ae44224cbbb9181402e51f821f5289c0
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1265924Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1269439Z   token: ***
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1269839Z   ssh-strict: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1270289Z   ssh-user: git
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1270700Z   persist-credentials: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1271151Z   clean: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1271574Z   sparse-checkout-cone-mode: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1272076Z   fetch-depth: 1
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1272492Z   fetch-tags: false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1272949Z   show-progress: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1273387Z   lfs: false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1273809Z   submodules: false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1274226Z   set-safe-directory: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1274771Z   allow-unsafe-pr-checkout: false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.1275554Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.2690650Z Syncing repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.2693207Z ##[group]Getting Git version info
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.2693975Z Working directory is 'D:\a\AgentDock-Workbench\AgentDock-Workbench'
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:16.4019477Z [command]"C:\Program Files\Git\bin\git.exe" version
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.1648047Z git version 2.56.0.windows.2
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.1696640Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.1713819Z Temporarily overriding HOME='D:\a\_temp\9ba2ba43-5b07-4ab1-bedd-e76e3f2afec4' before making global git config changes
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.1722666Z Adding repository directory to the temporary git global config as a safe directory
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.1725090Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\AgentDock-Workbench\AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.2371776Z Deleting the contents of 'D:\a\AgentDock-Workbench\AgentDock-Workbench'
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.2377626Z ##[group]Initializing the repository
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.2385189Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\AgentDock-Workbench\AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.4022425Z Initialized empty Git repository in D:/a/AgentDock-Workbench/AgentDock-Workbench/.git/
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.4077399Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6401707Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6403187Z ##[group]Disabling automatic garbage collection
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6410154Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6749825Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6751257Z ##[group]Setting up auth
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.6761335Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:17.7103109Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:20.1009735Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:20.1343095Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:20.9240857Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:20.9581905Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:21.4422026Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:21.4744818Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:21.4756110Z ##[group]Fetching the repository
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:21.4759151Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 809b4b63ae44224cbbb9181402e51f821f5289c0
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0493761Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0494456Z  * branch            809b4b63ae44224cbbb9181402e51f821f5289c0 -> FETCH_HEAD
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0536707Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0537232Z ##[group]Determining the checkout info
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0539201Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.0547955Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.1377302Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.1697634Z ##[group]Checking out the ref
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.1705760Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force 809b4b63ae44224cbbb9181402e51f821f5289c0
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6880956Z Note: switching to '809b4b63ae44224cbbb9181402e51f821f5289c0'.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6881336Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6881590Z You are in 'detached HEAD' state. You can look around, make experimental
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6882111Z changes and commit them, and you can discard any commits you make in this
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6882675Z state without impacting any branches by switching back to a branch.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6883005Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6883232Z If you want to create a new branch to retain commits you create, you may
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6883715Z do so (now or later) by using -c with the switch command. Example:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6883988Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6884129Z   git switch -c <new-branch-name>
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6884332Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6884446Z Or undo this operation with:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6884648Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6884757Z   git switch -
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6885955Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6886244Z Turn off this advice by setting config variable advice.detachedHead to false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6886637Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.6887105Z HEAD is now at 809b4b6 Merge fae0cebdf8e3bde281e0e5741b3e5d4c5af057bf into c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.7003005Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9042573Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9337154Z 809b4b63ae44224cbbb9181402e51f821f5289c0
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9763547Z ##[group]Run actions/setup-go@v6
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9763813Z with:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9763972Z   go-version-file: go.mod
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9764149Z   cache: true
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9764313Z   check-latest: false
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9766190Z   token: ***
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:23.9766351Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:24.1089788Z Setup go version spec 1.26.5
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:24.1102278Z Attempting to download 1.26.5...
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:24.5424725Z matching 1.26.5...
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:24.5459268Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-win32-x64.zip
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:25.0682753Z Extracting Go...
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:25.3075889Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.5-win32-x64.zip', 'D:\a\_temp\7f93deb2-abc2-4fbc-b76a-5da71608abf4', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.5-win32-x64.zip' -DestinationPath 'D:\a\_temp\7f93deb2-abc2-4fbc-b76a-5da71608abf4' -Force } else { throw $_ } } ;"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:31.0768055Z Successfully extracted go to D:\a\_temp\7f93deb2-abc2-4fbc-b76a-5da71608abf4
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:31.0768441Z Adding to the cache ...
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.0184547Z Created link C:\hostedtoolcache\windows\go\1.26.5\x64 => D:\hostedtoolcache\windows\go\1.26.5\x64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.0187866Z Created link C:\hostedtoolcache\windows\go\1.26.5\x64.complete => D:\hostedtoolcache\windows\go\1.26.5\x64.complete
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.0188667Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.5\x64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.0192892Z Added go to the path
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.0195304Z Successfully set up Go version 1.26.5
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.2849082Z [command]C:\hostedtoolcache\windows\go\1.26.5\x64\bin\go.exe env GOCACHE
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.2896000Z [command]C:\hostedtoolcache\windows\go\1.26.5\x64\bin\go.exe env GOMODCACHE
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.3102833Z C:\Users\runneradmin\AppData\Local\go-build
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.3119179Z C:\Users\runneradmin\go\pkg\mod
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:40.6393453Z Cache hit for: setup-go-Windows-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:41.6935985Z Received 134217728 of 137951316 (97.3%), 125.9 MBs/sec
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:41.7366994Z Received 137951316 of 137951316 (100.0%), 124.1 MBs/sec
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:41.7369258Z Cache Size: ~132 MB (137951316 B)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:53:41.7432565Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/715fee45-a242-45d5-9ba9-487a7a8f7be2/cache.tzst -P -C D:/a/AgentDock-Workbench/AgentDock-Workbench --force-local --use-compress-program "zstd -d"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:08.2315015Z Cache restored successfully
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:08.2404770Z Cache restored from key: setup-go-Windows-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:08.2423561Z go version go1.26.5 windows/amd64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:08.2423734Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:08.2424179Z ##[group]go env
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1197499Z set AR=ar
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1197736Z set CC=gcc
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1198028Z set CGO_CFLAGS=-O2 -g
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1199522Z set CGO_CPPFLAGS=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1199770Z set CGO_CXXFLAGS=-O2 -g
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1200026Z set CGO_ENABLED=1
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1200233Z set CGO_FFLAGS=-O2 -g
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1200446Z set CGO_LDFLAGS=-O2 -g
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1200658Z set CXX=g++
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1200855Z set GCCGO=gccgo
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1201081Z set GO111MODULE=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1201292Z set GOAMD64=v1
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1201493Z set GOARCH=amd64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1204872Z set GOAUTH=netrc
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1205176Z set GOBIN=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1205482Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1205831Z set GOCACHEPROG=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1206039Z set GODEBUG=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1206703Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1207064Z set GOEXE=.exe
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1207283Z set GOEXPERIMENT=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1207507Z set GOFIPS140=off
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1207720Z set GOFLAGS=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1208632Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build2616291531=/tmp/go-build -gno-record-gcc-switches
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1209533Z set GOHOSTARCH=amd64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1209808Z set GOHOSTOS=windows
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1210032Z set GOINSECURE=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1210380Z set GOMOD=D:\a\AgentDock-Workbench\AgentDock-Workbench\go.mod
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1210822Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1211160Z set GONOPROXY=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1211361Z set GONOSUMDB=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1211554Z set GOOS=windows
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1211815Z set GOPATH=C:\Users\runneradmin\go
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1212202Z set GOPRIVATE=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1212583Z set GOPROXY=https://proxy.golang.org,direct
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1213002Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.5\x64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1213316Z set GOSUMDB=sum.golang.org
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1213552Z set GOTELEMETRY=local
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1213935Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1214357Z set GOTMPDIR=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1214578Z set GOTOOLCHAIN=local
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1215001Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.5\x64\pkg\tool\windows_amd64
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1215451Z set GOVCS=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1215659Z set GOVERSION=go1.26.5
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1215878Z set GOWORK=
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1216100Z set PKG_CONFIG=pkg-config
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1216281Z 
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1216655Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1479522Z ##[group]Run unformatted="$(git ls-files '*.go' | while IFS= read -r file; do gofmt -l "$file"; done)"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1480150Z ^[[36;1munformatted="$(git ls-files '*.go' | while IFS= read -r file; do gofmt -l "$file"; done)"^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1480510Z ^[[36;1mif [ -n "$unformatted" ]; then^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1480786Z ^[[36;1m  printf 'Unformatted Go files:\n%s\n' "$unformatted"^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1481051Z ^[[36;1m  exit 1^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1481200Z ^[[36;1mfi^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1497609Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1497923Z env:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1498090Z   GOTOOLCHAIN: local
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:09.1498266Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.4271561Z ##[group]Run go test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.4272301Z ^[[36;1mgo test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.5208628Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.5208936Z env:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.5209104Z   GOTOOLCHAIN: local
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:54:40.5209294Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.3308653Z ok  	github.com/uvwt/agentdock/internal/app	27.041s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8146193Z ##[group]Run go test -p 2 ./... -count=1 -timeout=8m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8146939Z ^[[36;1mgo test -p 2 ./... -count=1 -timeout=8m^[[0m
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8223079Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8223533Z env:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8223760Z   GOTOOLCHAIN: local
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:19.8224022Z ##[endgroup]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:27.9543525Z ok  	github.com/uvwt/agentdock/cmd/agentdock	0.570s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:27.9544082Z ok  	github.com/uvwt/agentdock/cmd/agentdock/internal/logx	0.048s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:27.9544621Z ?   	github.com/uvwt/agentdock/cmd/agentdock-arbiter	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:27.9545132Z ok  	github.com/uvwt/agentdock/cmd/agentdock-shim	0.225s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:27.9545552Z ?   	github.com/uvwt/agentdock/cmd/agentdock-tray	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:28.6392385Z ok  	github.com/uvwt/agentdock/desktop/windows/tray	0.061s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:33.8801061Z ok  	github.com/uvwt/agentdock/internal/acp	4.936s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:41.9481055Z ok  	github.com/uvwt/agentdock/internal/activity	11.717s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:41.9481685Z ok  	github.com/uvwt/agentdock/internal/agentinstructions	0.113s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T11:55:41.9482212Z ok  	github.com/uvwt/agentdock/internal/androidbridge	0.026s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0852171Z --- FAIL: TestExecutionTwentyConcurrentCallsPerConversation (21.20s)
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0854153Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0855440Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0856637Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0857772Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0859852Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0861291Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0862343Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0863115Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0864334Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0865109Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0865877Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0866633Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0867375Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0868135Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0869041Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0870040Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0871912Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0872804Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0874376Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0875317Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0876071Z     execution_scope_test.go:135: crossed parallel calls: map[] The execution journal is unavailable; the tool was not dispatched.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0876691Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0877113Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0877523Z         rejected call could not be persisted: context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0878078Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0878499Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0878896Z         rejected call could not be persisted: context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0879405Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0879980Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0880422Z         rejected call could not be persisted: context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0880901Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0881312Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0881703Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0882086Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0882451Z         rejected call could not be persisted: context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0882945Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0883334Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0883894Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0884284Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0884699Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0885216Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0885781Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0886193Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0886583Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0886962Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0887350Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0887767Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0888158Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0888550Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0888963Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0889345Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0889733Z     execution_scope_test.go:135: crossed parallel calls: map[] context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0890115Z         context deadline exceeded
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0890605Z     execution_scope_test.go:144: missing calls: 15 <nil>
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0890995Z FAIL
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0891262Z FAIL	github.com/uvwt/agentdock/internal/app	395.565s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0891602Z ok  	github.com/uvwt/agentdock/internal/auth	8.280s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0891941Z ok  	github.com/uvwt/agentdock/internal/buildinfo	0.020s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0892328Z ok  	github.com/uvwt/agentdock/internal/capabilityrouting	0.023s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0893158Z ok  	github.com/uvwt/agentdock/internal/commandcompletion	2.598s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0893623Z ok  	github.com/uvwt/agentdock/internal/config	1.765s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0894016Z ?   	github.com/uvwt/agentdock/internal/contextguide	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0894405Z ok  	github.com/uvwt/agentdock/internal/desktopcontrol	0.075s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0894768Z ok  	github.com/uvwt/agentdock/internal/desktopruntime	22.244s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0895185Z ok  	github.com/uvwt/agentdock/internal/envstore	3.968s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0895546Z ok  	github.com/uvwt/agentdock/internal/evolution	4.093s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0896070Z ok  	github.com/uvwt/agentdock/internal/executioncompat	0.033s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0896547Z ok  	github.com/uvwt/agentdock/internal/externalagent	0.022s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0896938Z ok  	github.com/uvwt/agentdock/internal/fs/atomicfile	1.729s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0897282Z ok  	github.com/uvwt/agentdock/internal/fs/filelock	0.728s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0897643Z ok  	github.com/uvwt/agentdock/internal/fs/processlock	0.081s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0898081Z ok  	github.com/uvwt/agentdock/internal/fs/securepath	0.038s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0898640Z ok  	github.com/uvwt/agentdock/internal/generationretention	0.112s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0899180Z ok  	github.com/uvwt/agentdock/internal/httpx	43.785s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0899713Z ok  	github.com/uvwt/agentdock/internal/httpx/requestmeta	0.017s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0900279Z ok  	github.com/uvwt/agentdock/internal/insertion	3.625s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0900779Z ok  	github.com/uvwt/agentdock/internal/installer	31.657s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0901281Z ok  	github.com/uvwt/agentdock/internal/logfile	0.032s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0901808Z ok  	github.com/uvwt/agentdock/internal/mcp	115.570s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0902342Z ok  	github.com/uvwt/agentdock/internal/mcp/client	6.182s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0902854Z ?   	github.com/uvwt/agentdock/internal/mcpappcompat	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0903401Z ok  	github.com/uvwt/agentdock/internal/nexusbridge	0.143s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0904150Z ok  	github.com/uvwt/agentdock/internal/nexusclient	0.036s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0904733Z ok  	github.com/uvwt/agentdock/internal/permission	7.086s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0905260Z ok  	github.com/uvwt/agentdock/internal/plugin	25.523s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0905757Z ok  	github.com/uvwt/agentdock/internal/process	0.133s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0906279Z ok  	github.com/uvwt/agentdock/internal/publicartifacts	1.055s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0906844Z ok  	github.com/uvwt/agentdock/internal/requesttrace	0.019s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0907431Z ok  	github.com/uvwt/agentdock/internal/runtimeapi	0.440s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0907966Z ok  	github.com/uvwt/agentdock/internal/selfupdate	2.044s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0908468Z ok  	github.com/uvwt/agentdock/internal/skill	1.804s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0909021Z ok  	github.com/uvwt/agentdock/internal/skill/bundle	0.896s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0909628Z ?   	github.com/uvwt/agentdock/internal/skill/packagehash	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0910235Z ok  	github.com/uvwt/agentdock/internal/skill/state	4.132s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0910791Z ok  	github.com/uvwt/agentdock/internal/skilldata	0.087s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0911273Z ok  	github.com/uvwt/agentdock/internal/snapshot	12.484s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0911788Z ok  	github.com/uvwt/agentdock/internal/taskstate	17.283s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0912315Z ok  	github.com/uvwt/agentdock/internal/textutil	0.023s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0912912Z ok  	github.com/uvwt/agentdock/internal/tool/acp	0.041s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0913494Z ok  	github.com/uvwt/agentdock/internal/tool/androiddevice	0.037s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0914061Z ok  	github.com/uvwt/agentdock/internal/tool/browser	0.087s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0914587Z ok  	github.com/uvwt/agentdock/internal/tool/capability	0.052s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0915119Z ok  	github.com/uvwt/agentdock/internal/tool/command	10.012s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0915492Z ok  	github.com/uvwt/agentdock/internal/tool/command/session	0.988s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0916380Z ok  	github.com/uvwt/agentdock/internal/tool/contract	0.244s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0916932Z ok  	github.com/uvwt/agentdock/internal/tool/core	0.025s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0917574Z ok  	github.com/uvwt/agentdock/internal/tool/file	3.547s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0918087Z ok  	github.com/uvwt/agentdock/internal/tool/mcp	0.039s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0918663Z ok  	github.com/uvwt/agentdock/internal/tool/media	0.581s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0919089Z ok  	github.com/uvwt/agentdock/internal/tool/plugin	8.580s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0919450Z ok  	github.com/uvwt/agentdock/internal/tool/recall	0.262s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0919773Z ok  	github.com/uvwt/agentdock/internal/tool/skill	2.034s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0920099Z ok  	github.com/uvwt/agentdock/internal/tool/task	1.989s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0920459Z ?   	github.com/uvwt/agentdock/internal/tool/workspace	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0920865Z ok  	github.com/uvwt/agentdock/internal/updateengine	1.397s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:11.0921239Z ?   	github.com/uvwt/agentdock/internal/updateplatform	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:12.8920318Z ok  	github.com/uvwt/agentdock/internal/workspace	1.662s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:02:12.8920858Z ?   	github.com/uvwt/agentdock/scripts/ci/parallel-macos/fixture-core	[no test files]
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.1243161Z ok  	github.com/uvwt/agentdock/scripts/test	116.742s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.1243691Z ok  	github.com/uvwt/agentdock/tools/release	0.151s
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.1244121Z FAIL
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.4672010Z ##[error]Process completed with exit code 1.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.4986814Z Post job cleanup.
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.6422366Z [command]"C:\Program Files\Git\bin\git.exe" version
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.6713674Z git version 2.56.0.windows.2
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.6767511Z Temporarily overriding HOME='D:\a\_temp\ce1f59e1-1089-4fde-b671-93d39cbdddd8' before making global git config changes
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.6768105Z Adding repository directory to the temporary git global config as a safe directory
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.6777074Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\AgentDock-Workbench\AgentDock-Workbench
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.7150391Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:09.7484265Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:10.7249582Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:10.7545529Z http.https://github.com/.extraheader
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:10.7586376Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:10.7907638Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:11.2742077Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:11.3069999Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Go check (windows-latest)	UNKNOWN STEP	2026-10-21T12:04:11.8197224Z Cleaning up orphan processes
