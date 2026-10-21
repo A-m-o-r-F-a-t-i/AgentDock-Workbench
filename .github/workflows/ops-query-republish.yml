@@ -20,6 +20,7 @@ jobs:
       SOURCE_SHA: 7de73883798e2c4e6a4244575a81a65980ea8d48
       TARGET_WORKFLOW: workbench-release.yml
       STATUS_FILE: ops-republish-current.json
+      PROBE_SEQUENCE: '2'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -45,10 +46,11 @@ jobs:
             --arg source_sha "$SOURCE_SHA" \
             --arg version "1.1.9" \
             --arg recorded_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '. + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at}' \
+            --arg probe_sequence "$PROBE_SEQUENCE" \
+            '. + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at, probe_sequence:$probe_sequence}' \
             "$temporary" > "$STATUS_FILE"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$STATUS_FILE"
-          git commit -m 'chore: record current v1.1.9 release status'
+          git commit -m 'chore: refresh current v1.1.9 release status'
           git push origin "HEAD:$GITHUB_REF_NAME"
