@@ -1,0 +1,54 @@
+name: Temporary AgentDock 1.1.9 status probe
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-c9094a0c-20261021
+    paths:
+      - .github/workflows/ops-query-republish.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  query:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+      TARGET_WORKFLOW: workbench-release.yml
+      STATUS_FILE: ops-republish-current.json
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Record current release run
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow "$TARGET_WORKFLOW" \
+            --event workflow_dispatch \
+            --branch main \
+            --limit 20 \
+            --json databaseId,headSha \
+            --jq ".[] | select(.headSha == \"$SOURCE_SHA\") | .databaseId" | head -n 1)"
+          test -n "$run_id"
+          temporary="$RUNNER_TEMP/current.json"
+          gh run view "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json status,conclusion,url,headSha,jobs > "$temporary"
+          jq \
+            --arg source_sha "$SOURCE_SHA" \
+            --arg version "1.1.9" \
+            --arg recorded_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '. + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at}' \
+            "$temporary" > "$STATUS_FILE"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$STATUS_FILE"
+          git commit -m 'chore: record current v1.1.9 release status'
+          git push origin "HEAD:$GITHUB_REF_NAME"
