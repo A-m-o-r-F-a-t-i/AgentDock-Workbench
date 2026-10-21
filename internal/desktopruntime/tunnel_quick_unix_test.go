@@ -5,6 +5,7 @@ package desktopruntime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
 // runQuickTunnel 是 Quick Tunnel 公网地址回写的唯一权威（平台脚本的 legacy
@@ -22,7 +25,7 @@ func TestRunQuickTunnelWritesBackPublicURLAndRestartsCore(t *testing.T) {
 	healthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"ok":true,"version":"test"}`))
+			_, _ = fmt.Fprintf(w, `{"ok":true,"version":%q}`, buildinfo.Version)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)

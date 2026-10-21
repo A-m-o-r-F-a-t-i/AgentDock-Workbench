@@ -60,9 +60,12 @@ jobs:
         run: go test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s
 
       - name: Test
-        # Windows packages spawn Node, PowerShell and desktop fixtures; avoid
-        # starving their bounded handshakes with repository-wide process fan-out.
-        run: go test -p 2 ./... -count=1 -timeout=8m
+        # The parallel conversation audit runs five isolated repetitions above.
+        # Do not repeat it under repository-wide process contention, where its
+        # bounded journal deadline measures runner saturation instead of isolation.
+        # Windows packages also spawn Node, PowerShell and desktop fixtures, so keep
+        # repository process fan-out bounded.
+        run: go test -p 2 ./... -skip '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=1 -timeout=8m
 
       - name: Check Windows test tree cleanliness
         if: runner.os == 'Windows'
