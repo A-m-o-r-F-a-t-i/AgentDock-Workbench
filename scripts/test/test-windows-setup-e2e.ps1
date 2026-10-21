@@ -596,10 +596,14 @@ try {
     if ($repeatLog -notmatch 'existing installation detected: source=setup') {
         throw 'Repeated Setup did not recognize the existing Setup-managed installation.'
     }
-    if ($repeatLog -notmatch 'Previous failed rollback was verified and closed') {
-        throw 'Repeated Setup did not recover and confirm the stopped source runtime.'
-    }
     $generation = Get-ActiveGenerationPaths
+    $recoveredInspection = (& $generation.Core install inspect --state-root $InstallRoot | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0 -or [bool] $recoveredInspection.requires_adapter_rollback_confirmation) {
+        throw 'Repeated Setup left the previous adapter rollback unconfirmed.'
+    }
+    if ([string] $recoveredInspection.pointer_state -ne 'committed') {
+        throw "Repeated Setup left the generation pointer in state: $($recoveredInspection.pointer_state)"
+    }
     if (-not [string]::Equals($generation.State, 'committed', [StringComparison]::OrdinalIgnoreCase)) {
         throw "Same-version Setup repair did not end committed: $($generation.State)"
     }
