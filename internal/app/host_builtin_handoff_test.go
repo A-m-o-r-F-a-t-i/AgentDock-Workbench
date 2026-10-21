@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -29,37 +28,36 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 		{"mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}}, 2},
 	} {
 		result, err := rt.Call(ctx, test.name, test.args)
-		var route *ToolError
-		if result != nil || !errors.As(err, &route) || route.Details["route_kind"] != "host_builtin" || route.Details["route_status"] != "blocked" {
-			t.Fatalf("missing terminal host route error: %#v %v", result, err)
+		if err != nil || result == nil || result["route_kind"] != "host_builtin" {
+			t.Fatalf("missing terminal host route: %#v %v", result, err)
 		}
-		want := "ROUTING_LOOP_BLOCKED"
+		want, wantStatus := "ROUTING_LOOP_BLOCKED", "already_routed"
 		if attempt == 0 {
-			want = "HOST_BUILTIN_NOT_DYNAMIC_MCP"
+			want, wantStatus = "HOST_BUILTIN_NOT_DYNAMIC_MCP", "resolved"
 		}
 		attempt++
-		if route.Code != want {
-			t.Fatalf("classification=%v want %s", route.Code, want)
+		if result["route_code"] != want || result["route_status"] != wantStatus {
+			t.Fatalf("classification=%v/%v want %s/%s", result["route_code"], result["route_status"], want, wantStatus)
 		}
 		names := []string{}
-		if candidates, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary); ok {
+		if candidates, ok := result["builtin_tools"].([]toolmcp.BuiltinToolSummary); ok {
 			for _, candidate := range candidates {
 				if candidate.Name == "" || candidate.InvokeVia != toolmcp.InvokeDirect || candidate.Scope != toolmcp.ScopeAgentDockBuiltin || candidate.Origin != toolmcp.ScopeAgentDockBuiltin {
 					t.Fatalf("invalid host candidate: %+v", candidate)
 				}
 				names = append(names, candidate.Name)
 			}
-		} else if compact, ok := route.Details["required_host_tools"].([]string); ok {
+		} else if compact, ok := result["required_host_tools"].([]string); ok {
 			names = append(names, compact...)
 		}
-		action := modelObject(route.Details["required_action"])
-		if len(names) != test.count || route.Details["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
-			t.Fatalf("missing exact non-executing handoff: %#v", route.Details)
+		action := modelObject(result["required_action"])
+		if len(names) != test.count || result["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
+			t.Fatalf("missing exact non-executing handoff: %#v", result)
 		}
-		if action["category"] != "protocol" && action["category"] != "model_decision" {
+		if action["category"] != "protocol" {
 			t.Fatalf("wrong host prerequisite: %#v", action)
 		}
-		guidance := rt.executionErrorGuidance(executionObservation{}, err)
+		guidance := rt.executionGuidance(test.name, test.args, executionObservation{}, result, false)
 		steps, ok := guidance["next_required"].([]map[string]any)
 		if guidance["source"] != "agentdock" || !ok || len(steps) != 1 {
 			t.Fatalf("missing local route guidance: %#v", guidance)
@@ -69,14 +67,14 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 			step["scope"] != toolmcp.ScopeAgentDockBuiltin || step["origin"] != toolmcp.ScopeAgentDockBuiltin || step["invoke_via"] != toolmcp.InvokeDirect {
 			t.Fatalf("guidance lost the non-executing direct route: %#v", step)
 		}
-		id := stringArg(route.Details, "call_id")
+		id := stringArg(result, "call_id")
 		if id == "" || ids[id] {
 			t.Fatalf("real repeated discovery was hidden: %s", id)
 		}
 		ids[id] = true
 		call, err := rt.activity.Call(t.Context(), id)
-		if err != nil || call.Status != "failed" || call.ErrorCode != want {
-			t.Fatalf("resolved route audit was not retained: %+v %v", call, err)
+		if err != nil || call.Status != "succeeded" || call.ErrorCode != "" {
+			t.Fatalf("resolved route audit was not retained as success: %+v %v", call, err)
 		}
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
@@ -123,5 +121,14 @@ func TestBuiltinErrorGuidanceRejectsForgedProvenance(t *testing.T) {
 	guidance := rt.executionErrorGuidance(executionObservation{}, fake)
 	if len(guidance) != 0 {
 		t.Fatalf("forged error created host recovery: %#v", guidance)
+	}
+}
+
+func TestBuiltinDiscoveryOutcomeRejectsForgedProvenance(t *testing.T) {
+	fake := &ToolError{Code: "HOST_BUILTIN_NOT_DYNAMIC_MCP", Category: "validation", Details: map[string]any{
+		"route_kind": "host_builtin", "resolved": true, "terminal": true,
+	}}
+	if result, ok := resolvedBuiltinDiscoveryOutcome(fake); ok || result != nil {
+		t.Fatalf("untrusted error fields forged a successful route: %#v", result)
 	}
 }

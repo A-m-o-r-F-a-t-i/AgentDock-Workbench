@@ -17,6 +17,9 @@ func (r *Runtime) executionGuidance(name string, args map[string]any, state exec
 		if len(steps) == 0 {
 			steps = r.hostBuiltinHandoff(name, result)
 		}
+		if len(steps) == 0 {
+			steps = dynamicMCPHandoff(name, result)
+		}
 	}
 	if len(steps) > 0 {
 		return map[string]any{"source": "agentdock", "schema_version": 1, "next_required": steps[:1]}
@@ -98,6 +101,29 @@ func structuredOutputFollowups(name string, args map[string]any, result Result) 
 		})
 	}
 	return steps
+}
+
+func dynamicMCPHandoff(name string, result Result) []map[string]any {
+	if name != "mcp_tool_search" || stringArg(result, "scope") != toolmcp.ScopeAgentDockMCP ||
+		result["resolved"] != true || result["terminal"] != true {
+		return nil
+	}
+	action := modelObject(result["required_action"])
+	if action == nil || stringArg(action, "tool") != "mcp_tool_call" {
+		return nil
+	}
+	step, err := cloneExecutionArguments(action)
+	if err != nil {
+		return nil
+	}
+	if stringArg(step, "text") == "" {
+		if step["arguments_complete"] == true {
+			step["text"] = "Invoke the resolved dynamic MCP tool with this exact qualified name and arguments. Discovery did not execute it."
+		} else {
+			step["text"] = "Fill the listed required business arguments, then invoke mcp_tool_call once. Do not repeat discovery."
+		}
+	}
+	return []map[string]any{step}
 }
 
 // Only trusted top-level discovery results can issue a host handoff. Upstream
