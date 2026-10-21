@@ -1,0 +1,699 @@
+Failure audit (ubuntu-latest)	Set up job	﻿2026-10-21T06:34:16.9305670Z Current runner version: '2.337.0'
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9325553Z ##[group]Runner Image Provisioner
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9326169Z Hosted Compute Agent
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9326626Z Version: 20261015.610
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9327025Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9327501Z Build Date: 2026-10-14T17:06:54Z
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9327932Z Worker ID: {1021a605-b5af-499b-8d92-b157ecf91bc6}
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9328401Z Region: centralus
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9328789Z Cloud: Azure
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9329127Z ##[endgroup]
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9329986Z ##[group]Operating System
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9330380Z Ubuntu
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9330744Z 24.04.5
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9331112Z LTS
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9331444Z ##[endgroup]
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9331800Z ##[group]Runner Image
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9332376Z Image: ubuntu-24.04
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9332773Z Version: 20261018.339.1
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9333444Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9334534Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9335168Z ##[endgroup]
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9335893Z ##[group]GITHUB_TOKEN Permissions
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9337241Z Contents: read
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9337612Z Metadata: read
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9338047Z ##[endgroup]
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9339492Z Secret source: Actions
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9340092Z Cache mode: write
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9340555Z Prepare workflow directory
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9616962Z Prepare all required actions
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:16.9652274Z Getting action download info
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:17.2091109Z Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:17.3244625Z Download action repository 'actions/setup-go@v6' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:17.7170208Z Download action repository 'actions/setup-dotnet@v5' (SHA:26b0ec14cb23fa6904739307f278c14f94c95bf1)
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:18.0678001Z Download action repository 'actions/upload-artifact@v7' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+Failure audit (ubuntu-latest)	Set up job	2026-10-21T06:34:18.2934158Z Complete job name: Failure audit (ubuntu-latest)
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	﻿2026-10-21T06:34:18.3570799Z ##[group]Run actions/checkout@v5
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3571613Z with:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3572292Z   ref: 877927624c4c33897a4ce95328af04c91ba64a86
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3572985Z   fetch-depth: 0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3573584Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3579081Z   token: ***
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3579586Z   ssh-strict: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3580101Z   ssh-user: git
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3580630Z   persist-credentials: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3581211Z   clean: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3581746Z   sparse-checkout-cone-mode: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3582451Z   fetch-tags: false
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3582992Z   show-progress: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3583539Z   lfs: false
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3584035Z   submodules: false
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3584649Z   set-safe-directory: true
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3585253Z   allow-unsafe-pr-checkout: false
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3585963Z env:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3586574Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3587420Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.3587980Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4327445Z Syncing repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4330156Z ##[group]Getting Git version info
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4331641Z Working directory is '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4334062Z [command]/usr/bin/git version
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4381980Z git version 2.55.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4397689Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4408378Z Temporarily overriding HOME='/home/runner/work/_temp/80601ea8-fd66-447b-abdd-5ae3cce9d3b7' before making global git config changes
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4411130Z Adding repository directory to the temporary git global config as a safe directory
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4413949Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4472410Z Deleting the contents of '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4476940Z ##[group]Initializing the repository
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4484098Z [command]/usr/bin/git init /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4602998Z hint: Using 'master' as the name for the initial branch. This default branch name
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4605476Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4607730Z hint: to use in all of your new repositories, which will suppress this warning,
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4608930Z hint: call:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4609755Z hint:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4695227Z hint: 	git config --global init.defaultBranch <name>
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4696895Z hint:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4698110Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4700077Z hint: 'development'. The just-created branch can be renamed via this command:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4701928Z hint:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4703116Z hint: 	git branch -m <name>
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4704124Z hint:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4705423Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4707925Z Initialized empty Git repository in /home/runner/work/AgentDock-Workbench/AgentDock-Workbench/.git/
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4711891Z [command]/usr/bin/git remote add origin https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4715563Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4717138Z ##[group]Disabling automatic garbage collection
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4718517Z [command]/usr/bin/git config --local gc.auto 0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4744651Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4746155Z ##[group]Setting up auth
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4747526Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.4784240Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5121286Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5161804Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5368504Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5409546Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5623097Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5670190Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5671707Z ##[group]Fetching the repository
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:18.5678865Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6145537Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6147630Z  * [new branch]        build/20260929-reviewed-1.1.8 -> origin/build/20260929-reviewed-1.1.8
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6148210Z  * [new branch]        chore/ignore-network-test-artifacts-20261013 -> origin/chore/ignore-network-test-artifacts-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6148736Z  * [new branch]        chore/trim-redundant-tests-20261014 -> origin/chore/trim-redundant-tests-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6149126Z  * [new branch]        ci/20260929-review-evidence -> origin/ci/20260929-review-evidence
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6149501Z  * [new branch]        ci/20260930-rebuild-118-request -> origin/ci/20260930-rebuild-118-request
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6150094Z  * [new branch]        ci/20260930-sync-historical-release-bodies -> origin/ci/20260930-sync-historical-release-bodies
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6151210Z  * [new branch]        ci/20260930-sync-release-notes-118 -> origin/ci/20260930-sync-release-notes-118
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6151879Z  * [new branch]        copilot/develop-new-feature -> origin/copilot/develop-new-feature
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6152834Z  * [new branch]        copilot/fix-160473846-1370391430-9fcfa821-ca83-4138-89c7-f18737e255ca -> origin/copilot/fix-160473846-1370391430-9fcfa821-ca83-4138-89c7-f18737e255ca
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6153851Z  * [new branch]        copilot/fix-160473846-1370391430-b69aab10-6ace-4d32-8449-ea702d3a655b -> origin/copilot/fix-160473846-1370391430-b69aab10-6ace-4d32-8449-ea702d3a655b
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6154828Z  * [new branch]        copilot/fix-160473846-1370391430-bbfa9a9e-30df-4667-8e81-3c2f614bc880 -> origin/copilot/fix-160473846-1370391430-bbfa9a9e-30df-4667-8e81-3c2f614bc880
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6155910Z  * [new branch]        copilot/fix-160473846-1370391430-c248b2eb-4eb6-44f2-a6b4-8fd6a6b7b2e8 -> origin/copilot/fix-160473846-1370391430-c248b2eb-4eb6-44f2-a6b4-8fd6a6b7b2e8
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6156980Z  * [new branch]        copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6 -> origin/copilot/fix-160473846-1370391430-c8967934-1537-4c68-8e75-728d52bf63c6
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6158142Z  * [new branch]        copilot/fix-160473846-1370391430-fbbb7b2a-d4c8-4e61-aa74-a829fb150828 -> origin/copilot/fix-160473846-1370391430-fbbb7b2a-d4c8-4e61-aa74-a829fb150828
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6159144Z  * [new branch]        design/pixel-agent-icon-1.2.0-20261016 -> origin/design/pixel-agent-icon-1.2.0-20261016
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6159823Z  * [new branch]        docs/1.1.9-server-description -> origin/docs/1.1.9-server-description
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6160451Z  * [new branch]        docs/20260930-release-notes-policy -> origin/docs/20260930-release-notes-policy
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6161155Z  * [new branch]        docs/20260930-rewrite-historical-releases -> origin/docs/20260930-rewrite-historical-releases
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6161945Z  * [new branch]        docs/complete-1.1.9-release-notes-20261013 -> origin/docs/complete-1.1.9-release-notes-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6162839Z  * [new branch]        docs/release-1.1.8-complete-20261006 -> origin/docs/release-1.1.8-complete-20261006
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6163658Z  * [new branch]        feat/1.1.4-update       -> origin/feat/1.1.4-update
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6164238Z  * [new branch]        feat/1.1.5-update       -> origin/feat/1.1.5-update
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6164698Z  * [new branch]        feat/1.1.6-release      -> origin/feat/1.1.6-release
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6165582Z  * [new branch]        feat/1.1.9-android-navigation-design -> origin/feat/1.1.9-android-navigation-design
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6166202Z  * [new branch]        feat/1.1.9-conversation-start-time -> origin/feat/1.1.9-conversation-start-time
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6166775Z  * [new branch]        feat/agent-plugins-standard -> origin/feat/agent-plugins-standard
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6167284Z  * [new branch]        feat/agents-md-context  -> origin/feat/agents-md-context
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6167773Z  * [new branch]        feat/android-device-tools -> origin/feat/android-device-tools
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6168364Z  * [new branch]        feat/android-host-executor -> origin/feat/android-host-executor
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6169040Z  * [new branch]        feat/android-shizuku-provider -> origin/feat/android-shizuku-provider
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6169663Z  * [new branch]        feat/async-command-next-root-20261014 -> origin/feat/async-command-next-root-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6170279Z  * [new branch]        feat/chatgpt-goal-mode-20261012 -> origin/feat/chatgpt-goal-mode-20261012
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6170803Z  * [new branch]        feat/codex-skill-layout -> origin/feat/codex-skill-layout
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6171391Z  * [new branch]        feat/context-revision-delivery-20261013 -> origin/feat/context-revision-delivery-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6172359Z  * [new branch]        feat/conversation-execution-center -> origin/feat/conversation-execution-center
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6173028Z  * [new branch]        feat/conversation-unterminate-20261013 -> origin/feat/conversation-unterminate-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6173855Z  * [new branch]        feat/cross-platform-external-agent-control-20261013 -> origin/feat/cross-platform-external-agent-control-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6174598Z  * [new branch]        feat/direct-heavy-plugins-local -> origin/feat/direct-heavy-plugins-local
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6175238Z  * [new branch]        feat/external-agent-control-20261013 -> origin/feat/external-agent-control-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6176002Z  * [new branch]        feat/gpt-codex-execution-architecture-20261015 -> origin/feat/gpt-codex-execution-architecture-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6176643Z  * [new branch]        feat/heavy-plugins      -> origin/feat/heavy-plugins
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6177244Z  * [new branch]        feat/mcp-conversation-meta-20261013 -> origin/feat/mcp-conversation-meta-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6178126Z  * [new branch]        feat/on-demand-builtin-tools-20261013 -> origin/feat/on-demand-builtin-tools-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6178556Z  * [new branch]        feat/permission-profiles-20260925 -> origin/feat/permission-profiles-20260925
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6178940Z  * [new branch]        feat/rename-actovo-20261016 -> origin/feat/rename-actovo-20261016
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6179274Z  * [new branch]        feat/tailscale-funnel   -> origin/feat/tailscale-funnel
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6179614Z  * [new branch]        feat/task-activity-center -> origin/feat/task-activity-center
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6180024Z  * [new branch]        feat/windows-shell-selector-20261013 -> origin/feat/windows-shell-selector-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6180470Z  * [new branch]        fix/1.1.8-self-update-assets-20261020 -> origin/fix/1.1.8-self-update-assets-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6180862Z  * [new branch]        fix/1.1.9-activity-reveal -> origin/fix/1.1.9-activity-reveal
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6181261Z  * [new branch]        fix/1.1.9-android-lazy-workmanager -> origin/fix/1.1.9-android-lazy-workmanager
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6181689Z  * [new branch]        fix/1.1.9-android-room-constructor -> origin/fix/1.1.9-android-room-constructor
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6182378Z  * [new branch]        fix/1.1.9-host-builtin-handoff -> origin/fix/1.1.9-host-builtin-handoff
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6182757Z  * [new branch]        fix/1.1.9-mcp-activity-labels -> origin/fix/1.1.9-mcp-activity-labels
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6183144Z  * [new branch]        fix/1.1.9-sidebar-live-expansion -> origin/fix/1.1.9-sidebar-live-expansion
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6183543Z  * [new branch]        fix/1.1.9-termux-launch-recovery -> origin/fix/1.1.9-termux-launch-recovery
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6183993Z  * [new branch]        fix/1.1.9-termux-noninteractive-bootstrap -> origin/fix/1.1.9-termux-noninteractive-bootstrap
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6184439Z  * [new branch]        fix/20260926-agent-failure-guards -> origin/fix/20260926-agent-failure-guards
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6184869Z  * [new branch]        fix/20260927-android-security-audit -> origin/fix/20260927-android-security-audit
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6185320Z  * [new branch]        fix/20260927-installer-reliability-speed -> origin/fix/20260927-installer-reliability-speed
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6185757Z  * [new branch]        fix/20260927-windows-118-start -> origin/fix/20260927-windows-118-start
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6186135Z  * [new branch]        fix/20260928-context-transport -> origin/fix/20260928-context-transport
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6186523Z  * [new branch]        fix/20260929-android-reliability -> origin/fix/20260929-android-reliability
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6186943Z  * [new branch]        fix/20260929-dashboard-activity-counts -> origin/fix/20260929-dashboard-activity-counts
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6187364Z  * [new branch]        fix/20260929-macos-frontend -> origin/fix/20260929-macos-frontend
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6187772Z  * [new branch]        fix/20260929-plugin-snapshot-stability -> origin/fix/20260929-plugin-snapshot-stability
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6188284Z  * [new branch]        fix/20260929-tool-failure-audit -> origin/fix/20260929-tool-failure-audit
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6188685Z  * [new branch]        fix/20260929-windows-ui-safety -> origin/fix/20260929-windows-ui-safety
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6189083Z  * [new branch]        fix/20260929-workbench-status-page -> origin/fix/20260929-workbench-status-page
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6189613Z  * [new branch]        fix/20261001-native-dark-chrome -> origin/fix/20261001-native-dark-chrome
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6190283Z  * [new branch]        fix/20261001-recent-conversation-running -> origin/fix/20261001-recent-conversation-running
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6190928Z  * [new branch]        fix/20261002-proxy-rpc-recovery -> origin/fix/20261002-proxy-rpc-recovery
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6191556Z  * [new branch]        fix/20261002-sidebar-group-stability -> origin/fix/20261002-sidebar-group-stability
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6192023Z  * [new branch]        fix/20261003-funnel-longrun-recovery -> origin/fix/20261003-funnel-longrun-recovery
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6192646Z  * [new branch]        fix/20261004-published-release-replacement -> origin/fix/20261004-published-release-replacement
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6193118Z  * [new branch]        fix/20261020-macos-workbench-contracts -> origin/fix/20261020-macos-workbench-contracts
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6193566Z  * [new branch]        fix/activity-call-parameters-20261015 -> origin/fix/activity-call-parameters-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6194052Z  * [new branch]        fix/activity-parameter-detail-only-20261015 -> origin/fix/activity-parameter-detail-only-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6194526Z  * [new branch]        fix/agent-runtime-hotfix-1.1.9-20261018 -> origin/fix/agent-runtime-hotfix-1.1.9-20261018
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6195012Z  * [new branch]        fix/android-core-resumable-download-20261013 -> origin/fix/android-core-resumable-download-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6195541Z  * [new branch]        fix/android-guardian-result-semantics-20261021 -> origin/fix/android-guardian-result-semantics-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6196044Z  * [new branch]        fix/android-local-pair-refresh-20261013 -> origin/fix/android-local-pair-refresh-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6196627Z  * [new branch]        fix/android-release-core-bound-20261015 -> origin/fix/android-release-core-bound-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6197101Z  * [new branch]        fix/android-runtime-contract-sync-20261020 -> origin/fix/android-runtime-contract-sync-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6197674Z  * [new branch]        fix/android-single-apk-workbench-installer-names-20261014 -> origin/fix/android-single-apk-workbench-installer-names-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6198207Z  * [new branch]        fix/android-stable-signing-20261013 -> origin/fix/android-stable-signing-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6198651Z  * [new branch]        fix/android-storage-lifecycle-20261013 -> origin/fix/android-storage-lifecycle-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6199110Z  * [new branch]        fix/android-termux-host-recovery-20261013 -> origin/fix/android-termux-host-recovery-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6199530Z  * [new branch]        fix/android-termux-protocol -> origin/fix/android-termux-protocol
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6199901Z  * [new branch]        fix/code-scanning-high-20261013 -> origin/fix/code-scanning-high-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6200353Z  * [new branch]        fix/conditional-android-device-tools-20261013 -> origin/fix/conditional-android-device-tools-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6200986Z  * [new branch]        fix/context-bound-task-20261013 -> origin/fix/context-bound-task-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6201727Z  * [new branch]        fix/context-host-schema-task-guidance-1.1.9-20261019 -> origin/fix/context-host-schema-task-guidance-1.1.9-20261019
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6203458Z  * [new branch]        fix/context-observation-reuse-20261015 -> origin/fix/context-observation-reuse-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6204207Z  * [new branch]        fix/context-reliability-followup-20261018 -> origin/fix/context-reliability-followup-20261018
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6205121Z  * [new branch]        fix/context-server-owned-budget-20261018 -> origin/fix/context-server-owned-budget-20261018
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6206042Z  * [new branch]        fix/core-integration-quality-20261017 -> origin/fix/core-integration-quality-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6206797Z  * [new branch]        fix/cua-launch-app-routing -> origin/fix/cua-launch-app-routing
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6207834Z  * [new branch]        fix/event-driven-command-terminal-settlement-20261013 -> origin/fix/event-driven-command-terminal-settlement-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6208877Z  * [new branch]        fix/exec-command-workspace-inheritance-20261020 -> origin/fix/exec-command-workspace-inheritance-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6209696Z  * [new branch]        fix/generic-mcp-structured-output -> origin/fix/generic-mcp-structured-output
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6210294Z  * [new branch]        fix/goal-mode-running-task-only-20261014 -> origin/fix/goal-mode-running-task-only-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6210942Z  * [new branch]        fix/host-tool-handoff-20261021 -> origin/fix/host-tool-handoff-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6211638Z  * [new branch]        fix/install-startup-performance-1.1.9-20261018 -> origin/fix/install-startup-performance-1.1.9-20261018
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6213778Z  * [new branch]        fix/installer-process-stop-1.1.9-20261021 -> origin/fix/installer-process-stop-1.1.9-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6214458Z  * [new branch]        fix/macos-core-readiness-20261021 -> origin/fix/macos-core-readiness-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6215142Z  * [new branch]        fix/macos-release-regressions-1.1.9-20261014 -> origin/fix/macos-release-regressions-1.1.9-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6215968Z  * [new branch]        fix/macos-release-service-port-validation-20261020 -> origin/fix/macos-release-service-port-validation-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6216749Z  * [new branch]        fix/mcp-discovery-recovery-20261013 -> origin/fix/mcp-discovery-recovery-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6217508Z  * [new branch]        fix/mcp-error-result-continuation-20261019 -> origin/fix/mcp-error-result-continuation-20261019
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6218224Z  * [new branch]        fix/mcp-host-routing-loop-20261014 -> origin/fix/mcp-host-routing-loop-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6219119Z  * [new branch]        fix/mcp-prepared-call-snapshot-20261013 -> origin/fix/mcp-prepared-call-snapshot-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6219858Z  * [new branch]        fix/mcp-projection-and-plugin-update -> origin/fix/mcp-projection-and-plugin-update
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6220491Z  * [new branch]        fix/mcp-schema-delivery-20261020 -> origin/fix/mcp-schema-delivery-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6221109Z  * [new branch]        fix/mcp-terminal-handoff-20261021 -> origin/fix/mcp-terminal-handoff-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6221800Z  * [new branch]        fix/mcp-tool-domain-boundary-20261017 -> origin/fix/mcp-tool-domain-boundary-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6222502Z  * [new branch]        fix/mcp-tool-domain-isolation-20261017 -> origin/fix/mcp-tool-domain-isolation-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6223100Z  * [new branch]        fix/model-result-context-delivery-20261020 -> origin/fix/model-result-context-delivery-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6223578Z  * [new branch]        fix/output-reliability-1.1.9-20261015 -> origin/fix/output-reliability-1.1.9-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6224029Z  * [new branch]        fix/plugin-lifecycle-transaction-20261016 -> origin/fix/plugin-lifecycle-transaction-20261016
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6224534Z  * [new branch]        fix/plugin-runtime-preparation-deadline-20261017 -> origin/fix/plugin-runtime-preparation-deadline-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6225064Z  * [new branch]        fix/plugin-source-confirmation-20261006 -> origin/fix/plugin-source-confirmation-20261006
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6225552Z  * [new branch]        fix/publish-prerelease-promotion-20261012 -> origin/fix/publish-prerelease-promotion-20261012
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6226001Z  * [new branch]        fix/release-1.1.8-final-20261012 -> origin/fix/release-1.1.8-final-20261012
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6226643Z  * [new branch]        fix/release-catalog-stable-android-1.1.9-20261014 -> origin/fix/release-catalog-stable-android-1.1.9-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6227184Z  * [new branch]        fix/release-replacement-signing-1.1.9-20261014 -> origin/fix/release-replacement-signing-1.1.9-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6227678Z  * [new branch]        fix/release-self-update-assets-20261020 -> origin/fix/release-self-update-assets-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6228128Z  * [new branch]        fix/release-test-fixtures-20261015 -> origin/fix/release-test-fixtures-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6228556Z  * [new branch]        fix/restore-agentdock-brand-20261017 -> origin/fix/restore-agentdock-brand-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6229004Z  * [new branch]        fix/restore-v1.1.9-release-20261013 -> origin/fix/restore-v1.1.9-release-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6229405Z  * [new branch]        fix/restore-version-1.1.9-20261019 -> origin/fix/restore-version-1.1.9-20261019
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6229795Z  * [new branch]        fix/schema-projection-20261015 -> origin/fix/schema-projection-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6230203Z  * [new branch]        fix/session-observe-backoff-20261013 -> origin/fix/session-observe-backoff-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6230643Z  * [new branch]        fix/session-observe-contract-20261013 -> origin/fix/session-observe-contract-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6231091Z  * [new branch]        fix/skill-storage-lifecycle-20261020 -> origin/fix/skill-storage-lifecycle-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6231522Z  * [new branch]        fix/snapshot-cancel-isolation-20261013 -> origin/fix/snapshot-cancel-isolation-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6231966Z  * [new branch]        fix/snapshot-canonical-fixture-20261017 -> origin/fix/snapshot-canonical-fixture-20261017
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6232515Z  * [new branch]        fix/task-store-cancel-20261013 -> origin/fix/task-store-cancel-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6232880Z  * [new branch]        fix/tool-routing-loop-20261012 -> origin/fix/tool-routing-loop-20261012
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6233298Z  * [new branch]        fix/tool-routing-recovery-20261013 -> origin/fix/tool-routing-recovery-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6233845Z  * [new branch]        fix/view-image-budget-convergence-20261016 -> origin/fix/view-image-budget-convergence-20261016
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6234409Z  * [new branch]        fix/windows-cmd-git-window-20261020 -> origin/fix/windows-cmd-git-window-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6234841Z  * [new branch]        fix/windows-core-start-health-20261020 -> origin/fix/windows-core-start-health-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6235277Z  * [new branch]        fix/windows-git-child-console-20261020 -> origin/fix/windows-git-child-console-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6235770Z  * [new branch]        fix/windows-installer-acl-backward-compat-20261013 -> origin/fix/windows-installer-acl-backward-compat-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6236303Z  * [new branch]        fix/windows-plugin-generation-install-20261018 -> origin/fix/windows-plugin-generation-install-20261018
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6236838Z  * [new branch]        fix/windows-public-probe-winhttp-fallback-20261013 -> origin/fix/windows-public-probe-winhttp-fallback-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6237306Z  * [new branch]        fix/windows-pwsh-window-20261020 -> origin/fix/windows-pwsh-window-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6237762Z  * [new branch]        fix/windows-startup-console-final-1.1.9-20261019 -> origin/fix/windows-startup-console-final-1.1.9-20261019
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6238231Z  * [new branch]        fix/workspace-output-resume-20261021 -> origin/fix/workspace-output-resume-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6238638Z  * [new branch]        integrate/20260926-postmerge-audit -> origin/integrate/20260926-postmerge-audit
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6239004Z  * [new branch]        integrate/20260926-workbench -> origin/integrate/20260926-workbench
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6239298Z  * [new branch]        main                    -> origin/main
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6239763Z  * [new branch]        ops/diag-pr176-windows-go-20261021 -> origin/ops/diag-pr176-windows-go-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6240147Z  * [new branch]        ops/diagnose-open-prs-20261020 -> origin/ops/diagnose-open-prs-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6240550Z  * [new branch]        ops/diagnose-pr173-installer-20261020 -> origin/ops/diagnose-pr173-installer-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6240925Z  * [new branch]        ops/monitor-v1.1.9-20261021 -> origin/ops/monitor-v1.1.9-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6241255Z  * [new branch]        ops/rebuild-v1.1.9-20261015 -> origin/ops/rebuild-v1.1.9-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6241619Z  * [new branch]        ops/release-1.1.9-ae7a38ec-20261015 -> origin/ops/release-1.1.9-ae7a38ec-20261015
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6241983Z  * [new branch]        ops/republish-v1.1.9-20261021 -> origin/ops/republish-v1.1.9-20261021
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6242472Z  * [new branch]        parallel/20260925/activity -> origin/parallel/20260925/activity
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6242787Z  * [new branch]        parallel/20260925/android -> origin/parallel/20260925/android
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6243104Z  * [new branch]        parallel/20260925/core-cli -> origin/parallel/20260925/core-cli
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6243424Z  * [new branch]        parallel/20260925/insertion -> origin/parallel/20260925/insertion
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6243749Z  * [new branch]        parallel/20260925/installer -> origin/parallel/20260925/installer
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6244059Z  * [new branch]        parallel/20260925/macos -> origin/parallel/20260925/macos
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6244382Z  * [new branch]        parallel/20260925/permissions -> origin/parallel/20260925/permissions
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6244786Z  * [new branch]        perf/compact-agentdock-context-20261013 -> origin/perf/compact-agentdock-context-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6245215Z  * [new branch]        perf/compact-output-schema-20261013 -> origin/perf/compact-output-schema-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6245644Z  * [new branch]        perf/compact-success-responses-20261013 -> origin/perf/compact-success-responses-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6246107Z  * [new branch]        perf/separate-execution-envelope-20261013 -> origin/perf/separate-execution-envelope-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6246546Z  * [new branch]        perf/session-output-buffer-20261013 -> origin/perf/session-output-buffer-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6247096Z  * [new branch]        perf/sparse-output-policy-20261013 -> origin/perf/sparse-output-policy-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6247602Z  * [new branch]        perf/structured-output-budget-source-integrity-20261013 -> origin/perf/structured-output-budget-source-integrity-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6248136Z  * [new branch]        perf/structured-result-projection-20261013 -> origin/perf/structured-result-projection-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6248600Z  * [new branch]        refactor/postmerge-quality-1.1.9-20261014 -> origin/refactor/postmerge-quality-1.1.9-20261014
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6249087Z  * [new branch]        refactor/public-validation-tool-contracts-20261013 -> origin/refactor/public-validation-tool-contracts-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6249615Z  * [new branch]        refactor/windows-task-center-call-menus-20261013 -> origin/refactor/windows-task-center-call-menus-20261013
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6250026Z  * [new branch]        release/1.1.9-prerelease -> origin/release/1.1.9-prerelease
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6250363Z  * [new branch]        release/20260930-republish-118 -> origin/release/20260930-republish-118
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6250714Z  * [new branch]        release/20261002-all-prs-1.1.8 -> origin/release/20261002-all-prs-1.1.8
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6251030Z  * [new branch]        release/v1.1.8          -> origin/release/v1.1.8
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6251319Z  * [new branch]        release/windows-1.1.0   -> origin/release/windows-1.1.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6251682Z  * [new branch]        test/1.1.9-isolate-cold-start-launcher -> origin/test/1.1.9-isolate-cold-start-launcher
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6252217Z  * [new branch]        test/1.1.9-release-window-observer -> origin/test/1.1.9-release-window-observer
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6252666Z  * [new branch]        test/1.1.9-sidebar-baseline -> origin/test/1.1.9-sidebar-baseline
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6253048Z  * [new branch]        test/chatgpt-host-github-pr-20261020 -> origin/test/chatgpt-host-github-pr-20261020
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6253370Z  * [new tag]           v0.1.0                  -> v0.1.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6253592Z  * [new tag]           v0.2.0                  -> v0.2.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6253814Z  * [new tag]           v0.3.0                  -> v0.3.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6254029Z  * [new tag]           v0.4.0                  -> v0.4.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6254238Z  * [new tag]           v0.5.0                  -> v0.5.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6254473Z  * [new tag]           v0.5.1                  -> v0.5.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6254687Z  * [new tag]           v0.5.3                  -> v0.5.3
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6254899Z  * [new tag]           v0.5.4                  -> v0.5.4
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6255107Z  * [new tag]           v0.6.0                  -> v0.6.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6255324Z  * [new tag]           v0.6.1                  -> v0.6.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6255533Z  * [new tag]           v0.7.0                  -> v0.7.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6255741Z  * [new tag]           v0.7.1                  -> v0.7.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6255952Z  * [new tag]           v0.7.2                  -> v0.7.2
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6256163Z  * [new tag]           v0.7.3                  -> v0.7.3
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6256371Z  * [new tag]           v0.7.4                  -> v0.7.4
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6256581Z  * [new tag]           v0.7.5                  -> v0.7.5
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6256787Z  * [new tag]           v0.7.6                  -> v0.7.6
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6256994Z  * [new tag]           v0.7.7                  -> v0.7.7
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6257202Z  * [new tag]           v0.8.0                  -> v0.8.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6257409Z  * [new tag]           v0.8.1                  -> v0.8.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6257618Z  * [new tag]           v0.8.2                  -> v0.8.2
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6257830Z  * [new tag]           v0.8.3                  -> v0.8.3
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6258037Z  * [new tag]           v1.0.0                  -> v1.0.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6258248Z  * [new tag]           v1.0.1                  -> v1.0.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6258555Z  * [new tag]           v1.1.0                  -> v1.1.0
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6258763Z  * [new tag]           v1.1.1                  -> v1.1.1
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6258978Z  * [new tag]           v1.1.10                 -> v1.1.10
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6259191Z  * [new tag]           v1.1.2                  -> v1.1.2
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6259401Z  * [new tag]           v1.1.3                  -> v1.1.3
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6259608Z  * [new tag]           v1.1.4                  -> v1.1.4
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6259819Z  * [new tag]           v1.1.5                  -> v1.1.5
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6260026Z  * [new tag]           v1.1.6                  -> v1.1.6
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6260244Z  * [new tag]           v1.1.7                  -> v1.1.7
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6260460Z  * [new tag]           v1.1.8                  -> v1.1.8
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6260669Z  * [new tag]           v1.1.9                  -> v1.1.9
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6261864Z [command]/usr/bin/git rev-parse --verify --quiet 877927624c4c33897a4ce95328af04c91ba64a86^{object}
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6262417Z 877927624c4c33897a4ce95328af04c91ba64a86
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6262945Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6263210Z ##[group]Determining the checkout info
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6263478Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6263648Z [command]/usr/bin/git sparse-checkout disable
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6279806Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6317730Z ##[group]Checking out the ref
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.6321193Z [command]/usr/bin/git checkout --progress --force 877927624c4c33897a4ce95328af04c91ba64a86
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7401268Z Note: switching to '877927624c4c33897a4ce95328af04c91ba64a86'.
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7401957Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7402375Z You are in 'detached HEAD' state. You can look around, make experimental
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7402728Z changes and commit them, and you can discard any commits you make in this
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403077Z state without impacting any branches by switching back to a branch.
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403253Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403385Z If you want to create a new branch to retain commits you create, you may
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403695Z do so (now or later) by using -c with the switch command. Example:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403868Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7403959Z   git switch -c <new-branch-name>
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404086Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404175Z Or undo this operation with:
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404297Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404365Z   git switch -
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404459Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404626Z Turn off this advice by setting config variable advice.detachedHead to false
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404826Z 
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7404987Z HEAD is now at 87792762 test(mcp): bind repeated wire handoffs to one conversation
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7418009Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7468643Z [command]/usr/bin/git log -1 --format=%H
+Failure audit (ubuntu-latest)	Run actions/checkout@v5	2026-10-21T06:34:19.7505326Z 877927624c4c33897a4ce95328af04c91ba64a86
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	﻿2026-10-21T06:34:19.7719386Z ##[group]Run actions/setup-go@v6
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7719638Z with:
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7719792Z   go-version-file: go.mod
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7719958Z   cache: true
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7720104Z   check-latest: false
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7721770Z   token: ***
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7721917Z env:
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7722209Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7722438Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.7722603Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.8627806Z Setup go version spec 1.26.5
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:19.8656334Z Attempting to download 1.26.5...
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:20.6163652Z matching 1.26.5...
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:20.6211095Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-linux-x64.tar.gz
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:21.0609875Z Extracting Go...
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:21.0719347Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/cee88a58-a6e0-470e-9259-62fe86d36206 -f /home/runner/work/_temp/b1adb4e7-436d-422b-a242-fa64ae3132ad
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:22.2836880Z Successfully extracted go to /home/runner/work/_temp/cee88a58-a6e0-470e-9259-62fe86d36206
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:22.2837296Z Adding to the cache ...
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8354855Z Successfully cached go to /opt/hostedtoolcache/go/1.26.5/x64
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8357391Z Added go to the path
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8365973Z Successfully set up Go version 1.26.5
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8592026Z [command]/opt/hostedtoolcache/go/1.26.5/x64/bin/go env GOMODCACHE
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8642033Z [command]/opt/hostedtoolcache/go/1.26.5/x64/bin/go env GOCACHE
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8696320Z /home/runner/go/pkg/mod
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:25.8717639Z /home/runner/.cache/go-build
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:26.0141819Z Cache hit for: setup-go-Linux-x64-ubuntu24-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:27.1672254Z Received 134217728 of 197843030 (67.8%), 128.0 MBs/sec
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:27.4542623Z Received 197843030 of 197843030 (100.0%), 146.6 MBs/sec
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:27.4543077Z Cache Size: ~189 MB (197843030 B)
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:27.4630154Z [command]/usr/bin/tar -xf /home/runner/work/_temp/062fc8da-61ab-4c81-834c-49a8d68d02af/cache.tzst -P -C /home/runner/work/AgentDock-Workbench/AgentDock-Workbench --use-compress-program unzstd
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4168847Z Cache restored successfully
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4257241Z Cache restored from key: setup-go-Linux-x64-ubuntu24-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4287201Z go version go1.26.5 linux/amd64
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4287431Z 
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4287693Z ##[group]go env
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4421530Z AR='ar'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4421860Z CC='gcc'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4422519Z CGO_CFLAGS='-O2 -g'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4422696Z CGO_CPPFLAGS=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4422848Z CGO_CXXFLAGS='-O2 -g'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423023Z CGO_ENABLED='1'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423189Z CGO_FFLAGS='-O2 -g'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423338Z CGO_LDFLAGS='-O2 -g'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423522Z CXX='g++'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423633Z GCCGO='gccgo'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423753Z GO111MODULE=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423866Z GOAMD64='v1'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4423976Z GOARCH='amd64'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424090Z GOAUTH='netrc'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424203Z GOBIN=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424342Z GOCACHE='/home/runner/.cache/go-build'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424519Z GOCACHEPROG=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424638Z GODEBUG=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424766Z GOENV='/home/runner/.config/go/env'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4424919Z GOEXE=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4425033Z GOEXPERIMENT=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4425160Z GOFIPS140='off'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4425280Z GOFLAGS=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4425677Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build4132185308=/tmp/go-build -gno-record-gcc-switches'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4426057Z GOHOSTARCH='amd64'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4426190Z GOHOSTOS='linux'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4426310Z GOINSECURE=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4426542Z GOMOD='/home/runner/work/AgentDock-Workbench/AgentDock-Workbench/go.mod'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427058Z GOMODCACHE='/home/runner/go/pkg/mod'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427221Z GONOPROXY=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427338Z GONOSUMDB=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427452Z GOOS='linux'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427572Z GOPATH='/home/runner/go'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427709Z GOPRIVATE=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4427893Z GOPROXY='https://proxy.golang.org,direct'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428102Z GOROOT='/opt/hostedtoolcache/go/1.26.5/x64'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428289Z GOSUMDB='sum.golang.org'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428428Z GOTELEMETRY='local'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428594Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428771Z GOTMPDIR=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4428895Z GOTOOLCHAIN='local'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429075Z GOTOOLDIR='/opt/hostedtoolcache/go/1.26.5/x64/pkg/tool/linux_amd64'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429268Z GOVCS=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429377Z GOVERSION='go1.26.5'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429499Z GOWORK=''
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429620Z PKG_CONFIG='pkg-config'
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4429706Z 
+Failure audit (ubuntu-latest)	Run actions/setup-go@v6	2026-10-21T06:34:28.4430002Z ##[endgroup]
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	﻿2026-10-21T06:34:28.4645329Z ##[group]Run if ! command -v rg >/dev/null; then
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4645806Z ^[[36;1mif ! command -v rg >/dev/null; then^[[0m
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4646087Z ^[[36;1m  sudo apt-get update -qq^[[0m
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4646348Z ^[[36;1m  sudo apt-get install -y ripgrep^[[0m
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4646593Z ^[[36;1mfi^[[0m
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4646773Z ^[[36;1mrg --version^[[0m
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4781724Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4782035Z env:
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4782329Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4782528Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4782688Z   GOTOOLCHAIN: local
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:28.4782815Z ##[endgroup]
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:36.8684706Z Reading package lists...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.0852937Z Building dependency tree...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.0859445Z Reading state information...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2736852Z The following NEW packages will be installed:
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2737230Z   ripgrep
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2933818Z 0 upgraded, 1 newly installed, 0 to remove and 52 not upgraded.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2934177Z Need to get 1551 kB of archives.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2934416Z After this operation, 5335 kB of additional disk space will be used.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.2934689Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.3651667Z Get:2 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 ripgrep amd64 14.1.0-1 [1551 kB]
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.6239525Z Fetched 1551 kB in 0s (16.8 MB/s)
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.6868613Z Selecting previously unselected package ripgrep.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7105818Z (Reading database ... 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7106076Z (Reading database ... 5%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7106238Z (Reading database ... 10%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7106394Z (Reading database ... 15%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7106675Z (Reading database ... 20%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7106835Z (Reading database ... 25%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7107248Z (Reading database ... 30%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7107441Z (Reading database ... 35%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7107667Z (Reading database ... 40%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7107805Z (Reading database ... 45%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7107941Z (Reading database ... 50%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:37.7643333Z (Reading database ... 55%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:38.0482450Z (Reading database ... 60%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:38.3093723Z (Reading database ... 65%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:38.4938811Z (Reading database ... 70%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:38.8060119Z (Reading database ... 75%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:39.3060216Z (Reading database ... 80%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:39.9965557Z (Reading database ... 85%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:40.6905285Z (Reading database ... 90%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5021364Z (Reading database ... 95%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5021836Z (Reading database ... 100%
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5022431Z (Reading database ... 214410 files and directories currently installed.)
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5060670Z Preparing to unpack .../ripgrep_14.1.0-1_amd64.deb ...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5076962Z Unpacking ripgrep (14.1.0-1) ...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5878808Z Setting up ripgrep (14.1.0-1) ...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5897644Z Processing triggers for man-db (2.12.0-4build2) ...
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:41.5968268Z Not building database; man-db/auto-update is not 'true'.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.6998832Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.6999805Z Running kernel seems to be up-to-date.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000076Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000188Z No services need to be restarted.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000344Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000446Z No containers need to be restarted.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000605Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000719Z No user sessions are running outdated binaries.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7000902Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:42.7001122Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9098770Z ripgrep 14.1.0
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099015Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099172Z features:-simd-accel,+pcre2
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099380Z simd(compile):+SSE2,-SSSE3,-AVX2
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099537Z simd(runtime):+SSE2,+SSSE3,+AVX2
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099634Z 
+Failure audit (ubuntu-latest)	Ensure native ripgrep on Linux	2026-10-21T06:34:43.9099710Z PCRE2 10.42 is available (JIT is available)
+Failure audit (ubuntu-latest)	Record exact validation source	﻿2026-10-21T06:34:43.9137933Z ##[group]Run set -euo pipefail
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9138143Z ^[[36;1mset -euo pipefail^[[0m
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9138322Z ^[[36;1mmkdir -p "$RUNNER_TEMP/failure-audit-results"^[[0m
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9138613Z ^[[36;1mgit rev-parse HEAD | tee "$RUNNER_TEMP/failure-audit-results/commit.txt"^[[0m
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9138855Z ^[[36;1mgo version^[[0m
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9138995Z ^[[36;1mgit diff --check^[[0m
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9181949Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9182345Z env:
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9182552Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9182777Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9182911Z   GOTOOLCHAIN: local
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9183043Z ##[endgroup]
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9267385Z 877927624c4c33897a4ce95328af04c91ba64a86
+Failure audit (ubuntu-latest)	Record exact validation source	2026-10-21T06:34:43.9293848Z go version go1.26.5 linux/amd64
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	﻿2026-10-21T06:34:43.9816387Z ##[group]Run import os, pathlib, shutil, subprocess
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9816659Z ^[[36;1mimport os, pathlib, shutil, subprocess^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9816897Z ^[[36;1mbase = pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-before'^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9817250Z ^[[36;1msubprocess.run(['git', 'worktree', 'add', '--detach', str(base), os.environ['BASELINE_COMMIT']], check=True)^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9817713Z ^[[36;1mshutil.copyfile('internal/app/discovery_credential_isolation_test.go', base / 'internal/app/discovery_credential_isolation_test.go')^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9818458Z ^[[36;1mresult = subprocess.run(['go', 'test', './internal/app', '-run', '^TestAuditDiscoveryCredentialIsolationPortable$', '-count=1', '-timeout=90s', '-v'], cwd=base, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=240)^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9819303Z ^[[36;1m(pathlib.Path(os.environ['RUNNER_TEMP']) / 'failure-audit-results/before.log').write_text(result.stdout, encoding='utf-8')^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9819655Z ^[[36;1mprint(result.stdout)^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9819945Z ^[[36;1mif result.returncode == 0 or 'unscoped built-in search was poisoned by unrelated credentials' not in result.stdout:^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9820340Z ^[[36;1m    raise SystemExit('Unmodified baseline did not reproduce the expected discovery failure')^[[0m
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9840513Z shell: /usr/bin/python {0}
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9840676Z env:
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9840842Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9841036Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9841173Z   GOTOOLCHAIN: local
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:43.9841320Z ##[endgroup]
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:44.0080043Z Preparing worktree (detached HEAD de70f5f7)
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:44.0977077Z HEAD is now at de70f5f7 Merge reviewed context transport and command session fixes (#25)
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6454103Z go: downloading github.com/uvwt/agentdock-protocol v0.8.2-0.20260923043320-26915ee97188
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6454565Z === RUN   TestAuditDiscoveryCredentialIsolationPortable
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6455194Z     discovery_credential_isolation_test.go:41: unscoped built-in search was poisoned by unrelated credentials: required MCP stdio environment variable is missing
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6455671Z --- FAIL: TestAuditDiscoveryCredentialIsolationPortable (0.09s)
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6455895Z FAIL
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6456071Z FAIL	github.com/uvwt/agentdock/internal/app	0.099s
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6456257Z FAIL
+Failure audit (ubuntu-latest)	Reproduce regression on unchanged baseline	2026-10-21T06:34:48.6456316Z 
+Failure audit (ubuntu-latest)	Repeated focused regressions	﻿2026-10-21T06:34:48.6529147Z ##[group]Run set -euo pipefail
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6529368Z ^[[36;1mset -euo pipefail^[[0m
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6529789Z ^[[36;1mgo test -p 2 ./internal/mcp/client ./internal/tool/mcp ./internal/tool/file ./internal/app -run '^TestAudit' -count=3 -v -timeout=3m | tee "$RUNNER_TEMP/failure-audit-results/focused.log"^[[0m
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6572841Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6573070Z env:
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6573245Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6573442Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6573578Z   GOTOOLCHAIN: local
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:48.6573710Z ##[endgroup]
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5926850Z === RUN   TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5927524Z --- PASS: TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh (0.06s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5928096Z === RUN   TestAuditDiscoveryPreservesRegistryAndCancellationErrors
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5928626Z --- PASS: TestAuditDiscoveryPreservesRegistryAndCancellationErrors (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5929384Z === RUN   TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5929966Z --- PASS: TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh (0.08s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5930516Z === RUN   TestAuditDiscoveryPreservesRegistryAndCancellationErrors
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5931098Z --- PASS: TestAuditDiscoveryPreservesRegistryAndCancellationErrors (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5931636Z === RUN   TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5932373Z --- PASS: TestAuditCachedDiscoveryKeepsStaleResultsWithoutRefresh (0.06s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5932899Z === RUN   TestAuditDiscoveryPreservesRegistryAndCancellationErrors
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5933502Z --- PASS: TestAuditDiscoveryPreservesRegistryAndCancellationErrors (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5933916Z PASS
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.5934197Z ok  	github.com/uvwt/agentdock/internal/mcp/client	0.207s
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8163525Z === RUN   TestAuditDynamicMCPErrorPreservesExistingToolError
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8164142Z --- PASS: TestAuditDynamicMCPErrorPreservesExistingToolError (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8164813Z === RUN   TestAuditDynamicMCPAuthDenialRemainsNonRetryable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8165220Z --- PASS: TestAuditDynamicMCPAuthDenialRemainsNonRetryable (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8165633Z === RUN   TestAuditDynamicMCPErrorPreservesExistingToolError
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8166047Z --- PASS: TestAuditDynamicMCPErrorPreservesExistingToolError (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8166465Z === RUN   TestAuditDynamicMCPAuthDenialRemainsNonRetryable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8166867Z --- PASS: TestAuditDynamicMCPAuthDenialRemainsNonRetryable (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8167276Z === RUN   TestAuditDynamicMCPErrorPreservesExistingToolError
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8167690Z --- PASS: TestAuditDynamicMCPErrorPreservesExistingToolError (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8168110Z === RUN   TestAuditDynamicMCPAuthDenialRemainsNonRetryable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8168509Z --- PASS: TestAuditDynamicMCPAuthDenialRemainsNonRetryable (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8168863Z PASS
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:51.8169097Z ok  	github.com/uvwt/agentdock/internal/tool/mcp	0.011s
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2930093Z === RUN   TestAuditNegativeSearchIsLiteralArgument
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2930633Z --- PASS: TestAuditNegativeSearchIsLiteralArgument (0.01s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2931057Z === RUN   TestAuditExactSearchSkipsUnrelatedTreeBeforeReading
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2931495Z --- PASS: TestAuditExactSearchSkipsUnrelatedTreeBeforeReading (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2931948Z === RUN   TestAuditExactSearchPreservesHiddenAndIgnoredParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2932526Z --- PASS: TestAuditExactSearchPreservesHiddenAndIgnoredParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2932952Z === RUN   TestAuditExactSearchDoesNotFollowSymlinkParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2933351Z --- PASS: TestAuditExactSearchDoesNotFollowSymlinkParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2933762Z === RUN   TestAuditDirectoryExclusionKeepsPartialPatterns
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2934186Z --- PASS: TestAuditDirectoryExclusionKeepsPartialPatterns (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2934887Z === RUN   TestAuditSearchCaptureIsBoundedEvenThroughIOCopy
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2935330Z --- PASS: TestAuditSearchCaptureIsBoundedEvenThroughIOCopy (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2935737Z === RUN   TestAuditNegativeSearchIsLiteralArgument
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2936116Z --- PASS: TestAuditNegativeSearchIsLiteralArgument (0.01s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2936535Z === RUN   TestAuditExactSearchSkipsUnrelatedTreeBeforeReading
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2937318Z --- PASS: TestAuditExactSearchSkipsUnrelatedTreeBeforeReading (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2937790Z === RUN   TestAuditExactSearchPreservesHiddenAndIgnoredParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2938237Z --- PASS: TestAuditExactSearchPreservesHiddenAndIgnoredParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2938671Z === RUN   TestAuditExactSearchDoesNotFollowSymlinkParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2939102Z --- PASS: TestAuditExactSearchDoesNotFollowSymlinkParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2939512Z === RUN   TestAuditDirectoryExclusionKeepsPartialPatterns
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2939946Z --- PASS: TestAuditDirectoryExclusionKeepsPartialPatterns (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2940401Z === RUN   TestAuditSearchCaptureIsBoundedEvenThroughIOCopy
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2940830Z --- PASS: TestAuditSearchCaptureIsBoundedEvenThroughIOCopy (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2941243Z === RUN   TestAuditNegativeSearchIsLiteralArgument
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2941606Z --- PASS: TestAuditNegativeSearchIsLiteralArgument (0.01s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2942017Z === RUN   TestAuditExactSearchSkipsUnrelatedTreeBeforeReading
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2943001Z --- PASS: TestAuditExactSearchSkipsUnrelatedTreeBeforeReading (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2943482Z === RUN   TestAuditExactSearchPreservesHiddenAndIgnoredParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2943968Z --- PASS: TestAuditExactSearchPreservesHiddenAndIgnoredParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2944440Z === RUN   TestAuditExactSearchDoesNotFollowSymlinkParents
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2944896Z --- PASS: TestAuditExactSearchDoesNotFollowSymlinkParents (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2945369Z === RUN   TestAuditDirectoryExclusionKeepsPartialPatterns
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2945960Z --- PASS: TestAuditDirectoryExclusionKeepsPartialPatterns (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2946360Z === RUN   TestAuditSearchCaptureIsBoundedEvenThroughIOCopy
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2946767Z --- PASS: TestAuditSearchCaptureIsBoundedEvenThroughIOCopy (0.00s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2947090Z PASS
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:53.2947328Z ok  	github.com/uvwt/agentdock/internal/tool/file	0.042s
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0410023Z === RUN   TestAuditDiscoveryCredentialIsolationPortable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0410833Z --- PASS: TestAuditDiscoveryCredentialIsolationPortable (1.43s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0411573Z === RUN   TestAuditBuiltinSearchNeverInitializesDynamicServers
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0423657Z     discovery_routing_test.go:75: host handoff route audit is not successful: {ToolExecution:0x57514bac240 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x57514b00480 Response:0x57514b00500 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.431541713 +0000 UTC RPCElapsedMS:0x57514e49698 RPCStatus:succeeded ExecutionElapsedMS:0x57514e496b0 WaitElapsedMS:0x57514e496b8 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514e496c0 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_4e9bd924d84330dc095ffb2a68e5d598 Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_97ebde09cb7819e3925301500b30d1e0 ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Search dynamic MCP tools} DisplayTitle:宿主工具交接 · task_manage StartedAt:2026-10-21 06:34:58.425903786 +0000 UTC ParameterSummary:{"query":"task_manage"} OutputSummary:宿主工具交接 · task_manage ErrorSummary:宿主工具交接 · task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · task_manage ToolName:mcp_tool_search SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.425903786 +0000 UTC UpdatedAt:2026-10-21 06:34:58.431722313 +0000 UTC CompletedAt:2026-10-21 06:34:58.428882453 +0000 UTC CreatedSeq:8 UpdatedSeq:14 ElapsedMS:2 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0428428Z --- FAIL: TestAuditBuiltinSearchNeverInitializesDynamicServers (0.03s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0428770Z === RUN   TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0435986Z     discovery_routing_test.go:109: inspect route audit is not successful: {ToolExecution:0x57514abbb00 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x575143aa600 Response:0x575143aa680 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.451361476 +0000 UTC RPCElapsedMS:0x57514c73868 RPCStatus:succeeded ExecutionElapsedMS:0x57514c73880 WaitElapsedMS:0x57514c73888 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514c73890 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_512541d42f5730329ff31b260e4d4db0 Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_bc14cdf810314de6989ae83e584a3224 ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Inspect a dynamic MCP tool} DisplayTitle:宿主工具交接 · exec_command, task_manage StartedAt:2026-10-21 06:34:58.445437241 +0000 UTC ParameterSummary:{} OutputSummary:宿主工具交接 · exec_command, task_manage ErrorSummary:宿主工具交接 · exec_command, task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · exec_command, task_manage ToolName:mcp_tool_inspect SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · exec_command, task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.445437241 +0000 UTC UpdatedAt:2026-10-21 06:34:58.451503608 +0000 UTC CompletedAt:2026-10-21 06:34:58.448480324 +0000 UTC CreatedSeq:1 UpdatedSeq:7 ElapsedMS:3 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0440245Z --- FAIL: TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification (0.02s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0440585Z === RUN   TestAuditBroadSearchReportsColdCatalogWithoutConnecting
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0440885Z --- PASS: TestAuditBroadSearchReportsColdCatalogWithoutConnecting (0.05s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0441176Z === RUN   TestAuditKnownCatalogSurvivesUnrelatedMissingCredential
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0441470Z --- PASS: TestAuditKnownCatalogSurvivesUnrelatedMissingCredential (0.05s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0441745Z === RUN   TestAuditDiscoveryCredentialIsolationPortable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0441998Z --- PASS: TestAuditDiscoveryCredentialIsolationPortable (0.05s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0442397Z === RUN   TestAuditBuiltinSearchNeverInitializesDynamicServers
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0447844Z     discovery_routing_test.go:75: host handoff route audit is not successful: {ToolExecution:0x57514a29680 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x57514b00380 Response:0x57514b00400 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.626938422 +0000 UTC RPCElapsedMS:0x57514d07628 RPCStatus:succeeded ExecutionElapsedMS:0x57514d07640 WaitElapsedMS:0x57514d07648 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514d07650 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_50a915fd99567b1d04e375d6282a01cf Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_a2d7eb19d7608d733d0e779aceb633c7 ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Search dynamic MCP tools} DisplayTitle:宿主工具交接 · task_manage StartedAt:2026-10-21 06:34:58.621005464 +0000 UTC ParameterSummary:{"query":"task_manage"} OutputSummary:宿主工具交接 · task_manage ErrorSummary:宿主工具交接 · task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · task_manage ToolName:mcp_tool_search SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.621005464 +0000 UTC UpdatedAt:2026-10-21 06:34:58.627085512 +0000 UTC CompletedAt:2026-10-21 06:34:58.624025584 +0000 UTC CreatedSeq:8 UpdatedSeq:14 ElapsedMS:3 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0451583Z --- FAIL: TestAuditBuiltinSearchNeverInitializesDynamicServers (0.03s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0451877Z === RUN   TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0457549Z     discovery_routing_test.go:109: inspect route audit is not successful: {ToolExecution:0x57514b94a20 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x57514b00e00 Response:0x57514b00e80 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.647746591 +0000 UTC RPCElapsedMS:0x57514a2bb68 RPCStatus:succeeded ExecutionElapsedMS:0x57514a2bb80 WaitElapsedMS:0x57514a2bb88 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514a2bb90 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_c4860a62c441cd5388cc57021cb581ae Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_d7ae9f3f7494149b239c6c360d2a874d ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Inspect a dynamic MCP tool} DisplayTitle:宿主工具交接 · exec_command, task_manage StartedAt:2026-10-21 06:34:58.641997267 +0000 UTC ParameterSummary:{} OutputSummary:宿主工具交接 · exec_command, task_manage ErrorSummary:宿主工具交接 · exec_command, task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · exec_command, task_manage ToolName:mcp_tool_inspect SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · exec_command, task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.641997267 +0000 UTC UpdatedAt:2026-10-21 06:34:58.647896765 +0000 UTC CompletedAt:2026-10-21 06:34:58.644995654 +0000 UTC CreatedSeq:1 UpdatedSeq:7 ElapsedMS:3 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0461608Z --- FAIL: TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification (0.02s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0461922Z === RUN   TestAuditBroadSearchReportsColdCatalogWithoutConnecting
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0462367Z --- PASS: TestAuditBroadSearchReportsColdCatalogWithoutConnecting (0.05s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0462652Z === RUN   TestAuditKnownCatalogSurvivesUnrelatedMissingCredential
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0462943Z --- PASS: TestAuditKnownCatalogSurvivesUnrelatedMissingCredential (0.10s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0463211Z === RUN   TestAuditDiscoveryCredentialIsolationPortable
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0463453Z --- PASS: TestAuditDiscoveryCredentialIsolationPortable (0.03s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0463707Z === RUN   TestAuditBuiltinSearchNeverInitializesDynamicServers
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0470865Z     discovery_routing_test.go:75: host handoff route audit is not successful: {ToolExecution:0x57514a08900 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x57514899780 Response:0x57514899800 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.860935184 +0000 UTC RPCElapsedMS:0x57514845c48 RPCStatus:succeeded ExecutionElapsedMS:0x57514845c60 WaitElapsedMS:0x57514845c68 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514845c70 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_d017d2c1d312a05ad74a7ae3ce6195a7 Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_353ed99ea9906fd1ca3ac2961a815cfd ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Search dynamic MCP tools} DisplayTitle:宿主工具交接 · task_manage StartedAt:2026-10-21 06:34:58.855252009 +0000 UTC ParameterSummary:{"query":"task_manage"} OutputSummary:宿主工具交接 · task_manage ErrorSummary:宿主工具交接 · task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · task_manage ToolName:mcp_tool_search SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.855252009 +0000 UTC UpdatedAt:2026-10-21 06:34:58.861091207 +0000 UTC CompletedAt:2026-10-21 06:34:58.858314391 +0000 UTC CreatedSeq:8 UpdatedSeq:14 ElapsedMS:3 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0474995Z --- FAIL: TestAuditBuiltinSearchNeverInitializesDynamicServers (0.03s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0475308Z === RUN   TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0480805Z     discovery_routing_test.go:109: inspect route audit is not successful: {ToolExecution:0x5751490aea0 OutputStages:<nil> OutputSourceVersions:[] CommandObservation:{OriginCallID: RoutineObservation:false} Request:0x57514ecf680 Response:0x57514ecf700 OutputSource:<nil> LastActivityAt:<nil> LastInteractionAt:<nil> CallMeasurements:{RequestReceivedAt:<nil> RPCCompletedAt:2026-10-21 06:34:58.883187909 +0000 UTC RPCElapsedMS:0x57514e303f8 RPCStatus:succeeded ExecutionElapsedMS:0x57514e30410 WaitElapsedMS:0x57514e30418 ApprovalWaitMS:<nil> OperationElapsedMS:0x57514e30420 ProcessElapsedMS:<nil>} FileEdit:<nil> CallManagement:{Management:{Pinned:false Tags:[] ArchivedAt:<nil> TrashedAt:<nil> PurgeAfter:<nil>} IsolatedAt:<nil> DeletedAt:<nil>} OwnerPID:3734 OwnerInstance:call_f863a3952bfb4478ea7edd43bc2aa8c0 Binding:{RequestID: Source:native BindingQuality:unattributed BindingRevision:0 Visibility:normal SourceOwnerKey:581278bdbacb6041786dd6513394356552e2e5ddffda4002a3c9be243ac64057 ConversationID: CallID:call_12f9db78b2b1125649a0b31ccb5092ba ParentCallID: RetryOfCallID: TaskID: ThreadID: StepID: WorkspaceID: Label:Inspect a dynamic MCP tool} DisplayTitle:宿主工具交接 · exec_command, task_manage StartedAt:2026-10-21 06:34:58.8773483 +0000 UTC ParameterSummary:{} OutputSummary:宿主工具交接 · exec_command, task_manage ErrorSummary:宿主工具交接 · exec_command, task_manage TaskThreadID: ReadOnlyLegacy:false SchemaVersion:2 Status:failed Title:宿主工具交接 · exec_command, task_manage ToolName:mcp_tool_inspect SessionID: Runtime: Workdir: DisplayCommand: Summary:宿主工具交接 · exec_command, task_manage ApprovalID: RuleID:full-scope PermissionMode:full ErrorCode: CreatedAt:2026-10-21 06:34:58.8773483 +0000 UTC UpdatedAt:2026-10-21 06:34:58.883348429 +0000 UTC CompletedAt:2026-10-21 06:34:58.880283623 +0000 UTC CreatedSeq:1 UpdatedSeq:7 ElapsedMS:3 EventCount:7 ExitCode:<nil> CommandOK:<nil> TimedOut:false HasOutput:true OutputPreview: StderrPreview: StdoutTruncated:false StderrTruncated:false FileChanges:[] ChangesTruncated:false HistoryIncomplete:false Legacy:false} <nil>
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0484881Z --- FAIL: TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification (0.02s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0485196Z === RUN   TestAuditBroadSearchReportsColdCatalogWithoutConnecting
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0485484Z --- PASS: TestAuditBroadSearchReportsColdCatalogWithoutConnecting (0.05s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0485778Z === RUN   TestAuditKnownCatalogSurvivesUnrelatedMissingCredential
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0486063Z --- PASS: TestAuditKnownCatalogSurvivesUnrelatedMissingCredential (0.10s)
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0486280Z FAIL
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0486444Z FAIL	github.com/uvwt/agentdock/internal/app	2.070s
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0486688Z FAIL
+Failure audit (ubuntu-latest)	Repeated focused regressions	2026-10-21T06:34:59.0686954Z ##[error]Process completed with exit code 1.
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	﻿2026-10-21T06:34:59.0780899Z ##[group]Run actions/upload-artifact@v7
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781081Z with:
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781220Z   name: failure-audit-ubuntu-latest-39556156249
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781429Z   path: /home/runner/work/_temp/failure-audit-results
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781600Z   retention-days: 14
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781726Z   if-no-files-found: error
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0781859Z   compression-level: 6
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0782336Z   overwrite: false
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0782476Z   include-hidden-files: false
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0782613Z   archive: true
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0782724Z env:
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0782869Z   BASELINE_COMMIT: de70f5f78b8534259fbd1df70ea0f6cc4a39b4b5
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0783060Z   AGENTDOCK_REQUIRE_RG: 1
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0783190Z   GOTOOLCHAIN: local
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.0783307Z ##[endgroup]
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.1872833Z With the provided path, there will be 3 files uploaded
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.1873399Z Artifact name is valid!
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.1873625Z Root directory input is valid!
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.4356333Z Uploading artifact: failure-audit-ubuntu-latest-39556156249.zip
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.4388771Z Beginning upload of artifact content to blob storage
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.6185036Z Uploaded bytes 3118
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.6594185Z Finished uploading artifact content to blob storage!
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.6594896Z SHA256 digest of uploaded artifact is 3f6846e586566e9ca031ea495605bea32b190709fbb43429fd924174a94f2566
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.6595398Z Finalizing artifact upload
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.9724827Z Artifact failure-audit-ubuntu-latest-39556156249 successfully finalized. Artifact ID 12325098036
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.9725882Z Artifact failure-audit-ubuntu-latest-39556156249 has been successfully uploaded! Final size is 3118 bytes. Artifact ID is 12325098036
+Failure audit (ubuntu-latest)	Run actions/upload-artifact@v7	2026-10-21T06:34:59.9728633Z Artifact download URL: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39556156249/artifacts/12325098036
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	﻿2026-10-21T06:34:59.9894505Z Post job cleanup.
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0520159Z [command]/usr/bin/git version
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0556744Z git version 2.55.0
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0587036Z Temporarily overriding HOME='/home/runner/work/_temp/1b8d7ee6-9e79-4d1f-b5cb-892f4eb94aa8' before making global git config changes
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0587664Z Adding repository directory to the temporary git global config as a safe directory
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0591693Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0637796Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0675369Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0911399Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0940805Z http.https://github.com/.extraheader
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0950869Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.0987266Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.1224932Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Failure audit (ubuntu-latest)	Post Run actions/checkout@v5	2026-10-21T06:35:00.1274400Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Failure audit (ubuntu-latest)	Complete job	﻿2026-10-21T06:35:00.1615573Z Cleaning up orphan processes
