@@ -58,15 +58,19 @@ func Serve(ctx context.Context, server *mcp.Server, runtime runtimeapi.Runtime, 
 
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	httpServer := newHTTPServer(addr, loggingMiddleware(mux))
-	slog.Info("http server listening", "addr", addr)
 	return serveHTTP(ctx, httpServer)
 }
 func serveHTTP(ctx context.Context, server *http.Server) error {
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return fmt.Errorf("listen HTTP server on %s: %w", server.Addr, err)
+	}
+	slog.Info("http server listening", "addr", listener.Addr().String())
 	if server.BaseContext == nil {
 		server.BaseContext = func(net.Listener) context.Context { return ctx }
 	}
 	serveErr := make(chan error, 1)
-	go func() { serveErr <- server.ListenAndServe() }()
+	go func() { serveErr <- server.Serve(listener) }()
 
 	select {
 	case err := <-serveErr:

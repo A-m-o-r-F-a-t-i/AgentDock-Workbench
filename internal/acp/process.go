@@ -29,6 +29,9 @@ type agentProcess struct {
 }
 
 func startAgentProcess(ctx context.Context, spec AgentSpec, defaultCWD string, requestHandler RequestHandler, notificationHandler NotificationHandler) (*agentProcess, error) {
+	if err := config.ValidateACPCommand(spec.Command); err != nil {
+		return nil, newError("ACP_START_FAILED", "start ACP agent", false, map[string]any{"agent": spec.Name, "command": spec.Command}, err)
+	}
 	environment := envstore.Merge(envstore.MinimalSystemEnv(), spec.Environment)
 	// The adapter must outlive ctx, which only bounds startup and initialize.
 	// agentProcess.Close owns termination through processcontrol.Controller.

@@ -41,7 +41,7 @@ def main() -> None:
     core=json.loads(run(str(app/'Contents/Helpers/agentdock'),'version','--json'))
     if (core.get('product_name'),core['version'],core['commit'])!=('AgentDock Workbench',version,commit[:12]):
         raise RuntimeError('Embedded Core was not built from the verified source')
-    dmg=directory/'AgentDock-macos-universal.dmg'
+    dmg=directory/f'AgentDock-Workbench-{version}-macos-universal.dmg'
     archive=directory/'AgentDock-macos-universal.zip'
     run('hdiutil','verify',str(dmg))
     with zipfile.ZipFile(archive) as package:

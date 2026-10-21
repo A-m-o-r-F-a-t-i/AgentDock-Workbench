@@ -38,7 +38,7 @@ function Invoke-SetupRuntimeProcess {
         [string] $Arguments = '',
         [switch] $WaitForExit,
         [switch] $PassThruOutput,
-        [int] $TimeoutSeconds = 180
+        [int] $TimeoutSeconds = 240
     )
 
     if ($InstallChannel -ne 'setup') {
@@ -894,6 +894,116 @@ function Stop-AgentDockTrayForUpgrade {
     if ($null -ne $ObservedRunning) { $observationArguments.ObservedRunning = $ObservedRunning }
     return Stop-ProcessesForUpgrade -ProcessName 'agentdock-tray' -BinaryPath $BinaryPath `
         @observationArguments -TimeoutMilliseconds $TimeoutMilliseconds
+}
+
+function Get-AgentDockGenerationDirectories {
+    param([string] $VersionsDirectory)
+
+    if ([string]::IsNullOrWhiteSpace($VersionsDirectory) -or
+        -not (Test-Path -LiteralPath $VersionsDirectory -PathType Container)) {
+        return @()
+    }
+    return @(Get-ChildItem -LiteralPath $VersionsDirectory -Directory -ErrorAction Stop | Where-Object {
+        (Test-Path -LiteralPath (Join-Path $_.FullName 'agentdock-core.exe') -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $_.FullName 'agentdock-tray.exe') -PathType Leaf)
+    } | ForEach-Object { $_.FullName })
+}
+
+function Stop-AgentDockManagedPortOwners {
+    param(
+        [ValidateRange(1, 65535)][int] $Port,
+        [string] $StableCorePath,
+        [string[]] $GenerationDirectories = @()
+    )
+
+    $managedPaths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    if (-not [string]::IsNullOrWhiteSpace($StableCorePath)) {
+        [void] $managedPaths.Add([IO.Path]::GetFullPath($StableCorePath))
+    }
+    foreach ($directory in $GenerationDirectories) {
+        if ([string]::IsNullOrWhiteSpace($directory)) { continue }
+        [void] $managedPaths.Add([IO.Path]::GetFullPath((Join-Path $directory 'agentdock-core.exe')))
+    }
+
+    try {
+        $ownerIDs = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+    } catch {
+        return
+    }
+    foreach ($ownerID in $ownerIDs) {
+        $owner = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerID" -ErrorAction SilentlyContinue
+        if ($null -eq $owner -or [string]::IsNullOrWhiteSpace([string] $owner.ExecutablePath)) { continue }
+        $ownerPath = [IO.Path]::GetFullPath([string] $owner.ExecutablePath)
+        if (-not $managedPaths.Contains($ownerPath)) { continue }
+        $process = Get-Process -Id $ownerID -ErrorAction SilentlyContinue
+        if ($null -eq $process) { continue }
+        try {
+            [void] $process.Handle
+            $current = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerID" -ErrorAction SilentlyContinue
+            if ($null -eq $current -or [string]::IsNullOrWhiteSpace([string] $current.ExecutablePath) -or
+                -not [string]::Equals(
+                    [IO.Path]::GetFullPath([string] $current.ExecutablePath),
+                    $ownerPath,
+                    [StringComparison]::OrdinalIgnoreCase
+                )) {
+                continue
+            }
+            Stop-Process -InputObject $process -Force -ErrorAction Stop
+            if (-not $process.WaitForExit(5000)) {
+                throw "Unable to stop managed AgentDock port owner PID $ownerID at $ownerPath."
+            }
+        } finally {
+            $process.Dispose()
+        }
+    }
+}
+
+function Assert-AgentDockPortAvailable {
+    param(
+        [ValidateRange(1, 65535)][int] $Port,
+        [ValidateRange(1, 10000)][int] $TimeoutMilliseconds = 3000
+    )
+
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+    $lastError = ''
+    do {
+        $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+        try {
+            $probe.ExclusiveAddressUse = $true
+            $probe.Start()
+            return
+        } catch {
+            $lastError = $_.Exception.Message
+        } finally {
+            $probe.Stop()
+        }
+        Start-Sleep -Milliseconds 200
+    } while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds)
+
+    $ownerDetails = @()
+    try {
+        $ownerIDs = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+        foreach ($ownerID in $ownerIDs) {
+            $owner = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerID" -ErrorAction SilentlyContinue
+            if ($null -eq $owner) {
+                $ownerDetails += "PID=$ownerID"
+                continue
+            }
+            $detail = "PID=$ownerID"
+            if (-not [string]::IsNullOrWhiteSpace([string] $owner.ExecutablePath)) {
+                $detail += "; path=$($owner.ExecutablePath)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string] $owner.Name)) {
+                $detail += "; name=$($owner.Name)"
+            }
+            $ownerDetails += $detail
+        }
+    } catch {
+    }
+    $ownerText = if ($ownerDetails.Count -gt 0) { $ownerDetails -join ' | ' } else { 'owner unavailable' }
+    throw "AgentDock cannot start because 127.0.0.1:$Port is already in use. $ownerText. Bind error: $lastError"
 }
 
 function Stop-AgentDockRuntimeForUpgrade {
@@ -1854,9 +1964,10 @@ try {
     # restarting the source runtime or restoring another Windows adapter. The
     # Engine deliberately persists external_rollback_failed so a later install
     # cannot silently trust partially restored Task/Registry/service state.
-    # When the recorded source generation is still the committed pointer and
-    # its exact version is already healthy, Setup can safely perform the same
-    # explicit confirmation an operator would otherwise run by hand.
+    # When the recorded source generation is still the committed pointer,
+    # start that restored runtime before confirming its exact health version.
+    # A failed rollback can leave Core stopped; requiring it to be running
+    # before retrying Setup would otherwise prevent the installer from repairing it.
     if ([bool] $installInspection.requires_adapter_rollback_confirmation) {
         $failedTransactionId = [string] $installInspection.transaction_id
         $failedSourceVersion = [string] $installInspection.source_version
@@ -1874,6 +1985,43 @@ try {
             -not $sourceMatchesPointer) {
             $installErrorCode = 'stale-rollback-recovery-unsafe'
             throw 'AgentDock found an incomplete OS adapter rollback, but the committed runtime does not match its recorded source version. Setup left the transaction untouched.'
+        }
+
+        if (-not (Test-Path -LiteralPath $runtimeManifestPath -PathType Leaf)) {
+            $installErrorCode = 'stale-rollback-recovery-unsafe'
+            throw 'AgentDock cannot restart the previous runtime because its restored runtime manifest is missing.'
+        }
+        # Stop the committed source through its native lifecycle, then remove only
+        # a remaining listener that belongs to this installation. A foreign owner
+        # is never killed and is reported by the port preflight below.
+        Write-Host 'Stopping managed AgentDock Core listeners before rollback recovery...'
+        if ($InstallChannel -eq 'setup') {
+            Invoke-SetupRuntimeProcess -FilePath $sourceBinary `
+                -Arguments (ConvertTo-NativeArguments -Values @('service', 'stop', '--runtime-root', $runtimeDir)) `
+                -WaitForExit
+        } else {
+            & $sourceBinary service stop --runtime-root $runtimeDir
+            if ($LASTEXITCODE -ne 0) {
+                $installErrorCode = 'stale-rollback-recovery-failed'
+                throw "AgentDock could not stop the previous restored runtime (exit $LASTEXITCODE)."
+            }
+        }
+        $recoveryGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)
+        Stop-AgentDockManagedPortOwners -Port $Port -StableCorePath $destinationBinary `
+            -GenerationDirectories $recoveryGenerationDirectories
+        Assert-AgentDockPortAvailable -Port $Port
+
+        Write-Host 'Starting the restored AgentDock runtime before confirming the previous rollback...'
+        if ($InstallChannel -eq 'setup') {
+            Invoke-SetupRuntimeProcess -FilePath $sourceBinary `
+                -Arguments (ConvertTo-NativeArguments -Values @('service', 'start', '--runtime-root', $runtimeDir)) `
+                -WaitForExit
+        } else {
+            & $sourceBinary service start --runtime-root $runtimeDir
+            if ($LASTEXITCODE -ne 0) {
+                $installErrorCode = 'stale-rollback-recovery-failed'
+                throw "AgentDock could not restart the previous restored runtime (exit $LASTEXITCODE)."
+            }
         }
 
         Write-Host 'Confirming the healthy restored AgentDock runtime before Setup retries the upgrade...'
@@ -2051,13 +2199,14 @@ try {
     try {
         $agentDockStopAttempted = $true
         $trayStopAttempted = $true
-        $stopGenerationDirectories = @()
+        $stopGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)
         if ($generationLayoutDetected) {
             $stopGenerationDirectories += $existingGenerationDirectory
         }
         Stop-AgentDockRuntimeForUpgrade -StableCorePath $destinationBinary -StableTrayPath $destinationTrayBinary `
             -GenerationDirectories $stopGenerationDirectories `
             -CoreWasRunning ([ref] $processWasRunning) -TrayWasRunning ([ref] $trayProcessWasRunning)
+        Assert-AgentDockPortAvailable -Port $Port
 
         # Stable entries remain the rollback boundary for both legacy bootstrap and same-version repair.
         # Preserve them before replacement even when active-version.json already exists.
@@ -2583,11 +2732,11 @@ exit `$LASTEXITCODE
     try {
         $rollbackCorePath = ''
         $rollbackTrayPath = ''
-        $rollbackGenerationDirectories = @()
+        $rollbackGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)
         if ($generationLayoutDetected -or $enginePrepared) {
             $rollbackCorePath = $destinationBinary
             $rollbackTrayPath = $destinationTrayBinary
-            $rollbackGenerationDirectories = @($generationBootstrapDirectory, $existingGenerationDirectory)
+            $rollbackGenerationDirectories += @($generationBootstrapDirectory, $existingGenerationDirectory)
         } else {
             if ($trayStopAttempted -or $stableFilesMayBeReplaced -or $trayStartupRegistrationChanged) {
                 $rollbackTrayPath = $destinationTrayBinary

@@ -138,7 +138,8 @@ AGENTDOCK_MACOS_OFFLINE_PAYLOAD_DIR="$payload_dir" \
   "$ROOT_DIR/packaging/macos/build-app.sh"
 
 APP="$TMP_ROOT/output/AgentDock.app"
-DMG="$TMP_ROOT/output/AgentDock-macos-universal.dmg"
+VERSION="$(go run "$ROOT_DIR/tools/release" version)"
+DMG="$TMP_ROOT/output/AgentDock-Workbench-$VERSION-macos-universal.dmg"
 ZIP="$TMP_ROOT/output/AgentDock-macos-universal.zip"
 test -x "$APP/Contents/MacOS/AgentDock"
 MENU_LOGIN_HELPER="$APP/Contents/Helpers/AgentDockLoginHelper"

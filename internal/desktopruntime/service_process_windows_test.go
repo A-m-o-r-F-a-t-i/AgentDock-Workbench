@@ -10,11 +10,75 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/sys/windows"
 )
+
+func TestCoreServerCommandLineExcludesSiblingCLI(t *testing.T) {
+	for _, test := range []struct {
+		line string
+		want bool
+	}{
+		{`"C:\Agent Dock\agentdock-core.exe" service launch-core --runtime-root "C:\Agent Dock"`, true},
+		{`"C:\service status\agentdock-core.exe" service launch-core --runtime-root "C:\Agent Dock"`, true},
+		{`agentdock-core.exe`, true},
+		{`agentdock-core.exe -port 8765`, true},
+		{`agentdock-core.exe --stdio`, false},
+		{`agentdock-core.exe -stdio=true`, false},
+		{`agentdock-core.exe --stdio=false`, true},
+		{`agentdock-core.exe --stdio=true --stdio=false`, true},
+		{`agentdock-core.exe -auth-token stdio`, true},
+		{`agentdock-core.exe version --json`, false},
+		{`agentdock-core.exe --version`, false},
+		{`agentdock-core.exe --help`, false},
+		{`agentdock-core.exe -help`, false},
+		{`agentdock-core.exe config runtime-get --runtime-root C:\AgentDock`, false},
+		{`agentdock-core.exe service status --runtime-root C:\AgentDock`, false},
+		{`agentdock-core.exe service start --runtime-root C:\AgentDock`, false},
+		{`agentdock-core.exe install inspect --runtime-root C:\AgentDock`, false},
+		{`agentdock-core.exe tunnel launch --runtime-root C:\AgentDock`, false},
+		{`agentdock-core.exe update --progress-json`, false},
+	} {
+		t.Run(test.line, func(t *testing.T) {
+			got, err := isCoreServerCommandLine(test.line)
+			if err != nil || got != test.want {
+				t.Fatalf("server=%v err=%v; want %v", got, err, test.want)
+			}
+		})
+	}
+}
+
+func TestQueryProcessCommandLineNative(t *testing.T) {
+	line, err := queryProcessCommandLine(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := windows.DecomposeCommandLine(line)
+	if err != nil || !reflect.DeepEqual(args, os.Args) {
+		t.Fatalf("native command line roundtrip: args=%q expected=%q err=%v", args, os.Args, err)
+	}
+}
+
+func TestCoreStartFailureKeepsCauseBeforeBoundedLogTail(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "logs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	log := strings.Repeat("old recovery information\n", 500) + "startup failed: configured executable is missing\n"
+	if err := os.WriteFile(filepath.Join(root, "logs", "agentdock.err.log"), []byte(log), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("Core exited before health became ready")
+	err := coreStartFailure(root, cause)
+	if !errors.Is(err, cause) || !strings.HasPrefix(err.Error(), cause.Error()) || !strings.Contains(err.Error(), "configured executable is missing") || len(err.Error()) > 4600 {
+		t.Fatalf("lost startup failure or unbounded log: %v", err)
+	}
+}
 
 func TestBinaryProcessStopConfirmsSameHandle(t *testing.T) {
 	invalidHandle := windows.ERROR_INVALID_HANDLE

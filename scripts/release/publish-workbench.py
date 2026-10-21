@@ -40,8 +40,9 @@ def android_public_asset_name(version: str) -> str:
     return f'AgentDock-Workbench-{version}-{suffix}'
 
 
-def macos_asset_names() -> tuple[str,str]:
-    return 'AgentDock-macos-universal.dmg','AgentDock-macos-universal.zip'
+def macos_asset_names(version: str) -> tuple[str,str]:
+    dmg=f'AgentDock-Workbench-{version}-macos-universal.dmg' if tuple(map(int,version.split('.'))) >= (1,1,9) else 'AgentDock-macos-universal.dmg'
+    return dmg,'AgentDock-macos-universal.zip'
 
 
 def run(*args: str) -> str:
@@ -87,13 +88,13 @@ def identity(report: dict,version: str,commit: str) -> None:
 
 
 def windows_setup_names(version: str) -> list[str]:
-    """Preserve historical Release names while using Workbench-branded names from 1.1.9."""
-    prefix='AgentDock-Workbench-Setup' if tuple(map(int,version.split('.'))) >= (1,1,9) else 'AgentDockSetup'
+    """Preserve historical Release names while versioning user installers from 1.1.9."""
+    prefix=f'AgentDock-Workbench-{version}-Setup' if tuple(map(int,version.split('.'))) >= (1,1,9) else 'AgentDockSetup'
     return [f'{prefix}-{arch}.exe' for arch in ['amd64','arm64']]
 
 
 def expected_payloads(version: str) -> list[str]:
-    macos_dmg,macos_zip=macos_asset_names()
+    macos_dmg,macos_zip=macos_asset_names(version)
     payloads = [f'agentdock_{platform}_{arch}.tar.gz' for platform in ['linux','darwin'] for arch in ['amd64','arm64']] + [
         f'agentdock_windows_{arch}.zip' for arch in ['amd64','arm64']] + windows_setup_names(version) + [
         macos_dmg,macos_zip,
@@ -107,7 +108,7 @@ def expected_payloads(version: str) -> list[str]:
 
 def public_installers(version: str) -> list[str]:
     """Return user-installable release assets."""
-    macos_dmg,_=macos_asset_names()
+    macos_dmg,_=macos_asset_names(version)
     installers = windows_setup_names(version) + [
         macos_dmg,
         f'agentdock-workbench_{version}_amd64.deb',
@@ -122,7 +123,7 @@ def public_installers(version: str) -> list[str]:
 
 def public_update_assets() -> list[str]:
     """Return the immutable archives required by the built-in updater."""
-    _,macos_zip=macos_asset_names()
+    macos_zip='AgentDock-macos-universal.zip'
     payloads = [
         f'agentdock_{platform}_{arch}.tar.gz'
         for platform in ['linux','darwin']
@@ -150,6 +151,8 @@ def obsolete_public_installers(version: str) -> set[str]:
     if tuple(map(int,version.split('.'))) >= (1,1,9):
         obsolete.update({
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
+            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
+            'AgentDock-macos-universal.dmg',
             'ACTOVO-Setup-amd64.exe','ACTOVO-Setup-arm64.exe',
             'ACTOVO-macos-universal.dmg',
         })

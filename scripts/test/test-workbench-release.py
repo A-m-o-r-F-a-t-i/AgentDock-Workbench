@@ -30,8 +30,8 @@ class ReleaseGate(unittest.TestCase):
     def test_119_public_release_contains_single_android_installer(self):
         names=release.public_installers('1.1.9')
         self.assertEqual(names,[
-            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
-            'AgentDock-macos-universal.dmg',
+            'AgentDock-Workbench-1.1.9-Setup-amd64.exe','AgentDock-Workbench-1.1.9-Setup-arm64.exe',
+            'AgentDock-Workbench-1.1.9-macos-universal.dmg',
             'agentdock-workbench_1.1.9_amd64.deb','agentdock-workbench_1.1.9_arm64.deb',
             'agentdock-workbench-1.1.9-1.x86_64.rpm','agentdock-workbench-1.1.9-1.aarch64.rpm',
             'AgentDock-Workbench-1.1.9-Android.apk'])
@@ -43,6 +43,8 @@ class ReleaseGate(unittest.TestCase):
             'ACTOVO-1.1.9-Android.apk',
             'AgentDock-Workbench-1.1.9-Android-test-signed.apk',
             'AgentDockSetup-amd64.exe','AgentDockSetup-arm64.exe',
+            'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe',
+            'AgentDock-macos-universal.dmg',
             'ACTOVO-Setup-amd64.exe','ACTOVO-Setup-arm64.exe',
             'ACTOVO-macos-universal.dmg',
             'ACTOVO-1.1.9-Android-Core-arm64.tar.gz',

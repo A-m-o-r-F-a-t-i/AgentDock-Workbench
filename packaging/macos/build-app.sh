@@ -86,8 +86,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 mkdir -p "$OUTPUT_DIR"
 rm -rf \
   "$OUTPUT_DIR/AgentDock.app" \
-  "$OUTPUT_DIR/AgentDock-macos-universal.dmg" \
-  "$OUTPUT_DIR/AgentDock-macos-universal.dmg.sha256" \
+  "$OUTPUT_DIR/AgentDock-Workbench-$VERSION-macos-universal.dmg" \
+  "$OUTPUT_DIR/AgentDock-Workbench-$VERSION-macos-universal.dmg.sha256" \
   "$OUTPUT_DIR/AgentDock-macos-universal.zip" \
   "$OUTPUT_DIR/AgentDock-macos-universal.zip.sha256"
 
@@ -416,7 +416,7 @@ unzip -tq "$ZIP_PATH" >/dev/null
 )
 
 DMG_STAGE_DIR="$TMP_DIR/dmg-root"
-DMG_PATH="$OUTPUT_DIR/AgentDock-macos-universal.dmg"
+DMG_PATH="$OUTPUT_DIR/AgentDock-Workbench-$VERSION-macos-universal.dmg"
 mkdir -p "$DMG_STAGE_DIR"
 ditto "$APP_DIR" "$DMG_STAGE_DIR/AgentDock.app"
 ln -s /Applications "$DMG_STAGE_DIR/Applications"

@@ -12,14 +12,14 @@ import (
 func TestReleaseCatalogPublishesInstallersAndUpdaterPayloads(t *testing.T) {
 	catalog := ReleaseCatalog()
 	expected := map[string]bool{
-		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":   false,
-		"AgentDock-macos-universal.dmg":                               false,
-		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":     false,
-		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":     false,
-		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":  false,
-		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm": false,
-		"AgentDock-Workbench-Setup-amd64.exe":                         false,
-		"AgentDock-Workbench-Setup-arm64.exe":                         false,
+		"AgentDock-Workbench-" + buildinfo.Version + "-Android.apk":         false,
+		"AgentDock-Workbench-" + buildinfo.Version + "-macos-universal.dmg": false,
+		"agentdock-workbench_" + buildinfo.Version + "_amd64.deb":           false,
+		"agentdock-workbench_" + buildinfo.Version + "_arm64.deb":           false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.x86_64.rpm":        false,
+		"agentdock-workbench-" + buildinfo.Version + "-1.aarch64.rpm":       false,
+		"AgentDock-Workbench-" + buildinfo.Version + "-Setup-amd64.exe":     false,
+		"AgentDock-Workbench-" + buildinfo.Version + "-Setup-arm64.exe":     false,
 	}
 	updatePayloads := []string{
 		"agentdock_linux_amd64.tar.gz",

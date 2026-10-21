@@ -60,6 +60,16 @@ func (options *RuntimeOptions) UnmarshalJSON(data []byte) error {
 
 // normalizeRuntimeOptions performs no writes and is run before a service stop.
 func normalizeRuntimeOptions(options RuntimeOptions) (RuntimeOptions, error) {
+	return normalizeRuntimeOptionsWithBrowserValidation(options, true)
+}
+
+// normalizeRuntimeOptionsForStartup keeps saved optional browser settings usable
+// even if the executable has moved. Browser invocation reports availability errors.
+func normalizeRuntimeOptionsForStartup(options RuntimeOptions) (RuntimeOptions, error) {
+	return normalizeRuntimeOptionsWithBrowserValidation(options, false)
+}
+
+func normalizeRuntimeOptionsWithBrowserValidation(options RuntimeOptions, checkBrowserFile bool) (RuntimeOptions, error) {
 	options.DefaultDir = strings.TrimSpace(options.DefaultDir)
 	if options.DefaultDir == "" || !filepath.IsAbs(options.DefaultDir) {
 		return options, errors.New("默认全局工作区必须是绝对目录路径")
@@ -83,12 +93,17 @@ func normalizeRuntimeOptions(options RuntimeOptions) (RuntimeOptions, error) {
 		if !filepath.IsAbs(options.BrowserExecutablePath) {
 			return options, errors.New("浏览器程序必须使用绝对路径")
 		}
-		info, err := os.Stat(options.BrowserExecutablePath)
-		if err != nil {
-			return options, fmt.Errorf("读取浏览器程序失败: %w", err)
+		if strings.IndexByte(options.BrowserExecutablePath, 0) >= 0 {
+			return options, errors.New("浏览器程序路径不能包含 NUL 字符")
 		}
-		if !info.Mode().IsRegular() {
-			return options, errors.New("浏览器程序必须是普通文件")
+		if checkBrowserFile {
+			info, err := os.Stat(options.BrowserExecutablePath)
+			if err != nil {
+				return options, fmt.Errorf("读取浏览器程序失败: %w", err)
+			}
+			if !info.Mode().IsRegular() {
+				return options, errors.New("浏览器程序必须是普通文件")
+			}
 		}
 	}
 	if options.ACPMaxPrompts < 1 || options.ACPMaxPrompts > 8 {

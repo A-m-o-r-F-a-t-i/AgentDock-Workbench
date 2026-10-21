@@ -78,7 +78,7 @@ func platformPrepareCoreEnvironment(runtimeRoot string) error {
 		return err
 	}
 	inheritedOAuthAccessTokenTTL := strings.TrimSpace(os.Getenv("AGENTDOCK_OAUTH_ACCESS_TOKEN_TTL"))
-	options, err := normalizeRuntimeOptions(effectiveRuntimeOptions(manifest, settings))
+	options, err := normalizeRuntimeOptionsForStartup(effectiveRuntimeOptions(manifest, settings))
 	if err != nil {
 		return err
 	}
@@ -126,18 +126,9 @@ func platformPrepareCoreEnvironment(runtimeRoot string) error {
 		if len(settings.ACPProfiles) == 0 {
 			return errors.New("启用 Coding Agent 时至少需要一个 ACP Profile")
 		}
-		for _, profile := range settings.ACPProfiles {
-			if !profile.Enabled {
-				continue
-			}
-			info, statErr := os.Stat(profile.Command)
-			if statErr != nil {
-				return fmt.Errorf("读取 ACP Profile %s 命令失败 %s: %w", profile.ID, profile.Command, statErr)
-			}
-			if !info.Mode().IsRegular() {
-				return fmt.Errorf("ACP Profile %s 命令不是普通文件: %s", profile.ID, profile.Command)
-			}
-		}
+		// Optional agent executables may have moved since settings were saved.
+		// Keep their configuration; the ACP launch boundary checks executability
+		// when the agent is used, without preventing Core startup or rollback.
 		profilesJSON, marshalErr := json.Marshal(settings.ACPProfiles)
 		if marshalErr != nil {
 			return fmt.Errorf("编码 ACP Profiles 失败: %w", marshalErr)

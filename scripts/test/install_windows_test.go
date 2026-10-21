@@ -222,8 +222,10 @@ func TestInstallWindowsUsesChecksumsDPAPIAndCurrentUserStartup(t *testing.T) {
 		!strings.Contains(script, "Get-AgentDockProcesses -BinaryPath $destinationBinary") {
 		t.Fatal("generation retries must probe both source generation and legacy stable Core paths")
 	}
-	if !strings.Contains(script, "$stopGenerationDirectories += $existingGenerationDirectory") ||
-		!strings.Contains(script, "$rollbackGenerationDirectories = @($generationBootstrapDirectory, $existingGenerationDirectory)") ||
+	if !strings.Contains(script, "$stopGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)") ||
+		!strings.Contains(script, "$stopGenerationDirectories += $existingGenerationDirectory") ||
+		!strings.Contains(script, "$rollbackGenerationDirectories = @(Get-AgentDockGenerationDirectories -VersionsDirectory $versionsDir)") ||
+		!strings.Contains(script, "$rollbackGenerationDirectories += @($generationBootstrapDirectory, $existingGenerationDirectory)") ||
 		strings.Count(script, "Stop-AgentDockRuntimeForUpgrade -StableCorePath") != 2 {
 		t.Fatal("publication and rollback must stop stable launchers and their exact source/target generations through the same owner")
 	}
@@ -715,8 +717,8 @@ func TestWindowsSetupKeepsPublicAccessExplicitAndSecretsOffCommandLine(t *testin
 		"-KeepInstallDir",
 		"PurgeStateQuestion",
 		"Bearer Token：",
-		"AgentDock-Workbench-Setup-amd64",
-		"AgentDock-Workbench-Setup-arm64",
+		`"AgentDock-Workbench-" + AppVersion + "-Setup-amd64"`,
+		`"AgentDock-Workbench-" + AppVersion + "-Setup-arm64"`,
 		"agentdock_windows_{#PayloadArchitecture}.zip",
 		"Source: \"{#OfflinePayloadDir}\\cloudflared.exe\"",
 		"-OfflineArchive ",
@@ -1244,7 +1246,7 @@ func TestWindowsSetupDirectorySelectionUsesAgentDockIdentity(t *testing.T) {
 	}
 	for _, want := range []string{
 		"AppName=AgentDock Workbench", "DefaultDirName={localappdata}\\AgentDock",
-		"DisableDirPage=no", "UsePreviousAppDir=yes", "AgentDock-Workbench-Setup-amd64", "AgentDock-Workbench-Setup-arm64",
+		"DisableDirPage=no", "UsePreviousAppDir=yes", `"AgentDock-Workbench-" + AppVersion + "-Setup-amd64"`, `"AgentDock-Workbench-" + AppVersion + "-Setup-arm64"`,
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("Setup missing %q", want)
@@ -1278,6 +1280,10 @@ func TestWindowsSetupRuntimeBrokerTimeoutExceedsCoreStartTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read service_windows.go: %v", err)
 	}
+	installerData, err := os.ReadFile("../install/install.ps1")
+	if err != nil {
+		t.Fatalf("read install.ps1: %v", err)
+	}
 
 	parseSeconds := func(content, prefix string) int {
 		t.Helper()
@@ -1300,10 +1306,12 @@ func TestWindowsSetupRuntimeBrokerTimeoutExceedsCoreStartTimeout(t *testing.T) {
 		return 0
 	}
 
-	brokerSeconds := parseSeconds(string(brokerData), "[int] $TimeoutSeconds =")
 	coreSeconds := parseSeconds(string(coreData), "const windowsCoreStartTimeout =")
-	if brokerSeconds <= coreSeconds {
-		t.Fatalf("Setup runtime broker timeout=%ds must exceed Windows Core start timeout=%ds", brokerSeconds, coreSeconds)
+	for name, source := range map[string][]byte{"broker": brokerData, "installer wrapper": installerData} {
+		brokerSeconds := parseSeconds(string(source), "[int] $TimeoutSeconds =")
+		if brokerSeconds <= coreSeconds {
+			t.Errorf("Setup %s timeout=%ds must exceed Windows Core start timeout=%ds", name, brokerSeconds, coreSeconds)
+		}
 	}
 }
 

@@ -480,16 +480,8 @@ func (c *Config) normalizeACPProfiles() error {
 		if profile.Command == "" {
 			return fmt.Errorf("enabled ACP profile %q requires a command", profile.ID)
 		}
-		info, err := os.Stat(profile.Command)
-		if err != nil {
-			return fmt.Errorf("stat ACP profile %q command %s: %w", profile.ID, profile.Command, err)
-		}
-		if info.IsDir() {
-			return fmt.Errorf("ACP profile %q command is not a file: %s", profile.ID, profile.Command)
-		}
-		if err := validateACPCommandPlatform(profile.Command, info); err != nil {
-			return fmt.Errorf("ACP profile %q: %w", profile.ID, err)
-		}
+		// The optional agent is launched lazily. A removed executable must not
+		// prevent the HTTP Core from starting; validate it at the launch boundary.
 		enabled[profile.ID] = struct{}{}
 		if firstEnabled == "" {
 			firstEnabled = profile.ID
