@@ -69,12 +69,10 @@
     },
     {
       "name": "windows / Build verified unsigned Windows packages",
-      "status": "in_progress",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
-      "active_steps": [
-        "Upload verified Windows package"
-      ]
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:56:07Z",
+      "active_steps": []
     },
     {
       "name": "Universal macOS Workbench application",
@@ -145,10 +143,26 @@
       "conclusion": "success",
       "completedAt": "2026-10-21T14:53:21Z",
       "active_steps": []
+    },
+    {
+      "name": "windows / Publish verified Windows x64 Release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "completedAt": "2026-10-21T14:56:11Z",
+      "active_steps": []
+    },
+    {
+      "name": "Native Windows ARM64 install and uninstall",
+      "status": "in_progress",
+      "conclusion": "",
+      "completedAt": "0001-01-01T00:00:00Z",
+      "active_steps": [
+        "Run actions/setup-go@v6"
+      ]
     }
   ],
   "source_sha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
   "version": "1.1.9",
-  "recorded_at": "2026-10-21T14:55:56Z",
-  "probe_sequence": "10"
+  "recorded_at": "2026-10-21T14:57:54Z",
+  "probe_sequence": "11"
 }
