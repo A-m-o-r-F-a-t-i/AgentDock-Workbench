@@ -232,7 +232,7 @@ func hostBuiltinRouteText(result map[string]any) string {
 	if label == "" {
 		label = "AgentDock direct device built-in"
 	}
-	return "Wrong tool scope: " + label + ". Invoke the already exposed AgentDock direct device built-in. Do not repeat nested dynamic MCP search or inspect. No business action ran."
+	return "Resolved host-tool handoff: " + label + ". Invoke the AgentDock direct device built-in from the caller tools/list namespace. Do not repeat nested dynamic MCP search or inspect. No business action ran."
 }
 
 func sessionObserveResultText(result map[string]any) string {

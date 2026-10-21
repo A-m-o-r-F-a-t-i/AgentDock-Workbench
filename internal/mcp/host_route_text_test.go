@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestHostRouteErrorTextUsesNestedTrustedDetails(t *testing.T) {
+func TestHostRouteTextUsesNestedTrustedDetails(t *testing.T) {
 	text := toolResultText("mcp_tool_search", map[string]any{
 		"code": "HOST_BUILTIN_NOT_DYNAMIC_MCP",
 		"details": map[string]any{
@@ -13,10 +13,13 @@ func TestHostRouteErrorTextUsesNestedTrustedDetails(t *testing.T) {
 			"required_host_tools": []any{"exec_command"},
 		},
 	})
-	if !strings.Contains(text, "Wrong tool scope: exec_command") ||
-		!strings.Contains(text, "AgentDock direct device built-in") ||
+	if !strings.Contains(text, "Resolved host-tool handoff: exec_command") ||
+		!strings.Contains(text, "caller tools/list namespace") ||
 		!strings.Contains(text, "Do not repeat nested dynamic MCP search or inspect") ||
 		!strings.Contains(text, "No business action ran") {
-		t.Fatalf("host routing error was not compact and actionable: %q", text)
+		t.Fatalf("host routing handoff was not compact and actionable: %q", text)
+	}
+	if strings.Contains(text, "already exposed") {
+		t.Fatalf("host routing handoff claimed unverified caller visibility: %q", text)
 	}
 }

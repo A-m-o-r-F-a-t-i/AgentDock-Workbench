@@ -840,6 +840,13 @@ func (r *Runtime) executePrepared(ctx context.Context, p *preparedExecution) (re
 func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
 	result, err, metadata := r.executionOutcome(p.spec.Name, p.args, result, err, p.state, p.mcpCall)
 	p.outputFailure = outputFailureFromError(err)
+	// executionOutcome can turn one locally authenticated discovery error into a
+	// successful terminal host-tool handoff. Persist the normalized outcome, not
+	// the pre-normalization handler error, so Activity and the returned envelope
+	// agree that routing completed without executing a business action.
+	if err == nil && status == "failed" && !businessOutcomeFailure(p.spec.Name, result) {
+		status = "succeeded"
+	}
 	if businessOutcomeFailure(p.spec.Name, result) && status == "succeeded" {
 		status = "failed"
 	}
