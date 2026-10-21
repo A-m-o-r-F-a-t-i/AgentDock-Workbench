@@ -48,18 +48,33 @@ func TestDynamicMCPToolsStaySeparateAndAppearLightweightInContext(t *testing.T) 
 			w.WriteHeader(http.StatusAccepted)
 		case "tools/list":
 			writeDynamicMCPRPCResult(t, w, rpc.ID, map[string]any{
-				"tools": []map[string]any{{
-					"name":        "echo",
-					"description": "Echo supplied text",
-					"inputSchema": map[string]any{
-						"type":       "object",
-						"required":   []string{"text"},
-						"properties": map[string]any{"text": map[string]any{"type": "string"}},
+				"tools": []map[string]any{
+					{
+						"name":        "echo",
+						"description": "Echo supplied text",
+						"inputSchema": map[string]any{
+							"type":       "object",
+							"required":   []string{"text"},
+							"properties": map[string]any{"text": map[string]any{"type": "string"}},
+						},
 					},
-				}},
+					{
+						"name":        "whoami",
+						"description": "Return the current fixture identity",
+						"inputSchema": map[string]any{"type": "object", "additionalProperties": false},
+					},
+				},
 			})
 		case "tools/call":
+			name, _ := rpc.Params["name"].(string)
 			arguments, _ := rpc.Params["arguments"].(map[string]any)
+			if name == "whoami" {
+				writeDynamicMCPRPCResult(t, w, rpc.ID, map[string]any{
+					"content":           []map[string]any{{"type": "text", "text": "fixture-user"}},
+					"structuredContent": map[string]any{"user": "fixture-user"},
+				})
+				break
+			}
 			writeDynamicMCPRPCResult(t, w, rpc.ID, map[string]any{
 				"content":           []map[string]any{{"type": "text", "text": arguments["text"]}},
 				"structuredContent": map[string]any{"echo": arguments["text"]},
@@ -133,8 +148,19 @@ func TestDynamicMCPToolsStaySeparateAndAppearLightweightInContext(t *testing.T) 
 	if err != nil {
 		t.Fatalf("mcp_tool_search: %v", err)
 	}
-	if search["count"] != 1 {
+	if search["count"] != 1 || search["resolution_status"] != "resolved" || search["resolved"] != true || search["terminal"] != true {
 		t.Fatalf("unexpected search result: %#v", search)
+	}
+	nextCall, _ := search["next_call"].(map[string]any)
+	nextArguments, _ := nextCall["arguments"].(map[string]any)
+	requiredAction, _ := search["required_action"].(map[string]any)
+	if nextCall["tool"] != "mcp_tool_call" || nextArguments["name"] != "demo:echo" || nextCall["arguments_complete"] != false || requiredAction["action"] != "complete_dynamic_mcp_arguments" || requiredAction["tool"] != "mcp_tool_call" || requiredAction["reason_code"] != "dynamic_mcp_arguments_required" || requiredAction["required_arguments"] == nil {
+		t.Fatalf("resolved search did not return an executable handoff: search=%#v action=%#v", search, requiredAction)
+	}
+	guidance := runtime.executionGuidance("mcp_tool_search", map[string]any{"server": "demo", "query": "echo text"}, executionObservation{}, search, false)
+	steps, ok := guidance["next_required"].([]map[string]any)
+	if guidance["source"] != "agentdock" || !ok || len(steps) != 1 || steps[0]["action"] != "complete_dynamic_mcp_arguments" || steps[0]["tool"] != "mcp_tool_call" {
+		t.Fatalf("resolved search did not surface one trusted next action: %#v", guidance)
 	}
 	readyContextResult, err := runtime.Call(context.Background(), "agentdock_context", map[string]any{})
 	if err != nil {
@@ -144,10 +170,29 @@ func TestDynamicMCPToolsStaySeparateAndAppearLightweightInContext(t *testing.T) 
 	if err := remarshal(readyContextResult, &readyContext); err != nil {
 		t.Fatal(err)
 	}
-	if readyContext.DynamicMCP[0].Status != "ready" || readyContext.DynamicMCP[0].ToolCount != 1 || readyContext.DynamicMCP[0].LastErrorCode != "" {
+	if readyContext.DynamicMCP[0].Status != "ready" || readyContext.DynamicMCP[0].ToolCount != 2 || readyContext.DynamicMCP[0].LastErrorCode != "" {
 		t.Fatalf("ready dynamic MCP context = %#v", readyContext.DynamicMCP[0])
 	}
 	assertToolResultMatchestestOutputSchema(t, "mcp_tool_search", search)
+
+	whoami, err := runtime.Call(context.Background(), "mcp_tool_search", map[string]any{"server": "demo", "query": "whoami"})
+	if err != nil {
+		t.Fatalf("mcp_tool_search whoami: %v", err)
+	}
+	whoamiAction := modelObject(whoami["required_action"])
+	whoamiCall := modelObject(whoami["next_call"])
+	if whoami["resolution_status"] != "resolved" || whoamiAction["action"] != "call_dynamic_mcp_tool" || whoamiAction["arguments_complete"] != true || whoamiCall["arguments_complete"] != true {
+		t.Fatalf("zero-argument dynamic tool did not return an immediately callable handoff: %#v", whoami)
+	}
+	whoamiResult, err := runtime.Call(context.Background(), stringArg(whoamiCall, "tool"), modelObject(whoamiCall["arguments"]))
+	if err != nil {
+		t.Fatalf("resolved whoami call: %v", err)
+	}
+	whoamiRemote := modelObject(whoamiResult["result"])
+	whoamiStructured := modelObject(whoamiRemote["structuredContent"])
+	if whoamiStructured["user"] != "fixture-user" {
+		t.Fatalf("resolved whoami call returned the wrong business result: %#v", whoamiResult)
+	}
 
 	inspect, err := runtime.Call(context.Background(), "mcp_tool_inspect", map[string]any{"name": "demo:echo"})
 	if err != nil {
@@ -163,10 +208,12 @@ func TestDynamicMCPToolsStaySeparateAndAppearLightweightInContext(t *testing.T) 
 		}
 	}
 
-	called, err := runtime.Call(context.Background(), "mcp_tool_call", map[string]any{
-		"name":      "demo:echo",
-		"arguments": map[string]any{"text": "hello"},
-	})
+	callArguments := make(map[string]any, len(nextArguments))
+	for key, value := range nextArguments {
+		callArguments[key] = value
+	}
+	callArguments["arguments"] = map[string]any{"text": "hello"}
+	called, err := runtime.Call(context.Background(), nextCall["tool"].(string), callArguments)
 	if err != nil {
 		t.Fatalf("mcp_tool_call: %v", err)
 	}
