@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
+  "version": "1.1.9",
+  "state": "failed",
+  "started_at": "2026-10-21T05:01:28.283642+00:00",
+  "candidate_run_id": 39547227739,
+  "candidate_run_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
+  "candidate_conclusion": "cancelled",
+  "candidate_jobs": [
+    {
+      "id": 119048036426,
+      "name": "resolve-source",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048036426"
+    },
+    {
+      "id": 119048130061,
+      "name": "Native linux arm64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130061"
+    },
+    {
+      "id": 119048130083,
+      "name": "Native linux amd64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130083"
+    },
+    {
+      "id": 119048130104,
+      "name": "Native darwin arm64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130104"
+    },
+    {
+      "id": 119048130146,
+      "name": "Native darwin amd64",
+      "status": "completed",
+      "conclusion": "failure",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130146"
+    },
+    {
+      "id": 119048130532,
+      "name": "windows / Resolve requested ref once",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130532"
+    },
+    {
+      "id": 119048172672,
+      "name": "windows / Linux transaction and concurrency regression",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172672"
+    },
+    {
+      "id": 119048172677,
+      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172677"
+    },
+    {
+      "id": 119048172738,
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172738"
+    },
+    {
+      "id": 119049382417,
+      "name": "Universal macOS Workbench application",
+      "status": "completed",
+      "conclusion": "skipped",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049382417"
+    },
+    {
+      "id": 119049382661,
+      "name": "android",
+      "status": "completed",
+      "conclusion": "skipped",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049382661"
+    },
+    {
+      "id": 119049658030,
+      "name": "windows / Build verified unsigned Windows packages",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049658030"
+    },
+    {
+      "id": 119051170597,
+      "name": "windows / Publish verified Windows x64 Release",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051170597"
+    },
+    {
+      "id": 119051171004,
+      "name": "Native Windows ARM64 install and uninstall",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051171004"
+    },
+    {
+      "id": 119051171239,
+      "name": "Verify complete artifact set and publish selected channel",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051171239"
+    }
+  ],
+  "error": "Candidate workflow failed: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
+  "completed_at": "2026-10-21T05:12:46.700941+00:00"
+}
