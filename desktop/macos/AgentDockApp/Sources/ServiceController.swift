@@ -1,10 +1,15 @@
 import AppKit
+import Darwin
 import Foundation
 import ServiceManagement
 
 struct HealthPayload: Decodable {
     let ok: Bool
     let version: String
+
+    func matches(expectedVersion: String) -> Bool {
+        ok && AppVersion.matchesHealthVersion(version, expectedDisplayVersion: expectedVersion)
+    }
 }
 
 struct DesktopServiceStatusPayload: Decodable {
@@ -114,9 +119,10 @@ final class ServiceController: @unchecked Sendable {
         let enabled = registration == .enabled
         let registered = enabled || requiresApproval
         let loaded = enabled && isLoaded(label: Self.coreLabel)
-        let nexusConnected = loaded && nexusDevice.paired ? await fetchNexusConnected() : false
+        let processRunning = loaded && launchdPID(label: Self.coreLabel) != nil
+        let nexusConnected = processRunning && nexusDevice.paired ? await fetchNexusConnected() : false
 
-        guard loaded, let healthURL = configuration?.healthURL else {
+        guard processRunning, let healthURL = configuration?.healthURL else {
             return ServiceStatus(
                 installed: true,
                 loaded: loaded,
@@ -133,7 +139,7 @@ final class ServiceController: @unchecked Sendable {
         let health = await fetchHealth(url: healthURL)
         return ServiceStatus(
             installed: true,
-            loaded: true,
+            loaded: loaded,
             healthy: health?.ok == true,
             version: health?.version,
             configuration: configuration,
@@ -145,15 +151,41 @@ final class ServiceController: @unchecked Sendable {
     }
 
     func start() async throws {
+        guard let configuration = ServiceConfiguration.load(from: paths.environment) else {
+            throw ValidationError(L10n.text("AgentDock configuration was written, but the final local MCP address could not be read."))
+        }
+        try validateServiceManagementReadiness()
+        try validateBundledServiceDefinition(
+            plistName: Self.corePlistName,
+            displayName: "AgentDock Core"
+        )
+        if coreService.status == .enabled,
+           launchdPID(label: Self.coreLabel) != nil,
+           let healthURL = configuration.healthURL,
+           let health = await fetchHealth(url: healthURL),
+           health.matches(expectedVersion: AppVersion.current) {
+            return
+        }
+        if coreService.status == .requiresApproval {
+            try registerCoreIfNeeded()
+        }
+        if coreService.status == .enabled {
+            try unregister(service: coreService, label: Self.coreLabel)
+        }
+        try await requireServicePortAvailable(configuration: configuration)
         try registerCoreIfNeeded()
-        guard let configuration = ServiceConfiguration.load(from: paths.environment),
-              await waitForHealth(configuration: configuration) else {
+        guard await waitForHealth(configuration: configuration) else {
             throw ValidationError(L10n.text("AgentDock background service is enabled, but the health check did not pass."))
         }
     }
 
     func stop() async throws {
+        let configuration = ServiceConfiguration.load(from: paths.environment)
+        let wasLoaded = isLoaded(label: Self.coreLabel)
         try unregister(service: coreService, label: Self.coreLabel)
+        if wasLoaded, let configuration {
+            try await requireServicePortAvailable(configuration: configuration)
+        }
     }
 
     func unregisterManagedBackgroundServicesForUninstall() throws {
@@ -164,7 +196,13 @@ final class ServiceController: @unchecked Sendable {
             failures.append("AgentDock Tunnel: \(error.localizedDescription)")
         }
         do {
+            let wasLoaded = isLoaded(label: Self.coreLabel)
             try unregister(service: coreService, label: Self.coreLabel)
+            if wasLoaded,
+               let configuration = ServiceConfiguration.load(from: paths.environment),
+               !waitForServicePortAvailableSynchronously(configuration: configuration, timeout: 5) {
+                throw ValidationError("AgentDock service port \(configuration.port) is still in use after stopping Core.")
+            }
         } catch {
             failures.append("AgentDock Core: \(error.localizedDescription)")
         }
@@ -174,9 +212,18 @@ final class ServiceController: @unchecked Sendable {
     }
 
     func restart() async throws {
-        try reregister(service: coreService, label: Self.coreLabel, displayName: "AgentDock Core")
-        guard let configuration = ServiceConfiguration.load(from: paths.environment),
-              await waitForHealth(configuration: configuration) else {
+        guard let configuration = ServiceConfiguration.load(from: paths.environment) else {
+            throw ValidationError(L10n.text("AgentDock configuration was written, but the final local MCP address could not be read."))
+        }
+        try validateServiceManagementReadiness()
+        try validateBundledServiceDefinition(
+            plistName: Self.corePlistName,
+            displayName: "AgentDock Core"
+        )
+        try unregister(service: coreService, label: Self.coreLabel)
+        try await requireServicePortAvailable(configuration: configuration)
+        try registerCoreIfNeeded()
+        guard await waitForHealth(configuration: configuration) else {
             throw ValidationError(L10n.text("AgentDock Core was re-registered, but the health check did not pass."))
         }
     }
@@ -321,10 +368,18 @@ final class ServiceController: @unchecked Sendable {
         isLoaded(label: Self.coreLabel)
     }
 
-    func waitForHealth(configuration: ServiceConfiguration, timeout: TimeInterval = 30) async -> Bool {
+    func waitForHealth(
+        configuration: ServiceConfiguration,
+        expectedVersion: String = AppVersion.current,
+        timeout: TimeInterval = 30
+    ) async -> Bool {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: self.waitForHealthSynchronously(configuration: configuration, timeout: timeout))
+                continuation.resume(returning: self.waitForHealthSynchronously(
+                    configuration: configuration,
+                    expectedVersion: expectedVersion,
+                    timeout: timeout
+                ))
             }
         }
     }
@@ -488,17 +543,16 @@ final class ServiceController: @unchecked Sendable {
         }
     }
 
-    private func reregister(service: SMAppService, label: String, displayName: String) throws {
-        try unregister(service: service, label: label)
-        let plistName = label == Self.coreLabel ? Self.corePlistName : Self.tunnelPlistName
-        try register(service: service, plistName: plistName, displayName: displayName)
-    }
-
     private func restoreRegistration(service: SMAppService, label: String, displayName: String) throws {
         try validateServiceManagementReadiness()
         let plistName = label == Self.coreLabel ? Self.corePlistName : Self.tunnelPlistName
         try validateBundledServiceDefinition(plistName: plistName, displayName: displayName)
         try unregister(service: service, label: label)
+        if label == Self.coreLabel,
+           let configuration = ServiceConfiguration.load(from: paths.environment),
+           !waitForServicePortAvailableSynchronously(configuration: configuration, timeout: 5) {
+            throw ValidationError("AgentDock service port \(configuration.port) is still in use after stopping Core.")
+        }
         try register(service: service, plistName: plistName, displayName: displayName)
     }
 
@@ -567,11 +621,34 @@ final class ServiceController: @unchecked Sendable {
         }
     }
 
-    private func isLoaded(label: String) -> Bool {
-        (try? runProcess(
+    private func launchdDescription(label: String) -> String? {
+        guard let result = try? runProcess(
             executable: "/bin/launchctl",
             arguments: ["print", "\(serviceDomain)/\(label)"]
-        ).status) == 0
+        ), result.status == 0 else {
+            return nil
+        }
+        return result.output
+    }
+
+    private func isLoaded(label: String) -> Bool {
+        launchdDescription(label: label) != nil
+    }
+
+    private func launchdPID(label: String) -> Int32? {
+        guard let description = launchdDescription(label: label) else { return nil }
+        return Self.launchdPID(from: description)
+    }
+
+    static func launchdPID(from description: String) -> Int32? {
+        for rawLine in description.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("pid = "),
+                  let pid = Int32(line.dropFirst("pid = ".count)),
+                  pid > 1 else { continue }
+            return pid
+        }
+        return nil
     }
 
     private func waitUntilUnregistered(service: SMAppService, label: String, timeout: TimeInterval) -> Bool {
@@ -587,12 +664,72 @@ final class ServiceController: @unchecked Sendable {
         status == .notRegistered || status == .notFound
     }
 
-    private func waitForHealthSynchronously(configuration: ServiceConfiguration, timeout: TimeInterval) -> Bool {
+    static func canBindServicePort(host: String, port: Int) -> Bool {
+        guard ServicePortValidation.allowedRange.contains(port) else { return false }
+        var hints = addrinfo(
+            ai_flags: AI_NUMERICSERV,
+            ai_family: AF_UNSPEC,
+            ai_socktype: SOCK_STREAM,
+            ai_protocol: IPPROTO_TCP,
+            ai_addrlen: 0,
+            ai_canonname: nil,
+            ai_addr: nil,
+            ai_next: nil
+        )
+        var results: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, String(port), &hints, &results) == 0, let results else { return false }
+        defer { freeaddrinfo(results) }
+
+        var current: UnsafeMutablePointer<addrinfo>? = results
+        var resolved = false
+        while let candidate = current?.pointee {
+            resolved = true
+            let descriptor = Darwin.socket(candidate.ai_family, candidate.ai_socktype, candidate.ai_protocol)
+            guard descriptor >= 0 else { return false }
+            let bound = Darwin.bind(descriptor, candidate.ai_addr, candidate.ai_addrlen) == 0
+            Darwin.close(descriptor)
+            guard bound else { return false }
+            current = candidate.ai_next
+        }
+        return resolved
+    }
+
+    private func waitForServicePortAvailableSynchronously(
+        configuration: ServiceConfiguration,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if Self.canBindServicePort(host: configuration.healthHost, port: configuration.port) { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return Self.canBindServicePort(host: configuration.healthHost, port: configuration.port)
+    }
+
+    private func requireServicePortAvailable(configuration: ServiceConfiguration) async throws {
+        let available = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: self.waitForServicePortAvailableSynchronously(
+                    configuration: configuration,
+                    timeout: 5
+                ))
+            }
+        }
+        guard available else {
+            throw ValidationError("AgentDock service port \(configuration.port) is still in use after stopping Core.")
+        }
+    }
+
+    private func waitForHealthSynchronously(
+        configuration: ServiceConfiguration,
+        expectedVersion: String,
+        timeout: TimeInterval
+    ) -> Bool {
         guard let url = configuration.healthURL else { return false }
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let semaphore = DispatchSemaphore(value: 0)
-            var healthy = false
+            var ready = false
             var request = URLRequest(url: url)
             request.timeoutInterval = 1.5
             URLSession.shared.dataTask(with: request) { data, response, _ in
@@ -600,10 +737,10 @@ final class ServiceController: @unchecked Sendable {
                 guard (response as? HTTPURLResponse)?.statusCode == 200,
                       let data,
                       let payload = try? JSONDecoder().decode(HealthPayload.self, from: data) else { return }
-                healthy = payload.ok
+                ready = payload.matches(expectedVersion: expectedVersion)
             }.resume()
             _ = semaphore.wait(timeout: .now() + 2)
-            if healthy { return true }
+            if launchdPID(label: Self.coreLabel) != nil, ready { return true }
             Thread.sleep(forTimeInterval: 0.5)
         }
         return false
