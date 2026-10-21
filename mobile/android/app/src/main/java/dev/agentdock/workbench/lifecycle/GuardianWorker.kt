@@ -16,7 +16,11 @@ class GuardianWorker(context: Context, parameters: WorkerParameters) : Coroutine
         return try {
             val pending = graph.termux.dispatch(operation, JSONObject().put("source", "work_manager"))
             val receipt = graph.termux.awaitCompletion(pending.operationId)
-            if (receipt != null && receipt.phase != "unknown") Result.success() else Result.retry()
+            when (GuardianWorkResultPolicy.classify(receipt)) {
+                GuardianWorkOutcome.Success -> Result.success()
+                GuardianWorkOutcome.Retry -> Result.retry()
+                GuardianWorkOutcome.Failure -> Result.failure()
+            }
         } catch (error: CancellationException) { throw error
         } catch (_: Exception) { Result.retry() }
     }

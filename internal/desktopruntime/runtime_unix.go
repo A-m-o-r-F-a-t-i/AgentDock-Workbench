@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -161,24 +162,57 @@ func healthURL(values map[string]string) string {
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/healthz"
 }
 
-func healthy(ctx context.Context, values map[string]string) bool {
+type unixHealthPayload struct {
+	OK      bool   `json:"ok"`
+	Version string `json:"version"`
+}
+
+func normalizedHealthVersion(value string) string {
+	return strings.TrimPrefix(strings.TrimSpace(value), "v")
+}
+
+func readHealth(ctx context.Context, values map[string]string) (unixHealthPayload, bool) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL(values), nil)
 	if err != nil {
-		return false
+		return unixHealthPayload{}, false
 	}
 	client := http.Client{Timeout: 2 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
-		return false
+		return unixHealthPayload{}, false
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	if response.StatusCode != http.StatusOK {
+		return unixHealthPayload{}, false
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+	if err != nil || len(data) > 64*1024 {
+		return unixHealthPayload{}, false
+	}
+	var payload unixHealthPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return unixHealthPayload{}, false
+	}
+	return payload, true
 }
 
-func waitHealthy(ctx context.Context, values map[string]string, timeout time.Duration) error {
+func healthyVersion(ctx context.Context, values map[string]string, expectedVersion string) bool {
+	payload, ok := readHealth(ctx, values)
+	if !ok || !payload.OK {
+		return false
+	}
+	expected := normalizedHealthVersion(expectedVersion)
+	return expected == "" || normalizedHealthVersion(payload.Version) == expected
+}
+
+func healthy(ctx context.Context, values map[string]string) bool {
+	return healthyVersion(ctx, values, "")
+}
+
+func waitHealthyVersion(ctx context.Context, values map[string]string, expectedVersion string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if healthy(ctx, values) {
+		if healthyVersion(ctx, values, expectedVersion) {
 			return nil
 		}
 		select {
@@ -187,7 +221,14 @@ func waitHealthy(ctx context.Context, values map[string]string, timeout time.Dur
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
+	if strings.TrimSpace(expectedVersion) != "" {
+		return fmt.Errorf("AgentDock 健康检查超时：目标 Core 版本 %s 未就绪", expectedVersion)
+	}
 	return errors.New("AgentDock 健康检查超时")
+}
+
+func waitHealthy(ctx context.Context, values map[string]string, timeout time.Duration) error {
+	return waitHealthyVersion(ctx, values, "", timeout)
 }
 
 func runCommand(ctx context.Context, name string, args ...string) (string, error) {

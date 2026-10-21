@@ -40,3 +40,18 @@ func TestDispatchControlRequestIncludesNexusConnection(t *testing.T) {
 		t.Fatal("service.status did not include live Nexus connection state")
 	}
 }
+
+func TestLaunchdPIDFromDescription(t *testing.T) {
+	description := `gui/501/com.uvwt.agentdock.core = {
+	active count = 1
+	pid = 4321
+}`
+	if pid := launchdPIDFromDescription(description); pid != 4321 {
+		t.Fatalf("pid=%d want 4321", pid)
+	}
+	for _, value := range []string{"state = waiting", "pid = 1", "pid = invalid"} {
+		if pid := launchdPIDFromDescription(value); pid != 0 {
+			t.Fatalf("description %q produced pid=%d", value, pid)
+		}
+	}
+}
