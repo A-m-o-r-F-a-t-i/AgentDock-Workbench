@@ -1,0 +1,323 @@
+﻿2026-10-21T14:03:28.1242909Z Current runner version: '2.338.0'
+2026-10-21T14:03:28.1264635Z ##[group]Runner Image Provisioner
+2026-10-21T14:03:28.1265351Z Hosted Compute Agent
+2026-10-21T14:03:28.1265935Z Version: 20261015.610
+2026-10-21T14:03:28.1266507Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-21T14:03:28.1267337Z Build Date: 2026-10-14T17:06:54Z
+2026-10-21T14:03:28.1267981Z Worker ID: {42cef162-43c5-4489-bf06-dd5ef9a12099}
+2026-10-21T14:03:28.1268576Z Region: westus3
+2026-10-21T14:03:28.1269139Z Cloud: Azure
+2026-10-21T14:03:28.1269627Z ##[endgroup]
+2026-10-21T14:03:28.1270825Z ##[group]Operating System
+2026-10-21T14:03:28.1271367Z Ubuntu
+2026-10-21T14:03:28.1271816Z 24.04.5
+2026-10-21T14:03:28.1272288Z LTS
+2026-10-21T14:03:28.1272756Z ##[endgroup]
+2026-10-21T14:03:28.1273206Z ##[group]Runner Image
+2026-10-21T14:03:28.1273754Z Image: ubuntu-24.04
+2026-10-21T14:03:28.1274233Z Version: 20261018.339.1
+2026-10-21T14:03:28.1275355Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T14:03:28.1276589Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T14:03:28.1277546Z ##[endgroup]
+2026-10-21T14:03:28.1278478Z ##[group]GITHUB_TOKEN Permissions
+2026-10-21T14:03:28.1280078Z Contents: read
+2026-10-21T14:03:28.1280618Z Metadata: read
+2026-10-21T14:03:28.1281164Z ##[endgroup]
+2026-10-21T14:03:28.1282866Z Secret source: Actions
+2026-10-21T14:03:28.1283670Z Cache mode: write
+2026-10-21T14:03:28.1284293Z Prepare workflow directory
+2026-10-21T14:03:28.1552458Z Prepare all required actions
+2026-10-21T14:03:28.1593600Z Getting action download info
+2026-10-21T14:03:28.4673058Z Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+2026-10-21T14:03:28.5811295Z Download action repository 'actions/setup-go@v6' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-21T14:03:29.2681096Z Download action repository 'actions/setup-dotnet@v5' (SHA:26b0ec14cb23fa6904739307f278c14f94c95bf1)
+2026-10-21T14:03:29.9551359Z Complete job name: Go check (ubuntu-latest)
+2026-10-21T14:03:30.0230314Z ##[group]Run actions/checkout@v5
+2026-10-21T14:03:30.0230870Z with:
+2026-10-21T14:03:30.0231180Z   ref: 854a9db6d82991b9499548e28ed27d41a955c4f8
+2026-10-21T14:03:30.0231583Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T14:03:30.0234343Z   token: ***
+2026-10-21T14:03:30.0234617Z   ssh-strict: true
+2026-10-21T14:03:30.0234898Z   ssh-user: git
+2026-10-21T14:03:30.0235181Z   persist-credentials: true
+2026-10-21T14:03:30.0235481Z   clean: true
+2026-10-21T14:03:30.0235775Z   sparse-checkout-cone-mode: true
+2026-10-21T14:03:30.0236086Z   fetch-depth: 1
+2026-10-21T14:03:30.0236355Z   fetch-tags: false
+2026-10-21T14:03:30.0236641Z   show-progress: true
+2026-10-21T14:03:30.0236922Z   lfs: false
+2026-10-21T14:03:30.0237312Z   submodules: false
+2026-10-21T14:03:30.0237588Z   set-safe-directory: true
+2026-10-21T14:03:30.0237893Z   allow-unsafe-pr-checkout: false
+2026-10-21T14:03:30.0238395Z ##[endgroup]
+2026-10-21T14:03:30.1051756Z Syncing repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T14:03:30.1053120Z ##[group]Getting Git version info
+2026-10-21T14:03:30.1053658Z Working directory is '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+2026-10-21T14:03:30.1074414Z [command]/usr/bin/git version
+2026-10-21T14:03:30.1555246Z git version 2.55.0
+2026-10-21T14:03:30.1573271Z ##[endgroup]
+2026-10-21T14:03:30.1587500Z Temporarily overriding HOME='/home/runner/work/_temp/492d9a95-fad2-40ae-b6fc-2cf0e43cd2fc' before making global git config changes
+2026-10-21T14:03:30.1588754Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T14:03:30.1592508Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T14:03:30.1649795Z Deleting the contents of '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+2026-10-21T14:03:30.1659368Z ##[group]Initializing the repository
+2026-10-21T14:03:30.1671941Z [command]/usr/bin/git init /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T14:03:30.1771697Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T14:03:30.1772568Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T14:03:30.1773145Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T14:03:30.1773653Z hint: call:
+2026-10-21T14:03:30.1774020Z hint:
+2026-10-21T14:03:30.1774560Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T14:03:30.1775109Z hint:
+2026-10-21T14:03:30.1775691Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T14:03:30.1776520Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T14:03:30.1859166Z hint:
+2026-10-21T14:03:30.1859651Z hint: 	git branch -m <name>
+2026-10-21T14:03:30.1860138Z hint:
+2026-10-21T14:03:30.1861068Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T14:03:30.1862212Z Initialized empty Git repository in /home/runner/work/AgentDock-Workbench/AgentDock-Workbench/.git/
+2026-10-21T14:03:30.1864361Z [command]/usr/bin/git remote add origin https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T14:03:30.1865971Z ##[endgroup]
+2026-10-21T14:03:30.1866652Z ##[group]Disabling automatic garbage collection
+2026-10-21T14:03:30.1867529Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T14:03:30.1897411Z ##[endgroup]
+2026-10-21T14:03:30.1898096Z ##[group]Setting up auth
+2026-10-21T14:03:30.1903616Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T14:03:30.1941468Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T14:03:30.2277066Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T14:03:30.2320814Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T14:03:30.2561184Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T14:03:30.2602832Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T14:03:30.2832431Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T14:03:30.3484478Z ##[endgroup]
+2026-10-21T14:03:30.3485256Z ##[group]Fetching the repository
+2026-10-21T14:03:30.3492739Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 854a9db6d82991b9499548e28ed27d41a955c4f8
+2026-10-21T14:03:32.2079013Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T14:03:32.2079603Z  * branch            854a9db6d82991b9499548e28ed27d41a955c4f8 -> FETCH_HEAD
+2026-10-21T14:03:32.2086959Z ##[endgroup]
+2026-10-21T14:03:32.2087776Z ##[group]Determining the checkout info
+2026-10-21T14:03:32.2088430Z ##[endgroup]
+2026-10-21T14:03:32.2091539Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T14:03:32.2162028Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T14:03:32.2202016Z ##[group]Checking out the ref
+2026-10-21T14:03:32.2225362Z [command]/usr/bin/git checkout --progress --force 854a9db6d82991b9499548e28ed27d41a955c4f8
+2026-10-21T14:03:32.5968454Z Note: switching to '854a9db6d82991b9499548e28ed27d41a955c4f8'.
+2026-10-21T14:03:32.5968897Z 
+2026-10-21T14:03:32.5969182Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T14:03:32.5969747Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T14:03:32.5970144Z state without impacting any branches by switching back to a branch.
+2026-10-21T14:03:32.5970680Z 
+2026-10-21T14:03:32.5970906Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T14:03:32.5971281Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T14:03:32.5971498Z 
+2026-10-21T14:03:32.5971591Z   git switch -c <new-branch-name>
+2026-10-21T14:03:32.5971737Z 
+2026-10-21T14:03:32.5971832Z Or undo this operation with:
+2026-10-21T14:03:32.5971973Z 
+2026-10-21T14:03:32.5972067Z   git switch -
+2026-10-21T14:03:32.5972192Z 
+2026-10-21T14:03:32.5972373Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T14:03:32.5972662Z 
+2026-10-21T14:03:32.5972947Z HEAD is now at 854a9db Merge 3c5913d11b867ef525b10bfc33c29d2543a7dcab into c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+2026-10-21T14:03:32.5983788Z ##[endgroup]
+2026-10-21T14:03:32.6035124Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T14:03:32.6067360Z 854a9db6d82991b9499548e28ed27d41a955c4f8
+2026-10-21T14:03:32.6308079Z ##[group]Run actions/setup-go@v6
+2026-10-21T14:03:32.6308322Z with:
+2026-10-21T14:03:32.6308509Z   go-version-file: go.mod
+2026-10-21T14:03:32.6308700Z   cache: true
+2026-10-21T14:03:32.6308866Z   check-latest: false
+2026-10-21T14:03:32.6311295Z   token: ***
+2026-10-21T14:03:32.6311465Z ##[endgroup]
+2026-10-21T14:03:32.7344791Z Setup go version spec 1.26.5
+2026-10-21T14:03:32.7361365Z Attempting to download 1.26.5...
+2026-10-21T14:03:33.7182362Z matching 1.26.5...
+2026-10-21T14:03:33.7214580Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-linux-x64.tar.gz
+2026-10-21T14:03:34.2280863Z Extracting Go...
+2026-10-21T14:03:34.2373759Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/adb34e73-3c4f-402b-9934-9db381046224 -f /home/runner/work/_temp/8ce6e137-cbed-418f-99e0-dc56d4b3672b
+2026-10-21T14:03:35.8643740Z Successfully extracted go to /home/runner/work/_temp/adb34e73-3c4f-402b-9934-9db381046224
+2026-10-21T14:03:35.8644369Z Adding to the cache ...
+2026-10-21T14:03:45.8936958Z Successfully cached go to /opt/hostedtoolcache/go/1.26.5/x64
+2026-10-21T14:03:45.8943477Z Added go to the path
+2026-10-21T14:03:45.8943803Z Successfully set up Go version 1.26.5
+2026-10-21T14:03:45.9153900Z [command]/opt/hostedtoolcache/go/1.26.5/x64/bin/go env GOMODCACHE
+2026-10-21T14:03:45.9194713Z [command]/opt/hostedtoolcache/go/1.26.5/x64/bin/go env GOCACHE
+2026-10-21T14:03:45.9238030Z /home/runner/go/pkg/mod
+2026-10-21T14:03:45.9255172Z /home/runner/.cache/go-build
+2026-10-21T14:03:46.1463800Z Cache hit for: setup-go-Linux-x64-ubuntu24-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-21T14:03:47.3828779Z Received 33554432 of 197843030 (17.0%), 32.0 MBs/sec
+2026-10-21T14:03:48.3911809Z Received 180355072 of 197843030 (91.2%), 85.9 MBs/sec
+2026-10-21T14:03:48.4930558Z Received 197843030 of 197843030 (100.0%), 89.4 MBs/sec
+2026-10-21T14:03:48.4931064Z Cache Size: ~189 MB (197843030 B)
+2026-10-21T14:03:48.5028649Z [command]/usr/bin/tar -xf /home/runner/work/_temp/d152e460-6a5e-483b-8dc5-c4aff41fbe28/cache.tzst -P -C /home/runner/work/AgentDock-Workbench/AgentDock-Workbench --use-compress-program unzstd
+2026-10-21T14:03:49.5271859Z Cache restored successfully
+2026-10-21T14:03:49.5362449Z Cache restored from key: setup-go-Linux-x64-ubuntu24-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+2026-10-21T14:03:49.5387687Z go version go1.26.5 linux/amd64
+2026-10-21T14:03:49.5387935Z 
+2026-10-21T14:03:49.5388300Z ##[group]go env
+2026-10-21T14:03:49.5574990Z AR='ar'
+2026-10-21T14:03:49.5575267Z CC='gcc'
+2026-10-21T14:03:49.5575601Z CGO_CFLAGS='-O2 -g'
+2026-10-21T14:03:49.5575912Z CGO_CPPFLAGS=''
+2026-10-21T14:03:49.5576201Z CGO_CXXFLAGS='-O2 -g'
+2026-10-21T14:03:49.5576506Z CGO_ENABLED='1'
+2026-10-21T14:03:49.5576783Z CGO_FFLAGS='-O2 -g'
+2026-10-21T14:03:49.5577038Z CGO_LDFLAGS='-O2 -g'
+2026-10-21T14:03:49.5577444Z CXX='g++'
+2026-10-21T14:03:49.5577731Z GCCGO='gccgo'
+2026-10-21T14:03:49.5578254Z GO111MODULE=''
+2026-10-21T14:03:49.5578489Z GOAMD64='v1'
+2026-10-21T14:03:49.5578717Z GOARCH='amd64'
+2026-10-21T14:03:49.5578945Z GOAUTH='netrc'
+2026-10-21T14:03:49.5579173Z GOBIN=''
+2026-10-21T14:03:49.5579429Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-21T14:03:49.5579760Z GOCACHEPROG=''
+2026-10-21T14:03:49.5579993Z GODEBUG=''
+2026-10-21T14:03:49.5580260Z GOENV='/home/runner/.config/go/env'
+2026-10-21T14:03:49.5580558Z GOEXE=''
+2026-10-21T14:03:49.5580779Z GOEXPERIMENT=''
+2026-10-21T14:03:49.5581022Z GOFIPS140='off'
+2026-10-21T14:03:49.5581252Z GOFLAGS=''
+2026-10-21T14:03:49.5582030Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build4208477961=/tmp/go-build -gno-record-gcc-switches'
+2026-10-21T14:03:49.5582825Z GOHOSTARCH='amd64'
+2026-10-21T14:03:49.5583080Z GOHOSTOS='linux'
+2026-10-21T14:03:49.5583318Z GOINSECURE=''
+2026-10-21T14:03:49.5583735Z GOMOD='/home/runner/work/AgentDock-Workbench/AgentDock-Workbench/go.mod'
+2026-10-21T14:03:49.5584553Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-21T14:03:49.5584864Z GONOPROXY=''
+2026-10-21T14:03:49.5585087Z GONOSUMDB=''
+2026-10-21T14:03:49.5585343Z GOOS='linux'
+2026-10-21T14:03:49.5585590Z GOPATH='/home/runner/go'
+2026-10-21T14:03:49.5585865Z GOPRIVATE=''
+2026-10-21T14:03:49.5586181Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-21T14:03:49.5586595Z GOROOT='/opt/hostedtoolcache/go/1.26.5/x64'
+2026-10-21T14:03:49.5586955Z GOSUMDB='sum.golang.org'
+2026-10-21T14:03:49.5587375Z GOTELEMETRY='local'
+2026-10-21T14:03:49.5587706Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-21T14:03:49.5588079Z GOTMPDIR=''
+2026-10-21T14:03:49.5588326Z GOTOOLCHAIN='local'
+2026-10-21T14:03:49.5588725Z GOTOOLDIR='/opt/hostedtoolcache/go/1.26.5/x64/pkg/tool/linux_amd64'
+2026-10-21T14:03:49.5589150Z GOVCS=''
+2026-10-21T14:03:49.5589385Z GOVERSION='go1.26.5'
+2026-10-21T14:03:49.5589648Z GOWORK=''
+2026-10-21T14:03:49.5589897Z PKG_CONFIG='pkg-config'
+2026-10-21T14:03:49.5590084Z 
+2026-10-21T14:03:49.5590490Z ##[endgroup]
+2026-10-21T14:03:49.5780186Z ##[group]Run unformatted="$(git ls-files '*.go' | while IFS= read -r file; do gofmt -l "$file"; done)"
+2026-10-21T14:03:49.5780795Z [36;1munformatted="$(git ls-files '*.go' | while IFS= read -r file; do gofmt -l "$file"; done)"[0m
+2026-10-21T14:03:49.5781172Z [36;1mif [ -n "$unformatted" ]; then[0m
+2026-10-21T14:03:49.5781458Z [36;1m  printf 'Unformatted Go files:\n%s\n' "$unformatted"[0m
+2026-10-21T14:03:49.5781729Z [36;1m  exit 1[0m
+2026-10-21T14:03:49.5781900Z [36;1mfi[0m
+2026-10-21T14:03:49.7354800Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T14:03:49.7355137Z env:
+2026-10-21T14:03:49.7355321Z   GOTOOLCHAIN: local
+2026-10-21T14:03:49.7355519Z ##[endgroup]
+2026-10-21T14:03:52.6987484Z ##[group]Run go test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s
+2026-10-21T14:03:52.6988225Z [36;1mgo test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s[0m
+2026-10-21T14:03:52.7035027Z shell: /usr/bin/bash -e {0}
+2026-10-21T14:03:52.7035255Z env:
+2026-10-21T14:03:52.7035428Z   GOTOOLCHAIN: local
+2026-10-21T14:03:52.7035614Z ##[endgroup]
+2026-10-21T14:04:06.4213015Z ok  	github.com/uvwt/agentdock/internal/app	7.059s
+2026-10-21T14:04:06.4936422Z ##[group]Run go test -p 2 ./... -skip '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=1 -timeout=8m
+2026-10-21T14:04:06.4937113Z [36;1mgo test -p 2 ./... -skip '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=1 -timeout=8m[0m
+2026-10-21T14:04:06.4992204Z shell: /usr/bin/bash -e {0}
+2026-10-21T14:04:06.4992447Z env:
+2026-10-21T14:04:06.4992641Z   GOTOOLCHAIN: local
+2026-10-21T14:04:06.4992851Z ##[endgroup]
+2026-10-21T14:04:11.4620741Z ok  	github.com/uvwt/agentdock/cmd/agentdock	0.325s
+2026-10-21T14:04:11.4621270Z ok  	github.com/uvwt/agentdock/cmd/agentdock/internal/logx	0.002s
+2026-10-21T14:04:11.4621711Z ?   	github.com/uvwt/agentdock/cmd/agentdock-arbiter	[no test files]
+2026-10-21T14:04:11.4622456Z ?   	github.com/uvwt/agentdock/cmd/agentdock-shim	[no test files]
+2026-10-21T14:04:11.4623077Z ?   	github.com/uvwt/agentdock/cmd/agentdock-wsl-helper	[no test files]
+2026-10-21T14:04:12.0416326Z ok  	github.com/uvwt/agentdock/internal/acp	0.808s
+2026-10-21T14:04:14.2873168Z ok  	github.com/uvwt/agentdock/internal/activity	2.824s
+2026-10-21T14:04:14.2873650Z ok  	github.com/uvwt/agentdock/internal/agentinstructions	0.017s
+2026-10-21T14:04:14.2874139Z ok  	github.com/uvwt/agentdock/internal/androidbridge	0.004s
+2026-10-21T14:05:01.3786789Z ok  	github.com/uvwt/agentdock/internal/app	48.648s
+2026-10-21T14:05:01.3787375Z ok  	github.com/uvwt/agentdock/internal/auth	0.591s
+2026-10-21T14:05:01.3787814Z ok  	github.com/uvwt/agentdock/internal/buildinfo	0.002s
+2026-10-21T14:05:01.3788474Z ok  	github.com/uvwt/agentdock/internal/capabilityrouting	0.002s
+2026-10-21T14:05:01.3789392Z ok  	github.com/uvwt/agentdock/internal/commandcompletion	0.171s
+2026-10-21T14:05:01.3790125Z ok  	github.com/uvwt/agentdock/internal/config	0.031s
+2026-10-21T14:05:01.3790847Z ?   	github.com/uvwt/agentdock/internal/contextguide	[no test files]
+2026-10-21T14:05:01.3791804Z ok  	github.com/uvwt/agentdock/internal/desktopcontrol	0.024s
+2026-10-21T14:05:01.3792546Z ok  	github.com/uvwt/agentdock/internal/desktopruntime	0.898s
+2026-10-21T14:05:01.3793171Z ok  	github.com/uvwt/agentdock/internal/envstore	0.224s
+2026-10-21T14:05:01.3793670Z ok  	github.com/uvwt/agentdock/internal/evolution	0.291s
+2026-10-21T14:05:01.3794242Z ok  	github.com/uvwt/agentdock/internal/executioncompat	0.003s
+2026-10-21T14:05:01.3794829Z ok  	github.com/uvwt/agentdock/internal/externalagent	0.003s
+2026-10-21T14:05:01.3795460Z ok  	github.com/uvwt/agentdock/internal/fs/atomicfile	0.026s
+2026-10-21T14:05:01.3795968Z ok  	github.com/uvwt/agentdock/internal/fs/filelock	0.351s
+2026-10-21T14:05:01.3796655Z ok  	github.com/uvwt/agentdock/internal/fs/processlock	0.053s
+2026-10-21T14:05:01.3797382Z ok  	github.com/uvwt/agentdock/internal/fs/securepath	0.005s
+2026-10-21T14:05:01.3798054Z ok  	github.com/uvwt/agentdock/internal/generationretention	0.010s
+2026-10-21T14:05:01.3798588Z ok  	github.com/uvwt/agentdock/internal/httpx	7.883s
+2026-10-21T14:05:01.3801176Z ok  	github.com/uvwt/agentdock/internal/httpx/requestmeta	0.002s
+2026-10-21T14:05:01.3801735Z ok  	github.com/uvwt/agentdock/internal/insertion	0.263s
+2026-10-21T14:05:01.3802284Z ok  	github.com/uvwt/agentdock/internal/installer	4.795s
+2026-10-21T14:05:01.3802770Z ok  	github.com/uvwt/agentdock/internal/logfile	0.003s
+2026-10-21T14:05:01.3803213Z ok  	github.com/uvwt/agentdock/internal/mcp	9.944s
+2026-10-21T14:05:01.3803674Z ok  	github.com/uvwt/agentdock/internal/mcp/client	2.941s
+2026-10-21T14:05:01.3804187Z ?   	github.com/uvwt/agentdock/internal/mcpappcompat	[no test files]
+2026-10-21T14:05:01.3804744Z ok  	github.com/uvwt/agentdock/internal/nexusbridge	0.020s
+2026-10-21T14:05:01.3805236Z ok  	github.com/uvwt/agentdock/internal/nexusclient	0.005s
+2026-10-21T14:05:01.3805717Z ok  	github.com/uvwt/agentdock/internal/permission	0.462s
+2026-10-21T14:05:01.3806188Z ok  	github.com/uvwt/agentdock/internal/plugin	2.444s
+2026-10-21T14:05:01.3806657Z ok  	github.com/uvwt/agentdock/internal/process	0.450s
+2026-10-21T14:05:01.3807636Z ok  	github.com/uvwt/agentdock/internal/publicartifacts	0.043s
+2026-10-21T14:05:01.3808194Z ok  	github.com/uvwt/agentdock/internal/requesttrace	0.002s
+2026-10-21T14:05:01.3808704Z ok  	github.com/uvwt/agentdock/internal/runtimeapi	0.041s
+2026-10-21T14:05:02.7614644Z ok  	github.com/uvwt/agentdock/internal/selfupdate	1.586s
+2026-10-21T14:05:02.7615589Z ok  	github.com/uvwt/agentdock/internal/skill	0.273s
+2026-10-21T14:05:02.7616147Z ok  	github.com/uvwt/agentdock/internal/skill/bundle	0.106s
+2026-10-21T14:05:02.7616760Z ?   	github.com/uvwt/agentdock/internal/skill/packagehash	[no test files]
+2026-10-21T14:05:03.8033576Z ok  	github.com/uvwt/agentdock/internal/skill/state	1.005s
+2026-10-21T14:05:03.8034128Z ok  	github.com/uvwt/agentdock/internal/skilldata	0.005s
+2026-10-21T14:05:06.8827227Z ok  	github.com/uvwt/agentdock/internal/snapshot	3.492s
+2026-10-21T14:05:06.8828407Z ok  	github.com/uvwt/agentdock/internal/taskstate	0.793s
+2026-10-21T14:05:06.8829186Z ok  	github.com/uvwt/agentdock/internal/textutil	0.002s
+2026-10-21T14:05:06.8829965Z ok  	github.com/uvwt/agentdock/internal/tool/acp	0.007s
+2026-10-21T14:05:06.8830751Z ok  	github.com/uvwt/agentdock/internal/tool/androiddevice	0.016s
+2026-10-21T14:05:06.8831654Z ok  	github.com/uvwt/agentdock/internal/tool/browser	0.217s
+2026-10-21T14:05:06.9392468Z ok  	github.com/uvwt/agentdock/internal/tool/capability	0.006s
+2026-10-21T14:05:11.1796734Z ok  	github.com/uvwt/agentdock/internal/tool/command	3.724s
+2026-10-21T14:05:11.1797362Z ok  	github.com/uvwt/agentdock/internal/tool/command/session	0.429s
+2026-10-21T14:05:11.1797766Z ok  	github.com/uvwt/agentdock/internal/tool/contract	0.011s
+2026-10-21T14:05:11.1798097Z ok  	github.com/uvwt/agentdock/internal/tool/core	0.004s
+2026-10-21T14:05:11.1798418Z ok  	github.com/uvwt/agentdock/internal/tool/file	0.133s
+2026-10-21T14:05:11.1798762Z ok  	github.com/uvwt/agentdock/internal/tool/mcp	0.018s
+2026-10-21T14:05:11.1799075Z ok  	github.com/uvwt/agentdock/internal/tool/media	0.169s
+2026-10-21T14:05:12.3169709Z ok  	github.com/uvwt/agentdock/internal/tool/plugin	1.247s
+2026-10-21T14:05:12.3170688Z ok  	github.com/uvwt/agentdock/internal/tool/recall	0.116s
+2026-10-21T14:05:13.2122420Z ok  	github.com/uvwt/agentdock/internal/tool/skill	0.780s
+2026-10-21T14:05:13.2122882Z ok  	github.com/uvwt/agentdock/internal/tool/task	0.298s
+2026-10-21T14:05:13.2123278Z ?   	github.com/uvwt/agentdock/internal/tool/workspace	[no test files]
+2026-10-21T14:05:13.9446144Z ok  	github.com/uvwt/agentdock/internal/updateengine	0.529s
+2026-10-21T14:05:13.9446807Z ?   	github.com/uvwt/agentdock/internal/updateplatform	[no test files]
+2026-10-21T14:05:14.1334598Z ok  	github.com/uvwt/agentdock/internal/workspace	0.200s
+2026-10-21T14:05:14.5491682Z ok  	github.com/uvwt/agentdock/internal/wslfilehelper	0.239s
+2026-10-21T14:05:14.5492225Z ?   	github.com/uvwt/agentdock/scripts/ci/parallel-macos/fixture-core	[no test files]
+2026-10-21T14:05:16.2173331Z --- FAIL: TestCIWorkflowUsesFreshBoundedGoTests (0.00s)
+2026-10-21T14:05:16.2174587Z     ci_workflow_test.go:64: CI workflow must keep bounded non-cached validation; missing "go test -p 2 ./... -count=1 -timeout=8m"
+2026-10-21T14:05:16.2175300Z FAIL
+2026-10-21T14:05:16.2175638Z FAIL	github.com/uvwt/agentdock/scripts/test	1.274s
+2026-10-21T14:05:16.2176104Z ok  	github.com/uvwt/agentdock/tools/release	0.005s
+2026-10-21T14:05:16.2176482Z FAIL
+2026-10-21T14:05:16.2729338Z ##[error]Process completed with exit code 1.
+2026-10-21T14:05:16.2882985Z Post job cleanup.
+2026-10-21T14:05:16.3575059Z [command]/usr/bin/git version
+2026-10-21T14:05:16.3612485Z git version 2.55.0
+2026-10-21T14:05:16.3644137Z Temporarily overriding HOME='/home/runner/work/_temp/be712ada-f3a1-4e52-8d7d-3d8fb23e3db7' before making global git config changes
+2026-10-21T14:05:16.3645552Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T14:05:16.3649520Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T14:05:16.3685638Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T14:05:16.3718096Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T14:05:16.3944554Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T14:05:16.3969908Z http.https://github.com/.extraheader
+2026-10-21T14:05:16.3979759Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-21T14:05:16.4012118Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T14:05:16.4241238Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T14:05:16.4312341Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T14:05:16.4747107Z Cleaning up orphan processes
