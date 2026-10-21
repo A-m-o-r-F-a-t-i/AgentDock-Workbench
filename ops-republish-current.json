@@ -1,0 +1,1298 @@
+{
+  "conclusion": "",
+  "headSha": "c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5",
+  "jobs": [
+    {
+      "completedAt": "2026-10-21T11:25:35Z",
+      "conclusion": "success",
+      "databaseId": 119194379566,
+      "name": "resolve-source",
+      "startedAt": "2026-10-21T11:25:16Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:17Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:17Z",
+          "conclusion": "skipped",
+          "name": "Reject publishing with an ignored validation gate",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:19Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:31Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T11:25:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:33Z",
+          "conclusion": "success",
+          "name": "Run set -euo pipefail",
+          "number": 5,
+          "startedAt": "2026-10-21T11:25:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 9,
+          "startedAt": "2026-10-21T11:25:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 10,
+          "startedAt": "2026-10-21T11:25:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-21T11:25:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194379566"
+    },
+    {
+      "completedAt": "2026-10-21T11:27:31Z",
+      "conclusion": "success",
+      "databaseId": 119194535584,
+      "name": "Native linux arm64",
+      "startedAt": "2026-10-21T11:25:43Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:45Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:47Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:57Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:57Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T11:25:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:53Z",
+          "conclusion": "success",
+          "name": "Native backend regression",
+          "number": 5,
+          "startedAt": "2026-10-21T11:25:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:02Z",
+          "conclusion": "success",
+          "name": "Linux native package tools",
+          "number": 6,
+          "startedAt": "2026-10-21T11:26:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:02Z",
+          "conclusion": "skipped",
+          "name": "Native macOS app and packaging contracts",
+          "number": 7,
+          "startedAt": "2026-10-21T11:27:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:20Z",
+          "conclusion": "success",
+          "name": "Build native payload and verify its actual identity",
+          "number": 8,
+          "startedAt": "2026-10-21T11:27:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:24Z",
+          "conclusion": "success",
+          "name": "Native Linux package manager installation and removal",
+          "number": 9,
+          "startedAt": "2026-10-21T11:27:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:24Z",
+          "conclusion": "skipped",
+          "name": "Record the explicit candidate validation exception",
+          "number": 10,
+          "startedAt": "2026-10-21T11:27:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:27Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 11,
+          "startedAt": "2026-10-21T11:27:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:27Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 20,
+          "startedAt": "2026-10-21T11:27:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:27Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 21,
+          "startedAt": "2026-10-21T11:27:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:27Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 22,
+          "startedAt": "2026-10-21T11:27:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:27Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T11:27:27Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194535584"
+    },
+    {
+      "completedAt": "2026-10-21T11:28:41Z",
+      "conclusion": "success",
+      "databaseId": 119194535632,
+      "name": "Native linux amd64",
+      "startedAt": "2026-10-21T11:25:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:44Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:02Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:02Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T11:26:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:41Z",
+          "conclusion": "success",
+          "name": "Native backend regression",
+          "number": 5,
+          "startedAt": "2026-10-21T11:26:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:51Z",
+          "conclusion": "success",
+          "name": "Linux native package tools",
+          "number": 6,
+          "startedAt": "2026-10-21T11:27:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:51Z",
+          "conclusion": "skipped",
+          "name": "Native macOS app and packaging contracts",
+          "number": 7,
+          "startedAt": "2026-10-21T11:27:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:27Z",
+          "conclusion": "success",
+          "name": "Build native payload and verify its actual identity",
+          "number": 8,
+          "startedAt": "2026-10-21T11:27:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:35Z",
+          "conclusion": "success",
+          "name": "Native Linux package manager installation and removal",
+          "number": 9,
+          "startedAt": "2026-10-21T11:28:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:35Z",
+          "conclusion": "skipped",
+          "name": "Record the explicit candidate validation exception",
+          "number": 10,
+          "startedAt": "2026-10-21T11:28:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:37Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 11,
+          "startedAt": "2026-10-21T11:28:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:37Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 20,
+          "startedAt": "2026-10-21T11:28:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:37Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 21,
+          "startedAt": "2026-10-21T11:28:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:38Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 22,
+          "startedAt": "2026-10-21T11:28:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:38Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T11:28:38Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194535632"
+    },
+    {
+      "completedAt": "2026-10-21T11:30:47Z",
+      "conclusion": "failure",
+      "databaseId": 119194535797,
+      "name": "Native darwin amd64",
+      "startedAt": "2026-10-21T11:25:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:47Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:29Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:29Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T11:26:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "failure",
+          "name": "Native backend regression",
+          "number": 5,
+          "startedAt": "2026-10-21T11:26:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Linux native package tools",
+          "number": 6,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Native macOS app and packaging contracts",
+          "number": 7,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Build native payload and verify its actual identity",
+          "number": 8,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Native Linux package manager installation and removal",
+          "number": 9,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Record the explicit candidate validation exception",
+          "number": 10,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 11,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 20,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:42Z",
+          "conclusion": "skipped",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 21,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:43Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 22,
+          "startedAt": "2026-10-21T11:30:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:43Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T11:30:43Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194535797"
+    },
+    {
+      "completedAt": "2026-10-21T11:28:15Z",
+      "conclusion": "failure",
+      "databaseId": 119194535841,
+      "name": "Native darwin arm64",
+      "startedAt": "2026-10-21T11:25:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:58Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:58Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T11:25:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "failure",
+          "name": "Native backend regression",
+          "number": 5,
+          "startedAt": "2026-10-21T11:25:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Linux native package tools",
+          "number": 6,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Native macOS app and packaging contracts",
+          "number": 7,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Build native payload and verify its actual identity",
+          "number": 8,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Native Linux package manager installation and removal",
+          "number": 9,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Record the explicit candidate validation exception",
+          "number": 10,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 11,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 20,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "skipped",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 21,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:11Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 22,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:13Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T11:28:11Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194535841"
+    },
+    {
+      "completedAt": "2026-10-21T11:25:46Z",
+      "conclusion": "success",
+      "databaseId": 119194536501,
+      "name": "windows / Resolve requested ref once",
+      "startedAt": "2026-10-21T11:25:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Run set -euo pipefail",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 6,
+          "startedAt": "2026-10-21T11:25:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:43Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-21T11:25:43Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194536501"
+    },
+    {
+      "completedAt": "2026-10-21T11:28:29Z",
+      "conclusion": "success",
+      "databaseId": 119194608837,
+      "name": "windows / Linux transaction and concurrency regression",
+      "startedAt": "2026-10-21T11:25:49Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:50Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:25:52Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:03Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:25:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:11Z",
+          "conclusion": "success",
+          "name": "Linux backend and WSL helper contracts",
+          "number": 4,
+          "startedAt": "2026-10-21T11:26:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:26Z",
+          "conclusion": "success",
+          "name": "Race detection on critical concurrency contracts",
+          "number": 5,
+          "startedAt": "2026-10-21T11:27:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:26Z",
+          "conclusion": "success",
+          "name": "Record tested source identity",
+          "number": 6,
+          "startedAt": "2026-10-21T11:28:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:27Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 7,
+          "startedAt": "2026-10-21T11:28:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:27Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 13,
+          "startedAt": "2026-10-21T11:28:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:27Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 14,
+          "startedAt": "2026-10-21T11:28:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:27Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T11:28:27Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194608837"
+    },
+    {
+      "completedAt": "2026-10-21T11:30:38Z",
+      "conclusion": "success",
+      "databaseId": 119194609208,
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "startedAt": "2026-10-21T11:25:49Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:03Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:12Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:26:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:44Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-dotnet@v5",
+          "number": 4,
+          "startedAt": "2026-10-21T11:27:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:44Z",
+          "conclusion": "success",
+          "name": "Verify isolated native target",
+          "number": 5,
+          "startedAt": "2026-10-21T11:27:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:36Z",
+          "conclusion": "success",
+          "name": "Native backup fidelity and restoration",
+          "number": 6,
+          "startedAt": "2026-10-21T11:27:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:27Z",
+          "conclusion": "success",
+          "name": "Actual scheduled task and native process recovery",
+          "number": 7,
+          "startedAt": "2026-10-21T11:28:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:27Z",
+          "conclusion": "skipped",
+          "name": "WPF input and all existing layout contracts",
+          "number": 8,
+          "startedAt": "2026-10-21T11:30:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:28Z",
+          "conclusion": "success",
+          "name": "Record source and completed native evidence",
+          "number": 9,
+          "startedAt": "2026-10-21T11:30:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:29Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 10,
+          "startedAt": "2026-10-21T11:30:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:29Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-dotnet@v5",
+          "number": 18,
+          "startedAt": "2026-10-21T11:30:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:29Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 19,
+          "startedAt": "2026-10-21T11:30:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:34Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 20,
+          "startedAt": "2026-10-21T11:30:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:34Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-10-21T11:30:34Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194609208"
+    },
+    {
+      "completedAt": "2026-10-21T11:31:11Z",
+      "conclusion": "success",
+      "databaseId": 119194609264,
+      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "startedAt": "2026-10-21T11:25:50Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:25:53Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:25:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:26:06Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:25:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:00Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:26:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:30Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-dotnet@v5",
+          "number": 4,
+          "startedAt": "2026-10-21T11:27:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:27:30Z",
+          "conclusion": "success",
+          "name": "Verify isolated native target",
+          "number": 5,
+          "startedAt": "2026-10-21T11:27:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:28:45Z",
+          "conclusion": "success",
+          "name": "Native backup fidelity and restoration",
+          "number": 6,
+          "startedAt": "2026-10-21T11:27:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:30:37Z",
+          "conclusion": "success",
+          "name": "Actual scheduled task and native process recovery",
+          "number": 7,
+          "startedAt": "2026-10-21T11:28:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:02Z",
+          "conclusion": "success",
+          "name": "WPF input and all existing layout contracts",
+          "number": 8,
+          "startedAt": "2026-10-21T11:30:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:03Z",
+          "conclusion": "success",
+          "name": "Record source and completed native evidence",
+          "number": 9,
+          "startedAt": "2026-10-21T11:31:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:06Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 10,
+          "startedAt": "2026-10-21T11:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:06Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-dotnet@v5",
+          "number": 18,
+          "startedAt": "2026-10-21T11:31:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:06Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 19,
+          "startedAt": "2026-10-21T11:31:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:08Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 20,
+          "startedAt": "2026-10-21T11:31:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:08Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-10-21T11:31:08Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119194609264"
+    },
+    {
+      "completedAt": "2026-10-21T11:30:47Z",
+      "conclusion": "skipped",
+      "databaseId": 119196664328,
+      "name": "Universal macOS Workbench application",
+      "startedAt": "2026-10-21T11:30:48Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119196664328"
+    },
+    {
+      "completedAt": "2026-10-21T11:30:47Z",
+      "conclusion": "skipped",
+      "databaseId": 119196664898,
+      "name": "android",
+      "startedAt": "2026-10-21T11:30:48Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119196664898"
+    },
+    {
+      "completedAt": "2026-10-21T11:48:22Z",
+      "conclusion": "success",
+      "databaseId": 119196833332,
+      "name": "windows / Build verified unsigned Windows packages",
+      "startedAt": "2026-10-21T11:31:14Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:31:17Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:31:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:31:24Z",
+          "conclusion": "success",
+          "name": "Checkout requested source",
+          "number": 2,
+          "startedAt": "2026-10-21T11:31:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:32:01Z",
+          "conclusion": "success",
+          "name": "Setup Go",
+          "number": 3,
+          "startedAt": "2026-10-21T11:31:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:32:28Z",
+          "conclusion": "success",
+          "name": "Setup .NET",
+          "number": 4,
+          "startedAt": "2026-10-21T11:32:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:32:30Z",
+          "conclusion": "success",
+          "name": "Resolve immutable build metadata",
+          "number": 5,
+          "startedAt": "2026-10-21T11:32:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:33:20Z",
+          "conclusion": "success",
+          "name": "Offscreen desktop layout regression",
+          "number": 6,
+          "startedAt": "2026-10-21T11:32:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:33:21Z",
+          "conclusion": "success",
+          "name": "Preserve layout evidence",
+          "number": 7,
+          "startedAt": "2026-10-21T11:33:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:42:28Z",
+          "conclusion": "success",
+          "name": "Backend regression",
+          "number": 8,
+          "startedAt": "2026-10-21T11:33:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:42:34Z",
+          "conclusion": "success",
+          "name": "Static analysis",
+          "number": 9,
+          "startedAt": "2026-10-21T11:42:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:42:39Z",
+          "conclusion": "success",
+          "name": "Desktop pure-policy regression",
+          "number": 10,
+          "startedAt": "2026-10-21T11:42:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:42:41Z",
+          "conclusion": "success",
+          "name": "Windows installer contracts",
+          "number": 11,
+          "startedAt": "2026-10-21T11:42:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:46:18Z",
+          "conclusion": "success",
+          "name": "Build Windows ZIP and offline Setup for each architecture",
+          "number": 12,
+          "startedAt": "2026-10-21T11:42:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:46:24Z",
+          "conclusion": "success",
+          "name": "Verify package metadata and checksums",
+          "number": 13,
+          "startedAt": "2026-10-21T11:46:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:01Z",
+          "conclusion": "success",
+          "name": "Verify offline Setup installation and uninstall",
+          "number": 14,
+          "startedAt": "2026-10-21T11:46:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:02Z",
+          "conclusion": "success",
+          "name": "Record verification scope",
+          "number": 15,
+          "startedAt": "2026-10-21T11:48:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:16Z",
+          "conclusion": "success",
+          "name": "Upload verified Windows package",
+          "number": 16,
+          "startedAt": "2026-10-21T11:48:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:17Z",
+          "conclusion": "success",
+          "name": "Write build summary",
+          "number": 17,
+          "startedAt": "2026-10-21T11:48:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:17Z",
+          "conclusion": "success",
+          "name": "Post Setup .NET",
+          "number": 32,
+          "startedAt": "2026-10-21T11:48:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:17Z",
+          "conclusion": "success",
+          "name": "Post Setup Go",
+          "number": 33,
+          "startedAt": "2026-10-21T11:48:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:20Z",
+          "conclusion": "success",
+          "name": "Post Checkout requested source",
+          "number": 34,
+          "startedAt": "2026-10-21T11:48:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:20Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 35,
+          "startedAt": "2026-10-21T11:48:20Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119196833332"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119203951629,
+      "name": "Native Windows ARM64 install and uninstall",
+      "startedAt": "2026-10-21T11:48:25Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:48:29Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:48:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:48:39Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T11:48:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T11:48:39Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Run actions/download-artifact@v8",
+          "number": 4,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Native ARM64 packaged runtime validation",
+          "number": 5,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Native ARM64 receipt sharing and corruption regression",
+          "number": 6,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Isolated ARM64 install repair and uninstall",
+          "number": 7,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 8,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 15,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/checkout@v5",
+          "number": 16,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119203951629"
+    },
+    {
+      "completedAt": "2026-10-21T11:48:22Z",
+      "conclusion": "skipped",
+      "databaseId": 119203952653,
+      "name": "windows / Publish verified Windows x64 Release",
+      "startedAt": "2026-10-21T11:48:23Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575/job/119203952653"
+    }
+  ],
+  "status": "in_progress",
+  "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39591809575",
+  "source_sha": "c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5",
+  "version": "1.1.9",
+  "recorded_at": "2026-10-21T11:49:46Z"
+}
