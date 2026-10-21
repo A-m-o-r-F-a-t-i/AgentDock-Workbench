@@ -1,0 +1,134 @@
+name: Diagnose selected Windows jobs
+
+on:
+  push:
+    branches:
+      - ops/diag-pr176-windows-go-20261021
+    paths:
+      - .github/workflows/diag-windows-jobs.yml
+      - .github/diagnostics/pr176-trigger.txt
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download selected job logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/raw
+          for job in 119036936651 119033094293 119033048495; do
+            curl --fail --location --retry 3 \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/jobs/${job}/logs" \
+              --output "diagnostics/raw/${job}.log"
+          done
+
+      - name: Extract and redact failure contexts
+        shell: python
+        run: |
+          import pathlib
+          import re
+
+          jobs = {
+              "119036936651": "PR 176 · Go check (windows-latest)",
+              "119033094293": "PR 175 · Go check (windows-latest)",
+              "119033048495": "PR 175 · core (windows-2025)",
+          }
+          secret_patterns = [
+              (re.compile(r"gh[opsu]_[A-Za-z0-9_]{20,}"), "[REDACTED_GITHUB_TOKEN]"),
+              (re.compile(r"github_pat_[A-Za-z0-9_]{20,}"), "[REDACTED_GITHUB_TOKEN]"),
+              (re.compile(r"(?i)(authorization\s*:\s*(?:bearer|token)\s+)[^\s]+"), r"\1[REDACTED]"),
+              (re.compile(r"AKIA[0-9A-Z]{16}"), "[REDACTED_AWS_KEY]"),
+          ]
+          marker = re.compile(
+              r"(?i)(--- FAIL:|\bFAIL\b|panic:|fatal:|error:|timed out|timeout|"
+              r"process completed with exit code|exit status|unexpected|assertion|"
+              r"unable to|cannot |TestSetup|TestExecutionTwentyConcurrentCallsPerConversation)"
+          )
+
+          def redact(text: str) -> str:
+              text = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+              for pattern, replacement in secret_patterns:
+                  text = pattern.sub(replacement, text)
+              return text
+
+          sections = [
+              "# Redacted Windows CI diagnostics",
+              "",
+              "Generated from selected failed GitHub Actions jobs. Only bounded failure contexts and log tails are included.",
+          ]
+          for job, title in jobs.items():
+              path = pathlib.Path("diagnostics/raw") / f"{job}.log"
+              raw = path.read_text(encoding="utf-8", errors="replace")
+              lines = redact(raw).splitlines()
+              indexes = [i for i, line in enumerate(lines) if marker.search(line)]
+              selected = set()
+              for index in indexes[-40:]:
+                  selected.update(range(max(0, index - 12), min(len(lines), index + 24)))
+              selected.update(range(max(0, len(lines) - 120), len(lines)))
+              ordered = sorted(selected)
+              if len(ordered) > 500:
+                  ordered = ordered[-500:]
+              sections.extend(["", f"## {title}", "", "```text"])
+              previous = None
+              for index in ordered:
+                  if previous is not None and index > previous + 1:
+                      sections.append("... omitted ...")
+                  sections.append(lines[index][:2000])
+                  previous = index
+              sections.append("```")
+
+          output = "\n".join(sections)
+          pathlib.Path("diagnostics/windows-ci-failures.md").write_text(output[:120000], encoding="utf-8")
+
+      - name: Publish redacted diagnostic comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          body = pathlib.Path("diagnostics/windows-ci-failures.md").read_text(encoding="utf-8")
+          request = urllib.request.Request(
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/issues/176/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in (200, 201):
+                  raise RuntimeError(f"comment failed: HTTP {response.status}")
+
+      - name: Retain redacted summary on the operational branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf diagnostics/raw
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add diagnostics/windows-ci-failures.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(ci): retain redacted Windows diagnostics [skip ci]"
+          git push
