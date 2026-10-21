@@ -471,12 +471,12 @@
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119281288383"
     },
     {
-      "completedAt": "0001-01-01T00:00:00Z",
-      "conclusion": "",
+      "completedAt": "2026-10-21T14:36:53Z",
+      "conclusion": "success",
       "databaseId": 119281288568,
       "name": "Native darwin amd64",
       "startedAt": "2026-10-21T14:29:21Z",
-      "status": "in_progress",
+      "status": "completed",
       "steps": [
         {
           "completedAt": "2026-10-21T14:29:25Z",
@@ -527,68 +527,76 @@
           "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:40Z",
+          "conclusion": "success",
           "name": "Native macOS app and packaging contracts",
           "number": 7,
           "startedAt": "2026-10-21T14:33:24Z",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:45Z",
+          "conclusion": "success",
           "name": "Build native payload and verify its actual identity",
           "number": 8,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:40Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:45Z",
+          "conclusion": "skipped",
           "name": "Native Linux package manager installation and removal",
           "number": 9,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:45Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:45Z",
+          "conclusion": "skipped",
           "name": "Record the explicit candidate validation exception",
           "number": 10,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:45Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:47Z",
+          "conclusion": "success",
           "name": "Run actions/upload-artifact@v7",
           "number": 11,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:45Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:48Z",
+          "conclusion": "success",
           "name": "Post Run actions/setup-python@v6",
           "number": 20,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:47Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:48Z",
+          "conclusion": "success",
           "name": "Post Run actions/setup-go@v6",
           "number": 21,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:48Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:48Z",
+          "conclusion": "success",
           "name": "Post Run actions/checkout@v5",
           "number": 22,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:36:49Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-21T14:36:48Z",
+          "status": "completed"
         }
       ],
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119281288568"
@@ -1006,52 +1014,52 @@
           "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:35:27Z",
+          "conclusion": "success",
           "name": "Setup Go",
           "number": 3,
           "startedAt": "2026-10-21T14:34:49Z",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:35:59Z",
+          "conclusion": "success",
           "name": "Setup .NET",
           "number": 4,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:35:27Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:36:01Z",
+          "conclusion": "success",
           "name": "Resolve immutable build metadata",
           "number": 5,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:35:59Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:37:12Z",
+          "conclusion": "success",
           "name": "Offscreen desktop layout regression",
           "number": 6,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:36:01Z",
+          "status": "completed"
         },
         {
-          "completedAt": "0001-01-01T00:00:00Z",
-          "conclusion": "",
+          "completedAt": "2026-10-21T14:37:15Z",
+          "conclusion": "success",
           "name": "Preserve layout evidence",
           "number": 7,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:37:12Z",
+          "status": "completed"
         },
         {
           "completedAt": "0001-01-01T00:00:00Z",
           "conclusion": "",
           "name": "Backend regression",
           "number": 8,
-          "startedAt": "0001-01-01T00:00:00Z",
-          "status": "pending"
+          "startedAt": "2026-10-21T14:37:15Z",
+          "status": "in_progress"
         },
         {
           "completedAt": "0001-01-01T00:00:00Z",
@@ -1128,6 +1136,14 @@
         {
           "completedAt": "0001-01-01T00:00:00Z",
           "conclusion": "",
+          "name": "Post Setup .NET",
+          "number": 32,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
           "name": "Post Setup Go",
           "number": 33,
           "startedAt": "0001-01-01T00:00:00Z",
@@ -1143,12 +1159,440 @@
         }
       ],
       "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119283837121"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119285014812,
+      "name": "Universal macOS Workbench application",
+      "startedAt": "2026-10-21T14:36:57Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T14:37:00Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T14:36:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:03Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T14:37:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:28Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T14:37:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:28Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T14:37:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:30Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@v8",
+          "number": 5,
+          "startedAt": "2026-10-21T14:37:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:33Z",
+          "conclusion": "success",
+          "name": "Verify official cloudflared inputs",
+          "number": 6,
+          "startedAt": "2026-10-21T14:37:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Build ad-hoc signed universal DMG and update ZIP",
+          "number": 7,
+          "startedAt": "2026-10-21T14:37:33Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Verify universal architecture, branding and embedded source",
+          "number": 8,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 9,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 16,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/setup-go@v6",
+          "number": 17,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/checkout@v5",
+          "number": 18,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119285014812"
+    },
+    {
+      "completedAt": "2026-10-21T14:37:13Z",
+      "conclusion": "success",
+      "databaseId": 119285015492,
+      "name": "android / Source and bridge contracts",
+      "startedAt": "2026-10-21T14:36:56Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T14:36:57Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T14:36:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:36:59Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T14:36:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:00Z",
+          "conclusion": "success",
+          "name": "Record immutable identity",
+          "number": 3,
+          "startedAt": "2026-10-21T14:36:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:00Z",
+          "conclusion": "skipped",
+          "name": "Enforce owned paths",
+          "number": 4,
+          "startedAt": "2026-10-21T14:37:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:07Z",
+          "conclusion": "success",
+          "name": "Validate source, bridge and security contracts",
+          "number": 5,
+          "startedAt": "2026-10-21T14:37:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:10Z",
+          "conclusion": "success",
+          "name": "Verify API 37 command-line tools bootstrap",
+          "number": 6,
+          "startedAt": "2026-10-21T14:37:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:11Z",
+          "conclusion": "success",
+          "name": "Upload contract evidence",
+          "number": 7,
+          "startedAt": "2026-10-21T14:37:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:11Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 14,
+          "startedAt": "2026-10-21T14:37:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:11Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-21T14:37:11Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119285015492"
+    },
+    {
+      "completedAt": "2026-10-21T14:37:30Z",
+      "conclusion": "success",
+      "databaseId": 119285171937,
+      "name": "android / Prepare APK-bundled ARM64 Core",
+      "startedAt": "2026-10-21T14:37:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T14:37:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T14:37:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:22Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T14:37:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:22Z",
+          "conclusion": "skipped",
+          "name": "Run actions/setup-go@v6",
+          "number": 3,
+          "startedAt": "2026-10-21T14:37:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:22Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v6",
+          "number": 4,
+          "startedAt": "2026-10-21T14:37:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:25Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@v8",
+          "number": 5,
+          "startedAt": "2026-10-21T14:37:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:25Z",
+          "conclusion": "skipped",
+          "name": "Build native ARM64 Core when no parent artifact was supplied",
+          "number": 6,
+          "startedAt": "2026-10-21T14:37:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:25Z",
+          "conclusion": "success",
+          "name": "Verify and stage the APK-bundled Core",
+          "number": 7,
+          "startedAt": "2026-10-21T14:37:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:27Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v7",
+          "number": 8,
+          "startedAt": "2026-10-21T14:37:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:28Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v6",
+          "number": 15,
+          "startedAt": "2026-10-21T14:37:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:28Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v5",
+          "number": 16,
+          "startedAt": "2026-10-21T14:37:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:28Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-10-21T14:37:28Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119285171937"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119285315134,
+      "name": "android / Android lint, unit tests and APKs",
+      "startedAt": "2026-10-21T14:37:33Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T14:37:36Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T14:37:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v5",
+          "number": 2,
+          "startedAt": "2026-10-21T14:37:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Verify identity",
+          "number": 3,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-java@v5",
+          "number": 4,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@v8",
+          "number": 5,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Stage bundled Core as an APK asset",
+          "number": 6,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:38Z",
+          "conclusion": "success",
+          "name": "Prepare preinstalled Android SDK",
+          "number": 7,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T14:37:49Z",
+          "conclusion": "success",
+          "name": "Run gradle/actions/setup-gradle@v4",
+          "number": 8,
+          "startedAt": "2026-10-21T14:37:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Lint, unit test and build APKs",
+          "number": 9,
+          "startedAt": "2026-10-21T14:37:49Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Stage test-signed candidates",
+          "number": 10,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Collect reports",
+          "number": 11,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Upload APK candidates",
+          "number": 12,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Upload build diagnostics",
+          "number": 13,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run gradle/actions/setup-gradle@v4",
+          "number": 24,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/setup-java@v5",
+          "number": 25,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/checkout@v5",
+          "number": 26,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166/job/119285315134"
     }
   ],
   "status": "in_progress",
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166",
   "source_sha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
   "version": "1.1.9",
-  "recorded_at": "2026-10-21T14:35:20Z",
-  "probe_sequence": "2"
+  "recorded_at": "2026-10-21T14:38:45Z",
+  "probe_sequence": "3"
 }
