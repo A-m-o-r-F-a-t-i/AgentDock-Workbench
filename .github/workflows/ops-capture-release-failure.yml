@@ -18,20 +18,23 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: '39591809575'
+      DARWIN_AMD64_JOB: '119194535797'
+      DARWIN_ARM64_JOB: '119194535841'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.ref_name }}
-      - name: Capture failed job logs and metadata
+      - name: Capture completed macOS failure logs
         shell: bash
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url,headSha,jobs > ops-release-failure-jobs.json
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > ops-release-failure.log || true
-          test -s ops-release-failure-jobs.json
-          test -s ops-release-failure.log
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_AMD64_JOB" --log > ops-release-darwin-amd64.log
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_ARM64_JOB" --log > ops-release-darwin-arm64.log
+          test -s ops-release-darwin-amd64.log
+          test -s ops-release-darwin-arm64.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ops-release-failure-jobs.json ops-release-failure.log
-          git commit -m 'chore: record release failure diagnostics'
+          git add ops-release-failure-jobs.json ops-release-darwin-amd64.log ops-release-darwin-arm64.log
+          git commit -m 'chore: record macOS release failure diagnostics'
           git push origin "HEAD:$GITHUB_REF_NAME"
