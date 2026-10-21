@@ -32,6 +32,25 @@ func TestExecCommandDoesNotFilterCommandContent(t *testing.T) {
 	}
 }
 
+func TestExecCommandWorkdirRemainsOptionalAndWorkspaceRelative(t *testing.T) {
+	schema, ok := InputSchema(ToolExecCommand)
+	if !ok {
+		t.Fatal("exec_command input schema is missing")
+	}
+	required, _ := schema["required"].([]string)
+	for _, name := range required {
+		if name == "workdir" {
+			t.Fatal("workdir must remain optional")
+		}
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	workdir, _ := properties["workdir"].(map[string]any)
+	description, _ := workdir["description"].(string)
+	if !strings.Contains(description, "Omit it to use the current bound workspace root") || !strings.Contains(description, "relative paths resolve within that workspace") {
+		t.Fatalf("workdir description does not explain workspace inheritance: %q", description)
+	}
+}
+
 func TestExecCommandForwardsConfiguredHostEnv(t *testing.T) {
 	rt, cfg := newCommandTestService(t)
 	t.Setenv("AGENTDOCK_TEST_HOST_PASSTHROUGH", "host-forwarded")
