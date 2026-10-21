@@ -116,19 +116,19 @@ func (s *Service) resolveBuiltinDiscovery(ctx context.Context, builtins []Builti
 		"next_action": "call_host_tool", "repeated": repeated,
 		"scope": ScopeAgentDockBuiltin, "origin": ScopeAgentDockBuiltin,
 		"requested_scope": ScopeAgentDockMCP, "invoke_via": InvokeDirect,
-		"route_summary": "定位宿主工具 · " + label,
+		"route_summary":          "定位宿主工具 · " + label,
 		"wrong_namespace_search": true, "wrong_namespace_repeat_count": repeatCount,
 		"host_schema_state": "caller_managed", "direct_schema_state": "caller_managed",
 		"host_directory_visibility": "unknown", "host_discovery_method": "tools/list",
 		"filesystem_lookup_required": false, "dynamic_discovery_required": false,
-		"recovery_source": "caller_tools_list",
+		"recovery_source":   "caller_tools_list",
 		"already_delivered": repeated,
 	}
 	action := map[string]any{
 		"category": "protocol", "action": "select_host_tool",
 		"required": true, "execution_performed": false, "reason_code": "host_tool_handoff",
 		"tools": names,
-		"text": "Use the caller's current tools/list to call this AgentDock built-in directly. If absent, refresh the host tool directory. Do not search nested MCP again.",
+		"text":  "Use the caller's current tools/list to call this AgentDock built-in directly. If absent, refresh the host tool directory. Do not search nested MCP again.",
 	}
 	if len(names) == 1 {
 		result["required_host_tool"] = names[0]

@@ -16,8 +16,8 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 	}
 	ids := map[string]bool{}
 	for index, request := range []struct {
-		name string
-		args map[string]any
+		name  string
+		args  map[string]any
 		count int
 	}{
 		{"mcp_tool_search", map[string]any{"query": "exec_command"}, 1},
@@ -27,7 +27,9 @@ func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 	} {
 		result, err := rt.Call(ctx, request.name, request.args)
 		want := "already_routed"
-		if index == 0 { want = "resolved" }
+		if index == 0 {
+			want = "resolved"
+		}
 		if err != nil || result["route_status"] != want || result["terminal"] != true ||
 			result["execution_performed"] != false || result["host_directory_visibility"] != "unknown" {
 			t.Fatalf("route %d: %#v %v", index, result, err)

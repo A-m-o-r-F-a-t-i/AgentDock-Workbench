@@ -81,7 +81,11 @@ func TestBuiltinDiscoveryScopeIsolation(t *testing.T) {
 	s := builtinTestService()
 	binding := builtinTestBinding()
 	for _, b := range []activity.Binding{
-		func() activity.Binding { value := binding; value.ConversationID = "conv_" + strings.Repeat("c", 32); return value }(),
+		func() activity.Binding {
+			value := binding
+			value.ConversationID = "conv_" + strings.Repeat("c", 32)
+			return value
+		}(),
 		func() activity.Binding { value := binding; value.SourceOwnerKey = "other-owner"; return value }(),
 	} {
 		result, err := s.Search(activity.WithBinding(t.Context(), b), SearchRequest{Query: "exec_command"})
@@ -122,11 +126,17 @@ func TestBuiltinDiscoveryConcurrentRepeat(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			result, err := s.Search(ctx, SearchRequest{Query: "exec_command"})
-			if err != nil || result == nil { bad.Add(1); return }
+			if err != nil || result == nil {
+				bad.Add(1)
+				return
+			}
 			switch result["route_status"] {
-			case "resolved": first.Add(1)
-			case "already_routed": repeat.Add(1)
-			default: bad.Add(1)
+			case "resolved":
+				first.Add(1)
+			case "already_routed":
+				repeat.Add(1)
+			default:
+				bad.Add(1)
 			}
 		}()
 	}
