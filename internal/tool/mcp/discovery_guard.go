@@ -98,26 +98,37 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 	builtins = sortedBuiltinTools(builtins)
 	names := builtinToolNames(builtins)
 	repeated, previous, repeatCount := s.discoveryRoutes.remember(ctx, names)
-	code := "HOST_BUILTIN_NOT_DYNAMIC_MCP"
+	code, status := "HOST_BUILTIN_NOT_DYNAMIC_MCP", "resolved"
 	if repeated {
-		code = "ROUTING_LOOP_BLOCKED"
+		code, status = "ROUTING_LOOP_BLOCKED", "already_routed"
 	}
 	label := strings.Join(names, ", ")
+	action := map[string]any{
+		"action": "call_host_tool", "category": "protocol", "required": true,
+		"execution_performed": false, "reason_code": "host_tool_handoff",
+		"schema_source": "caller_tools_list",
+	}
+	if len(names) == 1 {
+		action["tool"] = names[0]
+	} else {
+		action["tools"] = names
+	}
 	details := map[string]any{
 		"route_kind": routeKindHostBuiltin, "resolved": true, "terminal": true,
 		"retryable": false, "execution_performed": false, "retry_dynamic_search": false,
 		"builtin_tools": builtins, "required_host_tools": names,
-		"next_action": "call_host_tool", "repeated": repeated,
-		"route_code": code, "route_status": "blocked",
-		"resolution_status": "wrong_scope", "wrong_scope": true,
+		"next_action": "call_host_tool", "required_action": action, "repeated": repeated,
+		"route_code": code, "route_status": status,
+		"resolution_status": "resolved", "wrong_scope": true,
 		"scope": ScopeAgentDockBuiltin, "origin": ScopeAgentDockBuiltin,
 		"requested_scope": ScopeAgentDockMCP, "invoke_via": InvokeDirect,
 		"direct_tools":           names,
-		"route_summary":          "错误工具命名空间 · " + label,
+		"route_summary":          "宿主工具交接 · " + label,
 		"wrong_namespace_search": true, "wrong_namespace_repeat_count": repeatCount,
-		"host_schema_state":          "caller_managed",
-		"direct_schema_state":        "caller_managed",
+		"host_schema_state":          "caller_tools_list_required",
+		"direct_schema_state":        "caller_tools_list_required",
 		"host_discovery_method":      "tools/list",
+		"host_directory_visibility":  "unknown",
 		"filesystem_lookup_required": false,
 		"dynamic_discovery_required": false,
 		"recovery_source":            "caller_tools_list",
@@ -134,6 +145,6 @@ func (s *Service) rejectBuiltinDiscovery(ctx context.Context, builtins []Builtin
 	}
 
 	return toolErrorCause(code,
-		"AgentDock direct device built-in "+label+" cannot be searched or inspected as nested dynamic MCP. Invoke the already exposed AgentDock tool directly. No business action ran.",
+		"Resolved AgentDock direct device built-in "+label+". Stop dynamic MCP discovery and invoke it through the caller tools/list namespace. No business action ran.",
 		"validation", details, errBuiltinDiscovery)
 }
