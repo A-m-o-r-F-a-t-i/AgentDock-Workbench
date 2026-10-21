@@ -1,0 +1,30 @@
+name: Cancel failed v1.1.9 candidate
+
+on:
+  push:
+    branches:
+      - ops/monitor-v1.1.9-20261021
+    paths:
+      - .github/workflows/ops-cancel-v1.1.9-candidate.yml
+      - .github/operations/cancel-v1.1.9-trigger.txt
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Cancel failed candidate run
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/39547227739/cancel"
