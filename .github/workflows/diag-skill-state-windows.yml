@@ -1,0 +1,62 @@
+name: Diagnose Windows Skill state recovery
+
+on:
+  push:
+    branches:
+      - ops/diag-pr176-windows-go-20261021
+    paths:
+      - .github/workflows/diag-skill-state-windows.yml
+      - .github/diagnostics/skill-state-trigger.txt
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stress:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ca316c0f22b9733508b9ad96f88c81faf47b9655
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Repeat interrupted Skill swap recovery
+        id: stress
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+          go test ./internal/skill/state -run '^TestStoreRecoversInterruptedActivationStages$' -count=200 -timeout=12m -v 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\skill-state.log"
+          "exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+      - name: Publish bounded result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $log = Get-Content -LiteralPath "$env:RUNNER_TEMP\skill-state.log" -ErrorAction SilentlyContinue
+          $tail = @($log | Select-Object -Last 160) -join "`n"
+          $tail = [regex]::Replace($tail, 'gh[opsu]_[A-Za-z0-9_]{20,}', '[REDACTED_GITHUB_TOKEN]')
+          $body = @"
+          ## Windows Skill recovery stress result
+
+          Source: `ca316c0f22b9733508b9ad96f88c81faf47b9655`
+          Repetitions: 200
+          Exit code: `${{ steps.stress.outputs.exit_code }}`
+
+          ```text
+          $tail
+          ```
+          "@
+          $payload = @{ body = $body } | ConvertTo-Json -Depth 3
+          Invoke-RestMethod -Method Post -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/issues/176/comments" -Headers @{
+            Accept = 'application/vnd.github+json'
+            Authorization = "Bearer $env:GH_TOKEN"
+            'X-GitHub-Api-Version' = '2022-11-28'
+          } -ContentType 'application/json' -Body $payload | Out-Null
+          if ('${{ steps.stress.outputs.exit_code }}' -ne '0') { exit 1 }
