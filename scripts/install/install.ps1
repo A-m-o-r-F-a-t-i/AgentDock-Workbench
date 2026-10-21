@@ -567,35 +567,34 @@ function Get-ProcessesByPath {
     $normalizedBinaryPath = [IO.Path]::GetFullPath($BinaryPath)
     $matchingProcessIds = @()
 
-    # Win32_Process exposes ExecutablePath reliably in installer contexts where
-    # Get-Process.Path may be empty even for a process owned by the current user.
-    try {
-        $matchingProcessIds = @(Get-CimInstance Win32_Process -Filter "Name = '$ProcessName.exe'" -ErrorAction Stop |
-            Where-Object {
-                $_.ExecutablePath -and
-                [string]::Equals(
-                    [IO.Path]::GetFullPath($_.ExecutablePath),
-                    $normalizedBinaryPath,
-                    [StringComparison]::OrdinalIgnoreCase
-                )
-            } |
-            Select-Object -ExpandProperty ProcessId)
-    } catch {
-        $matchingProcessIds = @()
-    }
-
-    if ($matchingProcessIds.Count -eq 0) {
-        $matchingProcessIds = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Where-Object {
+    # Most generation paths have no running process. Avoid a CIM enumeration for
+    # each historical path while the whole runtime shares one stop deadline.
+    foreach ($candidate in @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)) {
+        try {
+            $candidatePath = ''
             try {
+                $candidatePath = [string] $candidate.Path
+            } catch {
+            }
+            if ([string]::IsNullOrWhiteSpace($candidatePath)) {
+                # Win32_Process is still needed when Get-Process cannot expose
+                # an executable path in the installer's Windows context.
+                $candidateDetails = Get-CimInstance Win32_Process -Filter "ProcessId=$($candidate.Id)" -ErrorAction SilentlyContinue
+                if ($null -ne $candidateDetails) { $candidatePath = [string] $candidateDetails.ExecutablePath }
+            }
+            if (-not [string]::IsNullOrWhiteSpace($candidatePath) -and
                 [string]::Equals(
-                    [IO.Path]::GetFullPath($_.Path),
+                    [IO.Path]::GetFullPath($candidatePath),
                     $normalizedBinaryPath,
                     [StringComparison]::OrdinalIgnoreCase
-                )
-            } catch {
-                $false
+                )) {
+                $matchingProcessIds += $candidate.Id
             }
-        } | Select-Object -ExpandProperty Id)
+        } catch {
+            # Exited or inaccessible candidates cannot establish path ownership.
+        } finally {
+            $candidate.Dispose()
+        }
     }
 
     return @($matchingProcessIds | Sort-Object -Unique | ForEach-Object {
@@ -821,6 +820,13 @@ function Stop-ProcessesForUpgrade {
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     do {
         $runningProcesses = @(Get-ProcessesByPath -ProcessName $ProcessName -BinaryPath $BinaryPath)
+        if ($runningProcesses.Count -eq 0) {
+            # A short-lived launcher can appear after the first empty snapshot.
+            # Handle it with the remaining budget instead of failing in a final
+            # check before any stop was attempted.
+            $runningProcesses = @(Get-ProcessesByPath -ProcessName $ProcessName -BinaryPath $BinaryPath)
+            if ($runningProcesses.Count -eq 0) { return $processWasRunning }
+        }
         if ($runningProcesses.Count -gt 0) {
             $processWasRunning = $true
             if ($null -ne $ObservedRunning) { $ObservedRunning.Value = $true }
@@ -848,9 +854,6 @@ function Stop-ProcessesForUpgrade {
             } finally {
                 $ownedProcess.Dispose()
             }
-        }
-        if ($runningProcesses.Count -eq 0) {
-            break
         }
     } while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds)
 
@@ -1015,16 +1018,20 @@ function Stop-AgentDockRuntimeForUpgrade {
         [ref] $TrayWasRunning
     )
 
-    # Old background shims release their generation children. Stop and wait for
-    # both stable launchers before freshly enumerating their possible children.
-    # The same exact-path set is used before publication and before rollback.
+    # Stop every tray before any Core entry: a generation tray polls the stable
+    # Core shim when health is unavailable and can keep creating query processes.
+    # Within each group, stop stable launchers before their generation children.
+    # Publication and rollback share this exact-path set and the final sweep.
     $targets = @(
-        [pscustomobject]@{ Path = $StableTrayPath; IsCore = $false; Observed = $TrayWasRunning },
-        [pscustomobject]@{ Path = $StableCorePath; IsCore = $true; Observed = $CoreWasRunning }
+        [pscustomobject]@{ Path = $StableTrayPath; IsCore = $false; Observed = $TrayWasRunning }
     )
     foreach ($directory in $GenerationDirectories) {
         if ([string]::IsNullOrWhiteSpace($directory)) { continue }
         $targets += [pscustomobject]@{ Path = (Join-Path $directory 'agentdock-tray.exe'); IsCore = $false; Observed = $TrayWasRunning }
+    }
+    $targets += [pscustomobject]@{ Path = $StableCorePath; IsCore = $true; Observed = $CoreWasRunning }
+    foreach ($directory in $GenerationDirectories) {
+        if ([string]::IsNullOrWhiteSpace($directory)) { continue }
         $targets += [pscustomobject]@{ Path = (Join-Path $directory 'agentdock-core.exe'); IsCore = $true; Observed = $CoreWasRunning }
     }
     $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
