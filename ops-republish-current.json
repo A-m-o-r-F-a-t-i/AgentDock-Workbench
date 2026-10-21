@@ -1,5 +1,5 @@
 {
-  "status": "queued",
+  "status": "in_progress",
   "conclusion": "",
   "url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39617160166",
   "headSha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
@@ -73,7 +73,7 @@
       "conclusion": "",
       "completedAt": "0001-01-01T00:00:00Z",
       "active_steps": [
-        "Backend regression"
+        "Build Windows ZIP and offline Setup for each architecture"
       ]
     },
     {
@@ -106,9 +106,9 @@
     },
     {
       "name": "android / Emulator API 26",
-      "status": "queued",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:51:00Z",
       "active_steps": []
     },
     {
@@ -116,27 +116,21 @@
       "status": "in_progress",
       "conclusion": "",
       "completedAt": "0001-01-01T00:00:00Z",
-      "active_steps": [
-        "Run navigation and screenshot tests"
-      ]
+      "active_steps": []
     },
     {
       "name": "android / Emulator API 35",
-      "status": "in_progress",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
-      "active_steps": [
-        "Run navigation and screenshot tests"
-      ]
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:50:53Z",
+      "active_steps": []
     },
     {
       "name": "android / Emulator API 34",
-      "status": "in_progress",
-      "conclusion": "",
-      "completedAt": "0001-01-01T00:00:00Z",
-      "active_steps": [
-        "Run navigation and screenshot tests"
-      ]
+      "status": "completed",
+      "conclusion": "success",
+      "completedAt": "2026-10-21T14:49:59Z",
+      "active_steps": []
     },
     {
       "name": "android / Emulator API 33",
@@ -150,6 +144,6 @@
   ],
   "source_sha": "7de73883798e2c4e6a4244575a81a65980ea8d48",
   "version": "1.1.9",
-  "recorded_at": "2026-10-21T14:49:34Z",
-  "probe_sequence": "7"
+  "recorded_at": "2026-10-21T14:51:39Z",
+  "probe_sequence": "8"
 }
