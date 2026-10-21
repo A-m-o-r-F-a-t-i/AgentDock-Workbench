@@ -1,1 +1,1 @@
-Capture v1.1.9 candidate run 39547227739 after failed-job rerun dispatch.
+Refresh v1.1.9 candidate run 39547227739 attempt 2 status.
