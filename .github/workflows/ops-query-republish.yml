@@ -20,12 +20,12 @@ jobs:
       SOURCE_SHA: 7de73883798e2c4e6a4244575a81a65980ea8d48
       TARGET_WORKFLOW: workbench-release.yml
       STATUS_FILE: ops-republish-current.json
-      PROBE_SEQUENCE: '5'
+      PROBE_SEQUENCE: '6'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.ref_name }}
-      - name: Record current release run
+      - name: Record compact current release status
         shell: bash
         run: |
           set -euo pipefail
@@ -47,10 +47,10 @@ jobs:
             --arg version "1.1.9" \
             --arg recorded_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg probe_sequence "$PROBE_SEQUENCE" \
-            '. + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at, probe_sequence:$probe_sequence}' \
+            '{status, conclusion, url, headSha, jobs: [.jobs[] | {name, status, conclusion, completedAt, active_steps: [.steps[] | select(.status == "in_progress") | .name]}]} + {source_sha:$source_sha, version:$version, recorded_at:$recorded_at, probe_sequence:$probe_sequence}' \
             "$temporary" > "$STATUS_FILE"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$STATUS_FILE"
-          git commit -m 'chore: refresh current v1.1.9 release status'
+          git commit -m 'chore: compact current v1.1.9 release status'
           git push origin "HEAD:$GITHUB_REF_NAME"
