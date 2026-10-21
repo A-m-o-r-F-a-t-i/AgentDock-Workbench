@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: '39613408226'
       UBUNTU_JOB: '119268022220'
     steps:
       - uses: actions/checkout@v5
@@ -27,7 +26,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$UBUNTU_JOB" --log > ops-pr186-ubuntu.log
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/jobs/$UBUNTU_JOB/logs" \
+            --output ops-pr186-ubuntu.log
           test -s ops-pr186-ubuntu.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
