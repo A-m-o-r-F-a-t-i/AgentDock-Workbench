@@ -1,1 +1,1 @@
-Refresh the newest v1.1.9 candidate with the macOS Intel scale exception, sequence 3.
+Refresh the newest v1.1.9 candidate with the macOS Intel scale exception, sequence 4.
