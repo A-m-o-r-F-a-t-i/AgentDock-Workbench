@@ -1,1 +1,1 @@
-Rerun failed jobs for candidate 39547227739 and publish verified v1.1.9 on success.
+Rerun failed jobs for candidate 39547227739 attempt 3 after transient Android API 33 foreground-holder failure; publish verified v1.1.9 on success.
