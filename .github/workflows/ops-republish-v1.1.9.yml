@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
-      SOURCE_SHA: c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+      SOURCE_SHA: 7de73883798e2c4e6a4244575a81a65980ea8d48
       TARGET_WORKFLOW: workbench-release.yml
       STATUS_FILE: ops-republish-status.json
     steps:
