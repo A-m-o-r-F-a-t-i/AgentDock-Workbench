@@ -20,7 +20,7 @@ jobs:
       SOURCE_SHA: 7de73883798e2c4e6a4244575a81a65980ea8d48
       TARGET_WORKFLOW: workbench-release.yml
       STATUS_FILE: ops-republish-current.json
-      PROBE_SEQUENCE: '4'
+      PROBE_SEQUENCE: '5'
     steps:
       - uses: actions/checkout@v5
         with:
