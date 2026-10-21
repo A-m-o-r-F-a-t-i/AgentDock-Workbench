@@ -27,10 +27,11 @@ func TestBuiltinDiscoveryReturnsTerminalHostHandoff(t *testing.T) {
 			t.Fatalf("host tools/list did not expose executable schema for %s", name)
 		}
 	}
+	meta := mcpsdk.Meta{"openai/session": "terminal-host-handoff"}
 	for index, request := range []*mcpsdk.CallToolParams{
-		{Name: "mcp_tool_search", Arguments: map[string]any{"query": "read_file"}},
-		{Name: "mcp_tool_inspect", Arguments: map[string]any{"name": "read_file"}},
-		{Name: "mcp_tool_inspect", Arguments: map[string]any{"names": []string{"read_file"}}},
+		{Name: "mcp_tool_search", Arguments: map[string]any{"query": "read_file"}, Meta: meta},
+		{Name: "mcp_tool_inspect", Arguments: map[string]any{"name": "read_file"}, Meta: meta},
+		{Name: "mcp_tool_inspect", Arguments: map[string]any{"names": []string{"read_file"}}, Meta: meta},
 	} {
 		result, err := harness.session.CallTool(t.Context(), request)
 		if err != nil || result.IsError {
