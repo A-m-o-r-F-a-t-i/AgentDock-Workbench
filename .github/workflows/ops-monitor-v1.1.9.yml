@@ -1,0 +1,70 @@
+name: Snapshot v1.1.9 replacement status
+
+on:
+  push:
+    branches:
+      - ops/monitor-v1.1.9-20261021
+    paths:
+      - .github/workflows/ops-monitor-v1.1.9.yml
+      - .github/operations/monitor-v1.1.9-trigger.txt
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+      PRODUCT_VERSION: 1.1.9
+    steps:
+      - uses: actions/checkout@v5
+      - name: Capture current workflow status
+        shell: python
+        run: |
+          import datetime
+          import json
+          import os
+          import pathlib
+          import urllib.parse
+          import urllib.request
+
+          repo=os.environ['GITHUB_REPOSITORY']; token=os.environ['GH_TOKEN']; root=os.environ['GITHUB_API_URL'].rstrip('/')
+          sha=os.environ['SOURCE_SHA']; version=os.environ['PRODUCT_VERSION']
+          def get(path):
+              req=urllib.request.Request(f'{root}/repos/{repo}/{path}',headers={
+                  'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}',
+                  'User-Agent':'agentdock-release-monitor','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=60) as response:return json.load(response)
+          def runs(workflow):
+              name=urllib.parse.quote(workflow,safe='')
+              return get(f'actions/workflows/{name}/runs?event=workflow_dispatch&branch=main&per_page=20').get('workflow_runs',[])
+          candidate_title=f'AgentDock Workbench {sha}'
+          candidates=[r for r in runs('workbench-release.yml') if r.get('display_title')==candidate_title]
+          candidate=max(candidates,key=lambda r:int(r['id'])) if candidates else None
+          publication=None
+          if candidate:
+              publication_title=f'Publish verified Workbench {version} from run {candidate["id"]}'
+              publications=[r for r in runs('workbench-publish-existing.yml') if r.get('display_title')==publication_title]
+              publication=max(publications,key=lambda r:int(r['id'])) if publications else None
+          result={'captured_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_sha':sha,'candidate':candidate,'publication':publication}
+          if candidate:
+              jobs=get(f'actions/runs/{candidate["id"]}/jobs?filter=latest&per_page=100').get('jobs',[])
+              result['candidate_jobs']=[{'name':j.get('name'),'status':j.get('status'),'conclusion':j.get('conclusion'),'html_url':j.get('html_url')} for j in jobs]
+          if publication:
+              jobs=get(f'actions/runs/{publication["id"]}/jobs?filter=latest&per_page=100').get('jobs',[])
+              result['publication_jobs']=[{'name':j.get('name'),'status':j.get('status'),'conclusion':j.get('conclusion'),'html_url':j.get('html_url')} for j in jobs]
+          path=pathlib.Path('ops-results/current-v1.1.9-status.json');path.parent.mkdir(exist_ok=True)
+          path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+      - name: Commit status snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ops-results/current-v1.1.9-status.json
+          git commit -m 'chore(release): record v1.1.9 workflow snapshot [skip ci]'
+          git push
