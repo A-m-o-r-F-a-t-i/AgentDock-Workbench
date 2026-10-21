@@ -20,7 +20,7 @@ func (svc *Service) prepareCommandInvocation(ctx context.Context, request ExecRe
 func AddRuntimeProperties(_ map[string]any) {}
 
 func WorkdirDescription() string {
-	return "Working directory; omitted paths inherit the bound workspace, otherwise the device default."
+	return "Optional command working directory. Omit it to use the current bound workspace root; relative paths resolve within that workspace. Without a workspace binding, AgentDock uses the device default directory."
 }
 
 func Description() string {
