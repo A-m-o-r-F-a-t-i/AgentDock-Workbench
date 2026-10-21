@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T06:12:17.625193+00:00",
+  "captured_at": "2026-10-21T06:19:20.927917+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39553536907,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907",
     "pull_requests": [],
     "created_at": "2026-10-21T06:07:46Z",
-    "updated_at": "2026-10-21T06:08:22Z",
+    "updated_at": "2026-10-21T06:17:46Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -257,14 +257,14 @@
     },
     {
       "name": "Native darwin arm64",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015482"
     },
     {
       "name": "Native darwin amd64",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068015483"
     },
     {
@@ -281,8 +281,8 @@
     },
     {
       "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067572"
     },
     {
@@ -293,9 +293,39 @@
     },
     {
       "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067649"
+    },
+    {
+      "name": "windows / Build verified unsigned Windows packages",
       "status": "in_progress",
       "conclusion": null,
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119068067649"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119069570382"
+    },
+    {
+      "name": "Universal macOS Workbench application",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119070885473"
+    },
+    {
+      "name": "android / Source and bridge contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119070886105"
+    },
+    {
+      "name": "android / Prepare APK-bundled ARM64 Core",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119070976728"
+    },
+    {
+      "name": "android / Android lint, unit tests and APKs",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119071081397"
     }
   ]
 }
