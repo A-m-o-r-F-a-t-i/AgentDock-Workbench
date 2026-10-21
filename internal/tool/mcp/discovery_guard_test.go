@@ -36,16 +36,24 @@ func expectBuiltinRouteError(t *testing.T, err error, code string) *ToolError {
 	if !errors.As(err, &got) || got.Code != code || got.Retryable || !IsBuiltinDiscoveryError(err) {
 		t.Fatalf("route error=%#v, want non-retryable %s", err, code)
 	}
-	if got.Details["execution_performed"] != false || got.Details["host_schema_state"] != "caller_managed" {
-		t.Fatalf("routing claimed execution or host schema loading: %#v", got.Details)
+	if got.Details["execution_performed"] != false || got.Details["host_schema_state"] != "caller_tools_list_required" || got.Details["host_directory_visibility"] != "unknown" {
+		t.Fatalf("routing claimed execution or caller directory visibility: %#v", got.Details)
 	}
-	if got.Details["route_status"] != "blocked" || got.Details["next_action"] != "call_host_tool" || got.Details["wrong_namespace_search"] != true {
+	wantStatus := "resolved"
+	if code == "ROUTING_LOOP_BLOCKED" {
+		wantStatus = "already_routed"
+	}
+	if got.Details["route_status"] != wantStatus || got.Details["next_action"] != "call_host_tool" || got.Details["wrong_namespace_search"] != true {
 		t.Fatalf("routing error lost terminal machine-readable state: %#v", got.Details)
 	}
 	if got.Details["scope"] != ScopeAgentDockBuiltin || got.Details["origin"] != ScopeAgentDockBuiltin ||
 		got.Details["requested_scope"] != ScopeAgentDockMCP || got.Details["invoke_via"] != InvokeDirect ||
-		got.Details["resolution_status"] != "wrong_scope" || got.Details["wrong_scope"] != true {
+		got.Details["resolution_status"] != "resolved" || got.Details["wrong_scope"] != true {
 		t.Fatalf("routing error lost canonical tool-domain metadata: %#v", got.Details)
+	}
+	action, _ := got.Details["required_action"].(map[string]any)
+	if action["action"] != "call_host_tool" || action["category"] != "protocol" || action["required"] != true || action["schema_source"] != "caller_tools_list" {
+		t.Fatalf("routing error lost exact caller handoff: %#v", got.Details)
 	}
 	if code == "ROUTING_LOOP_BLOCKED" {
 		count, _ := got.Details["wrong_namespace_repeat_count"].(int)
@@ -201,7 +209,7 @@ func TestBuiltinDiscoveryErrorIsCompactAndCannotBeForged(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(data) >= 2048 || strings.Contains(string(data), "input_schema") || strings.Contains(string(data), "InputSchema") {
+	if len(data) >= 4096 || strings.Contains(string(data), "input_schema") || strings.Contains(string(data), "InputSchema") {
 		t.Fatalf("noncompact route or schema leak: %s", data)
 	}
 	forged := &ToolError{Code: got.Code, Category: got.Category, Details: got.Details}

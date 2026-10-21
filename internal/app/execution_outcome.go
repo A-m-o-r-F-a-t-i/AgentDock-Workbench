@@ -53,6 +53,22 @@ func remoteOutcome(result Result) map[string]any {
 	details, _ := mcpclient.ResultFailure(modelObject(result["result"]))
 	return details
 }
+func resolvedBuiltinDiscoveryOutcome(err error) (Result, bool) {
+	if !toolmcp.IsBuiltinDiscoveryError(err) {
+		return nil, false
+	}
+	var route *ToolError
+	if !errors.As(err, &route) {
+		return nil, false
+	}
+	result := Result(maps.Clone(route.Details))
+	result["route_code"] = route.Code
+	result["effect_state"] = "none"
+	result["execution_performed"] = false
+	result["retry_safe"] = false
+	return result, true
+}
+
 func businessOutcomeFailure(name string, result Result) bool {
 	if resultReportsFailure(result) {
 		return true
@@ -302,6 +318,9 @@ func (r *Runtime) toolExecutionDetails(name string, args map[string]any, result 
 	return detail
 }
 func (r *Runtime) executionOutcome(name string, args map[string]any, result Result, err error, state executionObservation, prepared *toolmcp.PreparedCall) (Result, error, *activity.ToolExecutionDetails) {
+	if route, ok := resolvedBuiltinDiscoveryOutcome(err); ok {
+		return route, nil, r.toolExecutionDetails(name, args, route, map[string]any(route), prepared)
+	}
 	if err == nil && !businessOutcomeFailure(name, result) {
 		control := map[string]any{}
 		if action := modelObject(result["required_action"]); action != nil && result["resolution_status"] == "incomplete" {

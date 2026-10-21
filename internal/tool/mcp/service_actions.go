@@ -191,10 +191,23 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (Result, er
 	if found.Selected != nil {
 		annotateDynamicMCPTool(found.Selected, stringValue(found.Selected["server"]), stringValue(found.Selected["qualified_name"]))
 		result["resolution_status"], result["selected"] = "resolved", found.Selected
+		result["resolved"], result["terminal"] = true, true
 		schema, _ := found.Selected["input_schema"].(map[string]any)
 		required := schema["required"]
 		complete := found.ArgumentsComplete
-		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}, "required_arguments": required, "arguments_complete": complete}
+		callArguments := map[string]any{"name": found.Selected["qualified_name"], "arguments": map[string]any{}}
+		result["next_call"] = map[string]any{"tool": "mcp_tool_call", "arguments": callArguments, "required_arguments": required, "arguments_complete": complete}
+		action := map[string]any{
+			"tool": "mcp_tool_call", "arguments": callArguments, "required": true,
+			"execution_performed": false, "arguments_complete": complete,
+		}
+		if complete {
+			action["action"], action["category"], action["reason_code"] = "call_dynamic_mcp_tool", "protocol", "dynamic_mcp_tool_resolved"
+		} else {
+			action["action"], action["category"], action["reason_code"] = "complete_dynamic_mcp_arguments", "model_decision", "dynamic_mcp_arguments_required"
+			action["required_arguments"] = required
+		}
+		result["required_action"] = action
 		result["catalog_state"] = found.Selected["catalog_state"]
 		result["managed_target"] = managedTarget(ctx, stringValue(found.Selected["server"]), stringValue(found.Selected["catalog_revision"]), "registered_selection")
 		// A resolved unique tool is a terminal routing result. Keep its full
