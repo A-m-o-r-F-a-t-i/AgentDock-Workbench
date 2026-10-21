@@ -1,0 +1,38 @@
+name: Targeted MCP Handoff Diagnostics
+on:
+  push:
+    branches:
+      - fix/host-tool-handoff-20261021
+permissions:
+  contents: read
+  issues: write
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Run MCP host handoff tests
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          go test -p 2 ./internal/tool/mcp ./internal/app ./internal/mcp -run '^TestBuiltin' -count=1 -timeout=3m > mcp-diag.log 2>&1
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          head -c 15000 mcp-diag.log
+          exit 0
+      - name: Report targeted failures
+        if: steps.tests.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          { printf 'Temporary focused diagnostic (head commit %s):\n\n\x60\x60\x60text\n' "$GITHUB_SHA";
+            head -c 12000 mcp-diag.log;
+            printf '\n\x60\x60\x60\n';
+          } > report.txt
+          gh api "repos/$GITHUB_REPOSITORY/issues/179/comments" -f body="$(cat report.txt)"
