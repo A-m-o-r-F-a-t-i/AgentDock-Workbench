@@ -1,1 +1,1 @@
-Refresh the newest v1.1.9 candidate built with the explicit non-publishing macOS Intel scale exception.
+Refresh the newest v1.1.9 candidate with the macOS Intel scale exception, sequence 2.
