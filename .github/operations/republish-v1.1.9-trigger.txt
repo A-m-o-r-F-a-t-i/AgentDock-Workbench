@@ -1,0 +1,1 @@
+Republish AgentDock Workbench 1.1.9 from final main commit 26c4a8b71a6dbeff7486c84f516c75828c8acf3b.
