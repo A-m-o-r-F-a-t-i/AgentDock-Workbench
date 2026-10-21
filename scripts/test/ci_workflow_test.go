@@ -52,7 +52,8 @@ func TestCIWorkflowUsesFreshBoundedGoTests(t *testing.T) {
 	workflow := readWorkflow(t, "ci.yml")
 	for _, want := range []string{
 		"timeout-minutes: 20",
-		"go test -p 2 ./... -count=1 -timeout=8m",
+		"go test ./internal/app -run '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=5 -timeout=150s",
+		"go test -p 2 ./... -skip '^TestExecutionTwentyConcurrentCallsPerConversation$' -count=1 -timeout=8m",
 		"name: ACP prompt and steering race regression",
 		"-count=20",
 		"-timeout=90s",
