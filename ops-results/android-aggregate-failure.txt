@@ -1,0 +1,307 @@
+2026-10-21T05:50:48.6744186Z Ubuntu
+2026-10-21T05:50:48.6744795Z 24.04.5
+2026-10-21T05:50:48.6745360Z LTS
+2026-10-21T05:50:48.6745897Z ##[endgroup]
+2026-10-21T05:50:48.6746795Z ##[group]Runner Image
+2026-10-21T05:50:48.6747576Z Image: ubuntu-24.04
+2026-10-21T05:50:48.6748185Z Version: 20261018.339.1
+2026-10-21T05:50:48.6749529Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-21T05:50:48.6751049Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-21T05:50:48.6752074Z ##[endgroup]
+2026-10-21T05:50:48.6753207Z ##[group]GITHUB_TOKEN Permissions
+2026-10-21T05:50:48.6755758Z Contents: read
+2026-10-21T05:50:48.6756777Z Metadata: read
+2026-10-21T05:50:48.6757456Z ##[endgroup]
+2026-10-21T05:50:48.6759641Z Secret source: Actions
+2026-10-21T05:50:48.6760666Z Cache mode: write
+2026-10-21T05:50:48.6761370Z Prepare workflow directory
+2026-10-21T05:50:48.7290708Z Prepare all required actions
+2026-10-21T05:50:48.7340595Z Getting action download info
+2026-10-21T05:50:48.9653077Z Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+2026-10-21T05:50:49.0581146Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-21T05:50:49.1722391Z Download action repository 'actions/download-artifact@v8' (SHA:9000827ccba6bdab643e8b6fd33ac0654aef8333)
+2026-10-21T05:50:49.3519061Z Download action repository 'actions/upload-artifact@v7' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+2026-10-21T05:50:49.5328544Z Uses: A-m-o-r-F-a-t-i/AgentDock-Workbench/.github/workflows/parallel-android.yml@refs/heads/main (26c4a8b71a6dbeff7486c84f516c75828c8acf3b)
+2026-10-21T05:50:49.5333417Z ##[group] Inputs
+2026-10-21T05:50:49.5334035Z   source_sha: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:49.5334773Z   core_artifact_name: workbench-linux-arm64-39547227739
+2026-10-21T05:50:49.5335618Z   ref: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:49.5336848Z   publish: false
+2026-10-21T05:50:49.5337331Z   prerelease: false
+2026-10-21T05:50:49.5337803Z   installation_tests: true
+2026-10-21T05:50:49.5338310Z   ignore_macos_intel_scale: false
+2026-10-21T05:50:49.5338837Z ##[endgroup]
+2026-10-21T05:50:49.5339365Z Complete job name: android / Aggregate candidate evidence
+2026-10-21T05:50:49.6067811Z ##[group]Run actions/checkout@v5
+2026-10-21T05:50:49.6068714Z with:
+2026-10-21T05:50:49.6069183Z   ref: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:49.6069790Z   persist-credentials: false
+2026-10-21T05:50:49.6070361Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:49.6074500Z   token: ***
+2026-10-21T05:50:49.6074926Z   ssh-strict: true
+2026-10-21T05:50:49.6075357Z   ssh-user: git
+2026-10-21T05:50:49.6075770Z   clean: true
+2026-10-21T05:50:49.6076207Z   sparse-checkout-cone-mode: true
+2026-10-21T05:50:49.6076930Z   fetch-depth: 1
+2026-10-21T05:50:49.6077354Z   fetch-tags: false
+2026-10-21T05:50:49.6077790Z   show-progress: true
+2026-10-21T05:50:49.6078223Z   lfs: false
+2026-10-21T05:50:49.6078628Z   submodules: false
+2026-10-21T05:50:49.6079065Z   set-safe-directory: true
+2026-10-21T05:50:49.6079561Z   allow-unsafe-pr-checkout: false
+2026-10-21T05:50:49.6080310Z env:
+2026-10-21T05:50:49.6080835Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:49.6081446Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:49.6082165Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:49.6082644Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:49.6083227Z ##[endgroup]
+2026-10-21T05:50:49.7281058Z Syncing repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:49.7285283Z ##[group]Getting Git version info
+2026-10-21T05:50:49.7287564Z Working directory is '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+2026-10-21T05:50:49.7290853Z [command]/usr/bin/git version
+2026-10-21T05:50:49.7337548Z git version 2.55.0
+2026-10-21T05:50:49.7376558Z ##[endgroup]
+2026-10-21T05:50:49.7384873Z Temporarily overriding HOME='/home/runner/work/_temp/bd13532d-4b44-4250-ac45-f710719dee68' before making global git config changes
+2026-10-21T05:50:49.7387629Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T05:50:49.7392759Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T05:50:49.7481051Z Deleting the contents of '/home/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+2026-10-21T05:50:49.7485624Z ##[group]Initializing the repository
+2026-10-21T05:50:49.7492937Z [command]/usr/bin/git init /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T05:50:49.7634620Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-21T05:50:49.7643226Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-21T05:50:49.7647917Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-21T05:50:49.7648830Z hint: call:
+2026-10-21T05:50:49.7649247Z hint:
+2026-10-21T05:50:49.7649767Z hint: 	git config --global init.defaultBranch <name>
+2026-10-21T05:50:49.7650774Z hint:
+2026-10-21T05:50:49.7651858Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-21T05:50:49.7653390Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-21T05:50:49.7654560Z hint:
+2026-10-21T05:50:49.7655286Z hint: 	git branch -m <name>
+2026-10-21T05:50:49.7656079Z hint:
+2026-10-21T05:50:49.7657443Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-21T05:50:49.7659385Z Initialized empty Git repository in /home/runner/work/AgentDock-Workbench/AgentDock-Workbench/.git/
+2026-10-21T05:50:49.7662793Z [command]/usr/bin/git remote add origin https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:49.7697034Z ##[endgroup]
+2026-10-21T05:50:49.7698115Z ##[group]Disabling automatic garbage collection
+2026-10-21T05:50:49.7702253Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-21T05:50:49.7740058Z ##[endgroup]
+2026-10-21T05:50:49.7741690Z ##[group]Setting up auth
+2026-10-21T05:50:49.7748370Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T05:50:49.7796051Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T05:50:49.8218292Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T05:50:49.8264806Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T05:50:49.8532136Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T05:50:49.8581961Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T05:50:49.8830188Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-21T05:50:49.8880097Z ##[endgroup]
+2026-10-21T05:50:49.8880995Z ##[group]Fetching the repository
+2026-10-21T05:50:49.8890500Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:50.6704005Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:50.6707485Z  * branch            26c4a8b71a6dbeff7486c84f516c75828c8acf3b -> FETCH_HEAD
+2026-10-21T05:50:50.6712838Z ##[endgroup]
+2026-10-21T05:50:50.6714285Z ##[group]Determining the checkout info
+2026-10-21T05:50:50.6715949Z ##[endgroup]
+2026-10-21T05:50:50.6719648Z [command]/usr/bin/git sparse-checkout disable
+2026-10-21T05:50:50.6788679Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-21T05:50:50.6842509Z ##[group]Checking out the ref
+2026-10-21T05:50:50.6848291Z [command]/usr/bin/git checkout --progress --force 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:50.8233330Z Note: switching to '26c4a8b71a6dbeff7486c84f516c75828c8acf3b'.
+2026-10-21T05:50:50.8234353Z 
+2026-10-21T05:50:50.8235080Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-21T05:50:50.8236986Z changes and commit them, and you can discard any commits you make in this
+2026-10-21T05:50:50.8238537Z state without impacting any branches by switching back to a branch.
+2026-10-21T05:50:50.8239393Z 
+2026-10-21T05:50:50.8240062Z If you want to create a new branch to retain commits you create, you may
+2026-10-21T05:50:50.8241468Z do so (now or later) by using -c with the switch command. Example:
+2026-10-21T05:50:50.8242345Z 
+2026-10-21T05:50:50.8242775Z   git switch -c <new-branch-name>
+2026-10-21T05:50:50.8243675Z 
+2026-10-21T05:50:50.8244312Z Or undo this operation with:
+2026-10-21T05:50:50.8244893Z 
+2026-10-21T05:50:50.8245226Z   git switch -
+2026-10-21T05:50:50.8245681Z 
+2026-10-21T05:50:50.8246691Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-21T05:50:50.8247740Z 
+2026-10-21T05:50:50.8248698Z HEAD is now at 26c4a8b fix(installer): stop polling trays before Core and retry late processes (#176)
+2026-10-21T05:50:50.8252820Z ##[endgroup]
+2026-10-21T05:50:50.8303387Z [command]/usr/bin/git log -1 --format=%H
+2026-10-21T05:50:50.8339193Z 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:50.8351324Z ##[group]Removing auth
+2026-10-21T05:50:50.8356075Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T05:50:50.8401068Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T05:50:50.8654966Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T05:50:50.8694526Z http.https://github.com/.extraheader
+2026-10-21T05:50:50.8703477Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-21T05:50:50.8750763Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T05:50:50.9004071Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T05:50:50.9049270Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T05:50:50.9300497Z ##[endgroup]
+2026-10-21T05:50:50.9563559Z ##[group]Run mkdir -p evidence/summary
+2026-10-21T05:50:50.9565093Z mkdir -p evidence/summary
+2026-10-21T05:50:50.9566614Z python3 - <<'PY'
+2026-10-21T05:50:50.9567817Z import json, os, pathlib
+2026-10-21T05:50:50.9569578Z pathlib.Path("evidence/summary/evidence.json").write_text(json.dumps({
+2026-10-21T05:50:50.9571385Z     "schema_version": 1,
+2026-10-21T05:50:50.9572592Z     "lane": "WB07",
+2026-10-21T05:50:50.9573824Z     "product": "AgentDock Workbench",
+2026-10-21T05:50:50.9575458Z     "product_version": os.environ.get("PRODUCT_VERSION", ""),
+2026-10-21T05:50:50.9577544Z     "source_sha": os.environ["SOURCE_SHA"],
+2026-10-21T05:50:50.9579026Z     "run_id": os.environ["GITHUB_RUN_ID"],
+2026-10-21T05:50:50.9580572Z     "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+2026-10-21T05:50:50.9582019Z     "jobs": {
+2026-10-21T05:50:50.9583476Z         "contract": os.environ.get("CONTRACT_RESULT", "unknown"),
+2026-10-21T05:50:50.9585361Z         "bundled_core": os.environ.get("CORE_RESULT", "unknown"),
+2026-10-21T05:50:50.9587289Z         "build": os.environ.get("BUILD_RESULT", "unknown"),
+2026-10-21T05:50:50.9589298Z         "emulator_api_26_33_34_35_37_matrix": os.environ.get("EMULATOR_RESULT", "unknown")
+2026-10-21T05:50:50.9591057Z     },
+2026-10-21T05:50:50.9592442Z     "candidate_artifact": os.environ.get("CANDIDATE_ARTIFACT", ""),
+2026-10-21T05:50:50.9594227Z     "signing": "test-signed with Android debug key",
+2026-10-21T05:50:50.9595919Z     "physical_arm64_termux": "not run; shell contract only",
+2026-10-21T05:50:50.9597861Z     "android_core_delivery": "bundled inside the APK",
+2026-10-21T05:50:50.9599844Z     "duration_runs": {"30_minutes": "not run", "2_hours": "not run", "8_hours": "not run"},
+2026-10-21T05:50:50.9601615Z     "merge": False,
+2026-10-21T05:50:50.9602690Z     "tag": False,
+2026-10-21T05:50:50.9603760Z     "release": False,
+2026-10-21T05:50:50.9604904Z     "publication": False,
+2026-10-21T05:50:50.9606140Z     "production_modified": False
+2026-10-21T05:50:50.9607589Z }, ensure_ascii=False, indent=2) + "\n")
+2026-10-21T05:50:50.9608822Z PY
+2026-10-21T05:50:50.9774542Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-21T05:50:50.9775957Z env:
+2026-10-21T05:50:50.9777214Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:50.9778538Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:50.9779554Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:50.9780614Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:50.9781677Z   CONTRACT_RESULT: success
+2026-10-21T05:50:50.9782690Z   CORE_RESULT: success
+2026-10-21T05:50:50.9783653Z   BUILD_RESULT: success
+2026-10-21T05:50:50.9784652Z   EMULATOR_RESULT: success
+2026-10-21T05:50:50.9786154Z   CANDIDATE_ARTIFACT: wb07-android-apk-26c4a8b71a6d-39547227739-2-test-signed
+2026-10-21T05:50:50.9788106Z   PRODUCT_VERSION: 1.1.9
+2026-10-21T05:50:50.9789101Z ##[endgroup]
+2026-10-21T05:50:51.0351406Z ##[group]Run actions/upload-artifact@v4
+2026-10-21T05:50:51.0352621Z with:
+2026-10-21T05:50:51.0354107Z   name: wb07-android-evidence-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3
+2026-10-21T05:50:51.0355903Z   path: evidence/summary
+2026-10-21T05:50:51.0357245Z   if-no-files-found: error
+2026-10-21T05:50:51.0358275Z   retention-days: 14
+2026-10-21T05:50:51.0359235Z   compression-level: 6
+2026-10-21T05:50:51.0360197Z   overwrite: false
+2026-10-21T05:50:51.0361148Z   include-hidden-files: false
+2026-10-21T05:50:51.0362207Z env:
+2026-10-21T05:50:51.0363194Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:51.0364468Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:51.0365455Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:51.0366732Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:51.0367777Z ##[endgroup]
+2026-10-21T05:50:51.2174909Z (node:2405) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-21T05:50:51.2178720Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T05:50:51.2264412Z With the provided path, there will be 1 file uploaded
+2026-10-21T05:50:51.2266984Z Artifact name is valid!
+2026-10-21T05:50:51.2268302Z Root directory input is valid!
+2026-10-21T05:50:51.4462401Z Beginning upload of artifact content to blob storage
+2026-10-21T05:50:51.4661336Z (node:2405) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-21T05:50:51.4875526Z Uploaded bytes 564
+2026-10-21T05:50:51.5011653Z Finished uploading artifact content to blob storage!
+2026-10-21T05:50:51.5015689Z SHA256 digest of uploaded artifact zip is 5f3d0dcc339246a0a4f41ecb566e3c83be3d7716a3205edacb7fc95e946b1c32
+2026-10-21T05:50:51.5019322Z Finalizing artifact upload
+2026-10-21T05:50:51.7241233Z Artifact wb07-android-evidence-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3.zip successfully finalized. Artifact ID 12323937753
+2026-10-21T05:50:51.7243197Z Artifact wb07-android-evidence-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3 has been successfully uploaded! Final size is 564 bytes. Artifact ID is 12323937753
+2026-10-21T05:50:51.7247979Z Artifact download URL: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/artifacts/12323937753
+2026-10-21T05:50:51.7427428Z ##[group]Run actions/download-artifact@v8
+2026-10-21T05:50:51.7427874Z with:
+2026-10-21T05:50:51.7428300Z   pattern: wb07-android-api*-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3
+2026-10-21T05:50:51.7428815Z   path: evidence/inputs/matrix
+2026-10-21T05:50:51.7429134Z   merge-multiple: false
+2026-10-21T05:50:51.7429473Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:51.7429841Z   run-id: 39547227739
+2026-10-21T05:50:51.7430116Z   skip-decompress: false
+2026-10-21T05:50:51.7430419Z   digest-mismatch: error
+2026-10-21T05:50:51.7430704Z env:
+2026-10-21T05:50:51.7430997Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:51.7431372Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:51.7431674Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:51.7431975Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:51.7432267Z ##[endgroup]
+2026-10-21T05:50:52.0202447Z Found 23 artifact(s)
+2026-10-21T05:50:52.0203975Z Filtering artifacts by pattern 'wb07-android-api*-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3'
+2026-10-21T05:50:52.0226481Z Preparing to download the following artifacts:
+2026-10-21T05:50:52.0228205Z - wb07-android-api33-26c4a8b71a6dbeff7486c84f516c75828c8acf3b-39547227739-3 (ID: 12323811977, Size: 5339876, Expected Digest: sha256:0c17d78f25b25e0438cc17879985f41a615b0d1745a8f38aa784b575c447da72)
+2026-10-21T05:50:52.1772882Z Redirecting to blob download url: https://productionresultssa2.blob.core.windows.net/actions-results/e9ad4b2c-cc17-84d6-82b2-bcc48f20517d/workflow-job-run-4967be0a-97db-574b-8187-b4d9e7a85ef9/artifacts/a47f9ef5e188b8f59844700810b9efd041e34213198d166bb6adb75da7fde09b.zip
+2026-10-21T05:50:52.1775523Z Starting download of artifact to: /home/runner/work/AgentDock-Workbench/AgentDock-Workbench/evidence/inputs/matrix
+2026-10-21T05:50:52.2426840Z (node:2417) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+2026-10-21T05:50:52.4170811Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T05:50:52.4171764Z SHA256 digest of downloaded artifact is 0c17d78f25b25e0438cc17879985f41a615b0d1745a8f38aa784b575c447da72
+2026-10-21T05:50:52.4172542Z Artifact download completed successfully.
+2026-10-21T05:50:52.4173113Z Total of 1 artifact(s) downloaded
+2026-10-21T05:50:52.4175566Z Download artifact has finished successfully
+2026-10-21T05:50:52.4359452Z ##[group]Run actions/download-artifact@v8
+2026-10-21T05:50:52.4359855Z with:
+2026-10-21T05:50:52.4360222Z   name: wb07-android-apk-26c4a8b71a6d-39547227739-2-test-signed
+2026-10-21T05:50:52.4360670Z   path: evidence/inputs/candidate
+2026-10-21T05:50:52.4361014Z   merge-multiple: false
+2026-10-21T05:50:52.4361356Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+2026-10-21T05:50:52.4361727Z   run-id: 39547227739
+2026-10-21T05:50:52.4362023Z   skip-decompress: false
+2026-10-21T05:50:52.4362322Z   digest-mismatch: error
+2026-10-21T05:50:52.4362601Z env:
+2026-10-21T05:50:52.4362905Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:52.4363545Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:52.4363842Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:52.4364142Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:52.4364449Z ##[endgroup]
+2026-10-21T05:50:52.5765597Z Downloading single artifact
+2026-10-21T05:50:52.6690669Z Preparing to download the following artifacts:
+2026-10-21T05:50:52.6692793Z - wb07-android-apk-26c4a8b71a6d-39547227739-2-test-signed (ID: 12321993916, Size: 32850811, Expected Digest: sha256:d5802e2c55b21aafedf328c669b6b23d01a195e762832524151f704c3a325849)
+2026-10-21T05:50:52.8315311Z Redirecting to blob download url: https://productionresultssa2.blob.core.windows.net/actions-results/42cf3b51-9a89-8ce2-ba7c-e80d3ed2e368/workflow-job-run-486431ad-d621-5b5a-86dc-af15e6b0d2d3/artifacts/1dfcb93408b8958873508efb2157cd116bf2f36954abcd06f6e9518185f7f48f.zip
+2026-10-21T05:50:52.8317880Z Starting download of artifact to: /home/runner/work/AgentDock-Workbench/AgentDock-Workbench/evidence/inputs/candidate
+2026-10-21T05:50:52.9035280Z (node:2430) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+2026-10-21T05:50:52.9036995Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-21T05:50:53.3367784Z SHA256 digest of downloaded artifact is d5802e2c55b21aafedf328c669b6b23d01a195e762832524151f704c3a325849
+2026-10-21T05:50:53.3368907Z Artifact download completed successfully.
+2026-10-21T05:50:53.3369285Z Total of 1 artifact(s) downloaded
+2026-10-21T05:50:53.3374700Z Download artifact has finished successfully
+2026-10-21T05:50:53.3589738Z ##[group]Run set -euo pipefail
+2026-10-21T05:50:53.3590100Z set -euo pipefail
+2026-10-21T05:50:53.3590391Z test "$CONTRACT_RESULT" = success
+2026-10-21T05:50:53.3590707Z test "$CORE_RESULT" = success
+2026-10-21T05:50:53.3591000Z test "$BUILD_RESULT" = success
+2026-10-21T05:50:53.3591304Z test "$EMULATOR_RESULT" = success
+2026-10-21T05:50:53.3592231Z python3 scripts/ci/parallel-android/verify-evidence.py --input evidence/inputs --output evidence/verified --version "$PRODUCT_VERSION" --sha "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+2026-10-21T05:50:53.3647511Z shell: /usr/bin/bash -e {0}
+2026-10-21T05:50:53.3647797Z env:
+2026-10-21T05:50:53.3648063Z   SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+2026-10-21T05:50:53.3648420Z   GRADLE_VERSION: 9.4.1
+2026-10-21T05:50:53.3648713Z   ANDROID_COMPILE_SDK: 37
+2026-10-21T05:50:53.3648988Z   ANDROID_BUILD_TOOLS: 37.0.0
+2026-10-21T05:50:53.3649294Z   CONTRACT_RESULT: success
+2026-10-21T05:50:53.3649550Z   CORE_RESULT: success
+2026-10-21T05:50:53.3649797Z   BUILD_RESULT: success
+2026-10-21T05:50:53.3650051Z   EMULATOR_RESULT: success
+2026-10-21T05:50:53.3650328Z   PRODUCT_VERSION: 1.1.9
+2026-10-21T05:50:53.3650596Z ##[endgroup]
+2026-10-21T05:50:53.4924304Z Traceback (most recent call last):
+2026-10-21T05:50:53.4925955Z   File "/home/runner/work/AgentDock-Workbench/AgentDock-Workbench/scripts/ci/parallel-android/verify-evidence.py", line 103, in <module>
+2026-10-21T05:50:53.4927697Z     main()
+2026-10-21T05:50:53.4928708Z   File "/home/runner/work/AgentDock-Workbench/AgentDock-Workbench/scripts/ci/parallel-android/verify-evidence.py", line 99, in main
+2026-10-21T05:50:53.4930240Z     result = verify(Path(args.input), Path(args.output), args.version, args.sha, args.run_id, args.attempt)
+2026-10-21T05:50:53.4931282Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-21T05:50:53.4932569Z   File "/home/runner/work/AgentDock-Workbench/AgentDock-Workbench/scripts/ci/parallel-android/verify-evidence.py", line 60, in verify
+2026-10-21T05:50:53.4933904Z     raise RuntimeError('Missing Android API evidence: ' + str(sorted(APIS - set(results))))
+2026-10-21T05:50:53.4934687Z RuntimeError: Missing Android API evidence: [26, 34, 35, 37]
+2026-10-21T05:50:53.5089039Z ##[error]Process completed with exit code 1.
+2026-10-21T05:50:53.5245657Z Post job cleanup.
+2026-10-21T05:50:53.6118969Z [command]/usr/bin/git version
+2026-10-21T05:50:53.6168648Z git version 2.55.0
+2026-10-21T05:50:53.6208129Z Temporarily overriding HOME='/home/runner/work/_temp/91f9f8b2-4c4f-49a9-83ea-3641dd64cb80' before making global git config changes
+2026-10-21T05:50:53.6209509Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-21T05:50:53.6213860Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/AgentDock-Workbench/AgentDock-Workbench
+2026-10-21T05:50:53.6260473Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-21T05:50:53.6301175Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-21T05:50:53.6602152Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-21T05:50:53.6639699Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-21T05:50:53.6979427Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-21T05:50:53.7036959Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-21T05:50:53.7575748Z Cleaning up orphan processes
+2026-10-21T05:50:53.7883769Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
