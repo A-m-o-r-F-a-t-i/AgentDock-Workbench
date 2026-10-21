@@ -1,0 +1,138 @@
+name: Rerun complete candidate and publish AgentDock 1.1.9
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-20261021
+    paths:
+      - .github/workflows/ops-rerun-all-publish-v1.1.9.yml
+      - .github/operations/rerun-all-publish-v1.1.9-trigger.txt
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  rerun-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: 26c4a8b71a6dbeff7486c84f516c75828c8acf3b
+      PRODUCT_VERSION: 1.1.9
+      CANDIDATE_RUN_ID: '39547227739'
+      MIN_ATTEMPT: '4'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rerun the complete candidate, publish and verify
+        id: operation
+        continue-on-error: true
+        shell: python
+        run: |
+          import datetime
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import sys
+          import time
+          import urllib.parse
+          import urllib.request
+
+          token=os.environ['GH_TOKEN']; repo=os.environ['GITHUB_REPOSITORY']; root=os.environ['GITHUB_API_URL'].rstrip('/')
+          source=os.environ['SOURCE_SHA']; version=os.environ['PRODUCT_VERSION']; candidate_id=int(os.environ['CANDIDATE_RUN_ID']); min_attempt=int(os.environ['MIN_ATTEMPT'])
+          result={'schema_version':1,'source_sha':source,'version':version,'candidate_run_id':candidate_id,'state':'running','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          out=pathlib.Path('ops-results/republish-v1.1.9-complete-rerun.json');out.parent.mkdir(exist_ok=True)
+
+          def api(method,path,payload=None):
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(f'{root}/repos/{repo}/{path.lstrip("/")}',data=data,method=method,headers={
+                  'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','Content-Type':'application/json',
+                  'User-Agent':'agentdock-release-complete-rerun','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=60) as response:
+                  raw=response.read();return None if not raw else json.loads(raw)
+          def wait_run(run_id,min_attempt,timeout):
+              deadline=time.monotonic()+timeout
+              while time.monotonic()<deadline:
+                  run=api('GET',f'actions/runs/{run_id}')
+                  if int(run.get('run_attempt') or 0)>=min_attempt and run.get('status')=='completed':return run
+                  time.sleep(30)
+              raise RuntimeError(f'Run {run_id} did not complete attempt {min_attempt}')
+          def jobs(run_id):
+              return api('GET',f'actions/runs/{run_id}/jobs?filter=latest&per_page=100').get('jobs',[])
+          def dispatch(workflow,inputs):api('POST',f'actions/workflows/{workflow}/dispatches',{'ref':'main','inputs':inputs})
+          def parse_time(value):return datetime.datetime.fromisoformat(value.replace('Z','+00:00'))
+          def find_run(workflow,title,started):
+              deadline=time.monotonic()+300; encoded=urllib.parse.quote(workflow,safe='')
+              while time.monotonic()<deadline:
+                  response=api('GET',f'actions/workflows/{encoded}/runs?event=workflow_dispatch&branch=main&per_page=30')
+                  matches=[r for r in response.get('workflow_runs',[]) if r.get('display_title')==title and r.get('event')=='workflow_dispatch' and r.get('head_branch')=='main' and parse_time(r['created_at'])>=started-datetime.timedelta(seconds=10)]
+                  if matches:return max(matches,key=lambda item:int(item['id']))
+                  time.sleep(10)
+              raise RuntimeError(f'Unable to locate {workflow} run')
+          def tag_commit(tag):
+              obj=api('GET',f'git/ref/tags/{tag}')['object'];seen=set()
+              while obj['type']=='tag':
+                  if obj['sha'] in seen:raise RuntimeError('Tag cycle')
+                  seen.add(obj['sha']);obj=api('GET',f'git/tags/{obj["sha"]}')['object']
+              if obj['type']!='commit':raise RuntimeError(f'Unexpected tag object {obj["type"]}')
+              return obj['sha']
+
+          try:
+              if api('GET','git/ref/heads/main')['object']['sha']!=source:raise RuntimeError('Main changed before complete candidate rerun')
+              api('POST',f'actions/runs/{candidate_id}/rerun')
+              candidate=wait_run(candidate_id,min_attempt,6600)
+              result['candidate_run_url']=candidate['html_url'];result['candidate_run_attempt']=candidate.get('run_attempt');result['candidate_conclusion']=candidate.get('conclusion')
+              result['candidate_jobs']=[{'name':j.get('name'),'status':j.get('status'),'conclusion':j.get('conclusion'),'html_url':j.get('html_url')} for j in jobs(candidate_id)]
+              if candidate.get('conclusion')!='success':raise RuntimeError(f'Complete candidate rerun failed: {candidate["html_url"]}')
+
+              started=datetime.datetime.now(datetime.timezone.utc)
+              title=f'Publish verified Workbench {version} from run {candidate_id}'
+              dispatch('workbench-publish-existing.yml',{'run_id':str(candidate_id),'commit':source,'version':version,'prerelease':'false','replace_published':'false','replace_stable':'true'})
+              publication=find_run('workbench-publish-existing.yml',title,started)
+              result['publication_run_id']=publication['id'];result['publication_run_url']=publication['html_url']
+              publication=wait_run(publication['id'],1,1800)
+              result['publication_conclusion']=publication.get('conclusion')
+              result['publication_jobs']=[{'name':j.get('name'),'status':j.get('status'),'conclusion':j.get('conclusion'),'html_url':j.get('html_url')} for j in jobs(publication['id'])]
+              if publication.get('conclusion')!='success':raise RuntimeError(f'Publication failed: {publication["html_url"]}')
+
+              tag=f'v{version}';release=api('GET',f'releases/tags/{tag}');latest=api('GET','releases/latest');resolved=tag_commit(tag)
+              if resolved!=source:raise RuntimeError(f'{tag} points to {resolved}, expected {source}')
+              if release.get('draft') or release.get('prerelease'):raise RuntimeError('Stable release is draft or prerelease')
+              if latest.get('tag_name')!=tag:raise RuntimeError(f'Latest release is {latest.get("tag_name")}')
+              required=[f'AgentDock-Workbench-{version}-Setup-amd64.exe',f'AgentDock-Workbench-{version}-Setup-arm64.exe',f'AgentDock-Workbench-{version}-macos-universal.dmg',f'agentdock-workbench_{version}_amd64.deb',f'agentdock-workbench_{version}_arm64.deb',f'agentdock-workbench-{version}-1.x86_64.rpm',f'agentdock-workbench-{version}-1.aarch64.rpm',f'AgentDock-Workbench-{version}-Android.apk']
+              assets={a['name']:a for a in release.get('assets',[])}
+              missing=[n for n in required if n not in assets]
+              if missing:raise RuntimeError(f'Missing installers: {missing}')
+              forbidden={'AgentDock-Workbench-Setup-amd64.exe','AgentDock-Workbench-Setup-arm64.exe','AgentDock-macos-universal.dmg'}
+              if forbidden.intersection(assets):raise RuntimeError(f'Legacy assets remain: {sorted(forbidden.intersection(assets))}')
+              body=release.get('body') or ''
+              for name in required:
+                  url=assets[name]['browser_download_url']
+                  if url not in body:raise RuntimeError(f'Release body lacks direct link for {name}')
+                  check=subprocess.run(['curl','--fail','--location','--head','--silent','--show-error','--max-time','60',url],text=True,capture_output=True)
+                  if check.returncode:raise RuntimeError(f'Direct link failed for {name}: {check.stderr.strip()}')
+              result.update({'state':'published','tag':tag,'tag_commit':resolved,'release_url':release.get('html_url'),'published_at':release.get('published_at'),'asset_count':len(assets),'required_installers':required})
+          except Exception as exc:
+              result['state']='failed';result['error']=str(exc)
+          finally:
+              result['completed_at']=datetime.datetime.now(datetime.timezone.utc).isoformat();out.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write(f"## AgentDock 1.1.9 complete rerun\n\nState: **{result['state']}**\n\n"+json.dumps({k:v for k,v in result.items() if k.endswith('_url') or k=='error'},ensure_ascii=False,indent=2))
+              if result['state']!='published':sys.exit(1)
+
+      - name: Retain complete rerun result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ops-results/republish-v1.1.9-complete-rerun.json
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ops-results/republish-v1.1.9-complete-rerun.json
+          git commit -m 'chore(release): record v1.1.9 complete rerun result [skip ci]'
+          git push
+
+      - name: Fail when complete rerun did not publish
+        if: steps.operation.outcome != 'success'
+        run: exit 1
