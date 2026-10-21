@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T05:09:58.777524+00:00",
+  "captured_at": "2026-10-21T05:14:38.366638+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39547227739,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
     "pull_requests": [],
     "created_at": "2026-10-21T05:01:29Z",
-    "updated_at": "2026-10-21T05:07:08Z",
+    "updated_at": "2026-10-21T05:13:54Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -42,8 +42,13 @@
       "user_view_type": "public",
       "site_admin": false
     },
-    "run_attempt": 1,
+    "run_attempt": 2,
     "referenced_workflows": [
+      {
+        "path": "A-m-o-r-F-a-t-i/AgentDock-Workbench/.github/workflows/parallel-android.yml@26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
+        "sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
+        "ref": "refs/heads/main"
+      },
       {
         "path": "A-m-o-r-F-a-t-i/AgentDock-Workbench/.github/workflows/windows-package.yml@26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
         "sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
@@ -53,14 +58,9 @@
         "path": "A-m-o-r-F-a-t-i/AgentDock-Workbench/.github/workflows/workbench-acceptance.yml@26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
         "sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
         "ref": "refs/heads/main"
-      },
-      {
-        "path": "A-m-o-r-F-a-t-i/AgentDock-Workbench/.github/workflows/parallel-android.yml@26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
-        "sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
-        "ref": "refs/heads/main"
       }
     ],
-    "run_started_at": "2026-10-21T05:01:29Z",
+    "run_started_at": "2026-10-21T05:13:48Z",
     "triggering_actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -88,7 +88,7 @@
     "artifacts_url": "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/artifacts",
     "cancel_url": "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/cancel",
     "rerun_url": "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/rerun",
-    "previous_attempt_url": null,
+    "previous_attempt_url": "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/attempts/1",
     "workflow_url": "https://api.github.com/repos/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/workflows/366734983",
     "head_commit": {
       "id": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
@@ -244,76 +244,64 @@
   "publication": null,
   "candidate_jobs": [
     {
+      "name": "Native darwin amd64",
+      "status": "in_progress",
+      "conclusion": null,
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051636980"
+    },
+    {
       "name": "resolve-source",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048036426"
-    },
-    {
-      "name": "Native linux arm64",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130061"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051637562"
     },
     {
       "name": "Native linux amd64",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130083"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638079"
     },
     {
       "name": "Native darwin arm64",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130104"
-    },
-    {
-      "name": "Native darwin amd64",
-      "status": "completed",
-      "conclusion": "failure",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130146"
-    },
-    {
-      "name": "windows / Resolve requested ref once",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048130532"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638297"
     },
     {
       "name": "windows / Linux transaction and concurrency regression",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172672"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638398"
     },
     {
-      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "name": "Native linux arm64",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172677"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638399"
     },
     {
-      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "name": "windows / Resolve requested ref once",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119048172738"
-    },
-    {
-      "name": "Universal macOS Workbench application",
-      "status": "completed",
-      "conclusion": "skipped",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049382417"
-    },
-    {
-      "name": "android",
-      "status": "completed",
-      "conclusion": "skipped",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049382661"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638561"
     },
     {
       "name": "windows / Build verified unsigned Windows packages",
       "status": "in_progress",
       "conclusion": null,
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119049658030"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638971"
+    },
+    {
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051639879"
+    },
+    {
+      "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051640040"
     }
   ]
 }
