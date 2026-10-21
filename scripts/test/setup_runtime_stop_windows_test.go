@@ -98,13 +98,16 @@ func TestSetupRuntimeStopWaitsForLauncherChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
-		name       string
-		core       bool
-		afterEmpty bool
+		name                string
+		core                bool
+		afterEmpty          bool
+		generationTrayProbe bool
+		wantChild           bool
 	}{
 		{name: "tray_after_empty_generation_scan", afterEmpty: true},
-		{name: "tray_during_launcher_stop"},
-		{name: "core_during_launcher_stop", core: true},
+		{name: "tray_during_launcher_stop", wantChild: true},
+		{name: "core_during_launcher_stop", core: true, wantChild: true},
+		{name: "generation_tray_before_stable_core", generationTrayProbe: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := filepath.Join(t.TempDir(), "installation with spaces")
@@ -121,6 +124,11 @@ func TestSetupRuntimeStopWaitsForLauncherChildren(t *testing.T) {
 			launcher, child := trayPath, generationTray
 			if test.core {
 				launcher, child = corePath, generationCore
+			}
+			if test.generationTrayProbe {
+				// The tray in a committed generation polls bin/agentdock.exe when
+				// Core is unavailable. It must stop before the stable Core scan.
+				launcher, child = generationTray, corePath
 			}
 			otherPath := filepath.Join(other, filepath.Base(child))
 			for _, path := range []string{corePath, trayPath, generationCore, generationTray, otherPath} {
@@ -189,6 +197,9 @@ func TestSetupRuntimeStopWaitsForLauncherChildren(t *testing.T) {
 				// The old per-path stopper checks an empty generation twice, then
 				// moves on to the stable launcher without scanning its child again.
 				triggerPath, triggerCount = child, 2
+			}
+			if test.generationTrayProbe {
+				triggerPath = corePath
 			}
 			quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
 			program := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
@@ -282,7 +293,7 @@ try {
 			if result.Core != test.core || result.Tray == test.core {
 				t.Fatalf("observed running state was lost or mixed: %+v", result)
 			}
-			if result.ChildLaunched == test.afterEmpty {
+			if result.ChildLaunched != test.wantChild {
 				t.Fatalf("wrong controlled launch ordering: %+v", result)
 			}
 			t.Logf("controlled launch=%t; observed core=%t tray=%t", result.ChildLaunched, result.Core, result.Tray)
