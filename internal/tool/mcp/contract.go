@@ -47,7 +47,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["expected_revision"] = stringProp("Current server.revision from inspect; required for compare-and-swap update/reset_override.")
 		required = []string{"action"}
 	case ToolSearch:
-		props["query"] = stringProp("Nested dynamic MCP capability query. A bare AgentDock direct device built-in is a wrong-scope request and returns a non-retryable routing error without its schema.")
+		props["query"] = stringProp("Nested dynamic MCP capability query. A bare AgentDock direct device built-in resolves to a terminal, non-executing host-tool handoff without its schema.")
 		props["server"] = stringProp("Optional dynamic MCP server name from agentdock_context.")
 		props["limit"] = boundedIntProp("Maximum ranked candidates. Defaults to 5 and is capped at 100. Exact matches are retained before applying this limit.", 1, 100)
 		props["refresh"] = boolProp("Refresh only the explicitly selected server catalog. Does not call a business tool.")
@@ -58,7 +58,7 @@ func InputSchema(name string) (map[string]any, bool) {
 		props["force_full"] = boolProp("Return the complete catalog even when this conversation already received the same revision.")
 		required = []string{"server"}
 	case ToolInspect:
-		props["name"] = stringProp("Qualified nested dynamic MCP tool name in <server>:<tool> form. Bare AgentDock direct device built-ins are rejected as wrong-scope requests.")
+		props["name"] = stringProp("Qualified nested dynamic MCP tool name in <server>:<tool> form. Bare AgentDock direct device built-ins resolve to a terminal host-tool handoff, not a nested MCP schema.")
 		props["names"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 3}, "description": "Selected server:tool names and server:* selectors, including mixed services."}
 		props["include_schema"] = boolProp("Include the complete schema for one explicit tool (default true). Batches and server:* selectors return summaries and digests only.")
 		props["force_full"] = boolProp("Resend the complete schema for one explicit tool even if already delivered. Batches and server:* selectors remain summaries.")
@@ -130,7 +130,7 @@ func OutputSchema(name string) (map[string]any, bool) {
 		props["query"] = stringProp("Capability query used.")
 		props["server"] = stringProp("Optional server filter used.")
 		props["tools"] = arrayProp("Matching lightweight MCP tool summaries.")
-		props["count"] = intProp("Matching dynamic tool count. Host-tool namespace misuse returns a terminal error instead of a success result.")
+		props["count"] = intProp("Matching dynamic tool count. Host-tool namespace queries return a successful terminal handoff without executing the host tool.")
 		props["catalogs"] = arrayProp("Visible server catalog metadata, including unknown/stale directories and the selected-service next action. No connection is started by an unscoped search.")
 		props["complete"] = boolProp("All visible catalogs are complete and current; candidate truncation is reported independently.")
 		props["truncated"] = boolProp("Tool matches or server catalog summaries exceeded their response limit.")

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestHostRouteErrorTextUsesNestedTrustedDetails(t *testing.T) {
+func TestHostRouteTextUsesTrustedRouteDetails(t *testing.T) {
 	text := toolResultText("mcp_tool_search", map[string]any{
 		"code": "HOST_BUILTIN_NOT_DYNAMIC_MCP",
 		"details": map[string]any{

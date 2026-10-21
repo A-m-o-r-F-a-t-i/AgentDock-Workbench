@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,9 +64,8 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 		}
 	}
 	route, err := rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
-	var routeError *ToolError
-	if route != nil || !errors.As(err, &routeError) || routeError.Code != "HOST_BUILTIN_NOT_DYNAMIC_MCP" || routeError.Details["route_status"] != "blocked" {
-		t.Fatalf("initial host route was not rejected: %#v %v", route, err)
+	if err != nil || route["route_status"] != "resolved" || route["terminal"] != true || route["route_code"] != "HOST_BUILTIN_NOT_DYNAMIC_MCP" {
+		t.Fatalf("initial host handoff was not resolved: %#v %v", route, err)
 	}
 	for range 20 {
 		result, err := rt.Call(ctx, "mcp_tool_call", map[string]any{"name": "fixture:exec_command", "arguments": map[string]any{}})
@@ -115,8 +113,8 @@ func TestBuiltinDiscoveryRecoveryPreservesDynamicCallsAndMixedResults(t *testing
 		t.Fatalf("upstream catalog/business calls=%d/%d want 1/20", catalogs.Load(), calls.Load())
 	}
 	route, err = rt.Call(ctx, "mcp_tool_search", map[string]any{"query": "mcp_tool_call"})
-	if route != nil || !errors.As(err, &routeError) || routeError.Code != "ROUTING_LOOP_BLOCKED" || routeError.Details["route_status"] != "blocked" {
-		t.Fatalf("repeated host route was not blocked: %#v %v", route, err)
+	if err != nil || route["route_status"] != "already_routed" || route["route_code"] != "ROUTING_LOOP_BLOCKED" || route["already_delivered"] != true {
+		t.Fatalf("repeated host route lost its compact receipt: %#v %v", route, err)
 	}
 	if _, err := rt.Call(ctx, "task_manage", map[string]any{"action": "list"}); err != nil {
 		t.Fatalf("host recovery tool unavailable: %v", err)

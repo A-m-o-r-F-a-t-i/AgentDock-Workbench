@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/activity"
@@ -11,76 +10,53 @@ import (
 func TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls(t *testing.T) {
 	rt := newAuditDiscoveryRuntime(t)
 	addAuditUnavailableServer(t, rt)
-	ids := map[string]bool{}
 	ctx := activity.WithSource(t.Context(), activity.Source{Principal: "routing-test", Namespace: "mcp", HostConversationID: "repeat-fixture"})
 	if _, err := rt.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	attempt := 0
-	for _, test := range []struct {
-		name  string
-		args  map[string]any
+	ids := map[string]bool{}
+	for index, request := range []struct {
+		name string
+		args map[string]any
 		count int
 	}{
-		{"mcp_tool_search", map[string]any{"query": "exec_command", "limit": 1}, 1},
-		{"mcp_tool_search", map[string]any{"query": "exec_command", "limit": 1}, 1},
-		{"mcp_tool_search", map[string]any{"query": "exec_command", "limit": 1}, 1},
+		{"mcp_tool_search", map[string]any{"query": "exec_command"}, 1},
+		{"mcp_tool_search", map[string]any{"query": "exec_command"}, 1},
 		{"mcp_tool_inspect", map[string]any{"name": "exec_command"}, 1},
 		{"mcp_tool_inspect", map[string]any{"names": []string{"exec_command", "task_manage"}}, 2},
 	} {
-		result, err := rt.Call(ctx, test.name, test.args)
-		var route *ToolError
-		if result != nil || !errors.As(err, &route) || route.Details["route_kind"] != "host_builtin" || route.Details["route_status"] != "blocked" {
-			t.Fatalf("missing terminal host route error: %#v %v", result, err)
+		result, err := rt.Call(ctx, request.name, request.args)
+		want := "already_routed"
+		if index == 0 { want = "resolved" }
+		if err != nil || result["route_status"] != want || result["terminal"] != true ||
+			result["execution_performed"] != false || result["host_directory_visibility"] != "unknown" {
+			t.Fatalf("route %d: %#v %v", index, result, err)
 		}
-		want := "ROUTING_LOOP_BLOCKED"
-		if attempt == 0 {
-			want = "HOST_BUILTIN_NOT_DYNAMIC_MCP"
+		names := result["required_host_tools"].([]string)
+		if len(names) != request.count {
+			t.Fatalf("lost host tool names: %#v", result)
 		}
-		attempt++
-		if route.Code != want {
-			t.Fatalf("classification=%v want %s", route.Code, want)
+		action := modelObject(result["required_action"])
+		if action["required"] != true || action["arguments"] != nil || action["reason_code"] != "host_tool_handoff" {
+			t.Fatalf("route attempted business execution: %#v", action)
 		}
-		names := []string{}
-		if candidates, ok := route.Details["builtin_tools"].([]toolmcp.BuiltinToolSummary); ok {
-			for _, candidate := range candidates {
-				if candidate.Name == "" || candidate.InvokeVia != toolmcp.InvokeDirect || candidate.Scope != toolmcp.ScopeAgentDockBuiltin || candidate.Origin != toolmcp.ScopeAgentDockBuiltin {
-					t.Fatalf("invalid host candidate: %+v", candidate)
-				}
-				names = append(names, candidate.Name)
-			}
-		} else if compact, ok := route.Details["required_host_tools"].([]string); ok {
-			names = append(names, compact...)
-		}
-		action := modelObject(route.Details["required_action"])
-		if len(names) != test.count || route.Details["execution_performed"] != false || action == nil || action["required"] != true || action["arguments"] != nil {
-			t.Fatalf("missing exact non-executing handoff: %#v", route.Details)
-		}
-		if action["category"] != "protocol" && action["category"] != "model_decision" {
-			t.Fatalf("wrong host prerequisite: %#v", action)
-		}
-		guidance := rt.executionErrorGuidance(executionObservation{}, err)
+		guidance := rt.executionGuidance(request.name, request.args, executionObservation{}, result, false)
 		steps, ok := guidance["next_required"].([]map[string]any)
-		if guidance["source"] != "agentdock" || !ok || len(steps) != 1 {
-			t.Fatalf("missing local route guidance: %#v", guidance)
+		if !ok || len(steps) != 1 || steps[0]["action"] != "call_host_tool" || steps[0]["tool"] != names[0] {
+			t.Fatalf("missing caller host handoff: %#v", guidance)
 		}
-		step := steps[0]
-		if step["action"] != "call_host_tool" || step["tool"] != names[0] || step["arguments"] != nil ||
-			step["scope"] != toolmcp.ScopeAgentDockBuiltin || step["origin"] != toolmcp.ScopeAgentDockBuiltin || step["invoke_via"] != toolmcp.InvokeDirect {
-			t.Fatalf("guidance lost the non-executing direct route: %#v", step)
-		}
-		id := stringArg(route.Details, "call_id")
+		id := stringArg(result, "call_id")
 		if id == "" || ids[id] {
-			t.Fatalf("real repeated discovery was hidden: %s", id)
+			t.Fatalf("route activity not separately retained: %#v", result)
 		}
 		ids[id] = true
-		call, err := rt.activity.Call(t.Context(), id)
-		if err != nil || call.Status != "failed" || call.ErrorCode != want {
-			t.Fatalf("resolved route audit was not retained: %+v %v", call, err)
+		call, lookupErr := rt.activity.Call(t.Context(), id)
+		if lookupErr != nil || call.Status != "succeeded" {
+			t.Fatalf("resolved route was recorded as failed: %+v %v", call, lookupErr)
 		}
 	}
 	if len(rt.command.ActiveConversationBindings()) != 0 {
-		t.Fatal("discovery executed a command")
+		t.Fatal("discovery ran a command")
 	}
 }
 
