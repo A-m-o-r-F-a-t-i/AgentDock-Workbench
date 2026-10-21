@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/uvwt/agentdock/internal/buildinfo"
 )
 
 func launchdDomain() string { return "gui/" + strconv.Itoa(os.Getuid()) }
@@ -47,7 +49,7 @@ func platformServiceStatus(ctx context.Context, runtimeRoot string) (ServiceStat
 	loaded := launchdLoaded(ctx, manifest.ServiceName)
 	return ServiceStatus{
 		Running:        loaded,
-		Healthy:        loaded && healthy(ctx, values),
+		Healthy:        loaded && healthyVersion(ctx, values, buildinfo.Version),
 		StartupEnabled: loaded,
 	}, nil
 }
@@ -65,7 +67,7 @@ func platformServiceAction(ctx context.Context, runtimeRoot, action string) erro
 		if err := kickstartRegisteredLaunchAgent(ctx, manifest.ServiceName, manifest.ServiceManager); err != nil {
 			return err
 		}
-		return waitHealthy(ctx, values, 30*time.Second)
+		return waitHealthyVersion(ctx, values, buildinfo.Version, 30*time.Second)
 	case "stop":
 		if manifest.ServiceManager == "launchd" {
 			_, err := runCommand(ctx, launchctlBinary(), "bootout", launchdTarget(manifest.ServiceName))
