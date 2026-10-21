@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T06:28:06.359696+00:00",
+  "captured_at": "2026-10-21T06:34:38.672456+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39553536907,
@@ -353,8 +353,8 @@
     },
     {
       "name": "android / Emulator API 35",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977466"
     }
   ]
