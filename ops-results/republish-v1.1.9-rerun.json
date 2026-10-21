@@ -4,150 +4,150 @@
   "version": "1.1.9",
   "candidate_run_id": 39547227739,
   "state": "failed",
-  "started_at": "2026-10-21T05:13:47.794027+00:00",
+  "started_at": "2026-10-21T05:38:40.209492+00:00",
   "candidate_run_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
-  "candidate_run_attempt": 2,
+  "candidate_run_attempt": 3,
   "candidate_conclusion": "failure",
   "candidate_jobs": [
-    {
-      "name": "Native darwin amd64",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051636980"
-    },
     {
       "name": "resolve-source",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051637562"
-    },
-    {
-      "name": "Native linux amd64",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638079"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059032549"
     },
     {
       "name": "Native darwin arm64",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638297"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059032599"
     },
     {
-      "name": "windows / Linux transaction and concurrency regression",
+      "name": "Native linux amd64",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638398"
-    },
-    {
-      "name": "Native linux arm64",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638399"
-    },
-    {
-      "name": "windows / Resolve requested ref once",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638561"
-    },
-    {
-      "name": "windows / Build verified unsigned Windows packages",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051638971"
-    },
-    {
-      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051639879"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059032894"
     },
     {
       "name": "windows / native-acceptance / native-windows (windows-latest, amd64, win-x64)",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119051640040"
-    },
-    {
-      "name": "Universal macOS Workbench application",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053866829"
-    },
-    {
-      "name": "android / Source and bridge contracts",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053867112"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059033165"
     },
     {
       "name": "android / Prepare APK-bundled ARM64 Core",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119053967230"
-    },
-    {
-      "name": "android / Android lint, unit tests and APKs",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119054026568"
-    },
-    {
-      "name": "android / Emulator API 34",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135247"
-    },
-    {
-      "name": "android / Emulator API 35",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135267"
-    },
-    {
-      "name": "android / Emulator API 37",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135269"
-    },
-    {
-      "name": "android / Emulator API 26",
-      "status": "completed",
-      "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135316"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059033205"
     },
     {
       "name": "android / Emulator API 33",
       "status": "completed",
-      "conclusion": "failure",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119055135420"
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059033226"
     },
     {
-      "name": "Native Windows ARM64 install and uninstall",
+      "name": "android / Source and bridge contracts",
       "status": "completed",
       "conclusion": "success",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119056327914"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059033258"
+    },
+    {
+      "name": "windows / Build verified unsigned Windows packages",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059033430"
     },
     {
       "name": "windows / Publish verified Windows x64 Release",
       "status": "completed",
       "conclusion": "skipped",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119056328830"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034042"
+    },
+    {
+      "name": "android / Android lint, unit tests and APKs",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034060"
+    },
+    {
+      "name": "android / Emulator API 37",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034135"
+    },
+    {
+      "name": "Native Windows ARM64 install and uninstall",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034384"
+    },
+    {
+      "name": "android / Emulator API 26",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034400"
+    },
+    {
+      "name": "android / Emulator API 34",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034477"
+    },
+    {
+      "name": "android / Emulator API 35",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059034666"
+    },
+    {
+      "name": "Native darwin amd64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059059237"
+    },
+    {
+      "name": "Native linux arm64",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059068808"
+    },
+    {
+      "name": "windows / Resolve requested ref once",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059070394"
+    },
+    {
+      "name": "windows / native-acceptance / native-windows (windows-11-arm, arm64, win-arm64)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059071599"
+    },
+    {
+      "name": "Universal macOS Workbench application",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059076293"
+    },
+    {
+      "name": "windows / Linux transaction and concurrency regression",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119059078709"
     },
     {
       "name": "android / Aggregate candidate evidence",
       "status": "completed",
       "conclusion": "failure",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119057942203"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119062647937"
     },
     {
       "name": "Verify complete artifact set and publish selected channel",
       "status": "completed",
       "conclusion": "skipped",
-      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119058009418"
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739/job/119062700872"
     }
   ],
   "error": "Candidate rerun failed: https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39547227739",
-  "completed_at": "2026-10-21T05:35:27.731408+00:00"
+  "completed_at": "2026-10-21T05:51:20.193011+00:00"
 }
