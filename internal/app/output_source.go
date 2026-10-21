@@ -115,17 +115,17 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 func (r *Runtime) retainedWorkspaceMismatch(ctx context.Context, sourceID, currentID string, disclose bool) error {
 	details := map[string]any{
 		"current_workspace_id": currentID,
-		"execution_performed": false,
-		"effect_state": "none",
-		"retry_safe": true,
+		"execution_performed":  false,
+		"effect_state":         "none",
+		"retry_safe":           true,
 	}
 	action := map[string]any{
-		"action": "select_workspace",
-		"tool": "agentdock_context",
-		"category": "protocol",
-		"required": true,
+		"action":      "select_workspace",
+		"tool":        "agentdock_context",
+		"category":    "protocol",
+		"required":    true,
 		"reason_code": "retained_output_workspace",
-		"text": "Select the original workspace once, then retry the retained source or cursor unchanged. No output was read.",
+		"text":        "Select the original workspace once, then retry the retained source or cursor unchanged. No output was read.",
 	}
 	if disclose {
 		details["source_workspace_id"] = sourceID
