@@ -19,4 +19,7 @@ func TestHostRouteTextUsesNestedTrustedDetails(t *testing.T) {
 		!strings.Contains(text, "No business action ran") {
 		t.Fatalf("host routing handoff was not compact and actionable: %q", text)
 	}
+	if strings.Contains(text, "already exposed") {
+		t.Fatalf("host routing handoff claimed unverified caller visibility: %q", text)
+	}
 }
