@@ -3,9 +3,10 @@ on:
   push:
     branches:
       - fix/host-tool-handoff-20261021
+    paths-ignore:
+      - pr-handoff-diagnostic-results.txt
 permissions:
-  contents: read
-  issues: write
+  contents: write
 jobs:
   targeted:
     runs-on: ubuntu-latest
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Run MCP host handoff tests
+      - name: Run affected Go packages
         id: tests
         shell: bash
         run: |
@@ -23,16 +24,24 @@ jobs:
           go test -p 2 ./internal/tool/mcp ./internal/app ./internal/mcp -count=1 -timeout=8m > mcp-diag.log 2>&1
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          head -c 15000 mcp-diag.log
           exit 0
-      - name: Report targeted failures
+      - name: Save bounded failure identifiers on diagnostic branch
         if: steps.tests.outputs.exit_code != '0'
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          { printf 'Temporary focused diagnostic (head commit %s):\n\n\x60\x60\x60text\n' "$GITHUB_SHA";
-            head -c 12000 mcp-diag.log;
-            printf '\n\x60\x60\x60\n';
-          } > report.txt
-          gh api "repos/$GITHUB_REPOSITORY/issues/179/comments" -f body="$(cat report.txt)"
+          python3 - <<'PY'
+          import re
+          lines = open('mcp-diag.log', encoding='utf-8', errors='replace').read().splitlines()
+          selected = []
+          for line in lines:
+              if re.match(r'^(FAIL|--- FAIL|# |panic:|fatal error:|[A-Za-z0-9_./-]+\.go:[0-9]+(?::[0-9]+)?:)', line):
+                  selected.append(line[:350])
+          with open('pr-handoff-diagnostic-results.txt', 'w', encoding='utf-8') as f:
+              f.write('go test failed; selected package/test/compiler identifiers only\n')
+              f.write('\n'.join(selected[:120]) + '\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pr-handoff-diagnostic-results.txt
+          git commit -m 'ci: store temporary sanitized MCP test diagnostics' || true
+          git push origin HEAD:fix/host-tool-handoff-20261021
