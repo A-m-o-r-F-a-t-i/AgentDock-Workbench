@@ -142,7 +142,17 @@ func (svc *Service) resolveWSLWorkdir(requested, hostSkillDir string) (string, e
 		return skillDir, nil
 	}
 	if raw == "" {
-		return "~", nil
+		resolved, err := svc.ws.ResolveExisting(".")
+		if err != nil {
+			return "", err
+		}
+		converted, ok := windowsPathToWSL(resolved.Abs)
+		if !ok {
+			return "", toolErrorDetails("INVALID_ARGUMENT", "bound workspace root could not be mapped into WSL; provide an explicit Linux absolute workdir", "validation", map[string]any{
+				"workspace_root": resolved.Abs,
+			})
+		}
+		return converted, nil
 	}
 	if strings.ContainsRune(raw, 0) {
 		return "", toolError("INVALID_ARGUMENT", "workdir contains an invalid byte", "validation")
@@ -168,7 +178,7 @@ func (svc *Service) resolveWSLWorkdir(requested, hostSkillDir string) (string, e
 }
 
 func WorkdirDescription() string {
-	return "Working directory. runtime=windows uses a Host path. runtime=wsl accepts a WSL POSIX path such as /home/user/project or /mnt/d/Project and converts Windows drive paths such as D:\\Project."
+	return "Optional command working directory. Omit it to use the current bound workspace root; relative paths resolve within that workspace. runtime=windows uses a Host path. runtime=wsl maps the bound workspace root and Windows drive paths into WSL when possible, and also accepts an absolute WSL POSIX path such as /home/user/project or /mnt/d/Project. If automatic mapping is unavailable, provide an absolute WSL path."
 }
 
 func AddRuntimeProperties(props map[string]any) {
