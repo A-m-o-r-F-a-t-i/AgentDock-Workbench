@@ -9,7 +9,7 @@ permissions:
 jobs:
   targeted:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -20,7 +20,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          go test -p 2 ./internal/tool/mcp ./internal/app ./internal/mcp -run '^TestBuiltin' -count=1 -timeout=3m > mcp-diag.log 2>&1
+          go test -p 2 ./internal/tool/mcp ./internal/app ./internal/mcp -count=1 -timeout=8m > mcp-diag.log 2>&1
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           head -c 15000 mcp-diag.log
