@@ -29,10 +29,8 @@ jobs:
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url,headSha,jobs > ops-release-failure-jobs.json
-          gh api -H 'Accept: application/vnd.github+json' \
-            "repos/$GITHUB_REPOSITORY/actions/jobs/$DARWIN_AMD64_JOB/logs" > ops-release-darwin-amd64.log
-          gh api -H 'Accept: application/vnd.github+json' \
-            "repos/$GITHUB_REPOSITORY/actions/jobs/$DARWIN_ARM64_JOB/logs" > ops-release-darwin-arm64.log
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_AMD64_JOB" --log > ops-release-darwin-amd64.log
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$DARWIN_ARM64_JOB" --log > ops-release-darwin-arm64.log
           test -s ops-release-darwin-amd64.log
           test -s ops-release-darwin-arm64.log
           git config user.name 'github-actions[bot]'
