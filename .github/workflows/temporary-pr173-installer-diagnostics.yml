@@ -1,0 +1,76 @@
+name: Temporary PR 173 installer diagnostics
+
+on:
+  push:
+    branches:
+      - ops/diagnose-pr173-installer-20261020
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect failed Windows Installer job diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN_ID: '39447224811'
+          TARGET_CHECK_ID: '118712329670'
+          TARGET_PR: '173'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr173-logs"
+          gh api "repos/$GITHUB_REPOSITORY/check-runs/$TARGET_CHECK_ID" > "$RUNNER_TEMP/check.json"
+          gh api "repos/$GITHUB_REPOSITORY/check-runs/$TARGET_CHECK_ID/annotations" > "$RUNNER_TEMP/annotations.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/logs" > "$RUNNER_TEMP/logs.zip"
+          unzip -q "$RUNNER_TEMP/logs.zip" -d "$RUNNER_TEMP/pr173-logs"
+          python - <<'PY'
+          import json, os, pathlib, re
+
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          logs = root / 'pr173-logs'
+          check = json.loads((root / 'check.json').read_text(encoding='utf-8'))
+          annotations = json.loads((root / 'annotations.json').read_text(encoding='utf-8'))
+          candidates = [p for p in logs.rglob('*') if p.is_file() and 'validate installer on windows powershell 5.1' in p.name.lower()]
+          if not candidates:
+              candidates = [p for p in logs.rglob('*') if p.is_file() and 'installer' in p.name.lower()]
+          selected = candidates[:3]
+          patterns = re.compile(r'(##\[error\]|exception|error:|throw|failed|failure|timed out|timeout|rollback|exit code|exit status)', re.I)
+          excerpts = []
+          for path in selected:
+              lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+              indexes = [i for i, line in enumerate(lines) if patterns.search(line)]
+              keep = set()
+              for i in indexes:
+                  keep.update(range(max(0, i - 12), min(len(lines), i + 20)))
+              if not keep:
+                  keep.update(range(max(0, len(lines) - 160), len(lines)))
+              ordered = sorted(keep)
+              if len(ordered) > 260:
+                  ordered = ordered[-260:]
+              excerpt = '\n'.join(lines[i][:1200] for i in ordered)
+              excerpts.append((path.name, excerpt))
+          body = [
+              '## Temporary diagnostics for PR #173',
+              '',
+              f"Check: `{check.get('name')}` status=`{check.get('status')}` conclusion=`{check.get('conclusion')}`",
+              '',
+              '### Check annotations',
+              '```json',
+              json.dumps(annotations, ensure_ascii=False, indent=2)[:12000],
+              '```',
+          ]
+          for name, excerpt in excerpts:
+              body += ['', f'### `{name}` error context', '```text', excerpt[:30000], '```']
+          if not excerpts:
+              body += ['', 'No matching installer log file was found in the workflow log archive.']
+          output = '\n'.join(body)
+          (root / 'summary.md').write_text(output[:60000], encoding='utf-8')
+          PY
+          gh issue comment "$TARGET_PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/summary.md"
