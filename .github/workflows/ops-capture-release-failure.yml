@@ -1,0 +1,37 @@
+name: Temporary AgentDock release failure capture
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-c9094a0c-20261021
+    paths:
+      - .github/workflows/ops-capture-release-failure.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture:
+    if: github.repository_id == '1370391430'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: '39591809575'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Capture failed job logs and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url,headSha,jobs > ops-release-failure-jobs.json
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > ops-release-failure.log || true
+          test -s ops-release-failure-jobs.json
+          test -s ops-release-failure.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops-release-failure-jobs.json ops-release-failure.log
+          git commit -m 'chore: record release failure diagnostics'
+          git push origin "HEAD:$GITHUB_REF_NAME"
