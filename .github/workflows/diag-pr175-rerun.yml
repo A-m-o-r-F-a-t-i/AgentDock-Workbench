@@ -1,0 +1,79 @@
+name: Diagnose PR 175 rerun
+
+on:
+  push:
+    branches:
+      - ops/diag-pr176-windows-go-20261021
+    paths:
+      - .github/workflows/diag-pr175-rerun.yml
+      - .github/diagnostics/pr175-rerun-trigger.txt
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download failed job log
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/jobs/119044269557/logs" \
+            --output "$RUNNER_TEMP/job.log"
+      - name: Publish bounded redacted failure context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json
+          import os
+          import pathlib
+          import re
+          import urllib.request
+
+          raw = pathlib.Path(os.environ['RUNNER_TEMP'], 'job.log').read_text(encoding='utf-8', errors='replace')
+          raw = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', raw)
+          raw = re.sub(r'gh[opsu]_[A-Za-z0-9_]{20,}', '[REDACTED_GITHUB_TOKEN]', raw)
+          lines = raw.splitlines()
+          marker = re.compile(r'(?i)(--- FAIL:|\bFAIL\b|panic:|fatal:|error:|timed out|timeout|process completed with exit code|exit status|unexpected|assertion|unable to|cannot )')
+          indexes = [i for i, line in enumerate(lines) if marker.search(line)]
+          selected = set(range(max(0, len(lines)-160), len(lines)))
+          for index in indexes[-40:]:
+              selected.update(range(max(0,index-12), min(len(lines),index+24)))
+          ordered = sorted(selected)
+          if len(ordered) > 600:
+              ordered = ordered[-600:]
+          excerpt=[]
+          previous=None
+          for index in ordered:
+              if previous is not None and index > previous + 1:
+                  excerpt.append('... omitted ...')
+              excerpt.append(lines[index][:2000])
+              previous=index
+          body = '## PR 175 rerun failure diagnostic\n\n```text\n' + '\n'.join(excerpt) + '\n```'
+          req=urllib.request.Request(
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/issues/175/comments",
+              data=json.dumps({'body':body[:120000]}).encode('utf-8'),
+              headers={
+                  'Accept':'application/vnd.github+json',
+                  'Authorization':f"Bearer {os.environ['GH_TOKEN']}",
+                  'Content-Type':'application/json',
+                  'X-GitHub-Api-Version':'2022-11-28',
+              },
+              method='POST',
+          )
+          with urllib.request.urlopen(req,timeout=30) as response:
+              if response.status not in (200,201):
+                  raise RuntimeError(f'comment failed: HTTP {response.status}')
