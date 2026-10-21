@@ -18,6 +18,22 @@ import (
 func TestResolveWSLWorkdirAcceptsWindowsAndLinuxPaths(t *testing.T) {
 	service, _ := newCommandTestService(t)
 
+	defaultPath, err := service.resolveWSLWorkdir("", "")
+	if err != nil {
+		t.Fatalf("resolve bound workspace: %v", err)
+	}
+	resolvedWorkspace, err := service.ws.ResolveExisting(".")
+	if err != nil {
+		t.Fatalf("resolve canonical bound workspace: %v", err)
+	}
+	wantDefault, ok := windowsPathToWSL(resolvedWorkspace.Abs)
+	if !ok {
+		t.Fatalf("test workspace could not be mapped into WSL: %s", resolvedWorkspace.Abs)
+	}
+	if defaultPath != wantDefault {
+		t.Fatalf("default WSL workdir = %q, want bound workspace %q", defaultPath, wantDefault)
+	}
+
 	windowsPath, err := service.resolveWSLWorkdir(`D:\Project\synapse`, "")
 	if err != nil {
 		t.Fatalf("resolve Windows path: %v", err)
@@ -143,7 +159,8 @@ func TestPrepareWSLSkillInvocationUsesPrivateDataDirectory(t *testing.T) {
 			}
 			wslRoot, ok := windowsPathToWSL(lease.Root)
 			if environmentOnly {
-				wslRoot, ok = "~", true
+				wslRoot, err = svc.resolveWSLWorkdir("", "")
+				ok = err == nil
 			}
 			wantArgs := []string{"--distribution", "Ubuntu", "--cd", wslRoot, "--exec", "bash", "-lc", "pwd"}
 			if !ok || !reflect.DeepEqual(process.Args[1:], wantArgs) {
