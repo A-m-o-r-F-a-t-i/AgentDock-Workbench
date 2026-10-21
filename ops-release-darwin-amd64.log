@@ -1,0 +1,374 @@
+Native darwin amd64	UNKNOWN STEP	﻿2026-10-21T11:25:40.9388670Z Current runner version: '2.338.0'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9418910Z ##[group]Runner Image Provisioner
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9420050Z Hosted Compute Agent
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9420800Z Version: 20260819.586
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9421600Z Commit: 3cc4a88dfa507ef76119ad1bb3eccc6378bb2b76
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9422570Z Build Date: 2026-08-18T23:20:18Z
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9423440Z Worker ID: {d20271aa-03b1-4a07-a4be-8cdfbbc63b96}
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9424400Z Azure Region: westus
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9425120Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9427970Z ##[group]Operating System
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9428800Z macOS
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9429410Z 15.7.9
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9430160Z 24G830
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9430990Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9431670Z ##[group]Runner Image
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9432410Z Image: macos-15
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9433430Z Version: 20260824.0482.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9436190Z Included Software: https://github.com/actions/runner-images/blob/macos-15/20260824.0482/images/macos/macos-15-Readme.md
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9439430Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15%2F20260824.0482
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9441280Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9442840Z ##[group]GITHUB_TOKEN Permissions
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9446000Z Contents: read
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9447010Z Metadata: read
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9447950Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9451370Z Secret source: Actions
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9452540Z Cache mode: write
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:40.9454980Z Prepare workflow directory
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:41.0172280Z Prepare all required actions
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:41.0290680Z Getting action download info
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:41.5517690Z Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:41.7938770Z Download action repository 'actions/setup-go@v6' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:42.3618360Z Download action repository 'actions/setup-python@v6' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:42.5247220Z Download action repository 'actions/upload-artifact@v7' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.2540130Z Complete job name: Native darwin amd64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4627770Z ##[group]Run actions/checkout@v5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4631360Z with:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4633620Z   ref: c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4637370Z   repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4668150Z   token: ***
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4670410Z   ssh-strict: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4672470Z   ssh-user: git
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4674490Z   persist-credentials: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4677020Z   clean: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4679160Z   sparse-checkout-cone-mode: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4681830Z   fetch-depth: 1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4683870Z   fetch-tags: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4685970Z   show-progress: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4694630Z   lfs: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4696970Z   submodules: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4699310Z   set-safe-directory: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4702010Z   allow-unsafe-pr-checkout: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:43.4706440Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.2231490Z Syncing repository: A-m-o-r-F-a-t-i/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.3238920Z ##[group]Getting Git version info
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.3498330Z Working directory is '/Users/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.3878900Z [command]/usr/local/bin/git version
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.3920460Z git version 2.55.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.3991630Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4221340Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/8074f6dc-4b80-4089-9227-99042b08ae54/.gitconfig'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4241310Z Temporarily overriding HOME='/Users/runner/work/_temp/8074f6dc-4b80-4089-9227-99042b08ae54' before making global git config changes
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4294490Z Adding repository directory to the temporary git global config as a safe directory
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4317910Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4388600Z Deleting the contents of '/Users/runner/work/AgentDock-Workbench/AgentDock-Workbench'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4417820Z ##[group]Initializing the repository
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4444830Z [command]/usr/local/bin/git init /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4501920Z hint: Using 'master' as the name for the initial branch. This default branch name
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4539260Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4565880Z hint: to use in all of your new repositories, which will suppress this warning,
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4608040Z hint: call:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4611070Z hint:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4638900Z hint: 	git config --global init.defaultBranch <name>
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.4668670Z hint:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5283130Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5288780Z hint: 'development'. The just-created branch can be renamed via this command:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5294310Z hint:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5296560Z hint: 	git branch -m <name>
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5299150Z hint:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5301890Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5312160Z Initialized empty Git repository in /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/.git/
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5321040Z [command]/usr/local/bin/git remote add origin https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5329200Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5333020Z ##[group]Disabling automatic garbage collection
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.5336640Z [command]/usr/local/bin/git config --local gc.auto 0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.6561640Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.6667510Z ##[group]Setting up auth
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.6692550Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.6741860Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.7381850Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.7457700Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:44.9970740Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:45.0183270Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:45.2716700Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:45.2733920Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:45.3006410Z ##[group]Fetching the repository
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:45.3097200Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.7954090Z From https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8024320Z  * branch            c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5 -> FETCH_HEAD
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8204510Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8270930Z ##[group]Determining the checkout info
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8336060Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8360570Z [command]/usr/local/bin/git sparse-checkout disable
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8394980Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8430910Z ##[group]Checking out the ref
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:46.8452620Z [command]/usr/local/bin/git checkout --progress --force c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.6791040Z HEAD is now at c9094a0 fix(windows): serialize Core startup and reject duplicate launch-core (#184)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.7252480Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.7452600Z [command]/usr/local/bin/git log -1 --format=%H
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.7618750Z c9094a0cfbd88a983b64e93a1fd930ef2dd7b5a5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8221710Z ##[group]Run actions/setup-go@v6
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8223150Z with:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8224340Z   go-version-file: go.mod
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8225560Z   cache: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8226650Z   check-latest: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8234730Z   token: ***
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:47.8235830Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:48.1231970Z Setup go version spec 1.26.5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:48.1401700Z Attempting to download 1.26.5...
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:48.9482430Z matching 1.26.5...
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:49.2379220Z Acquiring 1.26.5 from https://github.com/actions/go-versions/releases/download/1.26.5-28913679792/go-1.26.5-darwin-x64.tar.gz
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:50.2397510Z Extracting Go...
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:50.2629380Z [command]/usr/bin/tar xz -C /Users/runner/work/_temp/b96cd12c-1fc3-4f52-a75d-d83af01e0707 -f /Users/runner/work/_temp/f09e0106-70f3-4843-a69f-7028e02ef3d0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:59.6023610Z Successfully extracted go to /Users/runner/work/_temp/b96cd12c-1fc3-4f52-a75d-d83af01e0707
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:25:59.6405170Z Adding to the cache ...
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.5597490Z Successfully cached go to /Users/runner/hostedtoolcache/go/1.26.5/x64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.5666160Z Added go to the path
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.5684080Z Successfully set up Go version 1.26.5
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.7146420Z [command]/Users/runner/hostedtoolcache/go/1.26.5/x64/bin/go env GOMODCACHE
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.7261080Z [command]/Users/runner/hostedtoolcache/go/1.26.5/x64/bin/go env GOCACHE
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.7470810Z /Users/runner/Library/Caches/go-build
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:22.7511340Z /Users/runner/go/pkg/mod
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:23.1420650Z Cache hit for: setup-go-macOS-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:24.4232470Z Received 0 of 16426568 (0.0%), 0.0 MBs/sec
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:24.7399980Z Received 16426568 of 16426568 (100.0%), 11.1 MBs/sec
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:24.8052270Z Cache Size: ~16 MB (16426568 B)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:24.8106540Z [command]/usr/local/bin/gtar -xf /Users/runner/work/_temp/ea3025c2-03b0-439a-8db6-6f1785bb0498/cache.tzst -P -C /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench --delay-directory-restore --use-compress-program unzstd
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:26.7690050Z Cache restored successfully
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:26.7730230Z Cache restored from key: setup-go-macOS-x64-go-1.26.5-b563d42f42410b66d5279616fa9ea8494f293d2549fd5c2dcc6f73e66f74d663
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:26.7840070Z go version go1.26.5 darwin/amd64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:26.7840940Z 
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:26.7879090Z ##[group]go env
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5150060Z AR='ar'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5161670Z CC='clang'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5165790Z CGO_CFLAGS='-O2 -g'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5167080Z CGO_CPPFLAGS=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5397680Z CGO_CXXFLAGS='-O2 -g'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5442110Z CGO_ENABLED='1'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5467020Z CGO_FFLAGS='-O2 -g'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5601330Z CGO_LDFLAGS='-O2 -g'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5912910Z CXX='clang++'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5919140Z GCCGO='gccgo'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5922600Z GO111MODULE=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5925700Z GOAMD64='v1'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5928110Z GOARCH='amd64'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5950120Z GOAUTH='netrc'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5953980Z GOBIN=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.5956680Z GOCACHE='/Users/runner/Library/Caches/go-build'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6020570Z GOCACHEPROG=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6024800Z GODEBUG=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6027030Z GOENV='/Users/runner/Library/Application Support/go/env'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6029060Z GOEXE=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6030350Z GOEXPERIMENT=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6031730Z GOFIPS140='off'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6032890Z GOFLAGS=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6037010Z GOGCCFLAGS='-fPIC -arch x86_64 -m64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/20/jp1_0n3n7kndh6rnbqb5344m0000gn/T/go-build3580596929=/tmp/go-build -gno-record-gcc-switches -fno-common'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6045270Z GOHOSTARCH='amd64'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6047240Z GOHOSTOS='darwin'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6048500Z GOINSECURE=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6051670Z GOMOD='/Users/runner/work/AgentDock-Workbench/AgentDock-Workbench/go.mod'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6053450Z GOMODCACHE='/Users/runner/go/pkg/mod'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6055090Z GONOPROXY=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6056230Z GONOSUMDB=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6057180Z GOOS='darwin'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6058670Z GOPATH='/Users/runner/go'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6060610Z GOPRIVATE=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6062360Z GOPROXY='https://proxy.golang.org,direct'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6064100Z GOROOT='/Users/runner/hostedtoolcache/go/1.26.5/x64'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6065570Z GOSUMDB='sum.golang.org'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6066560Z GOTELEMETRY='local'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6067620Z GOTELEMETRYDIR='/Users/runner/Library/Application Support/go/telemetry'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6069860Z GOTMPDIR=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6070690Z GOTOOLCHAIN='local'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6072400Z GOTOOLDIR='/Users/runner/hostedtoolcache/go/1.26.5/x64/pkg/tool/darwin_amd64'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6074750Z GOVCS=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6075960Z GOVERSION='go1.26.5'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6077060Z GOWORK=''
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6078150Z PKG_CONFIG='pkg-config'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6078860Z 
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6080250Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6475370Z ##[group]Run actions/setup-python@v6
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6476520Z with:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6477010Z   python-version: 3.12
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6477980Z   check-latest: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6485450Z   token: ***
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6486040Z   update-environment: true
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6486820Z   allow-prereleases: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6487560Z   freethreaded: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6488150Z env:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6488760Z   GOTOOLCHAIN: local
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.6489390Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9576530Z ##[group]Installed versions
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9700770Z Successfully set up CPython (3.12.10)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9704490Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9986710Z ##[group]Run set -euo pipefail
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9987480Z ^[[36;1mset -euo pipefail^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9988260Z ^[[36;1m# The activity package measures a strict 2s cold projection target.^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9989280Z ^[[36;1m# Do not share that measurement with unrelated in-test compiler^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9990220Z ^[[36;1m# processes on small native runners. Every package still runs, and^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9991190Z ^[[36;1m# the timed contract is repeated three times without relaxing it.^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9992120Z ^[[36;1mall_packages="$(go list ./...)"^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9992980Z ^[[36;1mactivity_package="github.com/uvwt/agentdock/internal/activity"^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9993750Z ^[[36;1mremaining=()^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9994210Z ^[[36;1mfound=0^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9994690Z ^[[36;1mwhile IFS= read -r package; do^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9995500Z ^[[36;1m  if [[ "$package" == "$activity_package" ]]; then^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9996390Z ^[[36;1m    found=$((found + 1))^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9997720Z ^[[36;1m  else^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9998670Z ^[[36;1m    remaining+=("$package")^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:29.9999550Z ^[[36;1m  fi^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0000590Z ^[[36;1mdone <<< "$all_packages"^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0048450Z ^[[36;1mtest "$found" -eq 1^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0049100Z ^[[36;1mtest "${#remaining[@]}" -gt 0^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0049720Z ^[[36;1mif [[ "$IGNORE_INTEL_SCALE" == 'true' ]]; then^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0052240Z ^[[36;1m  echo '::warning::User-authorized candidate exception: macOS Intel TestExecutionProjectionScale100k is ignored, not passed.'^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0054510Z ^[[36;1m  echo 'macOS Intel 100k scale test: **ignored by explicit candidate request**. The original 2s limit is unchanged.' >> "$GITHUB_STEP_SUMMARY"^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0056490Z ^[[36;1m  go test -p 1 ./internal/activity -skip '^TestExecutionProjectionScale100k$' -count=1 -timeout=8m^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0058540Z ^[[36;1melse^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0060270Z ^[[36;1m  go test -p 1 ./internal/activity -count=1 -timeout=8m^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0062120Z ^[[36;1m  go test -p 1 ./internal/activity -run '^TestExecutionProjectionScale100k$' -count=3 -v -timeout=8m^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0063560Z ^[[36;1mfi^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0064900Z ^[[36;1mgo test -p 2 "${remaining[@]}" -count=1 -timeout=8m^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0065730Z ^[[36;1mgo vet ./...^[[0m
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0201770Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0202410Z env:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0202780Z   GOTOOLCHAIN: local
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0203400Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0204360Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/x64/lib/pkgconfig
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0205350Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0206220Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0207160Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/x64
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0207920Z   IGNORE_INTEL_SCALE: false
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.0208400Z ##[endgroup]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:30.4306400Z go: downloading github.com/go-oauth2/oauth2/v4 v4.5.4
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.0737080Z go: downloading github.com/uvwt/agentdock-protocol v0.8.2-0.20261004051622-257c54fb223b
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.1041710Z go: downloading github.com/gorilla/websocket v1.5.3
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.1043120Z go: downloading github.com/modelcontextprotocol/go-sdk v1.7.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.1787580Z go: downloading gopkg.in/yaml.v3 v3.0.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.2789630Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.3555510Z go: downloading github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.4705800Z go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.4735220Z go: downloading github.com/bmatcuk/doublestar/v4 v4.10.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.5350830Z go: downloading github.com/rogpeppe/go-internal v1.15.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.5950220Z go: downloading golang.org/x/sys v0.45.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.6114730Z go: downloading github.com/chromedp/chromedp v0.14.2
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.8806330Z go: downloading github.com/google/jsonschema-go v0.4.3
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.8846920Z go: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:31.8848440Z go: downloading golang.org/x/oauth2 v0.35.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.0438600Z go: downloading golang.org/x/sync v0.20.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.1227670Z go: downloading golang.org/x/time v0.15.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.1277540Z go: downloading github.com/chromedp/sysutil v1.1.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.1475670Z go: downloading github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.2308960Z go: downloading golang.org/x/text v0.14.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.4582410Z go: downloading github.com/gobwas/ws v1.4.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.7030810Z go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.7049110Z go: downloading github.com/google/uuid v1.1.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.8069010Z go: downloading github.com/segmentio/encoding v0.5.4
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.8338960Z go: downloading github.com/gobwas/httphead v0.1.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:32.9378410Z go: downloading github.com/gobwas/pool v0.2.1
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:33.8305920Z go: downloading github.com/segmentio/asm v1.1.3
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:42.2778810Z ok  	github.com/uvwt/agentdock/internal/activity	5.375s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:43.0526960Z === RUN   TestExecutionProjectionScale100k
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:45.3064890Z     scale_test.go:103: scale: events=100000 calls=20000 conversations=1000 task_ids=1000 cold_query_ms=1589.558 warm_task_query_ms=10.340 append_to_query_ms=14.361 process_heap_mib=37.35
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:45.3128230Z --- PASS: TestExecutionProjectionScale100k (2.25s)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:45.3162510Z === RUN   TestExecutionProjectionScale100k
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:47.6614920Z     scale_test.go:103: scale: events=100000 calls=20000 conversations=1000 task_ids=1000 cold_query_ms=1183.554 warm_task_query_ms=5.415 append_to_query_ms=14.523 process_heap_mib=44.26
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:47.6712500Z --- PASS: TestExecutionProjectionScale100k (2.36s)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:47.6740710Z === RUN   TestExecutionProjectionScale100k
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:50.0500820Z     scale_test.go:103: scale: events=100000 calls=20000 conversations=1000 task_ids=1000 cold_query_ms=1143.323 warm_task_query_ms=5.800 append_to_query_ms=13.502 process_heap_mib=43.50
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:50.0570980Z --- PASS: TestExecutionProjectionScale100k (2.39s)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:50.0572770Z PASS
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:26:50.0627880Z ok  	github.com/uvwt/agentdock/internal/activity	7.010s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:50.0378030Z ok  	github.com/uvwt/agentdock/cmd/agentdock	0.432s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:50.0403540Z ok  	github.com/uvwt/agentdock/cmd/agentdock/internal/logx	0.013s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:50.0450220Z ?   	github.com/uvwt/agentdock/cmd/agentdock-arbiter	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:50.1023020Z ?   	github.com/uvwt/agentdock/cmd/agentdock-shim	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:52.9522940Z ok  	github.com/uvwt/agentdock/internal/acp	1.801s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:52.9524350Z ok  	github.com/uvwt/agentdock/internal/agentinstructions	0.108s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:27:52.9525630Z ok  	github.com/uvwt/agentdock/internal/androidbridge	0.016s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7955630Z ok  	github.com/uvwt/agentdock/internal/app	125.975s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7956490Z ok  	github.com/uvwt/agentdock/internal/auth	3.814s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7967940Z ok  	github.com/uvwt/agentdock/internal/buildinfo	0.014s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7970440Z ok  	github.com/uvwt/agentdock/internal/capabilityrouting	0.013s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7974190Z ok  	github.com/uvwt/agentdock/internal/commandcompletion	1.023s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7975930Z ok  	github.com/uvwt/agentdock/internal/config	0.156s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7980500Z ?   	github.com/uvwt/agentdock/internal/contextguide	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7983420Z ok  	github.com/uvwt/agentdock/internal/desktopcontrol	0.036s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7987640Z --- FAIL: TestRunQuickTunnelWritesBackPublicURLAndRestartsCore (30.13s)
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7992240Z     tunnel_quick_unix_test.go:104: runQuickTunnel: AgentDock 健康检查超时：目标 Core 版本 1.1.9 未就绪
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7993100Z FAIL
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7993690Z FAIL	github.com/uvwt/agentdock/internal/desktopruntime	30.852s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7994560Z ok  	github.com/uvwt/agentdock/internal/envstore	1.855s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7995330Z ok  	github.com/uvwt/agentdock/internal/evolution	1.723s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7996170Z ok  	github.com/uvwt/agentdock/internal/executioncompat	0.026s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7997060Z ok  	github.com/uvwt/agentdock/internal/externalagent	0.013s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7998180Z ok  	github.com/uvwt/agentdock/internal/fs/atomicfile	0.319s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.7999050Z ok  	github.com/uvwt/agentdock/internal/fs/filelock	0.700s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8000340Z ok  	github.com/uvwt/agentdock/internal/fs/processlock	0.067s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8001260Z ok  	github.com/uvwt/agentdock/internal/fs/securepath	0.024s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8004000Z ok  	github.com/uvwt/agentdock/internal/generationretention	0.088s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8004950Z ok  	github.com/uvwt/agentdock/internal/httpx	17.727s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8005830Z ok  	github.com/uvwt/agentdock/internal/httpx/requestmeta	0.012s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8014990Z ok  	github.com/uvwt/agentdock/internal/insertion	1.151s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8019480Z ok  	github.com/uvwt/agentdock/internal/installer	13.140s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8020310Z ok  	github.com/uvwt/agentdock/internal/logfile	0.032s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8023060Z ok  	github.com/uvwt/agentdock/internal/mcp	23.799s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8024640Z ok  	github.com/uvwt/agentdock/internal/mcp/client	3.936s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8025970Z ?   	github.com/uvwt/agentdock/internal/mcpappcompat	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8029040Z ok  	github.com/uvwt/agentdock/internal/nexusbridge	0.059s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8031430Z ok  	github.com/uvwt/agentdock/internal/nexusclient	0.021s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:05.8034320Z ok  	github.com/uvwt/agentdock/internal/permission	2.055s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:11.0371480Z ok  	github.com/uvwt/agentdock/internal/plugin	5.882s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:11.0396690Z ok  	github.com/uvwt/agentdock/internal/process	1.571s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:11.0410590Z ok  	github.com/uvwt/agentdock/internal/publicartifacts	0.174s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:11.0422860Z ok  	github.com/uvwt/agentdock/internal/requesttrace	0.011s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:11.0425860Z ok  	github.com/uvwt/agentdock/internal/runtimeapi	0.217s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6492080Z ok  	github.com/uvwt/agentdock/internal/selfupdate	11.710s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6497310Z ok  	github.com/uvwt/agentdock/internal/skill	0.488s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6502120Z ok  	github.com/uvwt/agentdock/internal/skill/bundle	0.344s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6504970Z ?   	github.com/uvwt/agentdock/internal/skill/packagehash	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6507870Z ok  	github.com/uvwt/agentdock/internal/skill/state	1.384s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:22.6568790Z ok  	github.com/uvwt/agentdock/internal/skilldata	0.020s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:23.3462950Z ok  	github.com/uvwt/agentdock/internal/snapshot	7.480s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6291320Z ok  	github.com/uvwt/agentdock/internal/taskstate	4.216s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6302750Z ok  	github.com/uvwt/agentdock/internal/textutil	0.020s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6306330Z ok  	github.com/uvwt/agentdock/internal/tool/acp	0.033s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6308780Z ok  	github.com/uvwt/agentdock/internal/tool/androiddevice	0.030s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6310960Z ok  	github.com/uvwt/agentdock/internal/tool/browser	0.253s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:27.6313980Z ok  	github.com/uvwt/agentdock/internal/tool/capability	0.018s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:32.3927470Z ok  	github.com/uvwt/agentdock/internal/tool/command	4.673s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:32.3979270Z ok  	github.com/uvwt/agentdock/internal/tool/command/session	1.489s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:32.4045140Z ok  	github.com/uvwt/agentdock/internal/tool/contract	0.019s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:32.4079290Z ok  	github.com/uvwt/agentdock/internal/tool/core	0.018s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:32.9621700Z ok  	github.com/uvwt/agentdock/internal/tool/file	0.889s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:33.9442590Z ok  	github.com/uvwt/agentdock/internal/tool/mcp	0.045s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:34.3778340Z ok  	github.com/uvwt/agentdock/internal/tool/media	0.353s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:37.3392220Z ok  	github.com/uvwt/agentdock/internal/tool/plugin	2.323s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:37.4424660Z ok  	github.com/uvwt/agentdock/internal/tool/recall	0.138s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:37.5429200Z ok  	github.com/uvwt/agentdock/internal/tool/skill	0.685s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:38.5400320Z ok  	github.com/uvwt/agentdock/internal/tool/task	0.552s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:38.6414810Z ?   	github.com/uvwt/agentdock/internal/tool/workspace	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:38.7424530Z ok  	github.com/uvwt/agentdock/internal/updateengine	0.458s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:39.0832370Z ok  	github.com/uvwt/agentdock/internal/updateplatform	0.050s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:39.4093250Z ok  	github.com/uvwt/agentdock/internal/workspace	0.279s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:39.7771150Z ?   	github.com/uvwt/agentdock/scripts/ci/parallel-macos/fixture-core	[no test files]
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:41.8271570Z ok  	github.com/uvwt/agentdock/scripts/test	1.336s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:41.8272610Z ok  	github.com/uvwt/agentdock/tools/release	0.027s
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:41.8273170Z FAIL
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.1003300Z ##[error]Process completed with exit code 1.
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.1381570Z Post job cleanup.
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3107850Z [command]/usr/local/bin/git version
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3330640Z git version 2.55.0
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3346420Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/acbb8ae5-97a4-4369-8344-83dfc3c7adde/.gitconfig'
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3348340Z Temporarily overriding HOME='/Users/runner/work/_temp/acbb8ae5-97a4-4369-8344-83dfc3c7adde' before making global git config changes
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3349940Z Adding repository directory to the temporary git global config as a safe directory
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.3351440Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/AgentDock-Workbench/AgentDock-Workbench
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.4406410Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.6410250Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.6541110Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.6633400Z http.https://github.com/.extraheader
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.6767980Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.6826450Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.8489630Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:42.8700280Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:43.0997790Z Cleaning up orphan processes
+Native darwin amd64	UNKNOWN STEP	2026-10-21T11:30:43.6837440Z Terminate orphan process: pid (8647) (AgentDock)
