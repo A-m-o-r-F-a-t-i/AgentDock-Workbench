@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-21T06:34:38.672456+00:00",
+  "captured_at": "2026-10-21T06:42:31.806909+00:00",
   "source_sha": "26c4a8b71a6dbeff7486c84f516c75828c8acf3b",
   "candidate": {
     "id": 39553536907,
@@ -20,7 +20,7 @@
     "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907",
     "pull_requests": [],
     "created_at": "2026-10-21T06:07:46Z",
-    "updated_at": "2026-10-21T06:23:40Z",
+    "updated_at": "2026-10-21T06:35:42Z",
     "actor": {
       "login": "github-actions[bot]",
       "id": 41898282,
@@ -329,26 +329,26 @@
     },
     {
       "name": "android / Emulator API 37",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977332"
     },
     {
       "name": "android / Emulator API 26",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977354"
     },
     {
       "name": "android / Emulator API 34",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977356"
     },
     {
       "name": "android / Emulator API 33",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977435"
     },
     {
@@ -356,6 +356,12 @@
       "status": "completed",
       "conclusion": "success",
       "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119072977466"
+    },
+    {
+      "name": "android / Aggregate candidate evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/A-m-o-r-F-a-t-i/AgentDock-Workbench/actions/runs/39553536907/job/119076972900"
     }
   ]
 }
