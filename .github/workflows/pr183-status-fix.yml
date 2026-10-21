@@ -1,0 +1,69 @@
+name: PR 183 manual status fix
+
+on:
+  push:
+    branches: [ops/pr183-ci-diagnostics-20261021]
+    paths:
+      - '.github/diagnostics/pr183-status-fix.trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/mcp-terminal-handoff-20261021
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Normalize the retained Activity outcome
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('internal/app/execution_dispatch.go')
+          text = path.read_text(encoding='utf-8')
+          old = '''func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
+          \tresult, err, metadata := r.executionOutcome(p.spec.Name, p.args, result, err, p.state, p.mcpCall)
+          \tp.outputFailure = outputFailureFromError(err)
+          \tif businessOutcomeFailure(p.spec.Name, result) && status == "succeeded" {
+          \t\tstatus = "failed"
+          \t}
+          '''
+          new = '''func (r *Runtime) finishPrepared(p *preparedExecution, result Result, err error, status string) (Result, error) {
+          \tresult, err, metadata := r.executionOutcome(p.spec.Name, p.args, result, err, p.state, p.mcpCall)
+          \tp.outputFailure = outputFailureFromError(err)
+          \t// executionOutcome can turn one locally authenticated discovery error into a
+          \t// successful terminal host-tool handoff. Persist the normalized outcome, not
+          \t// the pre-normalization handler error, so Activity and the returned envelope
+          \t// agree that routing completed without executing a business action.
+          \tif err == nil && status == "failed" && !businessOutcomeFailure(p.spec.Name, result) {
+          \t\tstatus = "succeeded"
+          \t}
+          \tif businessOutcomeFailure(p.spec.Name, result) && status == "succeeded" {
+          \t\tstatus = "failed"
+          \t}
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('expected one finishPrepared status block')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Format and run focused regressions
+        run: |
+          set -euo pipefail
+          gofmt -w internal/app/execution_dispatch.go
+          git diff --check
+          go test ./internal/app -run '^(TestAuditBuiltinSearchNeverInitializesDynamicServers|TestAuditInspectRoutesHostBuiltinsWithoutDynamicQualification|TestBuiltinDiscoveryHandoffDoesNotExecuteOrHideCalls)$' -count=1 -timeout=3m
+      - name: Commit the manual fix
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add internal/app/execution_dispatch.go
+          git commit -m 'fix(runtime): persist resolved handoffs as successful calls'
+          git push origin HEAD:fix/mcp-terminal-handoff-20261021
