@@ -10,14 +10,33 @@ import dev.agentdock.workbench.model.WorkbenchSettings
 import dev.agentdock.workbench.model.WorkbenchSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+
+internal fun retryableRefreshRead(error: Throwable?): Boolean = when (error) {
+    is CoreRequestException -> error.retryable || error.statusCode == 408 || error.statusCode == 425 ||
+        error.statusCode == 429 || error.statusCode >= 500
+    is IOException -> true
+    else -> false
+}
+
+internal fun refreshCoreHealth(
+    healthAvailable: Boolean,
+    statusAvailable: Boolean,
+    contractCompatible: Boolean
+): NodeHealth = when {
+    !healthAvailable -> NodeHealth.Unknown
+    !statusAvailable || !contractCompatible -> NodeHealth.Degraded
+    else -> NodeHealth.Healthy
+}
 
 class WorkbenchRepository(
     private val context: Context,
@@ -34,21 +53,21 @@ class WorkbenchRepository(
         val settings = settingsStore.current()
         val client = client(settings)
         return coroutineScope {
-            val health = async { safeResult { client.get("/healthz") } }
-            val status = async { safeResult { client.get("/internal/runtime/status") } }
-            val sidebar = async { safeResult { client.post("/internal/runtime/execution/sidebar", sidebarRequest()) } }
-            val conversations = async { safeResult { client.get(ManagementContract.listPath("conversations", conversationsQuery)) } }
-            val tasks = async { safeResult { client.get(ManagementContract.listPath("tasks", tasksQuery)) } }
-            val calls = async { safeResult { client.get("/internal/runtime/calls?view=active&limit=100&top_level=true&include_output=false") } }
-            val activity = async { safeResult { client.get("/internal/runtime/activity?limit=100&after=0") } }
-            val approvals = async { safeResult { client.get("/internal/runtime/approvals?limit=100") } }
-            val permissions = async { safeResult { client.get("/internal/runtime/permissions/effective") } }
-            val skills = async { safeResult { client.get("/internal/runtime/skills?summary=true") } }
-            val plugins = async { safeResult { client.get("/internal/runtime/plugins") } }
-            val mcp = async { safeResult { client.get("/internal/runtime/mcp") } }
+            val health = async { readResult { client.get("/healthz") } }
+            val status = async { readResult { client.get("/internal/runtime/status") } }
+            val sidebar = async { readResult { client.post("/internal/runtime/execution/sidebar", sidebarRequest()) } }
+            val conversations = async { readResult { client.get(ManagementContract.listPath("conversations", conversationsQuery)) } }
+            val tasks = async { readResult { client.get(ManagementContract.listPath("tasks", tasksQuery)) } }
+            val calls = async { readResult { client.get("/internal/runtime/calls?view=active&limit=100&top_level=true&include_output=false") } }
+            val activity = async { readResult { client.get("/internal/runtime/activity?limit=100&after=0") } }
+            val approvals = async { readResult { client.get("/internal/runtime/approvals?limit=100") } }
+            val permissions = async { readResult { client.get("/internal/runtime/permissions/effective") } }
+            val skills = async { readResult { client.get("/internal/runtime/skills?summary=true") } }
+            val plugins = async { readResult { client.get("/internal/runtime/plugins") } }
+            val mcp = async { readResult { client.get("/internal/runtime/mcp") } }
             val insertions = async {
                 if (selectedConversation.isBlank()) Result.success(JSONObject())
-                else safeResult { client.get("/internal/runtime/conversations/${id(selectedConversation)}/insertions") }
+                else readResult { client.get("/internal/runtime/conversations/${id(selectedConversation)}/insertions") }
             }
 
             val healthResult = health.await()
@@ -82,11 +101,11 @@ class WorkbenchRepository(
             val statusValue = statusResult.getOrNull()
             val contract = statusValue?.let(ManagementContract::runtimeContract)
                 ?: RuntimeContractStatus(false, 0, 0, "尚未读取 Runtime API 合同。")
-            val coreHealth = when {
-                healthValue != null && failures == 0 && contract.compatible -> NodeHealth.Healthy
-                healthValue != null -> NodeHealth.Degraded
-                else -> NodeHealth.Unknown
-            }
+            val coreHealth = refreshCoreHealth(
+                healthAvailable = healthValue != null,
+                statusAvailable = statusValue != null,
+                contractCompatible = contract.compatible
+            )
             val sidebarValue = sidebarResult.getOrNull()
             val groups = sidebarValue?.optJSONArray("groups") ?: JSONArray()
             WorkbenchSnapshot(
@@ -100,7 +119,7 @@ class WorkbenchRepository(
                     statusValue == null -> statusResult.exceptionOrNull()?.let(ManagementContract::failure)
                         ?: "Core 已连接，但 Runtime API 合同不可用"
                     !contract.compatible -> contract.message
-                    failures > 0 -> "Core 已连接，但 $failures 个能力端点不可用"
+                    failures > 0 -> "Core 已连接，但 ${endpointErrors.keys.joinToString("、")} 读取失败"
                     else -> "Core 已连接"
                 },
                 workspaces = parseWorkspaceGroups(groups),
@@ -198,7 +217,14 @@ class WorkbenchRepository(
         return client(settings).get("/internal/runtime/calls/${id(identity)}/payload/$kind?offset=$offset&limit_chars=${settings.toolOutputMaxChars}")
     }
 
-    private inline fun <T> safeResult(block: () -> T): Result<T> = try {
+    private suspend fun <T> readResult(block: suspend () -> T): Result<T> {
+        val first = readOnce(block)
+        if (first.isSuccess || !retryableRefreshRead(first.exceptionOrNull())) return first
+        delay(200)
+        return readOnce(block)
+    }
+
+    private suspend fun <T> readOnce(block: suspend () -> T): Result<T> = try {
         Result.success(block())
     } catch (error: CancellationException) {
         throw error
