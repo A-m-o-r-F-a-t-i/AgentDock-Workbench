@@ -314,6 +314,60 @@ class DeploymentTest(unittest.TestCase):
         (self.manager.root / 'logs/core.log').write_text(line)
         result = self.manager.dispatch('logs', 'logs', {'offset': 100})
         self.assertNotIn('sss', result['data']['text']); self.assertIn('next line', result['data']['text'])
+    def test_proot_hardlink_snapshot_and_rollback_preserve_secret(self):
+        self.seed()
+        prefix = self.home / 'termux-prefix'
+        with patch.dict(os.environ, {'PREFIX': str(prefix)}):
+            store = self.manager.proot_link_store(); store.mkdir(parents=True)
+            backing = store / '.l2s..public-url-secret-0001'
+            backing.write_bytes(b'fixture identity'); backing.chmod(0o600)
+            source = self.manager.root / 'data/secrets/public-url-secret'
+            source.parent.mkdir(); source.symlink_to(backing)
+            result = self.manager.dispatch('update', 'proot_upgrade', self.release())
+            self.assertEqual('updated', result['status'])
+            copied = self.manager.root / 'backups/proot_upgrade/data/secrets/public-url-secret'
+            self.assertFalse(copied.is_symlink())
+            self.assertEqual(b'fixture identity', copied.read_bytes())
+            self.assertEqual(0o600, copied.stat().st_mode & 0o777)
+            self.assertTrue(source.is_symlink())
+            backing.write_bytes(b'changed after snapshot')
+            m.verify_snapshot(self.manager.root / 'backups/proot_upgrade')
+            result = self.manager.dispatch('rollback', 'proot_rollback', {
+                'confirm_data_restore': True, 'start_after_install': True,
+            })
+            self.assertEqual('rolled_back', result['status'])
+            self.assertFalse(source.is_symlink())
+            self.assertEqual(b'fixture identity', source.read_bytes())
+
+    def test_unsupported_backup_link_is_rejected_before_core_stop(self):
+        self.seed()
+        outside = self.home / 'outside'; outside.write_bytes(b'unrelated')
+        (self.manager.root / 'data/escape').symlink_to(outside)
+        result = self.manager.dispatch('update', 'unsafe_backup', self.release())
+        self.assertEqual('unsafe_path', result['data']['failure_code'])
+        self.assertEqual(0, self.state.get('stops', 0))
+        self.assertTrue(self.state['running'])
+        self.assertEqual('old', self.manager.pointer('current'))
+
+    def test_proot_backing_symlink_and_other_container_are_rejected(self):
+        store = self.home / '.l2s'; store.mkdir()
+        outside = self.home / '.l2s.outside'; outside.write_bytes(b'unrelated')
+        backing = store / '.l2s.link'; backing.symlink_to(outside)
+        source = self.manager.root / 'data/escape'
+        for target in (backing, outside):
+            source.symlink_to(target)
+            with self.assertRaises(m.BridgeError):
+                m.snapshot_tree(self.manager.root / 'data', self.manager.root / 'backups/rejected', proot_l2s=store)
+            source.unlink()
+        self.assertFalse((self.manager.root / 'backups/rejected').exists())
+
+    def test_proot_backing_bytes_count_toward_backup_limit(self):
+        store = self.home / '.l2s'; store.mkdir()
+        backing = store / '.l2s.large'; backing.write_bytes(b'12345')
+        data = self.home / 'bounded-data'; data.mkdir(); (data / 'alias').symlink_to(backing)
+        with patch.object(m, 'MAX_BACKUP', 4), self.assertRaises(m.BridgeError):
+            m.snapshot_tree(data, self.home / 'bounded-backup', proot_l2s=store)
+
     def test_backup_link_escape_rejected(self):
         (self.manager.root / 'data/escape').symlink_to('../../outside')
         with self.assertRaises(m.BridgeError): m.snapshot_tree(self.manager.root / 'data', self.manager.root / 'backups/bad')
