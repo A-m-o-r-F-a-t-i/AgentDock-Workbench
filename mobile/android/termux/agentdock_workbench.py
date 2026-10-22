@@ -22,6 +22,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.request
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -56,6 +57,11 @@ class BridgeError(Exception):
     def __init__(self, code: str, message: str, retryable: bool = False):
         super().__init__(message)
         self.code, self.retryable = code, retryable
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so the bearer never leaves the configured loopback URL."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 def check(condition: bool, code: str, message: str) -> None:
     if not condition:
