@@ -8,6 +8,62 @@ export AGENTDOCK_WORKBENCH_TEST_MODE=1
 export AGENTDOCK_WORKBENCH_TEST_HOME="$tmp/home"
 mkdir -p "$AGENTDOCK_WORKBENCH_TEST_HOME/storage/shared"
 
+python3 - "$root/mobile/android/termux/agentdock_workbench.py" "$tmp" <<'PYHTTP'
+import http.server
+import importlib.util
+from pathlib import Path
+import sys
+import threading
+import urllib.error
+
+module_path, root = Path(sys.argv[1]), Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location('termux_bridge_http', module_path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+requests = []
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        requests.append((self.path, self.headers.get('Authorization')))
+        if self.path == '/redirect':
+            self.send_response(302)
+            self.send_header('Location', '/status')
+            self.end_headers()
+            return
+        body = b'{"ok":true}'
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, _format, *_args):
+        pass
+
+node = root / 'http-node'
+node.mkdir()
+(node / 'auth-token').write_text('1' * 64)
+server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+thread = threading.Thread(target=server.serve_forever, daemon=True)
+thread.start()
+try:
+    backend = module.NodeBackend(node, dict(module.DEFAULT_CONFIG, port=server.server_port))
+    assert backend.request('/status') == {'ok': True}
+    assert requests[-1] == ('/status', 'Bearer ' + '1' * 64)
+    try:
+        backend.request('/redirect')
+    except urllib.error.HTTPError as error:
+        assert error.code == 302
+    else:
+        raise AssertionError('redirect was followed')
+    assert [path for path, _ in requests] == ['/status', '/redirect']
+finally:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=2)
+print('Termux loopback HTTP client and redirect rejection passed')
+PYHTTP
+
 request() {
   local op="$1" oid="$2" rid="$3" nonce="$4" extra="${5-}"
   [[ -n "$extra" ]] || extra='{}'
