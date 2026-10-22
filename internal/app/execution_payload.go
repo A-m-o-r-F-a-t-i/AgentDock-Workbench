@@ -4,11 +4,92 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"time"
 	"unicode/utf8"
 
 	"github.com/uvwt/agentdock/internal/activity"
+	toolmedia "github.com/uvwt/agentdock/internal/tool/media"
 )
+
+// activitySafeOutput removes view_image transport bytes before a response is
+// journaled. The structured image metadata already carries the signed artifact
+// URL, so retained output remains readable without copying Base64 into Activity.
+func activitySafeOutput(name string, value any) any {
+	if name != "view_image" || value == nil {
+		return value
+	}
+	var object map[string]any
+	resultValue := false
+	switch typed := value.(type) {
+	case Result:
+		object = map[string]any(typed)
+		resultValue = true
+	case map[string]any:
+		object = typed
+	default:
+		return value
+	}
+	out := maps.Clone(object)
+	delete(out, toolmedia.NativeImageBase64Key)
+	delete(out, toolmedia.NativeImageMIMETypeKey)
+
+	blocks, hasContent := outputContentBlocks(out["content"])
+	if !hasContent {
+		if resultValue {
+			return Result(out)
+		}
+		return out
+	}
+	filtered := make([]any, 0, len(blocks)+1)
+	hasLink := false
+	for _, block := range blocks {
+		item := modelObject(block)
+		if item["type"] == "image" {
+			continue
+		}
+		if item["type"] == "resource_link" {
+			hasLink = true
+		}
+		filtered = append(filtered, block)
+	}
+	if !hasLink {
+		structured := modelObject(out["structuredContent"])
+		image := modelObject(structured["image"])
+		if image == nil {
+			image = modelObject(out["image"])
+		}
+		if uri := stringArg(image, "url"); uri != "" {
+			link := map[string]any{"type": "resource_link", "uri": uri}
+			for source, target := range map[string]string{"filename": "name", "mime_type": "mimeType"} {
+				if value := image[source]; value != nil {
+					link[target] = value
+				}
+			}
+			filtered = append(filtered, link)
+		}
+	}
+	out["content"] = filtered
+	if resultValue {
+		return Result(out)
+	}
+	return out
+}
+
+func outputContentBlocks(value any) ([]any, bool) {
+	switch typed := value.(type) {
+	case []any:
+		return append([]any(nil), typed...), true
+	case []map[string]any:
+		blocks := make([]any, 0, len(typed))
+		for _, block := range typed {
+			blocks = append(blocks, block)
+		}
+		return blocks, true
+	default:
+		return nil, false
+	}
+}
 
 func (r *Runtime) recordExecutionPayload(binding activity.Binding, name, kind string, value any, redactor activity.Redactor) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -23,6 +104,9 @@ func (r *Runtime) recordExecutionPayload(binding activity.Binding, name, kind st
 }
 
 func (r *Runtime) executionPayloadEvent(ctx context.Context, binding activity.Binding, name, kind string, value any, redactor activity.Redactor) (activity.Event, bool) {
+	if kind != "request" {
+		value = activitySafeOutput(name, value)
+	}
 	if r.activity == nil || binding.CallID == "" || binding.ParentCallID != "" || binding.Visibility == "diagnostic" {
 		return activity.Event{}, false
 	}
