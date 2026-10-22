@@ -264,12 +264,21 @@ def proot_hardlink_target(path: Path, link_store: Path | None) -> Path | None:
     if not target.is_absolute():
         return None
     check(link_store.is_dir() and not link_store.is_symlink(), "unsafe_path", "PRoot 硬链接存储目录无效")
-    check(target.name.startswith(".l2s.") and target.parent.resolve(strict=True) == link_store.resolve(strict=True),
-          "unsafe_path", "备份链接不属于当前 PRoot 硬链接存储")
-    info = target.lstat()
-    check(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(),
-          "unsafe_path", "PRoot 硬链接目标必须是当前用户的普通文件")
-    return target
+    store = link_store.resolve(strict=True)
+    seen = set()
+    for _ in range(40):
+        check(target.name.startswith(".l2s.") and target.parent.resolve(strict=True) == store,
+              "unsafe_path", "备份链接不属于当前 PRoot 硬链接存储")
+        check(target not in seen, "unsafe_path", "PRoot 硬链接存储包含循环链接")
+        seen.add(target)
+        info = target.lstat()
+        check(info.st_uid == os.getuid(), "unsafe_path", "PRoot 硬链接目标所有者无效")
+        if stat.S_ISREG(info.st_mode):
+            return target
+        check(stat.S_ISLNK(info.st_mode), "unsafe_path", "PRoot 硬链接目标必须是普通文件")
+        link = Path(os.readlink(target))
+        target = link if link.is_absolute() else target.parent / link
+    raise BridgeError("unsafe_path", "PRoot 硬链接层数超过上限")
 
 
 def tree_size(root: Path, *, proot_l2s: Path | None = None) -> int:

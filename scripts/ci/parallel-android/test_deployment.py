@@ -319,10 +319,11 @@ class DeploymentTest(unittest.TestCase):
         prefix = self.home / 'termux-prefix'
         with patch.dict(os.environ, {'PREFIX': str(prefix)}):
             store = self.manager.proot_link_store(); store.mkdir(parents=True)
-            backing = store / '.l2s..public-url-secret-0001'
+            backing = store / '.l2s..public-url-secret-0001.0001'
             backing.write_bytes(b'fixture identity'); backing.chmod(0o600)
+            alias = store / '.l2s..public-url-secret-0001'; alias.symlink_to(backing)
             source = self.manager.root / 'data/secrets/public-url-secret'
-            source.parent.mkdir(); source.symlink_to(backing)
+            source.parent.mkdir(); source.symlink_to(alias)
             result = self.manager.dispatch('update', 'proot_upgrade', self.release())
             self.assertEqual('updated', result['status'])
             copied = self.manager.root / 'backups/proot_upgrade/data/secrets/public-url-secret'
@@ -360,6 +361,14 @@ class DeploymentTest(unittest.TestCase):
                 m.snapshot_tree(self.manager.root / 'data', self.manager.root / 'backups/rejected', proot_l2s=store)
             source.unlink()
         self.assertFalse((self.manager.root / 'backups/rejected').exists())
+
+    def test_proot_backing_cycle_is_rejected(self):
+        store = self.home / '.l2s'; store.mkdir()
+        first, second = store / '.l2s.first', store / '.l2s.second'
+        first.symlink_to(second); second.symlink_to(first.name)
+        source = self.home / 'alias'; source.symlink_to(first)
+        with self.assertRaises(m.BridgeError):
+            m.proot_hardlink_target(source, store)
 
     def test_proot_backing_bytes_count_toward_backup_limit(self):
         store = self.home / '.l2s'; store.mkdir()
