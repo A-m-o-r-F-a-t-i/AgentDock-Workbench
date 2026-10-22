@@ -1,0 +1,235 @@
+name: One-shot verified v1.1.9 replacement
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-verified-replacement-20261022
+    paths:
+      - .github/workflows/ops-verified-stable-replacement.yml
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  replace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      OPS_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Build a successful candidate, then publish through stable replacement recovery
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          source_sha="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          version="$(gh api "repos/$REPO/contents/internal/buildinfo/buildinfo.go?ref=$source_sha" --jq .content | base64 --decode | sed -nE 's/^const Version = "([^"]+)"/\1/p')"
+          expected_title="AgentDock Workbench $source_sha"
+          failure=''
+          candidate_id=''
+          candidate_url=''
+          candidate_conclusion=''
+          publication_id=''
+          publication_url=''
+          publication_conclusion=''
+
+          if [[ "$version" != '1.1.9' ]]; then
+            failure="main declares version '$version', expected 1.1.9"
+          fi
+
+          candidate_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if [[ -z "$failure" ]]; then
+            if ! gh workflow run workbench-release.yml --repo "$REPO" --ref main \
+              -f ref="$source_sha" \
+              -f publish=false \
+              -f prerelease=false \
+              -f installation_tests=true \
+              -f ignore_macos_intel_scale=false; then
+              failure='failed to dispatch verified candidate build'
+            fi
+          fi
+
+          if [[ -z "$failure" ]]; then
+            for attempt in $(seq 1 60); do
+              candidate="$(gh run list --repo "$REPO" --workflow workbench-release.yml --event workflow_dispatch --limit 50 --json databaseId,headSha,status,conclusion,url,createdAt,displayTitle | jq -r --arg sha "$source_sha" --arg started "$candidate_started" --arg title "$expected_title" 'map(select(.headSha == $sha and .createdAt >= $started and .displayTitle == $title)) | sort_by(.createdAt) | reverse | (.[0] // {}) | [(.databaseId // ""), (.url // "")] | @tsv')"
+              IFS=$'\t' read -r candidate_id candidate_url <<< "$candidate"
+              [[ -n "$candidate_id" ]] && break
+              sleep 5
+            done
+            if [[ -z "$candidate_id" ]]; then
+              failure='candidate workflow was dispatched but no matching run appeared'
+            fi
+          fi
+
+          if [[ -n "$candidate_id" ]]; then
+            cat > "$RUNNER_TEMP/candidate.md" <<EOF
+          ## v1.1.9 verified candidate started
+
+          - Source: \`$source_sha\`
+          - Candidate run: [$candidate_id]($candidate_url)
+          - Publication is disabled for this run; it must finish successfully before stable replacement.
+          EOF
+            gh pr comment 176 --repo "$REPO" --body-file "$RUNNER_TEMP/candidate.md" || true
+          fi
+
+          if [[ -z "$failure" ]]; then
+            completed='false'
+            for attempt in $(seq 1 300); do
+              candidate_json="$(gh run view "$candidate_id" --repo "$REPO" --json status,conclusion,url,headSha,displayTitle)"
+              candidate_status="$(jq -r .status <<< "$candidate_json")"
+              candidate_conclusion="$(jq -r '.conclusion // ""' <<< "$candidate_json")"
+              candidate_url="$(jq -r .url <<< "$candidate_json")"
+              candidate_head="$(jq -r .headSha <<< "$candidate_json")"
+              candidate_title="$(jq -r .displayTitle <<< "$candidate_json")"
+              if [[ "$candidate_head" != "$source_sha" || "$candidate_title" != "$expected_title" ]]; then
+                failure='candidate run identity changed'
+                break
+              fi
+              if [[ "$candidate_status" == 'completed' ]]; then
+                completed='true'
+                break
+              fi
+              sleep 30
+            done
+            if [[ -z "$failure" && "$completed" != 'true' ]]; then
+              failure='candidate build did not complete within the bounded wait'
+            elif [[ -z "$failure" && "$candidate_conclusion" != 'success' ]]; then
+              failure="candidate build concluded: $candidate_conclusion"
+            fi
+          fi
+
+          publication_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if [[ -z "$failure" ]]; then
+            if ! gh workflow run workbench-publish-existing.yml --repo "$REPO" --ref main \
+              -f run_id="$candidate_id" \
+              -f commit="$source_sha" \
+              -f version="$version" \
+              -f prerelease=false \
+              -f replace_published=false \
+              -f replace_stable=true; then
+              failure='failed to dispatch stable replacement publication'
+            fi
+          fi
+
+          if [[ -z "$failure" ]]; then
+            expected_publication_title="Publish verified Workbench $version from run $candidate_id"
+            for attempt in $(seq 1 60); do
+              publication="$(gh run list --repo "$REPO" --workflow workbench-publish-existing.yml --event workflow_dispatch --limit 50 --json databaseId,headSha,status,conclusion,url,createdAt,displayTitle | jq -r --arg started "$publication_started" --arg title "$expected_publication_title" 'map(select(.createdAt >= $started and .displayTitle == $title)) | sort_by(.createdAt) | reverse | (.[0] // {}) | [(.databaseId // ""), (.url // "")] | @tsv')"
+              IFS=$'\t' read -r publication_id publication_url <<< "$publication"
+              [[ -n "$publication_id" ]] && break
+              sleep 5
+            done
+            if [[ -z "$publication_id" ]]; then
+              failure='publication workflow was dispatched but no matching run appeared'
+            fi
+          fi
+
+          if [[ -n "$publication_id" ]]; then
+            cat > "$RUNNER_TEMP/publication.md" <<EOF
+          ## v1.1.9 stable replacement started
+
+          - Verified candidate: [$candidate_id]($candidate_url), conclusion \`$candidate_conclusion\`
+          - Stable replacement: [$publication_id]($publication_url)
+          - Source: \`$source_sha\`
+          EOF
+            gh pr comment 176 --repo "$REPO" --body-file "$RUNNER_TEMP/publication.md" || true
+          fi
+
+          if [[ -z "$failure" ]]; then
+            completed='false'
+            for attempt in $(seq 1 100); do
+              publication_json="$(gh run view "$publication_id" --repo "$REPO" --json status,conclusion,url,headSha,displayTitle)"
+              publication_status="$(jq -r .status <<< "$publication_json")"
+              publication_conclusion="$(jq -r '.conclusion // ""' <<< "$publication_json")"
+              publication_url="$(jq -r .url <<< "$publication_json")"
+              if [[ "$publication_status" == 'completed' ]]; then
+                completed='true'
+                break
+              fi
+              sleep 15
+            done
+            if [[ -z "$failure" && "$completed" != 'true' ]]; then
+              failure='stable replacement did not complete within the bounded wait'
+            elif [[ -z "$failure" && "$publication_conclusion" != 'success' ]]; then
+              failure="stable replacement concluded: $publication_conclusion"
+            fi
+          fi
+
+          release_json="$(gh api "repos/$REPO/releases/tags/v1.1.9" 2>/dev/null || printf '{}')"
+          final_tag_sha="$(gh api "repos/$REPO/commits/v1.1.9" --jq .sha 2>/dev/null || true)"
+          release_id="$(jq -r '.id // ""' <<< "$release_json")"
+          release_url="$(jq -r '.html_url // ""' <<< "$release_json")"
+          published_at="$(jq -r '.published_at // ""' <<< "$release_json")"
+          draft="$(jq -r '.draft // true' <<< "$release_json")"
+          prerelease="$(jq -r '.prerelease // true' <<< "$release_json")"
+          asset_count="$(jq -r '(.assets // []) | length' <<< "$release_json")"
+          release_body="$(jq -r '.body // ""' <<< "$release_json")"
+
+          expected_installers=(
+            'AgentDock-Workbench-1.1.9-Setup-amd64.exe'
+            'AgentDock-Workbench-1.1.9-Setup-arm64.exe'
+            'AgentDock-Workbench-1.1.9-macos-universal.dmg'
+            'agentdock-workbench_1.1.9_amd64.deb'
+            'agentdock-workbench_1.1.9_arm64.deb'
+            'agentdock-workbench-1.1.9-1.x86_64.rpm'
+            'agentdock-workbench-1.1.9-1.aarch64.rpm'
+            'AgentDock-Workbench-1.1.9-Android.apk'
+          )
+          missing_assets=()
+          missing_links=()
+          for asset in "${expected_installers[@]}"; do
+            asset_url="$(jq -r --arg name "$asset" '(.assets // [])[] | select(.name == $name) | .browser_download_url' <<< "$release_json" | head -1)"
+            if [[ -z "$asset_url" ]]; then
+              missing_assets+=("$asset")
+            elif ! grep -Fq "$asset_url" <<< "$release_body"; then
+              missing_links+=("$asset")
+            fi
+          done
+
+          if [[ -z "$failure" && "$final_tag_sha" != "$source_sha" ]]; then
+            failure="v1.1.9 tag points to $final_tag_sha instead of $source_sha"
+          fi
+          if [[ -z "$failure" && ( -z "$release_id" || "$draft" != 'false' || "$prerelease" != 'false' ) ]]; then
+            failure='v1.1.9 is not a published stable release'
+          fi
+          if [[ -z "$failure" && "$asset_count" != '22' ]]; then
+            failure="release asset count is $asset_count, expected 22"
+          fi
+          if [[ -z "$failure" && ${#missing_assets[@]} -ne 0 ]]; then
+            failure="missing installer assets: ${missing_assets[*]}"
+          fi
+          if [[ -z "$failure" && ${#missing_links[@]} -ne 0 ]]; then
+            failure="release notes do not directly link installers: ${missing_links[*]}"
+          fi
+
+          result='SUCCESS'
+          [[ -n "$failure" ]] && result='FAILURE'
+          {
+            echo '## v1.1.9 verified stable replacement receipt'
+            echo
+            echo "- Result: **$result**"
+            echo "- Source main: \`$source_sha\`"
+            echo "- Version: \`$version\`"
+            if [[ -n "$candidate_id" ]]; then
+              echo "- Candidate: [$candidate_id]($candidate_url), conclusion \`$candidate_conclusion\`"
+            fi
+            if [[ -n "$publication_id" ]]; then
+              echo "- Publication: [$publication_id]($publication_url), conclusion \`$publication_conclusion\`"
+            fi
+            echo "- Final v1.1.9 tag: \`$final_tag_sha\`"
+            echo "- Release assets: \`$asset_count\`"
+            echo "- Published at: \`$published_at\`"
+            if [[ -n "$release_url" ]]; then echo "- Release: $release_url"; fi
+            if [[ -n "$failure" ]]; then echo "- Failure: \`$failure\`"; fi
+            echo
+            echo 'The one-shot operations branch is deleted after this receipt; no operations workflow is merged into main.'
+          } > "$RUNNER_TEMP/receipt.md"
+          gh pr comment 176 --repo "$REPO" --body-file "$RUNNER_TEMP/receipt.md" || true
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" --delete "$OPS_BRANCH" || true
+
+          [[ -z "$failure" ]]
