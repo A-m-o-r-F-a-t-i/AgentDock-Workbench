@@ -1,0 +1,39 @@
+name: One-shot candidate status
+
+on:
+  push:
+    branches:
+      - ops/republish-v1.1.9-verified-replacement-20261022
+    paths:
+      - .github/workflows/ops-candidate-status.yml
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      CANDIDATE_RUN: '39720989838'
+    steps:
+      - name: Report candidate job progress
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$(gh run view "$CANDIDATE_RUN" --repo "$REPO" --json status,conclusion,url,headSha,jobs)"
+          {
+            echo '## v1.1.9 verified candidate progress'
+            echo
+            jq -r '"- Run [39720989838](\(.url)): status `\(.status)`, conclusion `\(.conclusion // "")`, source `\(.headSha)`"' <<< "$run_json"
+            echo
+            echo '| Job | Status | Conclusion |'
+            echo '| --- | --- | --- |'
+            jq -r '.jobs[] | "| \(.name | gsub("\\|"; "\\|")) | `\(.status)` | `\(.conclusion // "")` |"' <<< "$run_json"
+          } > "$RUNNER_TEMP/status.md"
+          gh pr comment 176 --repo "$REPO" --body-file "$RUNNER_TEMP/status.md"
