@@ -13,8 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.agentdock.workbench.data.ManagementContract
+import dev.agentdock.workbench.model.WorkbenchItem
 import dev.agentdock.workbench.model.WorkbenchScreen
 import org.json.JSONObject
+
+internal fun visibleCheckedIds(
+    data: List<WorkbenchItem>,
+    checkedIds: Set<String>
+): Set<String> = checkedIds.intersect(data.mapTo(mutableSetOf()) { item -> item.id })
 
 @Composable
 fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewModel, modifier: Modifier) {
@@ -28,8 +34,9 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
     var tags by rememberSaveable(selectedId) { mutableStateOf("") }
     var confirmation by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
     val selected = data.firstOrNull { it.id == selectedId }
+    val checkedIds = visibleCheckedIds(data, state.checkedIds)
     val selectedDetail = state.detail?.optJSONObject(if (tasks) "task" else "conversation") ?: state.detail
-    val frozenIds = state.checkedIds.toList().ifEmpty { listOfNotNull(selected?.id) }
+    val frozenIds = checkedIds.toList().ifEmpty { listOfNotNull(selected?.id) }
     val labels = listOf("pin" to "置顶", "unpin" to "取消置顶", "archive" to "归档", "unarchive" to "取消归档",
         "trash" to "移入回收站", "restore" to "恢复", "delete" to "永久删除")
 
@@ -69,13 +76,13 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { model.checkPage(kind) }, enabled = data.isNotEmpty()) { Text("选择本页") }
-                Text("已选 ${state.checkedIds.size}", Modifier.padding(top = 12.dp))
+                Text("已选 ${checkedIds.size}", Modifier.padding(top = 12.dp))
             }
         }
         items(data, key = { it.id }) { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(8.dp)) {
-                    Checkbox(item.id in state.checkedIds, { model.toggleChecked(item.id) }, modifier = Modifier.testTag("check-${item.id}"))
+                    Checkbox(item.id in checkedIds, { model.toggleChecked(item.id) }, modifier = Modifier.testTag("check-${item.id}"))
                     Column(Modifier.weight(1f).clickable { if (tasks) model.selectTask(item) else model.selectConversation(item) }.padding(8.dp).testTag("item-${item.id}")) {
                         Text(item.title, style = MaterialTheme.typography.titleMedium)
                         Text(item.subtitle)
