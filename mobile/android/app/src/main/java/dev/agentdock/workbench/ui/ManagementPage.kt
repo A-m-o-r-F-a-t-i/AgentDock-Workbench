@@ -20,7 +20,7 @@ import org.json.JSONObject
 internal fun visibleCheckedIds(
     data: List<WorkbenchItem>,
     checkedIds: Set<String>
-): Set<String> = checkedIds.intersect(data.mapTo(mutableSetOf()) { item -> item.id })
+): Set<String> = checkedIds.intersect(data.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf(String::isNotBlank) })
 
 @Composable
 fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewModel, modifier: Modifier) {
@@ -33,7 +33,7 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
     var name by rememberSaveable(selectedId) { mutableStateOf("") }
     var tags by rememberSaveable(selectedId) { mutableStateOf("") }
     var confirmation by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
-    val selected = data.firstOrNull { it.id == selectedId }
+    val selected = data.firstOrNull { it.id.isNotBlank() && it.id == selectedId }
     val checkedIds = visibleCheckedIds(data, state.checkedIds)
     val selectedDetail = state.detail?.optJSONObject(if (tasks) "task" else "conversation") ?: state.detail
     val frozenIds = checkedIds.toList().ifEmpty { listOfNotNull(selected?.id) }
@@ -75,15 +75,17 @@ fun ManagementPage(kind: String, state: WorkbenchUiState, model: WorkbenchViewMo
         if (data.isEmpty()) item { Text(if (state.loading) "正在读取 Core…" else "当前筛选下没有记录", Modifier.testTag("$kind-empty")) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { model.checkPage(kind) }, enabled = data.isNotEmpty()) { Text("选择本页") }
+                TextButton(onClick = { model.checkPage(kind) }, enabled = data.any { it.id.isNotBlank() }) { Text("选择本页") }
                 Text("已选 ${checkedIds.size}", Modifier.padding(top = 12.dp))
             }
         }
         items(data, key = { it.id }) { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(8.dp)) {
-                    Checkbox(item.id in checkedIds, { model.toggleChecked(item.id) }, modifier = Modifier.testTag("check-${item.id}"))
-                    Column(Modifier.weight(1f).clickable { if (tasks) model.selectTask(item) else model.selectConversation(item) }.padding(8.dp).testTag("item-${item.id}")) {
+                    if (item.id.isNotBlank()) {
+                        Checkbox(item.id in checkedIds, { model.toggleChecked(item.id) }, modifier = Modifier.testTag("check-${item.id}"))
+                    }
+                    Column(Modifier.weight(1f).clickable(enabled = item.id.isNotBlank()) { if (tasks) model.selectTask(item) else model.selectConversation(item) }.padding(8.dp).testTag("item-${item.id}")) {
                         Text(item.title, style = MaterialTheme.typography.titleMedium)
                         Text(item.subtitle)
                         Text(listOf(item.status, item.metadata).filter { it.isNotBlank() }.joinToString(" · "))
