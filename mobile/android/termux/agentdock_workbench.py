@@ -17,6 +17,7 @@ import secrets
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tarfile
@@ -255,7 +256,32 @@ def safe_extract(archive: Path, destination: Path) -> None:
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
         fsync_directory(destination)
 
-def tree_size(root: Path) -> int:
+def proot_hardlink_target(path: Path, link_store: Path | None) -> Path | None:
+    """Recognize PRoot's regular-file hardlink backing store, not arbitrary links."""
+    if link_store is None or not path.is_symlink():
+        return None
+    target = Path(os.readlink(path))
+    if not target.is_absolute():
+        return None
+    check(link_store.is_dir() and not link_store.is_symlink(), "unsafe_path", "PRoot 硬链接存储目录无效")
+    store = link_store.resolve(strict=True)
+    seen = set()
+    for _ in range(40):
+        check(target.name.startswith(".l2s.") and target.parent.resolve(strict=True) == store,
+              "unsafe_path", "备份链接不属于当前 PRoot 硬链接存储")
+        check(target not in seen, "unsafe_path", "PRoot 硬链接存储包含循环链接")
+        seen.add(target)
+        info = target.lstat()
+        check(info.st_uid == os.getuid(), "unsafe_path", "PRoot 硬链接目标所有者无效")
+        if stat.S_ISREG(info.st_mode):
+            return target
+        check(stat.S_ISLNK(info.st_mode), "unsafe_path", "PRoot 硬链接目标必须是普通文件")
+        link = Path(os.readlink(target))
+        target = link if link.is_absolute() else target.parent / link
+    raise BridgeError("unsafe_path", "PRoot 硬链接层数超过上限")
+
+
+def tree_size(root: Path, *, proot_l2s: Path | None = None) -> int:
     """Bounded non-following inventory; backup links must remain inside data."""
     total = count = 0
     if not root.exists():
@@ -266,13 +292,17 @@ def tree_size(root: Path) -> int:
             count += 1
             check(count <= MAX_ENTRIES, "size_limit", "备份文件数量超过上限")
             if path.is_symlink():
-                check(not os.path.isabs(os.readlink(path)), "unsafe_path", "备份拒绝绝对符号链接")
-                inside(path, root)
+                backing = proot_hardlink_target(path, proot_l2s)
+                if backing is not None:
+                    total += backing.stat().st_size
+                else:
+                    check(not os.path.isabs(os.readlink(path)), "unsafe_path", "备份拒绝绝对符号链接")
+                    inside(path, root)
             elif path.is_file():
                 total += path.stat().st_size
-                check(total <= MAX_BACKUP, "size_limit", "数据备份超过 1 GiB；需要先导出或清理")
             else:
                 check(path.is_dir(), "unsafe_path", "备份包含特殊文件")
+            check(total <= MAX_BACKUP, "size_limit", "数据备份超过 1 GiB；需要先导出或清理")
     return total
 
 def tree_digest(root: Path) -> str:
@@ -345,13 +375,13 @@ def verify_snapshot(path: Path) -> None:
     check(record.get("schema_version") == 1 and record.get("digest") == tree_digest(path / "data"),
           "backup_corrupt", "一致性备份校验失败；未回写或自动降级")
 
-def snapshot_tree(source: Path, target: Path) -> None:
+def snapshot_tree(source: Path, target: Path, *, proot_l2s: Path | None = None) -> None:
     marker = target / ".snapshot-complete.json"
     if marker.is_file():
         verify_snapshot(target)
         return
     check(not target.is_symlink(), "unsafe_path", "备份目录无效")
-    size = tree_size(source)
+    size = tree_size(source, proot_l2s=proot_l2s)
     check(shutil.disk_usage(source.parent).free >= size + 64 * 1024 * 1024, "disk_full", "一致性备份空间不足")
     temporary = target.with_name(target.name + ".partial")
     if temporary.exists():
@@ -365,6 +395,18 @@ def snapshot_tree(source: Path, target: Path) -> None:
     for directory, _, files in os.walk(temporary / "data", followlinks=False):
         for name in files:
             path = Path(directory) / name
+            backing = proot_hardlink_target(path, proot_l2s)
+            if backing is not None:
+                # Snapshot bytes must survive replacement/removal of the PRoot store.
+                fd = os.open(backing, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, "rb") as stream:
+                    info = os.fstat(stream.fileno())
+                    check(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_size <= MAX_BACKUP,
+                          "unsafe_path", "PRoot 硬链接目标在备份期间发生变化")
+                    path.unlink()
+                    with path.open("xb") as output:
+                        os.fchmod(output.fileno(), stat.S_IMODE(info.st_mode) & 0o777)
+                        shutil.copyfileobj(stream, output, 65536)
             if not path.is_symlink():
                 with path.open("rb") as stream:
                     os.fsync(stream.fileno())
@@ -923,6 +965,10 @@ class Deployment:
         binary = self.root / "versions" / source / "bin/agentdock"
         return proof.get("version_directory") == source and binary.is_file() and proof.get("binary_sha256") == sha256(binary)
 
+    def proot_link_store(self) -> Path:
+        prefix = Path(os.environ.get("PREFIX", str(self.home.parent / "usr")))
+        return prefix / "var/lib/proot-distro/containers" / self.config["distro"] / "rootfs/.l2s"
+
     def backup_path(self, identity: str) -> Path:
         check(isinstance(identity, str) and IDENTIFIER.fullmatch(identity) is not None, "unsafe_state", "备份标识无效")
         path = self.root / "backups" / identity
@@ -1014,12 +1060,14 @@ class Deployment:
                         self.backend.start(journal["target_version"])
                         check(self.backend.health(journal["target_version"]), "health_failed", "当前制品启动验证失败")
                     return self.finish(journal, "succeeded", "已安装相同制品，保留现有回退版本与数据备份")
+                # Reject unsupported backup inputs while the current Core is still running.
+                tree_size(self.root / "data", proot_l2s=self.proot_link_store())
                 self.save(journal, "stop", source_was_healthy=self.source_healthy(journal))
             if journal["phase"] == "stop":
                 self.backend.stop()
                 self.save(journal, "backup")
             if journal["phase"] == "backup":
-                snapshot_tree(self.root / "data", self.backup_path(journal["backup"]))
+                snapshot_tree(self.root / "data", self.backup_path(journal["backup"]), proot_l2s=self.proot_link_store())
                 self.save(journal, "switch")
             if journal["phase"] == "switch":
                 if operation == "rollback":
