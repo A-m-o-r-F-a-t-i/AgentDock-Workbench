@@ -23,6 +23,12 @@ class WorkbenchSelectionPolicyTest {
         )
     }
 
+    @Test fun unattributedSummaryCannotEnterBatchSelection() {
+        val data = visibleConversations + WorkbenchItem("", "独立调用")
+        assertEquals(setOf("conv_visible"), visibleCheckedIds(data, setOf("", "conv_visible")))
+        assertTrue(visibleCheckedIds(data, setOf("")).isEmpty())
+    }
+
     @Test fun emptyPageClearsBatchSelection() {
         assertTrue(visibleCheckedIds(emptyList(), setOf("tsk_deleted")).isEmpty())
     }

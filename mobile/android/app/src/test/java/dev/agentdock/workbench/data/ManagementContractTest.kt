@@ -34,6 +34,28 @@ class ManagementContractTest {
         assertThrows(IllegalStateException::class.java) { ManagementContract.parsePage(JSONObject(), "tasks") }
     }
 
+    @Test fun unattributedSummaryKeepsItsEmptyIdentityBesideRealConversations() {
+        val value = JSONObject("""{"conversations":[{"conversation_id":"","title":"独立调用","is_unattributed":true},{"conversation_id":"conv_one","title":"One"}],"total":2,"next_offset":2,"has_more":false}""")
+        val page = ManagementContract.parsePage(value, "conversations")
+        assertEquals(listOf("", "conv_one"), page.items.map { it.id })
+        assertEquals(2, page.total)
+        assertEquals(2, page.nextOffset)
+        assertTrue(page.items.first().raw!!.getBoolean("is_unattributed"))
+        assertThrows(IllegalArgumentException::class.java) { ManagementContract.batchBody(listOf(""), "pin") }
+    }
+
+    @Test fun emptyIdentitiesRemainInvalidOutsideTheUnattributedSummary() {
+        for (value in listOf(
+            """{"conversations":[{"conversation_id":""}]}""",
+            """{"conversations":[{"conversation_id":"conv_one","is_unattributed":true}]}"""
+        )) {
+            assertThrows(IllegalArgumentException::class.java) { ManagementContract.parsePage(JSONObject(value), "conversations") }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ManagementContract.parsePage(JSONObject("""{"tasks":[{"id":"","is_unattributed":true}]}"""), "tasks")
+        }
+    }
+
     @Test fun preservesUnknownTotalsAndChecksContinuation() {
         val value = JSONObject("""{"tasks":[{"id":"tsk_1","title":"One","step_count":3,"completed_steps":1}],"has_more":true,"next_offset":100}""")
         val page = ManagementContract.parsePage(value, "tasks")
