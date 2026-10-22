@@ -90,7 +90,9 @@ object ManagementContract {
         val items = (0 until array.length()).map { index ->
             val row = array.getJSONObject(index)
             val identity = text(row, key).ifBlank { text(row, "id") }
-            id(identity)
+            val unattributed = kind == "conversations" && row.optBoolean("is_unattributed")
+            if (unattributed) require(identity.isEmpty()) { "独立调用汇总包含无效对话标识" }
+            else id(identity)
             WorkbenchItem(
                 identity, text(row, "title").ifBlank { identity },
                 text(row, "summary"), text(row, "status"),
