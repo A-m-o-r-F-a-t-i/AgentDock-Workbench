@@ -22,7 +22,10 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 	if requestedMaxBytes > hardViewImageBytes {
 		requestedMaxBytes = hardViewImageBytes
 	}
-	effectiveMaxBytes := min(requestedMaxBytes, modelVisibleViewImageBytes)
+	// Processing follows the caller's image limit. The MCP response layer owns
+	// its separate native-attachment budget and can keep the resource link while
+	// omitting oversized inline bytes.
+	effectiveMaxBytes := requestedMaxBytes
 	maxWidth := intValue(request.MaxWidth, 1280)
 	maxHeight := intValue(request.MaxHeight, 1280)
 	format := request.Format
@@ -42,33 +45,36 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 	} else {
 		original = map[string]any{"size_bytes": len(loaded.Data), "width": info.Width, "height": info.Height, "mime_type": info.MIME}
 	}
-	if requestedMaxBytes > effectiveMaxBytes {
-		warnings = append(warnings, "effective max_bytes lowered to the native attachment budget")
-	}
 	if !ok || len(prepared) > effectiveMaxBytes || preparedInfo.Width > maxWidth || preparedInfo.Height > maxHeight {
 		return nil, toolErrorDetails("IMAGE_TOO_LARGE", "image exceeds the effective processing limits", "validation", imageLimitDetails(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight, len(prepared), preparedInfo, autoResize, warnings))
 	}
 	resized := preparedInfo.Width != info.Width || preparedInfo.Height != info.Height || len(prepared) != len(loaded.Data)
 
+	image := imageMetadata(loaded.Name, preparedInfo, len(prepared))
+	published, publishErr := s.publishImageArtifact(ctx, prepared, loaded.Name, preparedInfo, 0)
+	if publishErr == nil {
+		image = artifactResult(published)
+		image["link_available"] = published.URL != ""
+	} else {
+		image["link_available"] = false
+		warnings = append(warnings, "processed image link could not be published; native MCP image delivery remains available")
+	}
 	result := Result{
 		"source":              loaded.Source,
-		"image":               imageMetadata(loaded.Name, preparedInfo, len(prepared)),
+		"image":               image,
 		"original":            original,
 		"resized":             resized,
 		"warnings":            warnings,
 		"requested_max_bytes": requestedMaxBytes,
 		"effective_max_bytes": effectiveMaxBytes,
 	}
-	attachMCPImage(result, prepared, preparedInfo.MIME)
+	attachMCPImage(result, prepared, published, preparedInfo.MIME)
 	return result, nil
 }
 
 func imageLimitKind(requestedMaxBytes, effectiveMaxBytes, maxWidth, maxHeight int, info imageInfo) string {
 	if info.Width > maxWidth || info.Height > maxHeight {
 		return "max_dimensions"
-	}
-	if effectiveMaxBytes < requestedMaxBytes {
-		return "native_attachment_budget"
 	}
 	return "requested_max_bytes"
 }

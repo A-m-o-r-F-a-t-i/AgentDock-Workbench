@@ -2,26 +2,37 @@ package media
 
 import (
 	"context"
-	"encoding/base64"
 	"path/filepath"
 	"strings"
 
 	"github.com/uvwt/agentdock/internal/httpx/requestmeta"
 	"github.com/uvwt/agentdock/internal/publicartifacts"
-	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 const (
 	defaultViewImageBytes = 750000
 	hardViewImageBytes    = 2 * 1024 * 1024
-	// Native image bytes use the shared attachment budget and do not consume the
-	// model-facing text or structured JSON character budget.
-	modelVisibleViewImageBytes = toolcontract.ModelVisibleNativeAttachmentBytes
+
+	// NativeImageAttachmentKey carries the in-memory MCP attachment between the
+	// media tool and the MCP transport adapter. Data is intentionally omitted
+	// from JSON so the activity journal stores only the artifact reference.
+	NativeImageAttachmentKey = "_mcp_image_attachment"
 )
 
-func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {
+// NativeImageAttachment keeps image bytes out of the generic Result map's JSON
+// representation while preserving standard MCP image delivery at the transport
+// boundary. URI is the signed artifact link returned alongside the attachment.
+type NativeImageAttachment struct {
+	Data     []byte `json:"-"`
+	URI      string `json:"uri,omitempty"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Size     int    `json:"size_bytes"`
+}
+
+func (s *Service) publishImageArtifact(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (publicartifacts.PublishResult, error) {
 	store := publicartifacts.New(s.cfg.AgentDockHome, s.cfg.OAuthServerURL, s.cfg.Port)
-	published, err := store.PublishBytes(publicartifacts.PublishBytesRequest{
+	return store.PublishBytes(publicartifacts.PublishBytesRequest{
 		Filename:         imageFilename(filename, info.MIME),
 		Data:             data,
 		MimeType:         info.MIME,
@@ -30,6 +41,10 @@ func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename s
 		RetentionSeconds: retentionSeconds,
 		BaseURL:          requestmeta.BaseURL(ctx),
 	})
+}
+
+func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {
+	published, err := s.publishImageArtifact(ctx, data, filename, info, retentionSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -68,9 +83,18 @@ func imageMetadata(filename string, info imageInfo, size int) map[string]any {
 	}
 }
 
-func attachMCPImage(result Result, data []byte, mimeType string) {
-	result["_mcp_image_base64"] = base64.StdEncoding.EncodeToString(data)
-	result["_mcp_image_mime_type"] = mimeType
+func attachMCPImage(result Result, data []byte, published publicartifacts.PublishResult, mimeType string) {
+	name := published.Filename
+	if name == "" {
+		name = imageFilename("image", mimeType)
+	}
+	result[NativeImageAttachmentKey] = NativeImageAttachment{
+		Data:     append([]byte(nil), data...),
+		URI:      published.URL,
+		Name:     name,
+		MIMEType: mimeType,
+		Size:     len(data),
+	}
 }
 
 func imageFilename(pathValue, mimeType string) string {

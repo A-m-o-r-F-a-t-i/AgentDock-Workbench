@@ -2,7 +2,7 @@ package media
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"image"
 	"image/color"
@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/config"
@@ -92,10 +93,10 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := assertMCPImagePayload(t, result, "image/jpeg")
-	if len(data) > modelVisibleViewImageBytes || len(data) <= 4096 {
-		t.Fatalf("processed bytes=%d, budget=%d", len(data), modelVisibleViewImageBytes)
+	if len(data) > maxBytes || len(data) <= 4096 {
+		t.Fatalf("processed bytes=%d, budget=%d", len(data), maxBytes)
 	}
-	if result["requested_max_bytes"] != maxBytes || result["effective_max_bytes"] != modelVisibleViewImageBytes {
+	if result["requested_max_bytes"] != maxBytes || result["effective_max_bytes"] != maxBytes {
 		t.Fatalf("budget diagnostics = %#v", result)
 	}
 	metadata, ok := result["image"].(map[string]any)
@@ -149,18 +150,25 @@ func TestViewImageImpossibleBudgetStopsAtOnePixel(t *testing.T) {
 
 func assertMCPImagePayload(t *testing.T, result Result, mimeType string) []byte {
 	t.Helper()
-	encoded, ok := result["_mcp_image_base64"].(string)
-	if !ok || encoded == "" {
-		t.Fatalf("MCP image Base64 missing: %#v", result)
+	attachment, ok := result[NativeImageAttachmentKey].(NativeImageAttachment)
+	if !ok || len(attachment.Data) == 0 {
+		t.Fatalf("native MCP image attachment missing: %#v", result)
 	}
-	if result["_mcp_image_mime_type"] != mimeType {
-		t.Fatalf("MCP image mime type = %#v", result["_mcp_image_mime_type"])
+	if attachment.MIMEType != mimeType || attachment.Size != len(attachment.Data) {
+		t.Fatalf("native MCP image attachment = %#v", attachment)
 	}
-	data, err := base64.StdEncoding.DecodeString(encoded)
+	metadata, ok := result["image"].(map[string]any)
+	if !ok || metadata["artifact_id"] == "" || metadata["size_bytes"] != int64(len(attachment.Data)) {
+		t.Fatalf("published image metadata = %#v", result["image"])
+	}
+	encoded, err := json.Marshal(result)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return data
+	if strings.Contains(string(encoded), "_mcp_image_base64") || strings.Contains(string(encoded), "\"data\"") {
+		t.Fatalf("activity-safe result serialized native bytes: %s", encoded)
+	}
+	return attachment.Data
 }
 
 func writeTinyPNG(t *testing.T, path string) {
