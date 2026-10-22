@@ -8,20 +8,21 @@ import (
 
 	"github.com/uvwt/agentdock/internal/httpx/requestmeta"
 	"github.com/uvwt/agentdock/internal/publicartifacts"
-	toolcontract "github.com/uvwt/agentdock/internal/tool/contract"
 )
 
 const (
 	defaultViewImageBytes = 750000
 	hardViewImageBytes    = 2 * 1024 * 1024
-	// Native image bytes use the shared attachment budget and do not consume the
-	// model-facing text or structured JSON character budget.
-	modelVisibleViewImageBytes = toolcontract.ModelVisibleNativeAttachmentBytes
+
+	// NativeImageBase64Key and NativeImageMIMETypeKey are transport-only fields.
+	// The app activity boundary removes them before retaining a response.
+	NativeImageBase64Key   = "_mcp_image_base64"
+	NativeImageMIMETypeKey = "_mcp_image_mime_type"
 )
 
-func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {
+func (s *Service) publishImageArtifact(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (publicartifacts.PublishResult, error) {
 	store := publicartifacts.New(s.cfg.AgentDockHome, s.cfg.OAuthServerURL, s.cfg.Port)
-	published, err := store.PublishBytes(publicartifacts.PublishBytesRequest{
+	return store.PublishBytes(publicartifacts.PublishBytesRequest{
 		Filename:         imageFilename(filename, info.MIME),
 		Data:             data,
 		MimeType:         info.MIME,
@@ -30,6 +31,10 @@ func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename s
 		RetentionSeconds: retentionSeconds,
 		BaseURL:          requestmeta.BaseURL(ctx),
 	})
+}
+
+func (s *Service) publishImageBytes(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (map[string]any, error) {
+	published, err := s.publishImageArtifact(ctx, data, filename, info, retentionSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +74,8 @@ func imageMetadata(filename string, info imageInfo, size int) map[string]any {
 }
 
 func attachMCPImage(result Result, data []byte, mimeType string) {
-	result["_mcp_image_base64"] = base64.StdEncoding.EncodeToString(data)
-	result["_mcp_image_mime_type"] = mimeType
+	result[NativeImageBase64Key] = base64.StdEncoding.EncodeToString(data)
+	result[NativeImageMIMETypeKey] = mimeType
 }
 
 func imageFilename(pathValue, mimeType string) string {

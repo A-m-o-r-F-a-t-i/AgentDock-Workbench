@@ -51,7 +51,12 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 				return nil, toolError("OUTPUT_CONVERSATION_MISMATCH", "Resume the owning task before reading output from another conversation.", "permission")
 			}
 		}
-		if call.WorkspaceID != "" && bound.WorkspaceID != call.WorkspaceID && !r.ownsSelectedContextSource(request.Path, bound) {
+		original := activity.Binding{
+			SourceOwnerKey: call.SourceOwnerKey, ConversationID: call.ConversationID,
+			TaskID: call.TaskID, ThreadID: call.ThreadID, WorkspaceID: call.WorkspaceID,
+		}
+		if call.WorkspaceID != "" && bound.WorkspaceID != call.WorkspaceID &&
+			!retainedOutputScopeAllowsWorkspaceChange(original, bound) && !r.ownsSelectedContextSource(request.Path, bound) {
 			return nil, r.retainedWorkspaceMismatch(ctx, call.WorkspaceID, bound.WorkspaceID, true)
 		}
 	}
@@ -109,8 +114,19 @@ func (r *Runtime) readFileWithOutputSource(ctx context.Context, request toolfile
 	return result, nil
 }
 
+// retainedOutputScopeAllowsWorkspaceChange permits immutable output recovery
+// after the authenticated conversation or task selects another workspace. The
+// owner and conversation/task gates are evaluated before this helper is used.
+func retainedOutputScopeAllowsWorkspaceChange(original, current activity.Binding) bool {
+	if original.ConversationID != "" && current.ConversationID == original.ConversationID {
+		return true
+	}
+	return original.TaskID != "" && current.TaskID == original.TaskID
+}
+
 // retainedWorkspaceMismatch is reached only after owner and conversation checks.
-// Do not weaken workspace isolation or switch the caller's binding implicitly.
+// Unattributed output remains workspace-bound; attributed output is already
+// protected by its authenticated conversation or task scope.
 // The source directory is disclosed only for an authenticated owning source.
 func (r *Runtime) retainedWorkspaceMismatch(ctx context.Context, sourceID, currentID string, disclose bool) error {
 	details := map[string]any{

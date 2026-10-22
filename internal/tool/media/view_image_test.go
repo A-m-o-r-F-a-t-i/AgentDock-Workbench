@@ -92,14 +92,14 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := assertMCPImagePayload(t, result, "image/jpeg")
-	if len(data) > modelVisibleViewImageBytes || len(data) <= 4096 {
-		t.Fatalf("processed bytes=%d, budget=%d", len(data), modelVisibleViewImageBytes)
+	if len(data) > maxBytes || len(data) <= 4096 {
+		t.Fatalf("processed bytes=%d, budget=%d", len(data), maxBytes)
 	}
-	if result["requested_max_bytes"] != maxBytes || result["effective_max_bytes"] != modelVisibleViewImageBytes {
+	if result["requested_max_bytes"] != maxBytes || result["effective_max_bytes"] != maxBytes {
 		t.Fatalf("budget diagnostics = %#v", result)
 	}
 	metadata, ok := result["image"].(map[string]any)
-	if !ok || metadata["size_bytes"] != len(data) {
+	if !ok || metadata["artifact_id"] == "" || metadata["size_bytes"] != int64(len(data)) {
 		t.Fatalf("image metadata = %#v", result["image"])
 	}
 	width, _ := metadata["width"].(int)
@@ -149,12 +149,12 @@ func TestViewImageImpossibleBudgetStopsAtOnePixel(t *testing.T) {
 
 func assertMCPImagePayload(t *testing.T, result Result, mimeType string) []byte {
 	t.Helper()
-	encoded, ok := result["_mcp_image_base64"].(string)
+	encoded, ok := result[NativeImageBase64Key].(string)
 	if !ok || encoded == "" {
 		t.Fatalf("MCP image Base64 missing: %#v", result)
 	}
-	if result["_mcp_image_mime_type"] != mimeType {
-		t.Fatalf("MCP image mime type = %#v", result["_mcp_image_mime_type"])
+	if result[NativeImageMIMETypeKey] != mimeType {
+		t.Fatalf("MCP image mime type = %#v", result[NativeImageMIMETypeKey])
 	}
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
