@@ -93,7 +93,11 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	if p.outputPolicy.Enabled && p.outputPolicy.MaxChars > 0 {
 		smallCompleteLimit = min(smallCompleteLimit, p.outputPolicy.MaxChars)
 	}
-	if chars, err := toolcontract.JSONChars(result); err == nil && chars <= smallCompleteLimit && p.spec.Name != "apply_patch" && !(p.spec.Name == "session_observe" && result["changed"] == false) && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
+	retainedResult, ok := activitySafeOutput(p.spec.Name, result).(Result)
+	if !ok {
+		retainedResult = result
+	}
+	if chars, err := toolcontract.JSONChars(retainedResult); err == nil && chars <= smallCompleteLimit && p.spec.Name != "apply_patch" && !(p.spec.Name == "session_observe" && result["changed"] == false) && toolcontract.ResolveOutputClass(p.spec.Name, p.args, result) != toolcontract.OutputRequiredFull {
 		// A complete small result is retained by the existing final response
 		// journal. Avoid another fsync and duplicate payload for every small call.
 		capture["retained_with"] = "response"
@@ -102,7 +106,7 @@ func (r *Runtime) prepareModelOutput(p *preparedExecution, result Result) Result
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	payload := r.activity.CapturePayload(ctx, result, state, r.executionRedactor(p.args))
+	payload := r.activity.CapturePayload(ctx, retainedResult, state, r.executionRedactor(p.args))
 	if payload.Ref != "" {
 		if _, err := r.activity.Append(ctx, activity.Event{Binding: p.state.binding, Kind: "call.payload", ToolName: p.spec.Name, OutputSource: payload}); err == nil {
 			capture["source_ref"] = activity.SourceReference(p.state.binding.CallID, payload)
@@ -212,7 +216,8 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 	if result["unchanged"] == true || result["context_delivery"] == "reference" || result["schema_omitted"] == true {
 		mode = "reference"
 	}
-	chars, _ := toolcontract.JSONChars(result)
+	measurement := activitySafeOutput(p.spec.Name, result)
+	chars, _ := toolcontract.JSONChars(measurement)
 	projection := maps.Clone(modelObject(result["projection"]))
 	if projection == nil {
 		projection = map[string]any{}
@@ -267,6 +272,8 @@ func (r *Runtime) finishModelOutput(p *preparedExecution, result Result) Result 
 				action["action"], action["tool"], action["arguments"] = "read_context_details", continuation["tool"], continuation["arguments"]
 			}
 			result["required_action"] = action
+		} else if p.spec.Name == "agentdock_context" && (result["unchanged"] == true || contextReferenceResult(result) || result["context_ready"] == true) {
+			result["required_action"] = contextReuseAction()
 		}
 	}
 	if p.spec.Name == "session_observe" && (result["changed"] == false || result["already_delivered"] == true) {
@@ -313,6 +320,7 @@ func (r *Runtime) RetainResponseSource(response *ToolResponse, value any) (strin
 		// an unavailable complete response.
 		return "", nil
 	}
+	value = activitySafeOutput(name, value)
 	payload := r.activity.CapturePayload(ctx, value, "complete", redactor)
 	if payload.Ref == "" {
 		return "", nil
