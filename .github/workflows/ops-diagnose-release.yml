@@ -1,0 +1,52 @@
+name: One-shot release failure diagnostics
+
+on:
+  push:
+    branches:
+      - ops/diagnose-release-39717606989
+    paths:
+      - .github/workflows/ops-diagnose-release.yml
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      FAILED_RUN: '39717606989'
+      OPS_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Extract bounded failure diagnostics
+        shell: bash
+        run: |
+          set -uo pipefail
+          run_json="$(gh run view "$FAILED_RUN" --repo "$REPO" --json status,conclusion,url,headSha,createdAt,updatedAt,jobs)"
+          failed_jobs="$(jq -c '[.jobs[] | select(.conclusion == "failure") | {name, databaseId, startedAt, completedAt, url}]' <<< "$run_json")"
+          gh run view "$FAILED_RUN" --repo "$REPO" --log-failed > "$RUNNER_TEMP/failed.log" 2>&1 || true
+          sed -E \
+            -e 's/(GH_TOKEN|GITHUB_TOKEN|TOKEN|PASSWORD|SECRET)=([^[:space:]]+)/\1=[REDACTED]/Ig' \
+            -e 's/(Authorization:[[:space:]]*(Bearer|token))[[:space:]]+[^[:space:]]+/\1 [REDACTED]/Ig' \
+            "$RUNNER_TEMP/failed.log" | tail -n 500 > "$RUNNER_TEMP/failed-redacted.log"
+          {
+            echo '## v1.1.9 failed publish diagnostics'
+            echo
+            jq -r '"- Run [39717606989](\(.url)): status `\(.status)`, conclusion `\(.conclusion)`, source `\(.headSha)`"' <<< "$run_json"
+            echo '- Failed jobs:'
+            jq -r '.[] | "  - [\(.name)](\(.url // "")) (`\(.databaseId)`)"' <<< "$failed_jobs"
+            echo
+            echo '<details><summary>Bounded failed log tail</summary>'
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/failed-redacted.log"
+            echo '```'
+            echo '</details>'
+          } > "$RUNNER_TEMP/diagnostics.md"
+          gh pr comment 176 --repo "$REPO" --body-file "$RUNNER_TEMP/diagnostics.md"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" --delete "$OPS_BRANCH" || true
