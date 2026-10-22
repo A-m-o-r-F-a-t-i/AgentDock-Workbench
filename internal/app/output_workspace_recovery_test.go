@@ -67,3 +67,16 @@ func TestRetainedWorkspaceRecoveryDoesNotLeakForeignSource(t *testing.T) {
 		t.Fatalf("unattributed output disclosed a workspace: %#v", err)
 	}
 }
+
+func TestRetainedOutputScopeAllowsAuthenticatedWorkspaceChange(t *testing.T) {
+	original := activity.Binding{ConversationID: "conv_0000000000000001", TaskID: "tsk_000000000000000000000001", WorkspaceID: "wsp_0000000000000001"}
+	current := activity.Binding{ConversationID: original.ConversationID, TaskID: original.TaskID, WorkspaceID: "wsp_0000000000000002"}
+	if !retainedOutputScopeAllowsWorkspaceChange(original, current) {
+		t.Fatal("same conversation and task should retain access to immutable output")
+	}
+	current.ConversationID = "conv_0000000000000002"
+	current.TaskID = "tsk_000000000000000000000002"
+	if retainedOutputScopeAllowsWorkspaceChange(original, current) {
+		t.Fatal("unrelated conversation and task unexpectedly inherited workspace-independent access")
+	}
+}
