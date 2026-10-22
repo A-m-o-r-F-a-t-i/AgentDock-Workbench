@@ -22,9 +22,9 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 	if requestedMaxBytes > hardViewImageBytes {
 		requestedMaxBytes = hardViewImageBytes
 	}
-	// Processing follows the caller's image limit. The MCP response layer owns
-	// its separate native-attachment budget and can keep the resource link while
-	// omitting oversized inline bytes.
+	// Image processing follows the caller's limit. The response adapter owns
+	// the separate native-attachment budget and can fall back to the artifact
+	// link without forcing every image down to that transport threshold.
 	effectiveMaxBytes := requestedMaxBytes
 	maxWidth := intValue(request.MaxWidth, 1280)
 	maxHeight := intValue(request.MaxHeight, 1280)
@@ -68,7 +68,7 @@ func (s *Service) ViewImage(ctx context.Context, request ViewImageRequest) (Resu
 		"requested_max_bytes": requestedMaxBytes,
 		"effective_max_bytes": effectiveMaxBytes,
 	}
-	attachMCPImage(result, prepared, published, preparedInfo.MIME)
+	attachMCPImage(result, prepared, preparedInfo.MIME)
 	return result, nil
 }
 

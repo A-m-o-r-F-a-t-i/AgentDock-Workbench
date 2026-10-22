@@ -2,7 +2,7 @@ package media
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"image"
 	"image/color"
@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/uvwt/agentdock/internal/config"
@@ -100,7 +99,7 @@ func TestViewImageAutoResizeConvergesOnEffectiveBudget(t *testing.T) {
 		t.Fatalf("budget diagnostics = %#v", result)
 	}
 	metadata, ok := result["image"].(map[string]any)
-	if !ok || metadata["size_bytes"] != len(data) {
+	if !ok || metadata["artifact_id"] == "" || metadata["size_bytes"] != int64(len(data)) {
 		t.Fatalf("image metadata = %#v", result["image"])
 	}
 	width, _ := metadata["width"].(int)
@@ -150,25 +149,18 @@ func TestViewImageImpossibleBudgetStopsAtOnePixel(t *testing.T) {
 
 func assertMCPImagePayload(t *testing.T, result Result, mimeType string) []byte {
 	t.Helper()
-	attachment, ok := result[NativeImageAttachmentKey].(NativeImageAttachment)
-	if !ok || len(attachment.Data) == 0 {
-		t.Fatalf("native MCP image attachment missing: %#v", result)
+	encoded, ok := result[NativeImageBase64Key].(string)
+	if !ok || encoded == "" {
+		t.Fatalf("MCP image Base64 missing: %#v", result)
 	}
-	if attachment.MIMEType != mimeType || attachment.Size != len(attachment.Data) {
-		t.Fatalf("native MCP image attachment = %#v", attachment)
+	if result[NativeImageMIMETypeKey] != mimeType {
+		t.Fatalf("MCP image mime type = %#v", result[NativeImageMIMETypeKey])
 	}
-	metadata, ok := result["image"].(map[string]any)
-	if !ok || metadata["artifact_id"] == "" || metadata["size_bytes"] != int64(len(attachment.Data)) {
-		t.Fatalf("published image metadata = %#v", result["image"])
-	}
-	encoded, err := json.Marshal(result)
+	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(encoded), "_mcp_image_base64") || strings.Contains(string(encoded), "\"data\"") {
-		t.Fatalf("activity-safe result serialized native bytes: %s", encoded)
-	}
-	return attachment.Data
+	return data
 }
 
 func writeTinyPNG(t *testing.T, path string) {

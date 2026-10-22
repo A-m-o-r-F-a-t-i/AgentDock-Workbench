@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"encoding/base64"
 	"path/filepath"
 	"strings"
 
@@ -13,22 +14,11 @@ const (
 	defaultViewImageBytes = 750000
 	hardViewImageBytes    = 2 * 1024 * 1024
 
-	// NativeImageAttachmentKey carries the in-memory MCP attachment between the
-	// media tool and the MCP transport adapter. Data is intentionally omitted
-	// from JSON so the activity journal stores only the artifact reference.
-	NativeImageAttachmentKey = "_mcp_image_attachment"
+	// NativeImageBase64Key and NativeImageMIMETypeKey are transport-only fields.
+	// The app activity boundary removes them before retaining a response.
+	NativeImageBase64Key   = "_mcp_image_base64"
+	NativeImageMIMETypeKey = "_mcp_image_mime_type"
 )
-
-// NativeImageAttachment keeps image bytes out of the generic Result map's JSON
-// representation while preserving standard MCP image delivery at the transport
-// boundary. URI is the signed artifact link returned alongside the attachment.
-type NativeImageAttachment struct {
-	Data     []byte `json:"-"`
-	URI      string `json:"uri,omitempty"`
-	Name     string `json:"name"`
-	MIMEType string `json:"mime_type"`
-	Size     int    `json:"size_bytes"`
-}
 
 func (s *Service) publishImageArtifact(ctx context.Context, data []byte, filename string, info imageInfo, retentionSeconds int) (publicartifacts.PublishResult, error) {
 	store := publicartifacts.New(s.cfg.AgentDockHome, s.cfg.OAuthServerURL, s.cfg.Port)
@@ -83,18 +73,9 @@ func imageMetadata(filename string, info imageInfo, size int) map[string]any {
 	}
 }
 
-func attachMCPImage(result Result, data []byte, published publicartifacts.PublishResult, mimeType string) {
-	name := published.Filename
-	if name == "" {
-		name = imageFilename("image", mimeType)
-	}
-	result[NativeImageAttachmentKey] = NativeImageAttachment{
-		Data:     append([]byte(nil), data...),
-		URI:      published.URL,
-		Name:     name,
-		MIMEType: mimeType,
-		Size:     len(data),
-	}
+func attachMCPImage(result Result, data []byte, mimeType string) {
+	result[NativeImageBase64Key] = base64.StdEncoding.EncodeToString(data)
+	result[NativeImageMIMETypeKey] = mimeType
 }
 
 func imageFilename(pathValue, mimeType string) string {
